@@ -146,6 +146,11 @@ body {
   color: var(--muted);
 }
 
+.form-stack > div {
+  display: grid;
+  gap: 6px;
+}
+
 .form-stack input,
 .form-stack select,
 .form-stack textarea {
@@ -163,6 +168,11 @@ body {
 .form-stack textarea:focus {
   outline: 2px solid rgba(37, 99, 235, 0.2);
   border-color: var(--primary);
+}
+
+.form-error {
+  color: #b42318;
+  font-size: 0.85rem;
 }
 
 .btn {
@@ -185,6 +195,31 @@ body {
   background: var(--primary-dark);
   box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
   transform: translateY(-1px);
+}
+
+.btn.btn-danger {
+  background: #dc2626;
+}
+
+.btn.btn-danger:hover {
+  background: #b91c1c;
+  box-shadow: 0 8px 16px rgba(220, 38, 38, 0.2);
+}
+
+.banner {
+  background: #ecfdf3;
+  border: 1px solid #86efac;
+  color: #166534;
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+
+.empty-state {
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  background: #f8fafc;
 }
 
 .table-wrapper {
@@ -216,6 +251,10 @@ body {
 
 .data-table tr:last-child td {
   border-bottom: none;
+}
+
+.table-actions form {
+  display: inline-flex;
 }
 
 .status-pill {
