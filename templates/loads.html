@@ -6,9 +6,84 @@
       <h2>Loads</h2>
       <p>Organize pickup and delivery schedules alongside rate data.</p>
     </div>
-    <article class="card placeholder-card">
-      <h3>Coming in Milestone 3</h3>
-      <p>Load builder workflows and pricing intelligence are on deck.</p>
+    <article class="card">
+      <h3>Build Loads</h3>
+      <p>Set a trailer capacity and create greedy loads from available order lines.</p>
+      {% if success_message %}
+        <p class="success-message">{{ success_message }}</p>
+      {% endif %}
+      <form method="post" class="form layout-grid">
+        <div class="form-field">
+          <label for="capacity_feet">Capacity (feet)</label>
+          <input
+            id="capacity_feet"
+            name="capacity_feet"
+            type="number"
+            min="1"
+            step="0.1"
+            value="{{ capacity_feet }}"
+            required
+          />
+          {% if errors.capacity_feet %}
+            <span class="form-error">{{ errors.capacity_feet }}</span>
+          {% endif %}
+        </div>
+        <div class="form-actions">
+          <button type="submit" formaction="{{ url_for('build_loads') }}" class="btn btn-primary">
+            Build Loads
+          </button>
+          <button type="submit" formaction="{{ url_for('clear_loads') }}" class="btn btn-secondary">
+            Clear Loads
+          </button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card">
+      <h3>Load Plan</h3>
+      {% if loads %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Load</th>
+              <th>Capacity (ft)</th>
+              <th>Total (ft)</th>
+              <th>Utilization</th>
+              <th>Lines</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for load in loads %}
+              <tr>
+                <td>#{{ load.id }}</td>
+                <td>{{ load.capacity_feet }}</td>
+                <td>{{ load.total_feet }}</td>
+                <td>
+                  {% if load.capacity_feet %}
+                    {{ ((load.total_feet / load.capacity_feet) * 100) | round(1) }}%
+                  {% else %}
+                    0%
+                  {% endif %}
+                </td>
+                <td>
+                  <ul class="line-list">
+                    {% for line in load.lines %}
+                      <li>
+                        <strong>{{ line.order_reference or "Line" }}</strong>
+                        {% if line.description %}- {{ line.description }}{% endif %}
+                        ({{ line.line_total_feet }} ft
+                        {% if line.due_date %}, due {{ line.due_date }}{% endif %})
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p>No loads built yet. Add order lines and build to see results.</p>
+      {% endif %}
     </article>
   </section>
 {% endblock %}

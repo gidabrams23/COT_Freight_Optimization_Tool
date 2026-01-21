@@ -1,6 +1,7 @@
 from flask import Flask, redirect, render_template, request, url_for
 
 import db
+from services import load_builder
 
 app = Flask(__name__)
 
@@ -70,7 +71,68 @@ def orders():
 
 @app.route("/loads")
 def loads():
-    return render_template("loads.html")
+    return render_template(
+        "loads.html",
+        loads=db.list_loads_with_lines(),
+        capacity_feet=53,
+        errors={},
+        success_message="",
+    )
+
+
+@app.route("/loads/build", methods=["POST"])
+def build_loads():
+    capacity_raw = request.form.get("capacity_feet", "").strip()
+    errors = {}
+    try:
+        capacity_feet = float(capacity_raw)
+        if capacity_feet <= 0:
+            raise ValueError
+    except ValueError:
+        errors["capacity_feet"] = "Capacity must be a positive number."
+        capacity_feet = 53
+
+    order_lines = db.list_order_lines()
+    if errors:
+        return render_template(
+            "loads.html",
+            loads=db.list_loads_with_lines(),
+            capacity_feet=capacity_feet,
+            errors=errors,
+            success_message="",
+        )
+
+    db.clear_loads()
+    loads_data = load_builder.build_loads(order_lines, capacity_feet)
+    db.insert_loads(loads_data)
+    return render_template(
+        "loads.html",
+        loads=db.list_loads_with_lines(),
+        capacity_feet=capacity_feet,
+        errors={},
+        success_message=(
+            f"Built {len(loads_data)} load(s) from {len(order_lines)} line(s)."
+        ),
+    )
+
+
+@app.route("/loads/clear", methods=["POST"])
+def clear_loads():
+    capacity_raw = request.form.get("capacity_feet", "").strip()
+    try:
+        capacity_feet = float(capacity_raw)
+        if capacity_feet <= 0:
+            raise ValueError
+    except ValueError:
+        capacity_feet = 53
+    db.clear_loads()
+    return render_template(
+        "loads.html",
+        loads=db.list_loads_with_lines(),
+        capacity_feet=capacity_feet,
+        errors={},
+        success_message="Cleared all loads.",
+    )
 
 
 @app.route("/dispatch")
