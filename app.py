@@ -1,6 +1,8 @@
 from flask import Flask, redirect, render_template, request, url_for
 
 import db
+from services import customers as customer_service
+from services import load_builder, orders as order_service
 
 app = Flask(__name__)
 
@@ -14,7 +16,7 @@ def index():
 
 @app.route("/customers", methods=["GET"])
 def customers():
-    customer_list = db.list_customers()
+    customer_list = customer_service.list_customers()
     return render_template(
         "customers.html",
         customers=customer_list,
@@ -26,51 +28,33 @@ def customers():
 
 @app.route("/customers/add", methods=["POST"])
 def add_customer():
-    name = request.form.get("name", "").strip()
-    zip_code = request.form.get("zip", "").strip()
-    notes = request.form.get("notes", "").strip()
-
-    errors = {}
-    if not name:
-        errors["name"] = "Name is required."
-    if not zip_code:
-        errors["zip"] = "ZIP is required."
-    elif not zip_code.isdigit() or len(zip_code) != 5:
-        errors["zip"] = "ZIP must be exactly 5 digits."
-
-    if errors:
-        return render_template(
-            "customers.html",
-            customers=db.list_customers(),
-            errors=errors,
-            form_data={"name": name, "zip": zip_code, "notes": notes},
-            success_message="",
-        )
-
-    db.add_customer(name=name, zip_code=zip_code, notes=notes or None)
+    result = customer_service.create_customer(request.form)
     return render_template(
         "customers.html",
-        customers=db.list_customers(),
-        errors={},
-        form_data={"name": "", "zip": "", "notes": ""},
-        success_message="Customer added successfully.",
+        customers=customer_service.list_customers(),
+        errors=result["errors"],
+        form_data=result["form_data"],
+        success_message=result["success_message"],
     )
 
 
 @app.route("/customers/delete/<int:customer_id>", methods=["POST"])
 def delete_customer(customer_id):
-    db.delete_customer(customer_id)
+    customer_service.delete_customer(customer_id)
     return redirect(url_for("customers"))
 
 
 @app.route("/orders")
 def orders():
-    return render_template("orders.html")
+    order_data = order_service.list_orders()
+    return render_template("orders.html", orders=order_data["orders"])
 
 
 @app.route("/loads")
 def loads():
-    return render_template("loads.html")
+    order_data = order_service.list_orders()
+    load_summary = load_builder.build_load_summary(order_data["orders"])
+    return render_template("loads.html", load_summary=load_summary)
 
 
 @app.route("/dispatch")
