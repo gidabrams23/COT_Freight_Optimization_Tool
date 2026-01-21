@@ -1,49 +1,107 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AppDev V2</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dispatch Sheet Generator (V1)</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background-color: #f6f7fb;
+        color: #1f2933;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      .layout {
+        display: flex;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        width: 240px;
+        background: #101828;
+        color: #f8fafc;
+        padding: 24px 20px;
+      }
+
+      .sidebar h1 {
+        font-size: 18px;
+        margin: 0 0 24px;
+        letter-spacing: 0.3px;
+      }
+
+      .nav {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .nav li {
+        margin-bottom: 12px;
+      }
+
+      .nav a {
+        color: #e2e8f0;
+        text-decoration: none;
+        font-weight: 600;
+        display: block;
+        padding: 8px 12px;
+        border-radius: 8px;
+      }
+
+      .nav a:hover {
+        background: rgba(148, 163, 184, 0.2);
+      }
+
+      .content {
+        flex: 1;
+        padding: 32px;
+      }
+
+      .content-header {
+        font-size: 28px;
+        margin: 0 0 24px;
+      }
+
+      .card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+        max-width: 520px;
+      }
+
+      .card h2 {
+        margin: 0 0 8px;
+        font-size: 20px;
+      }
+
+      .card p {
+        margin: 0;
+        color: #475569;
+      }
+    </style>
   </head>
   <body>
-    <header class="app-header">
-      <h1>Web Optimization Dashboard</h1>
-      <div class="header-actions">
-        <button class="btn">New Report</button>
-        <button class="btn secondary">Export</button>
-      </div>
-    </header>
-
-    <main class="layout">
+    <div class="layout">
       <aside class="sidebar">
-        <h2>Navigation</h2>
-        <ul>
-          <li>Overview</li>
-          <li>Performance</li>
-          <li>Accessibility</li>
-          <li>SEO</li>
-          <li>Reports</li>
-        </ul>
+        <h1>Dispatch Sheet Generator (V1)</h1>
+        <nav>
+          <ul class="nav">
+            <li><a href="/customers">Customers</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/loads">Loads</a></li>
+            <li><a href="/dispatch">Dispatch</a></li>
+          </ul>
+        </nav>
       </aside>
-
-      <section class="content">
-        <h2>Optimization Insights</h2>
-        <div class="card-grid">
-          <article class="card">
-            <h3>Core Web Vitals</h3>
-            <p>Track LCP, CLS, and INP to ensure lightning-fast experiences.</p>
-          </article>
-          <article class="card">
-            <h3>Resource Budget</h3>
-            <p>Stay within performance budgets with asset-level monitoring.</p>
-          </article>
-          <article class="card">
-            <h3>Experiment Log</h3>
-            <p>Compare improvements across optimization experiments.</p>
-          </article>
-        </div>
-      </section>
-    </main>
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
   </body>
 </html>
