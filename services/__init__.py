@@ -1,1 +1,1 @@
-"""Service layer package."""
+"""Service layer for app workflows."""

@@ -6,9 +6,129 @@
       <h2>Orders</h2>
       <p>Create and track load orders before assigning dispatch details.</p>
     </div>
-    <article class="card placeholder-card">
-      <h3>Coming in Milestone 2</h3>
-      <p>Order management tools and automated intake will arrive here.</p>
+    {% if success_message %}
+      <div class="card callout callout-success">
+        {{ success_message }}
+      </div>
+    {% endif %}
+
+    {% if not customers %}
+      <div class="card callout callout-warning">
+        <strong>No customers yet.</strong> Add a customer before creating order lines.
+        <a href="{{ url_for('customers') }}">Go to customers</a>
+      </div>
+    {% endif %}
+
+    <div class="card-grid">
+      <article class="card">
+        <h3>Add Order Line</h3>
+        <form class="form-stack" method="post" action="{{ url_for('add_order_line') }}">
+          <label for="customer_id">
+            Customer
+            <select id="customer_id" name="customer_id" {% if not customers %}disabled{% endif %}>
+              <option value="">Select a customer</option>
+              {% for customer in customers %}
+                <option value="{{ customer.id }}" {% if form_data.customer_id == customer.id|string %}selected{% endif %}>
+                  {{ customer.name }}
+                </option>
+              {% endfor %}
+            </select>
+            {% if errors.customer_id %}
+              <span class="form-error">{{ errors.customer_id }}</span>
+            {% endif %}
+          </label>
+
+          <label for="qty">
+            Quantity
+            <input id="qty" name="qty" type="number" min="1" value="{{ form_data.qty }}" {% if not customers %}disabled{% endif %}>
+            {% if errors.qty %}
+              <span class="form-error">{{ errors.qty }}</span>
+            {% endif %}
+          </label>
+
+          <label for="feet_per_unit">
+            Feet per Unit
+            <input id="feet_per_unit" name="feet_per_unit" type="number" min="0" step="0.01" value="{{ form_data.feet_per_unit }}" {% if not customers %}disabled{% endif %}>
+            {% if errors.feet_per_unit %}
+              <span class="form-error">{{ errors.feet_per_unit }}</span>
+            {% endif %}
+          </label>
+
+          <label for="due_date">
+            Due Date
+            <input id="due_date" name="due_date" type="date" value="{{ form_data.due_date }}" {% if not customers %}disabled{% endif %}>
+          </label>
+
+          <label for="notes">
+            Notes
+            <textarea id="notes" name="notes" rows="3" {% if not customers %}disabled{% endif %}>{{ form_data.notes }}</textarea>
+          </label>
+
+          <button class="btn" type="submit" {% if not customers %}disabled{% endif %}>Add Line</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <h3>Order Totals</h3>
+        <ul class="totals-list">
+          <li><span>Order lines</span><strong>{{ totals.total_lines }}</strong></li>
+          <li><span>Total quantity</span><strong>{{ totals.total_qty }}</strong></li>
+          <li>
+            <span>Total feet</span>
+            <strong>{{ "%.2f"|format(totals.total_feet) }}</strong>
+          </li>
+        </ul>
+      </article>
+    </div>
+
+    <article class="card">
+      <div class="card-header">
+        <div>
+          <h3>Order Lines</h3>
+          <p class="muted-text">Review pending order lines before assigning loads.</p>
+        </div>
+        <form method="post" action="{{ url_for('clear_order_lines') }}">
+          <button class="btn btn-secondary" type="submit">Clear all</button>
+        </form>
+      </div>
+      {% if order_lines %}
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Qty</th>
+                <th>Feet/Unit</th>
+                <th>Total Feet</th>
+                <th>Due Date</th>
+                <th>Notes</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in order_lines %}
+                <tr>
+                  <td>{{ line.customer_name }}</td>
+                  <td>{{ line.qty }}</td>
+                  <td>{{ "%.2f"|format(line.feet_per_unit) }}</td>
+                  <td>{{ "%.2f"|format(line.qty * line.feet_per_unit) }}</td>
+                  <td>{{ line.due_date or "—" }}</td>
+                  <td>{{ line.notes or "—" }}</td>
+                  <td>{{ line.created_at }}</td>
+                  <td>
+                    <form method="post" action="{{ url_for('delete_order_line', order_line_id=line.id) }}">
+                      <button class="btn btn-danger" type="submit">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">No order lines yet. Add one to start building loads.</div>
+      {% endif %}
     </article>
   </section>
 {% endblock %}

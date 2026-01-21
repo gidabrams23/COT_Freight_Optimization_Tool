@@ -26,37 +26,15 @@ def init_db():
         )
         connection.execute(
             """
-            CREATE TABLE IF NOT EXISTS order_lines (
+            CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY,
-                order_reference TEXT,
-                description TEXT,
-                due_date TEXT,
-                line_total_feet REAL NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS loads (
-                id INTEGER PRIMARY KEY,
-                capacity_feet REAL NOT NULL,
-                total_feet REAL NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS load_lines (
-                id INTEGER PRIMARY KEY,
-                load_id INTEGER NOT NULL,
-                order_line_id INTEGER NOT NULL,
-                line_total_feet REAL NOT NULL,
-                line_number INTEGER NOT NULL,
+                customer_id INTEGER,
+                origin TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                miles INTEGER NOT NULL,
+                rate_cents INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
-                FOREIGN KEY(load_id) REFERENCES loads(id),
-                FOREIGN KEY(order_line_id) REFERENCES order_lines(id)
+                FOREIGN KEY(customer_id) REFERENCES customers(id)
             )
             """
         )
@@ -90,97 +68,41 @@ def delete_customer(customer_id):
         connection.commit()
 
 
-def list_order_lines():
+def list_orders():
     with get_connection() as connection:
         rows = connection.execute(
             """
-            SELECT id,
-                   order_reference,
-                   description,
-                   due_date,
-                   line_total_feet,
-                   created_at
-            FROM order_lines
-            ORDER BY created_at ASC
+            SELECT
+                orders.id,
+                orders.customer_id,
+                customers.name AS customer_name,
+                orders.origin,
+                orders.destination,
+                orders.miles,
+                orders.rate_cents,
+                orders.created_at
+            FROM orders
+            LEFT JOIN customers ON customers.id = orders.customer_id
+            ORDER BY orders.id DESC
             """
         ).fetchall()
         return [dict(row) for row in rows]
 
 
-def clear_loads():
-    with get_connection() as connection:
-        connection.execute("DELETE FROM load_lines")
-        connection.execute("DELETE FROM loads")
-        connection.commit()
-
-
-def insert_loads(loads):
+def add_order(customer_id, origin, destination, miles, rate_cents):
     created_at = datetime.utcnow().isoformat(timespec="seconds")
     with get_connection() as connection:
-        for load in loads:
-            cursor = connection.execute(
-                """
-                INSERT INTO loads (capacity_feet, total_feet, created_at)
-                VALUES (?, ?, ?)
-                """,
-                (load["capacity_feet"], load["total_feet"], created_at),
-            )
-            load_id = cursor.lastrowid
-            for line_number, line in enumerate(load["lines"], start=1):
-                connection.execute(
-                    """
-                    INSERT INTO load_lines (
-                        load_id,
-                        order_line_id,
-                        line_total_feet,
-                        line_number,
-                        created_at
-                    )
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        load_id,
-                        line["id"],
-                        line["line_total_feet"],
-                        line_number,
-                        created_at,
-                    ),
-                )
+        connection.execute(
+            """
+            INSERT INTO orders (customer_id, origin, destination, miles, rate_cents, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (customer_id, origin, destination, miles, rate_cents, created_at),
+        )
         connection.commit()
 
 
-def list_loads_with_lines():
+def delete_order(order_id):
     with get_connection() as connection:
-        load_rows = connection.execute(
-            """
-            SELECT id, capacity_feet, total_feet, created_at
-            FROM loads
-            ORDER BY id ASC
-            """
-        ).fetchall()
-        loads = [
-            {**dict(load_row), "lines": []}
-            for load_row in load_rows
-        ]
-        if not loads:
-            return loads
-        load_map = {load["id"]: load for load in loads}
-        line_rows = connection.execute(
-            """
-            SELECT load_lines.load_id,
-                   load_lines.line_number,
-                   load_lines.line_total_feet,
-                   order_lines.order_reference,
-                   order_lines.description,
-                   order_lines.due_date
-            FROM load_lines
-            JOIN order_lines ON order_lines.id = load_lines.order_line_id
-            ORDER BY load_lines.load_id ASC, load_lines.line_number ASC
-            """
-        ).fetchall()
-        for row in line_rows:
-            line = dict(row)
-            load = load_map.get(line["load_id"])
-            if load is not None:
-                load["lines"].append(line)
-        return loads
+        connection.execute("DELETE FROM orders WHERE id = ?", (order_id,))
+        connection.commit()
