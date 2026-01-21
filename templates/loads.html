@@ -6,53 +6,84 @@
       <h2>Loads</h2>
       <p>Organize pickup and delivery schedules alongside rate data.</p>
     </div>
-
     <article class="card">
-      <h3>Build a Load</h3>
-      <form class="form-stack">
-        <label for="load-id">
-          Load ID
-          <input id="load-id" name="load-id" type="text" placeholder="e.g., LD-2207" disabled>
-        </label>
-        <label for="load-origin">
-          Origin
-          <input id="load-origin" name="load-origin" type="text" placeholder="City, ST" disabled>
-        </label>
-        <label for="load-destination">
-          Destination
-          <input id="load-destination" name="load-destination" type="text" placeholder="City, ST" disabled>
-        </label>
-        <label for="load-rate">
-          Linehaul rate
-          <input id="load-rate" name="load-rate" type="text" placeholder="$2,450" disabled>
-        </label>
-        <div>
-          <button class="btn" type="button" disabled>Create Load</button>
+      <h3>Build Loads</h3>
+      <p>Set a trailer capacity and create greedy loads from available order lines.</p>
+      {% if success_message %}
+        <p class="success-message">{{ success_message }}</p>
+      {% endif %}
+      <form method="post" class="form layout-grid">
+        <div class="form-field">
+          <label for="capacity_feet">Capacity (feet)</label>
+          <input
+            id="capacity_feet"
+            name="capacity_feet"
+            type="number"
+            min="1"
+            step="0.1"
+            value="{{ capacity_feet }}"
+            required
+          />
+          {% if errors.capacity_feet %}
+            <span class="form-error">{{ errors.capacity_feet }}</span>
+          {% endif %}
+        </div>
+        <div class="form-actions">
+          <button type="submit" formaction="{{ url_for('build_loads') }}" class="btn btn-primary">
+            Build Loads
+          </button>
+          <button type="submit" formaction="{{ url_for('clear_loads') }}" class="btn btn-secondary">
+            Clear Loads
+          </button>
         </div>
       </form>
-      <p class="helper-text">Load creation will unlock once order intake is live.</p>
     </article>
 
     <article class="card">
-      <h3>Upcoming Loads</h3>
-      <div class="table-wrapper">
+      <h3>Load Plan</h3>
+      {% if loads %}
         <table class="data-table">
           <thead>
             <tr>
               <th>Load</th>
-              <th>Origin</th>
-              <th>Destination</th>
-              <th>Rate</th>
-              <th>Status</th>
+              <th>Capacity (ft)</th>
+              <th>Total (ft)</th>
+              <th>Utilization</th>
+              <th>Lines</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colspan="5" class="empty-cell">No loads scheduled yet. Create an order to start planning.</td>
-            </tr>
+            {% for load in loads %}
+              <tr>
+                <td>#{{ load.id }}</td>
+                <td>{{ load.capacity_feet }}</td>
+                <td>{{ load.total_feet }}</td>
+                <td>
+                  {% if load.capacity_feet %}
+                    {{ ((load.total_feet / load.capacity_feet) * 100) | round(1) }}%
+                  {% else %}
+                    0%
+                  {% endif %}
+                </td>
+                <td>
+                  <ul class="line-list">
+                    {% for line in load.lines %}
+                      <li>
+                        <strong>{{ line.order_reference or "Line" }}</strong>
+                        {% if line.description %}- {{ line.description }}{% endif %}
+                        ({{ line.line_total_feet }} ft
+                        {% if line.due_date %}, due {{ line.due_date }}{% endif %})
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </td>
+              </tr>
+            {% endfor %}
           </tbody>
         </table>
-      </div>
+      {% else %}
+        <p>No loads built yet. Add order lines and build to see results.</p>
+      {% endif %}
     </article>
   </section>
 {% endblock %}

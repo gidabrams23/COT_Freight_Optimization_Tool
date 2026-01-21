@@ -4,36 +4,36 @@
   <section class="page-section">
     <div class="section-heading">
       <h2>Customers</h2>
-      <p>Maintain shipper and receiver contacts for faster order intake.</p>
+      <p>Manage customer profiles and notes for faster dispatch planning.</p>
     </div>
 
     {% if success_message %}
-      <div class="banner banner-success">{{ success_message }}</div>
+      <div class="banner">{{ success_message }}</div>
     {% endif %}
 
     <article class="card">
       <h3>Add Customer</h3>
       <form class="form-stack" method="post" action="{{ url_for('add_customer') }}">
-        <label for="name">
-          Name
+        <div>
+          <label for="name">Name</label>
           <input id="name" name="name" type="text" value="{{ form_data.name }}" required>
-        </label>
-        {% if errors.name %}
-          <div class="form-error">{{ errors.name }}</div>
-        {% endif %}
+          {% if errors.name %}
+            <span class="form-error">{{ errors.name }}</span>
+          {% endif %}
+        </div>
 
-        <label for="zip">
-          ZIP
+        <div>
+          <label for="zip">ZIP</label>
           <input id="zip" name="zip" type="text" value="{{ form_data.zip }}" required>
-        </label>
-        {% if errors.zip %}
-          <div class="form-error">{{ errors.zip }}</div>
-        {% endif %}
+          {% if errors.zip %}
+            <span class="form-error">{{ errors.zip }}</span>
+          {% endif %}
+        </div>
 
-        <label for="notes">
-          Notes
+        <div>
+          <label for="notes">Notes</label>
           <textarea id="notes" name="notes" rows="3">{{ form_data.notes }}</textarea>
-        </label>
+        </div>
 
         <div>
           <button class="btn" type="submit">Add Customer</button>
@@ -62,7 +62,7 @@
                   <td>{{ customer.zip }}</td>
                   <td>{{ customer.notes or '' }}</td>
                   <td>{{ customer.created_at }}</td>
-                  <td>
+                  <td class="table-actions">
                     <form method="post" action="{{ url_for('delete_customer', customer_id=customer.id) }}">
                       <button class="btn btn-danger" type="submit">Delete</button>
                     </form>

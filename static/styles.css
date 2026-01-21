@@ -134,6 +134,77 @@ body {
   max-width: 540px;
 }
 
+.layout-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+
+.form-field label {
+  display: block;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.2);
+  border-color: var(--primary);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.form-error {
+  color: #dc2626;
+  font-size: 0.85rem;
+}
+
+.success-message {
+  color: #047857;
+  font-weight: 600;
+}
+
+.btn-secondary {
+  background: #e2e8f0;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: #cbd5f5;
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.line-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
 .form-stack {
   display: grid;
   gap: 12px;
@@ -144,6 +215,11 @@ body {
   gap: 6px;
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+.form-stack > div {
+  display: grid;
+  gap: 6px;
 }
 
 .form-stack input,
@@ -168,13 +244,6 @@ body {
 .form-error {
   color: #b42318;
   font-size: 0.85rem;
-  margin-top: -4px;
-}
-
-.helper-text {
-  margin: 16px 0 0;
-  color: var(--muted);
-  font-size: 0.9rem;
 }
 
 .btn {
@@ -199,32 +268,29 @@ body {
   transform: translateY(-1px);
 }
 
-.btn:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
-.btn-danger {
+.btn.btn-danger {
   background: #dc2626;
 }
 
-.btn-danger:hover {
+.btn.btn-danger:hover {
   background: #b91c1c;
-  box-shadow: 0 8px 16px rgba(185, 28, 28, 0.2);
+  box-shadow: 0 8px 16px rgba(220, 38, 38, 0.2);
 }
 
 .banner {
-  padding: 14px 16px;
+  background: #ecfdf3;
+  border: 1px solid #86efac;
+  color: #166534;
+  padding: 12px 16px;
   border-radius: 12px;
-  font-weight: 600;
 }
 
-.banner-success {
-  background: #ecfdf3;
-  border: 1px solid #a6f4c5;
-  color: #027a48;
+.empty-state {
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  background: #f8fafc;
 }
 
 .table-wrapper {
@@ -258,18 +324,8 @@ body {
   border-bottom: none;
 }
 
-.empty-state {
-  padding: 18px;
-  border-radius: 12px;
-  border: 1px dashed var(--border);
-  background: #f8fafc;
-  color: var(--muted);
-}
-
-.empty-cell {
-  padding: 18px 14px;
-  color: var(--muted);
-  font-style: italic;
+.table-actions form {
+  display: inline-flex;
 }
 
 .status-pill {

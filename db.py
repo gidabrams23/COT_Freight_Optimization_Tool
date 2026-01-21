@@ -24,6 +24,20 @@ def init_db():
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY,
+                customer_id INTEGER,
+                origin TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                miles INTEGER NOT NULL,
+                rate_cents INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(customer_id) REFERENCES customers(id)
+            )
+            """
+        )
         connection.commit()
 
 
@@ -51,4 +65,44 @@ def add_customer(name, zip_code, notes):
 def delete_customer(customer_id):
     with get_connection() as connection:
         connection.execute("DELETE FROM customers WHERE id = ?", (customer_id,))
+        connection.commit()
+
+
+def list_orders():
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                orders.id,
+                orders.customer_id,
+                customers.name AS customer_name,
+                orders.origin,
+                orders.destination,
+                orders.miles,
+                orders.rate_cents,
+                orders.created_at
+            FROM orders
+            LEFT JOIN customers ON customers.id = orders.customer_id
+            ORDER BY orders.id DESC
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def add_order(customer_id, origin, destination, miles, rate_cents):
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO orders (customer_id, origin, destination, miles, rate_cents, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (customer_id, origin, destination, miles, rate_cents, created_at),
+        )
+        connection.commit()
+
+
+def delete_order(order_id):
+    with get_connection() as connection:
+        connection.execute("DELETE FROM orders WHERE id = ?", (order_id,))
         connection.commit()
