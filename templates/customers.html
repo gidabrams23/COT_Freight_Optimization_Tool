@@ -1,137 +1,80 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Customers</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 24px;
-        }
-        .card {
-            border: 1px solid #d0d0d0;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 24px;
-        }
-        .banner {
-            background: #e6ffed;
-            border: 1px solid #92d29b;
-            color: #1f5f2c;
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 16px;
-        }
-        .error {
-            color: #b42318;
-            font-size: 0.9rem;
-        }
-        label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: bold;
-        }
-        input, textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #c7c7c7;
-            border-radius: 4px;
-            margin-bottom: 8px;
-            box-sizing: border-box;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            text-align: left;
-            padding: 10px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        .actions form {
-            display: inline;
-        }
-        button {
-            background: #1f6feb;
-            border: none;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button.delete {
-            background: #d32f2f;
-        }
-        .empty-state {
-            padding: 16px;
-            border: 1px dashed #c7c7c7;
-            border-radius: 6px;
-            color: #555;
-            background: #fafafa;
-        }
-    </style>
-</head>
-<body>
-    <h1>Customers</h1>
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-heading">
+      <h2>Customers</h2>
+      <p>Manage customer profiles and notes for faster dispatch planning.</p>
+    </div>
 
     {% if success_message %}
-        <div class="banner">{{ success_message }}</div>
+      <div class="banner">{{ success_message }}</div>
     {% endif %}
 
-    <section class="card">
-        <h2>Add Customer</h2>
-        <form method="post" action="{{ url_for('add_customer') }}">
-            <label for="name">Name</label>
-            <input id="name" name="name" type="text" value="{{ form_data.name }}" required>
-            {% if errors.name %}
-                <div class="error">{{ errors.name }}</div>
-            {% endif %}
+    <article class="card">
+      <h3>Add Customer</h3>
+      <form class="form-stack" method="post" action="{{ url_for('add_customer') }}">
+        <div>
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" value="{{ form_data.name }}" required>
+          {% if errors.name %}
+            <span class="form-error">{{ errors.name }}</span>
+          {% endif %}
+        </div>
 
-            <label for="zip">ZIP</label>
-            <input id="zip" name="zip" type="text" value="{{ form_data.zip }}" required>
-            {% if errors.zip %}
-                <div class="error">{{ errors.zip }}</div>
-            {% endif %}
+        <div>
+          <label for="zip">ZIP</label>
+          <input id="zip" name="zip" type="text" value="{{ form_data.zip }}" required>
+          {% if errors.zip %}
+            <span class="form-error">{{ errors.zip }}</span>
+          {% endif %}
+        </div>
 
-            <label for="notes">Notes</label>
-            <textarea id="notes" name="notes" rows="3">{{ form_data.notes }}</textarea>
+        <div>
+          <label for="notes">Notes</label>
+          <textarea id="notes" name="notes" rows="3">{{ form_data.notes }}</textarea>
+        </div>
 
-            <button type="submit">Add Customer</button>
-        </form>
-    </section>
+        <div>
+          <button class="btn" type="submit">Add Customer</button>
+        </div>
+      </form>
+    </article>
 
-    <section>
-        <h2>Customer List</h2>
-        {% if customers %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>ZIP</th>
-                        <th>Notes</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for customer in customers %}
-                        <tr>
-                            <td>{{ customer.name }}</td>
-                            <td>{{ customer.zip }}</td>
-                            <td>{{ customer.notes or '' }}</td>
-                            <td>{{ customer.created_at }}</td>
-                            <td class="actions">
-                                <form method="post" action="{{ url_for('delete_customer', customer_id=customer.id) }}">
-                                    <button class="delete" type="submit">Delete</button>
-                                </form>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <div class="empty-state">No customers yet. Add your first customer to get started.</div>
-        {% endif %}
-    </section>
-</body>
-</html>
+    <article class="card">
+      <h3>Customer List</h3>
+      {% if customers %}
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>ZIP</th>
+                <th>Notes</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for customer in customers %}
+                <tr>
+                  <td>{{ customer.name }}</td>
+                  <td>{{ customer.zip }}</td>
+                  <td>{{ customer.notes or '' }}</td>
+                  <td>{{ customer.created_at }}</td>
+                  <td class="table-actions">
+                    <form method="post" action="{{ url_for('delete_customer', customer_id=customer.id) }}">
+                      <button class="btn btn-danger" type="submit">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">No customers yet. Add your first customer to get started.</div>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}
