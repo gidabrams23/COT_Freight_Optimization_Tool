@@ -165,6 +165,18 @@ body {
   border-color: var(--primary);
 }
 
+.form-error {
+  color: #b42318;
+  font-size: 0.85rem;
+  margin-top: -4px;
+}
+
+.helper-text {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -185,6 +197,34 @@ body {
   background: var(--primary-dark);
   box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
   transform: translateY(-1px);
+}
+
+.btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-danger {
+  background: #dc2626;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+  box-shadow: 0 8px 16px rgba(185, 28, 28, 0.2);
+}
+
+.banner {
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.banner-success {
+  background: #ecfdf3;
+  border: 1px solid #a6f4c5;
+  color: #027a48;
 }
 
 .table-wrapper {
@@ -216,6 +256,20 @@ body {
 
 .data-table tr:last-child td {
   border-bottom: none;
+}
+
+.empty-state {
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: #f8fafc;
+  color: var(--muted);
+}
+
+.empty-cell {
+  padding: 18px 14px;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .status-pill {

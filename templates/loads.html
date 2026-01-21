@@ -6,9 +6,53 @@
       <h2>Loads</h2>
       <p>Organize pickup and delivery schedules alongside rate data.</p>
     </div>
-    <article class="card placeholder-card">
-      <h3>Coming in Milestone 3</h3>
-      <p>Load builder workflows and pricing intelligence are on deck.</p>
+
+    <article class="card">
+      <h3>Build a Load</h3>
+      <form class="form-stack">
+        <label for="load-id">
+          Load ID
+          <input id="load-id" name="load-id" type="text" placeholder="e.g., LD-2207" disabled>
+        </label>
+        <label for="load-origin">
+          Origin
+          <input id="load-origin" name="load-origin" type="text" placeholder="City, ST" disabled>
+        </label>
+        <label for="load-destination">
+          Destination
+          <input id="load-destination" name="load-destination" type="text" placeholder="City, ST" disabled>
+        </label>
+        <label for="load-rate">
+          Linehaul rate
+          <input id="load-rate" name="load-rate" type="text" placeholder="$2,450" disabled>
+        </label>
+        <div>
+          <button class="btn" type="button" disabled>Create Load</button>
+        </div>
+      </form>
+      <p class="helper-text">Load creation will unlock once order intake is live.</p>
+    </article>
+
+    <article class="card">
+      <h3>Upcoming Loads</h3>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Load</th>
+              <th>Origin</th>
+              <th>Destination</th>
+              <th>Rate</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="5" class="empty-cell">No loads scheduled yet. Create an order to start planning.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </article>
   </section>
 {% endblock %}
