@@ -1,11 +1,58 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Customers</title>
-</head>
-<body>
-    <h1>Customers</h1>
-    <p>Welcome to the customers page.</p>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-heading">
+      <h2>Customers</h2>
+      <p>Manage shipper and receiver contacts tied to your dispatch sheets.</p>
+    </div>
+    <div class="card-grid">
+      <article class="card">
+        <h3>Add new customer</h3>
+        <p>Capture customer details so dispatch runs stay consistent.</p>
+        <form class="form-stack">
+          <label>
+            Name
+            <input type="text" placeholder="Acme Logistics" />
+          </label>
+          <label>
+            Email
+            <input type="email" placeholder="dispatch@acme.com" />
+          </label>
+          <label>
+            Phone
+            <input type="tel" placeholder="(555) 123-4567" />
+          </label>
+          <button class="btn" type="button">Save customer</button>
+        </form>
+      </article>
+      <article class="card">
+        <h3>Saved customers</h3>
+        <p>Preview the most recent shippers added to the system.</p>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Primary Contact</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Atlas Freight Co.</td>
+                <td>dispatch@atlas.com</td>
+                <td><span class="status-pill">Active</span></td>
+              </tr>
+              <tr>
+                <td>Blue Ridge Supply</td>
+                <td>ops@blueridge.com</td>
+                <td><span class="status-pill muted">Pending</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

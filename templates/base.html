@@ -4,87 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dispatch Sheet Generator (V1)</title>
-    <style>
-      :root {
-        color-scheme: light;
-        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-        background-color: #f6f7fb;
-        color: #1f2933;
-      }
-
-      body {
-        margin: 0;
-      }
-
-      .layout {
-        display: flex;
-        min-height: 100vh;
-      }
-
-      .sidebar {
-        width: 240px;
-        background: #101828;
-        color: #f8fafc;
-        padding: 24px 20px;
-      }
-
-      .sidebar h1 {
-        font-size: 18px;
-        margin: 0 0 24px;
-        letter-spacing: 0.3px;
-      }
-
-      .nav {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-
-      .nav li {
-        margin-bottom: 12px;
-      }
-
-      .nav a {
-        color: #e2e8f0;
-        text-decoration: none;
-        font-weight: 600;
-        display: block;
-        padding: 8px 12px;
-        border-radius: 8px;
-      }
-
-      .nav a:hover {
-        background: rgba(148, 163, 184, 0.2);
-      }
-
-      .content {
-        flex: 1;
-        padding: 32px;
-      }
-
-      .content-header {
-        font-size: 28px;
-        margin: 0 0 24px;
-      }
-
-      .card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
-        max-width: 520px;
-      }
-
-      .card h2 {
-        margin: 0 0 8px;
-        font-size: 20px;
-      }
-
-      .card p {
-        margin: 0;
-        color: #475569;
-      }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
   <body>
     <div class="layout">
@@ -92,14 +12,25 @@
         <h1>Dispatch Sheet Generator (V1)</h1>
         <nav>
           <ul class="nav">
-            <li><a href="/customers">Customers</a></li>
-            <li><a href="/orders">Orders</a></li>
-            <li><a href="/loads">Loads</a></li>
-            <li><a href="/dispatch">Dispatch</a></li>
+            <li>
+              <a class="nav-link{% if request.path == '/customers' or active_page == 'customers' %} is-active{% endif %}" href="/customers">Customers</a>
+            </li>
+            <li>
+              <a class="nav-link{% if request.path == '/orders' or active_page == 'orders' %} is-active{% endif %}" href="/orders">Orders</a>
+            </li>
+            <li>
+              <a class="nav-link{% if request.path == '/loads' or active_page == 'loads' %} is-active{% endif %}" href="/loads">Loads</a>
+            </li>
+            <li>
+              <a class="nav-link{% if request.path == '/dispatch' or active_page == 'dispatch' %} is-active{% endif %}" href="/dispatch">Dispatch</a>
+            </li>
           </ul>
         </nav>
       </aside>
       <main class="content">
+        <header class="page-header">
+          <h1>Dispatch Sheet Generator (V1)</h1>
+        </header>
         {% block content %}{% endblock %}
       </main>
     </div>
