@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="settings-page">
+    <header class="settings-header">
+      <div class="settings-title">
+        <h1>Access Profiles</h1>
+        <p class="muted">Switch planning focus by profile. Admin can create new profiles and plant scopes.</p>
+      </div>
+    </header>
+
+    {% if error %}
+      <div class="alert-message warning">{{ error }}</div>
+    {% endif %}
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>{% if edit_profile %}Edit Profile{% else %}Create Profile{% endif %}</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form method="post" class="filters" id="profile-create-form">
+          <input type="hidden" name="action" value="{% if edit_profile %}update{% else %}create{% endif %}">
+          {% if edit_profile %}
+            <input type="hidden" name="profile_id" value="{{ edit_profile.id }}">
+          {% endif %}
+          <label>
+            Name
+            <input type="text" name="name" placeholder="e.g., Sam" value="{{ edit_profile.name if edit_profile else '' }}" required>
+          </label>
+          <label class="plant-checkbox" style="margin-top: 10px;">
+            <input type="checkbox" name="is_admin" {% if edit_profile and edit_profile.is_admin %}checked{% endif %}>
+            <span>Admin (all plants)</span>
+          </label>
+
+          <div class="section-divider" style="margin: 14px 0;"></div>
+
+          <div>
+            <div class="session-label">Allowed Plants</div>
+            <div class="plant-options">
+              {% for plant in plants %}
+                <label class="plant-checkbox">
+                  <input
+                    type="checkbox"
+                    name="allowed_plants"
+                    value="{{ plant }}"
+                    {% if not edit_profile or plant in edit_allowed %}checked{% endif %}
+                  >
+                  <span>{{ plant }} - {{ plant_names.get(plant, plant) }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div>
+            <div class="session-label">Default Focus Plants (optional)</div>
+            <p class="muted" style="margin: 6px 0 10px;">Leave blank to default to all allowed plants.</p>
+            <div class="plant-options">
+              {% for plant in plants %}
+                <label class="plant-checkbox">
+                  <input
+                    type="checkbox"
+                    name="default_plants"
+                    value="{{ plant }}"
+                    {% if edit_profile and plant in edit_defaults %}checked{% endif %}
+                  >
+                  <span>{{ plant }} - {{ plant_names.get(plant, plant) }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn-success" type="submit">{% if edit_profile %}Save Changes{% else %}Create Profile{% endif %}</button>
+            {% if edit_profile %}
+              <a class="btn-secondary" href="{{ url_for('access_manage') }}">Cancel</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card-widget" style="margin-top: 14px;">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Existing Profiles</h3>
+          <span class="meta-chip">{{ profiles | length }} total</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        {% if profiles %}
+          <div class="table-container">
+            <table class="settings-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Admin</th>
+                  <th>Allowed Plants</th>
+                  <th>Default Plants</th>
+                  <th></th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for profile in profiles %}
+                  <tr>
+                    <td><strong>{{ profile.name }}</strong></td>
+                    <td>{{ 'Yes' if profile.is_admin else 'No' }}</td>
+                    <td>{{ profile.allowed_plants or 'ALL' }}</td>
+                    <td>{{ profile.default_plants or 'ALL' }}</td>
+                    <td style="white-space: nowrap;">
+                      <a class="btn-ghost btn-xs" href="{{ url_for('access_manage', edit_id=profile.id) }}">Edit</a>
+                      <form method="post" action="{{ url_for('access_delete') }}" style="display:inline;" onsubmit="return confirm('Delete this profile?');">
+                        <input type="hidden" name="profile_id" value="{{ profile.id }}">
+                        <button class="btn-danger btn-xs" type="submit">Delete</button>
+                      </form>
+                    </td>
+                    <td>{{ profile.created_at }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state">No profiles found.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById('profile-create-form');
+      const adminToggle = form ? form.querySelector('input[name=\"is_admin\"]') : null;
+      const allowed = form ? form.querySelectorAll('input[name=\"allowed_plants\"]') : [];
+      const defaults = form ? form.querySelectorAll('input[name=\"default_plants\"]') : [];
+
+      function syncAdmin() {
+        if (!adminToggle) return;
+        const admin = adminToggle.checked;
+        allowed.forEach((el) => { el.disabled = admin; });
+        defaults.forEach((el) => { el.disabled = admin; });
+      }
+      if (adminToggle) {
+        adminToggle.addEventListener('change', syncAdmin);
+        syncAdmin();
+      }
+    </script>
+  </section>
+{% endblock %}

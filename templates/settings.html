@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="settings-page">
+    <div class="page-header">
+      <div>
+        <h1>Settings</h1>
+        <p>Manage rates, SKUs, lookups, and plant locations.</p>
+      </div>
+    </div>
+    {% if not is_admin %}
+      <div class="alert-message warning">Read-only access for Planner role.</div>
+    {% endif %}
+
+    <div class="settings-tabs">
+      <a class="settings-tab{% if tab == 'rates' %} active{% endif %}" href="{{ url_for('settings', tab='rates') }}">
+        <span class="material-symbols-outlined">payments</span>
+        Rates
+      </a>
+      <a class="settings-tab{% if tab == 'skus' %} active{% endif %}" href="{{ url_for('settings', tab='skus') }}">
+        <span class="material-symbols-outlined">barcode</span>
+        SKUs
+      </a>
+      <a class="settings-tab{% if tab == 'lookups' %} active{% endif %}" href="{{ url_for('settings', tab='lookups') }}">
+        <span class="material-symbols-outlined">schema</span>
+        Lookups
+      </a>
+      <a class="settings-tab{% if tab == 'plants' %} active{% endif %}" href="{{ url_for('settings', tab='plants') }}">
+        <span class="material-symbols-outlined">factory</span>
+        Plants
+      </a>
+      <a class="settings-tab{% if tab == 'planning_tools' %} active{% endif %}" href="{{ url_for('settings', tab='planning_tools') }}">
+        <span class="material-symbols-outlined">build</span>
+        Planning Tools
+      </a>
+    </div>
+
+    <div class="settings-content">
+      {% if tab == 'rates' %}
+        <div class="content-block">
+          <div class="content-header">
+            <div>
+              <h2>Freight Rates</h2>
+              <p class="muted">Matrix view by origin plant and destination state.</p>
+            </div>
+            <div class="rates-toolbar">
+              <div class="search-field">
+                <span class="material-symbols-outlined">search</span>
+                <input id="rate-search" type="text" placeholder="Search by plant or destination..." />
+              </div>
+              <button class="btn-ghost" type="button">Filter</button>
+            </div>
+          </div>
+          <div class="rate-assumptions">
+            <div class="assumption-card">
+              <span class="meta-label">Stop Fee</span>
+              <span class="assumption-value">$55</span>
+              <span class="assumption-note">Applied per stop</span>
+            </div>
+            <div class="assumption-card">
+              <span class="meta-label">Load Minimum</span>
+              <span class="assumption-value">$800</span>
+              <span class="assumption-note">Applied per load</span>
+            </div>
+          </div>
+          {% if not is_admin %}
+            <div class="readonly-note">Rates are read-only for planners.</div>
+          {% endif %}
+
+          {% if rate_states %}
+            <div class="table-container">
+              <table class="settings-table rates-matrix" id="rates-matrix">
+                <thead>
+                  <tr>
+                    <th>Destination</th>
+                    {% for plant in rate_plants %}
+                      <th>{{ plant }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for state in rate_states %}
+                    <tr>
+                      <td class="matrix-label">{{ state }}</td>
+                      {% for plant in rate_plants %}
+                        {% set rate = rate_matrix[state][plant] %}
+                        {% set rate_value = ('%.2f' | format(rate.rate_per_mile)) if rate and rate.rate_per_mile is not none else '' %}
+                        <td class="rate-cell"
+                            data-origin-plant="{{ plant }}"
+                            data-destination-state="{{ state }}"
+                            data-rate-id="{{ rate.id if rate }}"
+                            data-effective-year="{{ rate.effective_year if rate }}">
+                          {% if is_admin %}
+                            <div class="rate-input-wrap">
+                              <span class="currency-prefix">$</span>
+                              <input class="table-input rate-input"
+                                     type="number"
+                                     step="0.01"
+                                     value="{{ rate_value }}"
+                                     placeholder="--" />
+                            </div>
+                          {% else %}
+                            <span class="rate-display">
+                              {% if rate %}${{ rate_value }}{% else %}-{% endif %}
+                            </span>
+                          {% endif %}
+                        </td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p>No rates yet.</p>
+          {% endif %}
+          <div class="form-status" id="rates-status"></div>
+        </div>
+      {% elif tab == 'skus' %}
+        <div class="content-block">
+          <div class="content-header">
+            <h2>SKU Specifications</h2>
+          </div>
+          {% if is_admin %}
+            <form class="form-grid" method="post" action="{{ url_for('add_sku') }}">
+              <label>SKU<input name="sku" type="text" required></label>
+              <label>Category<input name="category" type="text" required></label>
+              <label>Length w/ Tongue (ft)<input name="length_with_tongue_ft" type="number" step="0.1" required></label>
+              <label>Max Stack Step Deck<input name="max_stack_step_deck" type="number" min="1" value="1" required></label>
+              <label>Max Stack Flat Bed<input name="max_stack_flat_bed" type="number" min="1" value="1" required></label>
+              <label>Notes<input name="notes" type="text"></label>
+              <div class="form-actions">
+                <button class="btn-primary" type="submit">Save SKU</button>
+              </div>
+            </form>
+          {% else %}
+            <div class="readonly-note">SKU specifications are read-only for planners.</div>
+          {% endif %}
+
+          {% if specs %}
+            <div class="table-container">
+              <table class="settings-table inline-edit-table" id="sku-table" data-save="/skus/save">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Length (ft)</th>
+                    <th>Step Deck</th>
+                    <th>Flat Bed</th>
+                    <th>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for spec in specs %}
+                    <tr data-id="{{ spec.id }}">
+                      <td>
+                        <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        {% if is_admin %}
+                          <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
+                            <button class="btn-danger" type="submit">Delete</button>
+                          </form>
+                        {% else %}
+                          <span class="muted">Read-only</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p>No SKU specs yet.</p>
+          {% endif %}
+        </div>
+      {% elif tab == 'lookups' %}
+        <div class="content-block">
+          <div class="content-header">
+            <h2>Item Lookup Rules</h2>
+          </div>
+          {% if is_admin %}
+            <form class="form-grid" method="post" action="{{ url_for('add_lookup') }}">
+              <label>Plant<input name="plant" type="text" required></label>
+              <label>BIN<input name="bin" type="text" required></label>
+              <label>Item Pattern<input name="item_pattern" type="text" placeholder="4X6CG%"></label>
+              <label>
+                SKU
+                <select name="sku" required>
+                  {% for spec in specs %}
+                    <option value="{{ spec.sku }}">{{ spec.sku }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <div class="form-actions">
+                <button class="btn-primary" type="submit">Save Rule</button>
+              </div>
+            </form>
+          {% else %}
+            <div class="readonly-note">Lookup rules are read-only for planners.</div>
+          {% endif %}
+
+          {% if lookups %}
+            <div class="table-container">
+              <table class="settings-table inline-edit-table" id="lookup-table" data-save="/lookups/save">
+                <thead>
+                  <tr>
+                    <th>Plant</th>
+                    <th>BIN</th>
+                    <th>Item Pattern</th>
+                    <th>SKU</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for lookup in lookups %}
+                    <tr data-id="{{ lookup.id }}">
+                      <td>
+                        <input class="table-input" data-field="plant" value="{{ lookup.plant }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="bin" value="{{ lookup.bin }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="item_pattern" value="{{ lookup.item_pattern or '' }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input"
+                               data-field="sku"
+                               list="sku-options"
+                               value="{{ lookup.sku }}"
+                               {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        {% if is_admin %}
+                          <form method="post" action="{{ url_for('delete_lookup', entry_id=lookup.id) }}">
+                            <button class="btn-danger" type="submit">Delete</button>
+                          </form>
+                        {% else %}
+                          <span class="muted">Read-only</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <datalist id="sku-options">
+              {% for spec in specs %}
+                <option value="{{ spec.sku }}"></option>
+              {% endfor %}
+            </datalist>
+          {% else %}
+            <p>No lookup rules yet.</p>
+          {% endif %}
+        </div>
+      {% elif tab == 'plants' %}
+        <div class="content-block">
+          <div class="content-header">
+            <h2>Plant Locations</h2>
+          </div>
+          <div class="table-container">
+            <table class="settings-table inline-edit-table" id="plants-table" data-save="/plants/save">
+              <thead>
+                <tr>
+                  <th>Plant Code</th>
+                  <th>Name</th>
+                  <th>Latitude</th>
+                  <th>Longitude</th>
+                  <th>Address</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for plant in plants_data %}
+                  <tr data-id="{{ plant.id }}">
+                    <td>
+                      <input class="table-input" data-field="plant_code" value="{{ plant.plant_code }}" {% if not is_admin %}disabled{% endif %}>
+                    </td>
+                    <td>
+                      <input class="table-input" data-field="name" value="{{ plant.name }}" {% if not is_admin %}disabled{% endif %}>
+                    </td>
+                    <td>
+                      <input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ plant.lat }}" {% if not is_admin %}disabled{% endif %}>
+                    </td>
+                    <td>
+                      <input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ plant.lng }}" {% if not is_admin %}disabled{% endif %}>
+                    </td>
+                    <td>
+                      <input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not is_admin %}disabled{% endif %}>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% elif tab == 'planning_tools' %}
+        <div class="content-block">
+          <div class="content-header">
+            <div>
+              <h2>Planning Tools</h2>
+              <p class="muted">Inputs that shape how planning is prioritized.</p>
+            </div>
+          </div>
+
+          <div class="card-widget compact">
+            <div class="panel-header">
+              <div class="panel-title">
+                <h3>Strategic Customers</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p class="muted">Strategic customers appear at the top of the Orders grid (first 15 shown, expandable).</p>
+              <p class="muted">Format: one per line. Use <code>Label|PATTERN1,PATTERN2</code> (case-insensitive substring matches).</p>
+              <form class="form-grid" method="post" action="{{ url_for('save_planning_tools') }}">
+                <label style="grid-column: 1 / -1;">
+                  Definitions
+                  <textarea name="strategic_customers" rows="6" {% if not is_admin %}disabled{% endif %}>{{ strategic_customers_raw or '' }}</textarea>
+                </label>
+                <div class="form-actions" style="grid-column: 1 / -1;">
+                  {% if is_admin %}
+                    <button class="btn-success" type="submit">Save</button>
+                  {% else %}
+                    <div class="readonly-note">Planning tools are read-only for planners.</div>
+                  {% endif %}
+                </div>
+              </form>
+
+              {% if strategic_customers and strategic_customers | length %}
+                <div class="section-divider"></div>
+                <div class="meta-label">Preview</div>
+                <div style="display:grid; gap: 6px; margin-top: 8px;">
+                  {% for entry in strategic_customers %}
+                    <div class="meta-chip"><strong>{{ entry.label }}</strong> — {{ entry.patterns | join(', ') }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="card-widget compact">
+            <div class="panel-header">
+              <div class="panel-title">
+                <h3>Optimizer Defaults</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p class="muted">These defaults are used when generating draft loads.</p>
+              <div class="table-container">
+                <table class="settings-table">
+                  <thead>
+                    <tr>
+                      <th>Parameter</th>
+                      <th>Default</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Trailer Type</td>
+                      <td>{{ optimizer_defaults.trailer_type or 'STEP_DECK' }}</td>
+                      <td>Trailer profile used for stacking + capacity.</td>
+                    </tr>
+                    <tr>
+                      <td>Capacity (ft)</td>
+                      <td>{{ optimizer_defaults.capacity_feet or 53 }}</td>
+                      <td>Target trailer length capacity used for utilization.</td>
+                    </tr>
+                    <tr>
+                      <td>Time Window (days)</td>
+                      <td>{{ optimizer_defaults.time_window_days or 7 }}</td>
+                      <td>Orders may be batched up to this many days early.</td>
+                    </tr>
+                    <tr>
+                      <td>Geo Radius (mi)</td>
+                      <td>{{ optimizer_defaults.geo_radius or 100 }}</td>
+                      <td>Controls geographic clustering of stops.</td>
+                    </tr>
+                    <tr>
+                      <td>Max Detour (%)</td>
+                      <td>{{ optimizer_defaults.max_detour_pct or 15 }}</td>
+                      <td>Limit used when evaluating route compatibility.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-widget compact">
+            <div class="panel-header">
+              <div class="panel-title">
+                <h3>Utilization Grade Thresholds</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p class="muted">Load grades are based on trailer utilization percent.</p>
+              <div class="table-container">
+                <table class="settings-table">
+                  <thead>
+                    <tr>
+                      <th>Grade</th>
+                      <th>Threshold</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in util_grade_thresholds %}
+                      <tr>
+                        <td><span class="badge badge-grade util-{{ row.grade | lower }}">Grade {{ row.grade }}</span></td>
+                        <td>{{ row.label }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+  {% if is_admin %}
+    <script>
+      (function () {
+        const tab = "{{ tab }}";
+
+        function parseValue(value, type) {
+          if (type === 'int') {
+            const parsed = parseInt(value, 10);
+            return Number.isNaN(parsed) ? 0 : parsed;
+          }
+          if (type === 'float') {
+            const parsed = parseFloat(value);
+            return Number.isNaN(parsed) ? 0 : parsed;
+          }
+          return value;
+        }
+
+        function attachInlineSaver(tableId) {
+          const table = document.getElementById(tableId);
+          if (!table) return;
+          const saveUrl = table.dataset.save;
+          const inputs = table.querySelectorAll('[data-field]');
+
+          inputs.forEach((input) => {
+            input.dataset.current = input.value;
+            const eventName = input.tagName === 'SELECT' ? 'change' : 'blur';
+            input.addEventListener(eventName, async () => {
+              if (input.value === input.dataset.current) return;
+              const row = input.closest('tr');
+              if (!row) return;
+              const payload = { id: row.dataset.id };
+              row.querySelectorAll('[data-field]').forEach((field) => {
+                payload[field.dataset.field] = parseValue(field.value, field.dataset.type);
+              });
+
+              try {
+                await fetch(saveUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                });
+                row.querySelectorAll('[data-field]').forEach((field) => {
+                  field.dataset.current = field.value;
+                });
+              } catch (error) {
+                input.value = input.dataset.current;
+              }
+            });
+
+            if (input.tagName !== 'SELECT') {
+              input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  input.blur();
+                }
+              });
+            }
+          });
+        }
+
+        function setupRatesMatrix() {
+          const table = document.getElementById('rates-matrix');
+          if (!table) return;
+          const statusEl = document.getElementById('rates-status');
+          const searchInput = document.getElementById('rate-search');
+
+          if (searchInput) {
+            searchInput.addEventListener('input', () => {
+              const term = searchInput.value.toLowerCase().trim();
+              table.querySelectorAll('tbody tr').forEach((row) => {
+                const haystack = row.textContent.toLowerCase();
+                row.style.display = haystack.includes(term) ? '' : 'none';
+              });
+            });
+          }
+
+          table.querySelectorAll('.rate-input').forEach((input) => {
+            input.dataset.current = input.value;
+
+            input.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                input.blur();
+              }
+            });
+
+            input.addEventListener('blur', async () => {
+              if (input.value === input.dataset.current) return;
+              const cell = input.closest('.rate-cell');
+              if (!cell) return;
+              const rateId = cell.dataset.rateId || undefined;
+              const origin = cell.dataset.originPlant || '';
+              const destination = cell.dataset.destinationState || '';
+              const year = cell.dataset.effectiveYear || 2026;
+              const parsed = parseFloat(input.value);
+
+              if (Number.isNaN(parsed)) {
+                input.value = input.dataset.current || '';
+                return;
+              }
+
+              if (statusEl) statusEl.textContent = 'Saving...';
+
+              try {
+                const response = await fetch('/rates/save', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: rateId,
+                    origin_plant: origin,
+                    destination_state: destination,
+                    rate_per_mile: parsed,
+                    effective_year: year,
+                  }),
+                });
+                const data = await response.json();
+                if (data && data.rate) {
+                  cell.dataset.rateId = data.rate.id || '';
+                  cell.dataset.effectiveYear = data.rate.effective_year || year;
+                  input.value = Number(data.rate.rate_per_mile || parsed).toFixed(2);
+                } else {
+                  input.value = parsed.toFixed(2);
+                }
+                input.dataset.current = input.value;
+                if (statusEl) statusEl.textContent = 'Saved.';
+              } catch (error) {
+                input.value = input.dataset.current || '';
+                if (statusEl) statusEl.textContent = 'Unable to save.';
+              }
+            });
+          });
+        }
+
+        if (tab === 'rates') setupRatesMatrix();
+        if (tab === 'skus') attachInlineSaver('sku-table');
+        if (tab === 'lookups') attachInlineSaver('lookup-table');
+        if (tab === 'plants') attachInlineSaver('plants-table');
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

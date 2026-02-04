@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-heading">
+      <h1>Freight Rates</h1>
+      <p>Rates displayed by destination state with plant-specific columns.</p>
+    </div>
+    <div class="rate-assumptions">
+      <div class="assumption-card">
+        <span class="meta-label">Stop Fee</span>
+        <span class="assumption-value">$55</span>
+        <span class="assumption-note">Applied per stop</span>
+      </div>
+      <div class="assumption-card">
+        <span class="meta-label">Load Minimum</span>
+        <span class="assumption-value">$800</span>
+        <span class="assumption-note">Applied per load</span>
+      </div>
+    </div>
+
+    <article class="card">
+      <h2>Add or Update Rate</h2>
+      <form class="form-grid" method="post" action="{{ url_for('add_rate') }}">
+        <label>
+          Origin Plant
+          <input name="origin_plant" type="text" required>
+        </label>
+        <label>
+          Destination State
+          <input name="destination_state" type="text" required>
+        </label>
+        <label>
+          Rate per Mile
+          <input name="rate_per_mile" type="number" step="0.01" required>
+        </label>
+        <label>
+          Effective Year
+          <input name="effective_year" type="number" value="2026" required>
+        </label>
+        <label>
+          Notes
+          <input name="notes" type="text">
+        </label>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">Save Rate</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>Freight Rates Matrix</h2>
+      {% if states %}
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>State</th>
+                {% for plant in plants %}
+                  <th>{{ plant }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for state in states %}
+                <tr>
+                  <td>{{ state }}</td>
+                  {% for plant in plants %}
+                    {% set rate = matrix[state][plant] %}
+                    <td>{{ rate if rate is not none else '-' }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No rates yet.</p>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="upload-page">
+    <div class="page-hero">
+      <div>
+        <h1>Upload Open Orders</h1>
+        <p>Import the latest CSV to refresh the optimization pipeline.</p>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-ghost" href="{{ url_for('orders') }}">
+          <span class="material-symbols-outlined">list_alt</span>
+          View Orders
+        </a>
+      </div>
+    </div>
+
+    {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form class="panel upload-panel" method="post" enctype="multipart/form-data">
+      <div class="dropzone wide">
+        <input type="file" name="file" accept=".csv" required>
+        <span class="material-symbols-outlined">cloud_upload</span>
+        <strong>Drop your CSV here</strong>
+        <small>or click to browse</small>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">
+          <span class="material-symbols-outlined">bolt</span>
+          Upload &amp; Parse
+        </button>
+      </div>
+    </form>
+
+    {% if summary %}
+      <article class="panel">
+        <h2>Upload Summary</h2>
+        <p>
+          Successfully imported {{ summary.successfully_mapped }} of {{ summary.total_rows }} orders
+          ({{ summary.mapping_rate | round(1) }}%).
+        </p>
+        {% if summary.orders_by_plant %}
+          <ul class="inline-list">
+            {% for plant, count in summary.orders_by_plant.items() %}
+              <li><strong>{{ plant }}</strong>: {{ count }} orders</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <p>Total trailer capacity required (unoptimized): {{ (summary.orders | sum(attribute='total_length_ft')) | round(1) }} ft</p>
+
+        {% if summary.unmapped_items %}
+          <div class="alert alert-warning">
+            Unmapped items: {{ summary.unmapped_items | length }} item(s)
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table modern-table">
+              <thead>
+                <tr>
+                  <th>Plant</th>
+                  <th>BIN</th>
+                  <th>Item</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in summary.unmapped_items %}
+                  <tr>
+                    <td>{{ item.plant }}</td>
+                    <td>{{ item.bin }}</td>
+                    <td>{{ item.item }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="alert alert-success">All items mapped successfully.</div>
+        {% endif %}
+      </article>
+    {% endif %}
+  </section>
+{% endblock %}

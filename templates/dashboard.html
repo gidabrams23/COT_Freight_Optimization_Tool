@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="dashboard-page">
+    <div class="page-header">
+      <div>
+        <h1>Dashboard</h1>
+        <p>Performance snapshot across plants, utilization, and load quality.</p>
+      </div>
+      <div class="header-actions">
+        <div class="inline-select">
+          <span class="meta-label">Date Range</span>
+          <select disabled>
+            <option selected>Last 7 Days</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="card-widget trend-widget">
+        <div class="widget-header">
+          <div>
+            <span class="meta-label">Space-Based Utilization (7-Day)</span>
+            <div class="widget-subtitle">{{ trend_plants_label }}</div>
+          </div>
+        </div>
+        <div class="trend-metrics">
+          <div class="trend-value">{{ trend_current_avg | round(1) }}%</div>
+          <div class="trend-delta {% if trend_delta >= 0 %}positive{% else %}negative{% endif %}">
+            <span class="material-symbols-outlined">{% if trend_delta >= 0 %}trending_up{% else %}trending_down{% endif %}</span>
+            {{ trend_delta | round(1) }}%
+          </div>
+        </div>
+        <div class="trend-sparkline">
+          {% for bar in trend_bars %}
+            <div class="spark-bar">
+              <span class="spark-fill" style="height: {{ bar.height }}%"></span>
+              <span class="spark-label">{{ bar.label }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card-widget order-status-widget">
+        <div class="widget-header">
+          <h3>Orders Requiring Attention</h3>
+        </div>
+        <div class="status-list">
+          <a class="status-row status-error" href="{{ order_links.past_due }}">
+            <span class="status-dot"></span>
+            <span class="status-label">Past Due (No Assignment)</span>
+            <span class="status-count">{{ order_status_summary.past_due }}</span>
+          </a>
+          <a class="status-row status-warning" href="{{ order_links.this_week }}">
+            <span class="status-dot"></span>
+            <span class="status-label">Due This Week</span>
+            <span class="status-count">{{ order_status_summary.this_week }}</span>
+          </a>
+          <a class="status-row status-info" href="{{ order_links.next_week }}">
+            <span class="status-dot"></span>
+            <span class="status-label">Due Next Week</span>
+            <span class="status-count">{{ order_status_summary.next_week }}</span>
+          </a>
+        </div>
+      </div>
+      <div class="card-widget">
+        <div class="widget-header">
+          <div>
+            <h3>Top Performers: Highest Utilization</h3>
+            <p class="muted">Loads with the best space utilization in the selected period.</p>
+          </div>
+          <form class="table-filters" method="get">
+            {% if plant_filter_param %}
+              <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+            {% endif %}
+            <input type="hidden" name="low_period" value="{{ low_period }}">
+            <input type="hidden" name="low_scope" value="{{ low_scope }}">
+            <label class="inline-select">
+              <span class="meta-label">Period</span>
+              <select name="top_period" onchange="this.form.submit()">
+                {% for value, label in period_options %}
+                  <option value="{{ value }}" {% if top_period == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="inline-select">
+              <span class="meta-label">Plants</span>
+              <select name="top_scope" onchange="this.form.submit()">
+                <option value="filtered" {% if top_scope != 'all' %}selected{% endif %}>Selected</option>
+                <option value="all" {% if top_scope == 'all' %}selected{% endif %}>All</option>
+              </select>
+            </label>
+          </form>
+        </div>
+        <div class="table-container">
+          <table class="data-table table-compact">
+            <thead>
+              <tr>
+                <th>Load ID</th>
+                <th>Plant</th>
+                <th>Util %</th>
+                <th>Shipped</th>
+                <th>Schematic</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if top_loads %}
+                {% for load in top_loads %}
+                  <tr class="table-row">
+                    <td><a class="table-link" href="{{ url_for('load_detail', load_id=load.id) }}">{{ load.load_number }}</a></td>
+                    <td>{{ load.origin_plant }}</td>
+                    <td>{{ load.utilization_pct }}%</td>
+                    <td>{{ load.ship_date }}</td>
+                    <td>
+                      <a class="schematic-thumb" href="{{ url_for('load_detail', load_id=load.id) }}">
+                        {% for pos in load.thumbnail %}
+                          <span class="thumb-col" style="flex-basis: {{ pos.width_pct }}%;">
+                            {% for color in pos.colors %}
+                              <span class="thumb-block" style="background: {{ color }};"></span>
+                            {% endfor %}
+                          </span>
+                        {% endfor %}
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="5" class="muted">No loads found for this period.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card-widget">
+        <div class="widget-header">
+          <div>
+            <h3>Needs Improvement: Low Utilization (&lt;70%)</h3>
+            <p class="muted">Focus on loads below the 70% utilization target.</p>
+          </div>
+          <form class="table-filters" method="get">
+            {% if plant_filter_param %}
+              <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+            {% endif %}
+            <input type="hidden" name="top_period" value="{{ top_period }}">
+            <input type="hidden" name="top_scope" value="{{ top_scope }}">
+            <label class="inline-select">
+              <span class="meta-label">Period</span>
+              <select name="low_period" onchange="this.form.submit()">
+                {% for value, label in period_options %}
+                  <option value="{{ value }}" {% if low_period == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="inline-select">
+              <span class="meta-label">Plants</span>
+              <select name="low_scope" onchange="this.form.submit()">
+                <option value="filtered" {% if low_scope != 'all' %}selected{% endif %}>Selected</option>
+                <option value="all" {% if low_scope == 'all' %}selected{% endif %}>All</option>
+              </select>
+            </label>
+          </form>
+        </div>
+        <div class="table-container">
+          <table class="data-table table-compact">
+            <thead>
+              <tr>
+                <th>Load ID</th>
+                <th>Plant</th>
+                <th>Util %</th>
+                <th>Shipped</th>
+                <th>Schematic</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if low_loads %}
+                {% for load in low_loads %}
+                  <tr class="table-row">
+                    <td><a class="table-link" href="{{ url_for('load_detail', load_id=load.id) }}">{{ load.load_number }}</a></td>
+                    <td>{{ load.origin_plant }}</td>
+                    <td class="text-danger">{{ load.utilization_pct }}%</td>
+                    <td>{{ load.ship_date }}</td>
+                    <td>
+                      <a class="schematic-thumb" href="{{ url_for('load_detail', load_id=load.id) }}">
+                        {% for pos in load.thumbnail %}
+                          <span class="thumb-col" style="flex-basis: {{ pos.width_pct }}%;">
+                            {% for color in pos.colors %}
+                              <span class="thumb-block" style="background: {{ color }};"></span>
+                            {% endfor %}
+                          </span>
+                        {% endfor %}
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="5" class="muted">No low-utilization loads found.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

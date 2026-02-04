@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="feedback-page">
+    <div class="page-header">
+      <div>
+        <h1>Remove Order from Load</h1>
+        <p>Capture why this order will not work on the current load before re-optimizing.</p>
+      </div>
+      <a class="btn-ghost" href="{{ url_for('loads', plants=plant_filter_param) }}">Back to Loads</a>
+    </div>
+
+    <div class="feedback-card">
+      <div class="feedback-summary">
+        <div class="summary-tile">
+          <span class="summary-label">Load</span>
+          <span class="summary-value">{{ load_label }}</span>
+          <span class="summary-subtext">{{ load.origin_plant }} to {{ load.destination_state }}</span>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">Order</span>
+          <span class="summary-value">#{{ order_id }}</span>
+          <span class="summary-subtext">{{ order_summary.customer or "Customer not set" }}</span>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">Due</span>
+          <span class="summary-value">{{ order_summary.due_date or "N/A" }}</span>
+          <span class="summary-subtext">{{ order_summary.location or "Location not set" }} - {{ order_summary.total_qty or 0 }} units</span>
+        </div>
+      </div>
+
+      {% if load_status == 'APPROVED' %}
+        <div class="alert-message warning">
+          <strong>Locked Load:</strong> Removing orders from an approved load requires confirmation and will trigger re-optimization.
+        </div>
+      {% endif %}
+
+      <form method="post" class="feedback-form">
+        <input type="hidden" name="order_id" value="{{ order_id }}">
+        <label>
+          Removal reason (required)
+          <select class="select-field" name="reason_category" required>
+            <option value="">Select reason</option>
+            {% for reason in reasons_options %}
+              <option value="{{ reason }}">{{ reason }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          Additional details (minimum 10 characters)
+          <textarea name="details" rows="4" minlength="10" required placeholder="Add any extra context or instructions."></textarea>
+        </label>
+
+        {% if error %}
+          <div class="form-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="form-actions">
+          <a class="btn-ghost" href="{{ url_for('loads', plants=plant_filter_param) }}">Cancel</a>
+          <button class="btn-danger" type="submit">Remove Order and Re-optimize</button>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}

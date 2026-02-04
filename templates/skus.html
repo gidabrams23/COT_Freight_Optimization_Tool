@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-heading">
+      <h1>SKU Specifications</h1>
+      <p>Maintain SKU lengths and stacking limits.</p>
+    </div>
+
+    <article class="card">
+      <h2>Add SKU</h2>
+      <form class="form-grid" method="post" action="{{ url_for('add_sku') }}">
+        <label>
+          SKU
+          <input name="sku" type="text" required>
+        </label>
+        <label>
+          Category
+          <input name="category" type="text" required>
+        </label>
+        <label>
+          Length w/ Tongue (ft)
+          <input name="length_with_tongue_ft" type="number" step="0.1" required>
+        </label>
+        <label>
+          Max Stack Step Deck
+          <input name="max_stack_step_deck" type="number" min="1" value="1" required>
+        </label>
+        <label>
+          Max Stack Flat Bed
+          <input name="max_stack_flat_bed" type="number" min="1" value="1" required>
+        </label>
+        <label>
+          Notes
+          <input name="notes" type="text">
+        </label>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">Save SKU</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>SKU List</h2>
+      {% if specs %}
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Category</th>
+                <th>Length (ft)</th>
+                <th>Step Deck</th>
+                <th>Flat Bed</th>
+                <th>Notes</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for spec in specs %}
+                <tr>
+                  <td>{{ spec.sku }}</td>
+                  <td>{{ spec.category }}</td>
+                  <td>{{ spec.length_with_tongue_ft }}</td>
+                  <td>{{ spec.max_stack_step_deck }}</td>
+                  <td>{{ spec.max_stack_flat_bed }}</td>
+                  <td>{{ spec.notes or '-' }}</td>
+                  <td>
+                    <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
+                      <button class="btn btn-danger" type="submit">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No SKU specs yet.</p>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

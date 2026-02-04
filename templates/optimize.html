@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="optimize-page">
+    <div class="page-hero">
+      <div>
+        <h1>Optimization Studio</h1>
+        <p>Configure parameters, run consolidation, and review draft loads.</p>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-ghost" href="{{ url_for('orders') }}">
+          <span class="material-symbols-outlined">list_alt</span>
+          Back to Orders
+        </a>
+      </div>
+    </div>
+
+    {% if errors.order_lines %}
+      <div class="alert alert-warning">{{ errors.order_lines }}</div>
+    {% endif %}
+
+    <div class="optimize-grid">
+      <article class="panel settings-panel">
+        <h2>Optimization Settings</h2>
+        <form method="post" class="form-grid" action="{{ url_for('build_optimize') }}">
+          <label>
+            Origin Plant
+            <select name="origin_plant" required>
+              <option value="">Select a plant</option>
+              {% for plant in plants %}
+                <option value="{{ plant }}" {% if form_data.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.origin_plant %}
+              <span class="form-error">{{ errors.origin_plant }}</span>
+            {% endif %}
+          </label>
+          <label>
+            Trailer Type
+            <select name="trailer_type" required>
+              {% set selected_trailer = form_data.trailer_type or 'STEP_DECK' %}
+              <option value="STEP_DECK" {% if selected_trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
+              <option value="WEDGE" {% if selected_trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
+              <option value="FLATBED" {% if selected_trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
+            </select>
+            {% if errors.trailer_type %}
+              <span class="form-error">{{ errors.trailer_type }}</span>
+            {% endif %}
+          </label>
+          <label>
+            Trailer Capacity (ft)
+            <input type="number" name="capacity_feet" min="1" step="0.1" value="{{ form_data.capacity_feet }}" required>
+            {% if errors.capacity_feet %}
+              <span class="form-error">{{ errors.capacity_feet }}</span>
+            {% endif %}
+          </label>
+          <label>
+            Max Detour %
+            <input type="number" name="max_detour_pct" min="1" step="0.1" value="{{ form_data.max_detour_pct }}" required>
+            {% if errors.max_detour_pct %}
+              <span class="form-error">{{ errors.max_detour_pct }}</span>
+            {% endif %}
+          </label>
+          <label>
+            Time Window (days)
+            <input type="number" name="time_window_days" min="1" step="1" value="{{ form_data.time_window_days }}" required>
+            {% if errors.time_window_days %}
+              <span class="form-error">{{ errors.time_window_days }}</span>
+            {% endif %}
+          </label>
+          <label>
+            Geographic Radius (miles)
+            <input type="number" name="geo_radius" min="1" step="1" value="{{ form_data.geo_radius }}" required>
+            {% if errors.geo_radius %}
+              <span class="form-error">{{ errors.geo_radius }}</span>
+            {% endif %}
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">
+              <span class="material-symbols-outlined">tune</span>
+              Build Optimized Loads
+            </button>
+          </div>
+        </form>
+      </article>
+
+      {% if summary %}
+        <article class="panel summary-panel">
+          <h2>Optimization Results</h2>
+          <div class="comparison-grid">
+            <div class="comparison-card">
+              <div class="label">Baseline Loads</div>
+              <div class="value">{{ summary.baseline.total_loads }}</div>
+              <div class="meta">Avg Util {{ summary.baseline.avg_utilization | round(1) }}%</div>
+            </div>
+            <div class="comparison-card accent">
+              <div class="label">Optimized Loads</div>
+              <div class="value">{{ summary.optimized.total_loads }}</div>
+              <div class="meta">Avg Util {{ summary.optimized.avg_utilization | round(1) }}%</div>
+            </div>
+            <div class="comparison-card">
+              <div class="label">Δ Loads</div>
+              <div class="value">{{ summary.delta.loads }}</div>
+              <div class="meta">Miles Δ {{ summary.delta.total_miles | round(0) }}</div>
+            </div>
+            <div class="comparison-card warning">
+              <div class="label">Est. Cost Δ</div>
+              <div class="value">${{ summary.delta.est_cost | round(0) }}</div>
+              <div class="meta">Util Δ {{ summary.delta.avg_utilization | round(1) }} pts</div>
+            </div>
+          </div>
+        </article>
+      {% endif %}
+    </div>
+
+    <article class="panel load-grid-panel">
+      <div class="panel-header">
+        <div>
+          <h2>Draft Loads</h2>
+          <p>{% if loads %}{{ loads | length }} draft loads generated{% else %}No loads built yet{% endif %}</p>
+        </div>
+      </div>
+      {% if loads %}
+        <div class="load-card-grid">
+          {% for load in loads %}
+            {% set util = load.utilization_pct or 0 %}
+            <div class="load-card">
+              <div class="load-card-header">
+                <div>
+                  <h4>Load #{{ load.id }}</h4>
+                  <p class="route">{{ load.origin_plant }} → {{ load.destination_state }}</p>
+                </div>
+                <span class="badge badge-ready">Draft</span>
+              </div>
+              <div class="utilization-meter">
+                <div class="meter-header">
+                  <span class="meter-label">Utilization</span>
+                  <span class="meter-value">{{ util | round(0) }}%</span>
+                </div>
+                <div class="meter-bar">
+                  <div class="meter-fill" style="width: {{ util | round(0) }}%"></div>
+                </div>
+              </div>
+              <div class="load-metrics">
+                <div>
+                  <span class="metric-label">Est Miles</span>
+                  <span class="metric-value">{{ (load.estimated_miles or 0) | round(0) }}</span>
+                </div>
+                <div>
+                  <span class="metric-label">Est Cost</span>
+                  <span class="metric-value">${{ (load.estimated_cost or 0) | round(0) }}</span>
+                </div>
+                <div>
+                  <span class="metric-label">Score</span>
+                  <span class="metric-value">{{ (load.optimization_score or 0) | round(1) }}</span>
+                </div>
+              </div>
+              <div class="load-lines">
+                <ul>
+                  {% for line in load.lines[:4] %}
+                    <li>{{ line.cust_name }} ({{ line.state }}/{{ line.zip }}) — {{ line.qty }} units</li>
+                  {% endfor %}
+                  {% if load.lines | length > 4 %}
+                    <li class="muted">+ {{ load.lines | length - 4 }} more</li>
+                  {% endif %}
+                </ul>
+              </div>
+              <div class="load-actions">
+                <button class="btn btn-ghost" type="button">View Details</button>
+                <button class="btn btn-primary" type="button">Approve Load</button>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <span class="material-symbols-outlined">track_changes</span>
+          <p>No loads built yet. Run optimization to create drafts.</p>
+        </div>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

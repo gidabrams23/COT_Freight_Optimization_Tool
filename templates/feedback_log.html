@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="feedback-log-page">
+    <div class="page-header">
+      <div>
+        <h1>Feedback Log</h1>
+        <p>Track order removals and load rejections across planners.</p>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <form class="table-filters feedback-filters" method="get">
+        <div class="inline-select">
+          <label class="metric-label">Start</label>
+          <input class="select-field" type="date" name="start_date" value="{{ filters.start_date }}">
+        </div>
+        <div class="inline-select">
+          <label class="metric-label">End</label>
+          <input class="select-field" type="date" name="end_date" value="{{ filters.end_date }}">
+        </div>
+        <div class="inline-select">
+          <label class="metric-label">Planner</label>
+          <select class="select-field" name="planner_id">
+            <option value="">All</option>
+            {% for planner in options.planners %}
+              <option value="{{ planner }}" {% if planner == filters.planner_id %}selected{% endif %}>{{ planner | title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="inline-select">
+          <label class="metric-label">Action</label>
+          <select class="select-field" name="action_type">
+            <option value="">All</option>
+            {% for action in options.action_types %}
+              <option value="{{ action }}" {% if action == filters.action_type %}selected{% endif %}>
+                {% if action == 'order_removed' %}Order Removed{% elif action == 'load_rejected' %}Load Rejected{% else %}{{ action }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="inline-select">
+          <label class="metric-label">Reason</label>
+          <select class="select-field" name="reason_category">
+            <option value="">All</option>
+            {% for reason in options.reason_categories %}
+              <option value="{{ reason }}" {% if reason == filters.reason_category %}selected{% endif %}>{{ reason }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="inline-select feedback-search">
+          <label class="metric-label">Search</label>
+          <input class="select-field" type="text" name="search" value="{{ filters.search }}" placeholder="Search details">
+        </div>
+        <div class="inline-select">
+          <label class="metric-label">Sort</label>
+          <select class="select-field" name="sort">
+            <option value="timestamp_desc" {% if filters.sort == 'timestamp_desc' %}selected{% endif %}>Newest</option>
+            <option value="timestamp_asc" {% if filters.sort == 'timestamp_asc' %}selected{% endif %}>Oldest</option>
+            <option value="planner" {% if filters.sort == 'planner' %}selected{% endif %}>Planner</option>
+            <option value="load" {% if filters.sort == 'load' %}selected{% endif %}>Load ID</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn-primary btn-xs" type="submit">Apply</button>
+          <a class="btn-ghost btn-xs" href="{{ url_for('feedback_log') }}">Clear</a>
+        </div>
+      </form>
+
+      <div class="table-container">
+        <table class="data-table feedback-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Planner</th>
+              <th>Action Type</th>
+              <th>Load ID</th>
+              <th>Order ID</th>
+              <th>Reason Category</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if entries %}
+              {% for entry in entries %}
+                <tr>
+                  <td>{{ entry.created_at }}</td>
+                  <td>{{ (entry.planner_id or "Unknown") | title }}</td>
+                  <td>
+                    {% if entry.action_type == 'order_removed' %}
+                      Order Removed
+                    {% elif entry.action_type == 'load_rejected' %}
+                      Load Rejected
+                    {% else %}
+                      {{ entry.action_type }}
+                    {% endif %}
+                  </td>
+                  <td>{{ entry.load_number or ('Load #' ~ entry.load_id) }}</td>
+                  <td>{{ entry.order_id or "-" }}</td>
+                  <td>{{ entry.reason_category }}</td>
+                  <td>{{ entry.details }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="7" class="muted">No feedback entries yet.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{% endblock %}

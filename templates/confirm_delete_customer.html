@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-heading">
+      <h2>Delete Customer</h2>
+      <p>Review the customer and confirm before deletion.</p>
+    </div>
+
+    <article class="card">
+      <h3>{{ customer.name }}</h3>
+      <p>ZIP: {{ customer.zip }}</p>
+      {% if customer.notes %}
+        <p>Notes: {{ customer.notes }}</p>
+      {% endif %}
+      <p>
+        <strong>{{ order_count }}</strong> order line(s) exist for this customer.
+        Deleting will remove the customer and their order lines.
+      </p>
+      <form method="post" action="{{ url_for('delete_customer', customer_id=customer.id) }}" class="form-actions">
+        <button class="btn btn-danger" type="submit">Delete Customer</button>
+        <a class="btn btn-secondary" href="{{ url_for('customers') }}">Cancel</a>
+      </form>
+    </article>
+  </section>
+{% endblock %}

@@ -63,9 +63,7 @@
                   <td>{{ customer.notes or '' }}</td>
                   <td>{{ customer.created_at }}</td>
                   <td class="table-actions">
-                    <form method="post" action="{{ url_for('delete_customer', customer_id=customer.id) }}">
-                      <button class="btn btn-danger" type="submit">Delete</button>
-                    </form>
+                    <a class="btn btn-danger" href="{{ url_for('delete_customer', customer_id=customer.id) }}">Delete</a>
                   </td>
                 </tr>
               {% endfor %}

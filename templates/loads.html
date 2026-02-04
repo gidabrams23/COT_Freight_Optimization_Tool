@@ -1,89 +1,1312 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="page-section">
-    <div class="section-heading">
-      <h2>Loads</h2>
-      <p>Organize pickup and delivery schedules alongside rate data.</p>
-    </div>
-    <article class="card">
-      <h3>Build Loads</h3>
-      <p>Set a trailer capacity and create greedy loads from available order lines.</p>
-      {% if success_message %}
-        <p class="success-message">{{ success_message }}</p>
-      {% endif %}
-      <form method="post" class="form layout-grid">
-        <div class="form-field">
-          <label for="capacity_feet">Capacity (feet)</label>
-          <input
-            id="capacity_feet"
-            name="capacity_feet"
-            type="number"
-            min="1"
-            step="0.1"
-            value="{{ capacity_feet }}"
-            required
-          />
-          {% if errors.capacity_feet %}
-            <span class="form-error">{{ errors.capacity_feet }}</span>
-          {% endif %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <section class="loads-page">
+    <header class="orders-header loads-header">
+      <div class="loads-hero-row">
+        <div class="loads-hero-title">
+          <div class="loads-title-row">
+            <div class="orders-title loads-title">
+              <h1>Load Management</h1>
+              <p>Review draft vs finalized loads and resolve approvals.</p>
+            </div>
+            <div class="loads-title-actions">
+              {% if plant_filter_param %}
+                <a class="btn-ghost btn-xs" href="{{ url_for('orders', plants=plant_filter_param) }}">
+                  <span class="material-symbols-outlined">list_alt</span>
+                  Orders
+                </a>
+              {% else %}
+                <a class="btn-ghost btn-xs" href="{{ url_for('orders') }}">
+                  <span class="material-symbols-outlined">list_alt</span>
+                  Orders
+                </a>
+              {% endif %}
+            </div>
+          </div>
+          <div class="loads-scope">
+            <span class="meta-label">Scope:</span>
+            <span class="meta-chip">{% if plant_filter_param %}{{ plant_filter_param }}{% else %}All Plants{% endif %}</span>
+          </div>
         </div>
-        <div class="form-actions">
-          <button type="submit" formaction="{{ url_for('build_loads') }}" class="btn btn-primary">
-            Build Loads
+
+        <div class="loads-optimization-inline" aria-label="Optimization output">
+          <span class="meta-label">Optimization Output</span>
+          <div class="loads-optimization-metrics">
+            <div class="loads-optimization-metric">
+              <span class="metric-label">Orders</span>
+              <span class="metric-value" data-opt-total-orders>{{ optimization_summary.total_orders }}</span>
+            </div>
+            <div class="loads-optimization-metric">
+              <span class="metric-label">Avg Util</span>
+              <span class="metric-value" data-opt-avg-util>{{ optimization_summary.avg_utilization | round(1) }}%</span>
+            </div>
+            <div class="loads-optimization-metric">
+              <span class="metric-label">Est Spend</span>
+              <span class="metric-value" data-opt-total-spend>${{ optimization_summary.total_spend | round(0) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="approval-tracker approval-tracker-compact">
+          <span class="tracker-label">Approval Tracker</span>
+          <div class="tracker-body">
+            <div class="tracker-metrics">
+              <span class="tracker-pct">{{ progress_pct | round(0) }}%</span>
+              <span class="tracker-sub">{{ approved_orders }} of {{ total_orders }} orders</span>
+            </div>
+            <div class="tracker-bar">
+              <span style="width: {{ progress_pct }}%"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="load-tabs">
+      <div class="load-tabs-left">
+        {% if plant_filter_param %}
+          <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='draft') }}">
+            <span class="material-symbols-outlined">edit_document</span>
+            Draft Loads
+            <span class="tab-count warning">{{ draft_tab_count }}</span>
+          </a>
+          <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='final') }}">
+            <span class="material-symbols-outlined">verified</span>
+            Finalized Loads
+            <span class="tab-count success">{{ final_tab_count }}</span>
+          </a>
+        {% else %}
+          <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft') }}">
+            <span class="material-symbols-outlined">edit_document</span>
+            Draft Loads
+            <span class="tab-count warning">{{ draft_tab_count }}</span>
+          </a>
+          <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', tab='final') }}">
+            <span class="material-symbols-outlined">verified</span>
+            Finalized Loads
+            <span class="tab-count success">{{ final_tab_count }}</span>
+          </a>
+        {% endif %}
+      </div>
+      <div class="load-tabs-actions">
+        {% if tab != 'final' %}
+          <button class="btn-secondary btn-xs" type="button" data-manual-load-open>
+            <span class="material-symbols-outlined">add_box</span>
+            Manual Load
           </button>
-          <button type="submit" formaction="{{ url_for('clear_loads') }}" class="btn btn-secondary">
+        {% endif %}
+        <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Clear all loads for the current plant scope?');">
+          <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+          <button class="btn-danger btn-xs" type="submit">
+            <span class="material-symbols-outlined">delete_forever</span>
             Clear Loads
           </button>
-        </div>
-      </form>
-    </article>
+        </form>
+      </div>
+    </div>
 
-    <article class="card">
-      <h3>Load Plan</h3>
-      {% if loads %}
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Load</th>
-              <th>Capacity (ft)</th>
-              <th>Total (ft)</th>
-              <th>Utilization</th>
-              <th>Lines</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for load in loads %}
-              <tr>
-                <td>#{{ load.id }}</td>
-                <td>{{ load.capacity_feet }}</td>
-                <td>{{ load.total_feet }}</td>
-                <td>
-                  {% if load.capacity_feet %}
-                    {{ ((load.total_feet / load.capacity_feet) * 100) | round(1) }}%
-                  {% else %}
-                    0%
-                  {% endif %}
-                </td>
-                <td>
-                  <ul class="line-list">
-                    {% for line in load.lines %}
-                      <li>
-                        <strong>{{ line.order_reference or "Line" }}</strong>
-                        {% if line.description %}- {{ line.description }}{% endif %}
-                        ({{ line.line_total_feet }} ft
-                        {% if line.due_date %}, due {{ line.due_date }}{% endif %})
-                      </li>
-                    {% endfor %}
-                  </ul>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-        <p>No loads built yet. Add order lines and build to see results.</p>
+    <div class="card-widget loads-panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          {% if tab == 'final' %}
+            <h3>Finalized Loads</h3>
+          {% else %}
+            <h3>Draft Loads</h3>
+          {% endif %}
+          <span class="meta-chip">{{ loads | length }} Loads</span>
+        </div>
+        {% if tab != 'final' %}
+          <div class="panel-actions">
+            <form method="post" action="{{ url_for('approve_all_loads') }}">
+              {% if plant_filter_param %}
+                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+              {% endif %}
+              <input type="hidden" name="tab" value="{{ tab }}">
+              <button class="btn-primary btn-xs" type="submit">
+                <span class="material-symbols-outlined">done_all</span>
+                Accept All
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('reject_all_loads') }}" onsubmit="return confirm('Reject all visible loads and re-optimize?');">
+              {% if plant_filter_param %}
+                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+              {% endif %}
+              <input type="hidden" name="tab" value="{{ tab }}">
+              <button class="btn-danger btn-xs" type="submit">
+                <span class="material-symbols-outlined">block</span>
+                Reject All
+              </button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if reopt_status == 'done' %}
+        <div class="banner">Re-optimization complete.</div>
       {% endif %}
-    </article>
+
+      {% if manual_error %}
+        <div class="alert alert-error">{{ manual_error }}</div>
+      {% endif %}
+
+      {% if loads %}
+        {% for section in load_sections %}
+          {% if section.loads %}
+            <div class="load-section" data-section="{{ section.kind }}">
+              <div class="load-section-title">{{ section.title }}</div>
+              <div class="loads-list">
+                {% for load in section.loads %}
+                  {% set status = load.status or 'PROPOSED' %}
+                  {% set panel_open = feedback_target.startswith('load-' ~ load.id) or feedback_target.startswith('order-' ~ load.id ~ '-') %}
+                  {% set display_label = load.load_number if status == 'APPROVED' and load.load_number else 'Load #' ~ (load.draft_sequence if load.draft_sequence else load.id) %}
+                  {% set util_value = (load.utilization_pct or 0) | round(0) %}
+                  {% set util_width = 100 if util_value > 100 else util_value %}
+                  {% set util_grade = (load.schematic.utilization_grade if load.schematic else 'F') %}
+                  {% if util_value >= 80 %}
+                    {% set util_class = 'success' %}
+                  {% elif util_value >= 70 %}
+                    {% set util_class = 'warning' %}
+                  {% else %}
+                    {% set util_class = 'danger' %}
+                  {% endif %}
+                  <div class="load-row" data-load-id="{{ load.id }}" data-load-grade="{{ util_grade }}" data-load-orders="{{ load.order_count or 0 }}" data-load-cost="{{ load.estimated_cost or 0 }}" data-load-util="{{ util_value }}">
+                    <button class="load-row-toggle{% if panel_open %} open{% endif %}" type="button" data-target="load-detail-{{ load.id }}" aria-expanded="{% if panel_open %}true{% else %}false{% endif %}">
+                      <span class="material-symbols-outlined">expand_more</span>
+                    </button>
+                    <div class="load-row-main load-summary-grid">
+                      <div class="load-summary-id summary-cell">
+                        <div class="load-id">
+                          <div class="load-title-box">
+                            <span class="load-title-icon material-symbols-outlined">local_shipping</span>
+                            <div class="load-title-text">
+                              <div class="load-title-row">
+                                <span class="load-title-label">{{ display_label }}</span>
+                                {% if status == 'APPROVED' %}
+                                  <span class="badge badge-success load-status-badge">Approved</span>
+                                {% elif status == 'DRAFT' %}
+                                  <span class="badge badge-warning load-status-badge">Draft</span>
+                                {% else %}
+                                  <span class="badge badge-neutral load-status-badge">Proposed</span>
+                                {% endif %}
+                              </div>
+                              <span class="subtext">{{ load.origin_plant }} -> {{ load.destination_state }}</span>
+                            </div>
+                          </div>
+                          <div class="load-quick-meta">
+                            <div class="load-quick-row">
+                              <span class="quick-label">Units</span>
+                              <span class="quick-value">{{ load.total_units }}</span>
+                            </div>
+                            <div class="load-quick-row">
+                              <span class="quick-label">Ship Date</span>
+                              <span class="quick-value">{{ load.ship_date or '—' }}</span>
+                              {% if load.ship_date_status == 'PAST_DUE' %}
+                                <span class="badge badge-danger">Past Due</span>
+                              {% elif load.ship_date_status == 'DUE_SOON' %}
+                                <span class="badge badge-warning">Due Soon</span>
+                              {% endif %}
+                            </div>
+                        </div>
+                        </div>
+                      </div>
+                      <div class="load-summary-timeline summary-cell">
+                        <div class="summary-timeline-header">
+                          <span class="meta-chip">{{ load.stop_count }} Stops - {{ (load.route_distance if load.route_distance is not none else (load.estimated_miles or 0)) | round(0) }} mi</span>
+                        </div>
+                        <div class="summary-route">
+                          {% for node in load.route_nodes %}
+                            <div class="summary-route-node {{ node.type }}">
+                              <div class="summary-route-badge" style="border-color: {{ node.color }};">
+                                {% if node.type == 'origin' %}
+                                  <span class="material-symbols-outlined">home</span>
+                                {% elif node.type == 'final' %}
+                                  <span class="material-symbols-outlined">flag</span>
+                                {% else %}
+                                  <span>{{ node.sequence }}</span>
+                                {% endif %}
+                              </div>
+                              <span class="summary-route-label">{{ node.subtitle or node.label }}</span>
+                            </div>
+                            {% if not loop.last %}
+                              {% set leg = load.route_legs[loop.index0] if load.route_legs and loop.index0 < (load.route_legs | length) else none %}
+                              <div class="summary-route-line">
+                                <span class="summary-route-mile">{% if leg is not none %}{{ leg }} mi{% endif %}</span>
+                                <div class="summary-route-bar"></div>
+                              </div>
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      </div>
+                      <div class="load-summary-metric util summary-cell" data-load-id="{{ load.id }}">
+                        <span class="metric-label">Utilization</span>
+                        <div class="util-meta">
+                          <span class="metric-value" data-util-value>{{ util_value }}%</span>
+                          <span class="util-grade" data-util-grade>Grade {{ util_grade }}</span>
+                          <span class="util-flag{% if not (load.over_capacity or (load.schematic and load.schematic.exceeds_capacity)) %} hidden{% endif %}" data-util-flag>Over Cap</span>
+                        </div>
+                        <div class="util-progress">
+                          <span class="util-fill {{ util_class }}" data-util-fill style="width: {{ util_width }}%;"></span>
+                        </div>
+                      </div>
+                      <div class="load-summary-metric sales summary-cell">
+                        <span class="metric-label">Total Sales</span>
+                        <span class="metric-value">${{ (load.total_sales or 0) | round(0) }}</span>
+                      </div>
+                      <div class="load-summary-metric cost summary-cell">
+                        <span class="metric-label">Est Cost</span>
+                        <span class="metric-value">${{ (load.estimated_cost or 0) | round(0) }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="load-detail-panel{% if not panel_open %} hidden{% endif %}" id="load-detail-{{ load.id }}">
+                    {% set reject_target = 'load-' ~ load.id %}
+                    {% set order_error_id = '' %}
+                    {% if feedback_target.startswith('order-' ~ load.id ~ '-') %}
+                      {% set order_error_id = feedback_target | replace('order-' ~ load.id ~ '-', '') %}
+                    {% endif %}
+                    <div class="load-approval-bar">
+                      <div class="alert-message warning{% if not load.over_capacity %} hidden{% endif %}" id="over-capacity-{{ load.id }}">
+                        <strong>Over Capacity:</strong> This is a single-order load that exceeds trailer capacity. Review before dispatch.
+                      </div>
+                      <div class="load-approval-actions">
+                        {% if status == 'APPROVED' %}
+                          <span class="approval-status approved">Approved</span>
+                        {% else %}
+                          <span class="approval-status">Pending Approval</span>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
+                            <input type="hidden" name="action" value="approve_lock">
+                            <button class="btn-success approval-btn" type="submit" {% if status == 'APPROVED' %}disabled{% endif %}>Approve Load</button>
+                          </form>
+                          <button class="btn-danger approval-btn feedback-toggle" type="button" data-feedback-target="load-reject-{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>Reject Load</button>
+                      </div>
+                    </div>
+
+                    <div class="inline-feedback-panel load-feedback-panel{% if feedback_target != reject_target %} hidden{% endif %}" id="load-reject-{{ load.id }}">
+                      <form class="feedback-form-inline" method="post" action="{{ url_for('reject_load', load_id=load.id) }}">
+                        <div class="feedback-fields">
+                          <label>
+                            Rejection reason (required)
+                            <select class="select-field" name="reason_category" required>
+                              <option value="">Select reason</option>
+                              {% for reason in load_rejection_reasons %}
+                                <option value="{{ reason }}">{{ reason }}</option>
+                              {% endfor %}
+                            </select>
+                          </label>
+                          <label>
+                            Additional details (minimum 10 characters)
+                            <textarea name="details" rows="3" minlength="10" required placeholder="Add context for the rejection."></textarea>
+                          </label>
+                        </div>
+                        {% if feedback_target == reject_target and feedback_error %}
+                          <div class="form-error">{{ feedback_error }}</div>
+                        {% endif %}
+                        <div class="feedback-actions">
+                          <button class="btn-danger" type="submit">Submit Rejection</button>
+                          <button class="btn-ghost feedback-cancel" type="button" data-feedback-cancel>Cancel</button>
+                        </div>
+                      </form>
+                    </div>
+
+                    <div class="inline-feedback-panel order-feedback-panel{% if not order_error_id %} hidden{% endif %}" id="order-remove-{{ load.id }}" data-load-id="{{ load.id }}">
+                      <form class="feedback-form-inline" method="post" action="{{ url_for('remove_order_from_load', load_id=load.id) }}">
+                        <input type="hidden" name="order_id" value="{{ order_error_id }}">
+                        <div class="order-feedback-header">
+                          <span class="metric-label">Remove Order</span>
+                          <span class="metric-value" data-order-label>
+                            {% if order_error_id %}#{{ order_error_id }}{% else %}Select an order in the schematic{% endif %}
+                          </span>
+                        </div>
+                        <div class="feedback-fields">
+                          <label>
+                            Removal reason (required)
+                            <select class="select-field" name="reason_category" required>
+                              <option value="">Select reason</option>
+                              {% for reason in order_removal_reasons %}
+                                <option value="{{ reason }}">{{ reason }}</option>
+                              {% endfor %}
+                            </select>
+                          </label>
+                          <label>
+                            Additional details (minimum 10 characters)
+                            <textarea name="details" rows="3" minlength="10" required placeholder="Add context for removing this order."></textarea>
+                          </label>
+                        </div>
+                        {% if order_error_id and feedback_error %}
+                          <div class="form-error">{{ feedback_error }}</div>
+                        {% endif %}
+                        <div class="feedback-actions">
+                          <button class="btn-danger btn-xs" type="submit">Submit Removal</button>
+                          <button class="btn-ghost btn-xs feedback-cancel" type="button" data-feedback-cancel>Cancel</button>
+                        </div>
+                      </form>
+                    </div>
+
+                    <div class="load-detail-grid load-approval-grid">
+                      {% include 'partials/load_schematic_card.html' %}
+
+                      <div class="manifest-card">
+                        <div class="card-header-row">
+                          <div class="card-header-left">
+                            <h3>Freight Manifest</h3>
+                            {% if load.ship_date %}
+                              <span class="meta-chip">Ship Date {{ load.ship_date }}</span>
+                            {% endif %}
+                          </div>
+                          <div class="order-legend">
+                            {% for order_id, color in load.order_colors.items() %}
+                              <span class="legend-item"><span class="legend-color" style="background: {{ color }};"></span>#{{ order_id }}</span>
+                            {% endfor %}
+                          </div>
+                        </div>
+                        <div class="table-container">
+                          <table class="manifest-table manifest-grouped">
+                            <thead>
+                              <tr>
+                                <th>Order ID</th>
+                                <th>Due Date</th>
+                                <th>Customer</th>
+                                <th>Stop</th>
+                                <th>Qty</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for group in load.manifest_groups %}
+                                {% set row_id = 'manifest-' ~ load.id ~ '-' ~ loop.index0 %}
+                                <tr class="manifest-order-row" data-target="{{ row_id }}">
+                                  <td>
+                                    <button class="manifest-toggle" type="button">+</button>
+                                    <span class="order-color-dot" style="background: {{ group.color }};"></span>
+                                    #{{ group.order_id }}
+                                  </td>
+                                  <td>
+                                    <div class="due-cell">
+                                      <span class="due-date">{{ group.due_date }}</span>
+                                      {% if group.due_status == 'PAST_DUE' %}
+                                        <span class="badge badge-danger">Past Due</span>
+                                      {% elif group.due_status == 'DUE_SOON' %}
+                                        <span class="badge badge-warning">Due Soon</span>
+                                      {% endif %}
+                                      {% if group.early_days and group.early_days > 0 and group.due_status != 'PAST_DUE' %}
+                                        <span class="badge badge-info">Early {{ group.early_days }}d</span>
+                                      {% endif %}
+                                    </div>
+                                  </td>
+                                  <td>{{ group.cust_name }}</td>
+                                  <td>{% if group.city %}{{ group.city }}, {% endif %}{{ group.state }}</td>
+                                  <td>{{ group.total_qty }}</td>
+                                </tr>
+                                <tr class="manifest-item-row hidden" id="{{ row_id }}">
+                                  <td colspan="5">
+                                    <table class="manifest-subtable">
+                                      <thead>
+                                        <tr>
+                                          <th>SKU</th>
+                                          <th>Description</th>
+                                          <th>Qty</th>
+                                          <th>Length</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {% for line in group.lines %}
+                                          <tr>
+                                            <td>{{ line.sku }}</td>
+                                            <td>{{ line.item }}</td>
+                                            <td>{{ line.qty }}</td>
+                                            <td>{{ (line.unit_length_ft or 0) | round(1) }} ft</td>
+                                          </tr>
+                                        {% endfor %}
+                                      </tbody>
+                                    </table>
+                                  </td>
+                                </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div class="map-card">
+                        <div class="card-header-row">
+                          <h3>Route Map</h3>
+                        </div>
+                        <div class="load-map" id="load-map-{{ load.id }}" data-stops='{{ load.map_stops | tojson }}'></div>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+
+      {% else %}
+        <div class="empty-state">
+          <span class="material-symbols-outlined">local_shipping</span>
+          <p>No loads available yet.</p>
+        </div>
+      {% endif %}
+    </div>
   </section>
+
+  {% if tab != 'final' %}
+    <div class="modal-backdrop hidden" id="manual-load-modal" data-manual-load-modal>
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>Build Manual Load</h3>
+            <p>Select orders from the current optimized Draft Loads pool.</p>
+          </div>
+          <button class="btn-icon" type="button" data-manual-load-close aria-label="Close manual load builder">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form id="manual-load-form" method="post" action="{{ url_for('manual_load_create') }}" onsubmit="return confirm('Create this manual load and re-optimize the remaining orders?');">
+          <div class="modal-body">
+            <div class="form-grid manual-load-grid">
+              <label>
+                Plant
+                <select class="select-field" name="plant" id="manual-load-plant">
+                  {% for plant in plants %}
+                    <option value="{{ plant }}" {% if plant_filters|length == 1 and plant_filters[0] == plant %}selected{% endif %}>{{ plant }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
+                Trailer Type
+                <select class="select-field" name="trailer_type" id="manual-load-trailer">
+                  <option value="STEP_DECK">53' Step Deck</option>
+                  <option value="WEDGE">51' Wedge</option>
+                  <option value="FLATBED">53' Flatbed</option>
+                </select>
+              </label>
+              <label class="manual-load-search-field">
+                Search by Order # or Customer
+                <input class="select-field" type="text" id="manual-load-search" placeholder="e.g. 45001234 or Lowe's" autocomplete="off">
+              </label>
+            </div>
+
+            <div class="manual-load-columns">
+              <div class="manual-column">
+                <div class="manual-column-header">
+                  <span class="metric-label">Search Results</span>
+                  <span class="subtext">Pick a seed order to start.</span>
+                </div>
+                <div class="manual-order-list" id="manual-load-search-results"></div>
+              </div>
+              <div class="manual-column">
+                <div class="manual-column-header">
+                  <span class="metric-label">Suggested Nearby Orders</span>
+                  <span class="subtext" id="manual-load-suggest-meta"></span>
+                </div>
+                <div class="manual-order-list" id="manual-load-suggest-list">
+                  <div class="subtext">Select a seed order to see suggestions.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-ghost" type="button" data-manual-load-cancel>Cancel</button>
+            <button class="btn-primary" type="submit" id="manual-load-submit" disabled>Create Manual Load</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const mapInstances = new Map();
+
+    function toRad(value) {
+      return (value * Math.PI) / 180;
+    }
+
+    function toDeg(value) {
+      return (value * 180) / Math.PI;
+    }
+
+    function bearing(start, end) {
+      const lat1 = toRad(start[0]);
+      const lat2 = toRad(end[0]);
+      const deltaLon = toRad(end[1] - start[1]);
+      const y = Math.sin(deltaLon) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+      return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    }
+
+    function createStopIcon(stop) {
+      const type = stop.type || 'stop';
+      const sequence = stop.sequence || '';
+      let html = '';
+      if (type === 'origin') {
+        html = '<div class="stop-marker origin"><span class="material-symbols-outlined">home</span></div>';
+      } else if (type === 'final') {
+        html = `<div class="stop-marker final"><span class="material-symbols-outlined">flag</span><span class="stop-num">${sequence}</span></div>`;
+      } else {
+        html = `<div class="stop-marker"><span class="stop-num">${sequence}</span></div>`;
+      }
+      return L.divIcon({
+        className: 'stop-marker-wrapper',
+        html,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+    }
+
+    function addRouteArrows(map, coords) {
+      coords.forEach((point, idx) => {
+        if (idx >= coords.length - 1) return;
+        const next = coords[idx + 1];
+        const mid = [(point[0] + next[0]) / 2, (point[1] + next[1]) / 2];
+        const angle = bearing(point, next);
+        const icon = L.divIcon({
+          className: 'route-arrow',
+          html: `<div style="transform: rotate(${angle}deg)">></div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        });
+        L.marker(mid, { icon, interactive: false }).addTo(map);
+      });
+    }
+
+    function initLoadMap(container) {
+      if (!container || mapInstances.has(container.id)) {
+        return;
+      }
+      const stops = JSON.parse(container.dataset.stops || '[]');
+      const validStops = stops.filter((stop) => stop.lat !== null && stop.lng !== null);
+      if (!validStops.length) {
+        container.innerHTML = '<div class="empty">No map coordinates available for stops.</div>';
+        return;
+      }
+
+      const map = L.map(container, {
+        zoomControl: true,
+        scrollWheelZoom: false,
+      });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 18,
+      }).addTo(map);
+
+      const bounds = [];
+      const lineCoords = validStops.map((stop) => {
+        const coords = [stop.lat, stop.lng];
+        bounds.push(coords);
+        return coords;
+      });
+
+      if (lineCoords.length > 1) {
+        L.polyline(lineCoords, {
+          color: '#38bdf8',
+          weight: 3,
+          opacity: 0.85,
+        }).addTo(map);
+        addRouteArrows(map, lineCoords);
+      }
+
+      validStops.forEach((stop) => {
+        const coords = [stop.lat, stop.lng];
+        const icon = createStopIcon(stop);
+        const marker = L.marker(coords, { icon }).addTo(map);
+        const label = stop.label || 'Stop';
+        marker.bindPopup(label);
+      });
+
+      if (bounds.length === 1) {
+        map.setView(bounds[0], 9);
+      } else {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+      mapInstances.set(container.id, map);
+    }
+
+    function closeOrderFeedbackPanels() {
+      document.querySelectorAll('.order-feedback-panel').forEach((panel) => {
+        panel.classList.add('hidden');
+      });
+    }
+
+    function closeLoadFeedbackPanels() {
+      document.querySelectorAll('.load-feedback-panel').forEach((panel) => {
+        panel.classList.add('hidden');
+      });
+    }
+
+    document.querySelectorAll('.feedback-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.feedbackTarget;
+        const panel = document.getElementById(targetId);
+        if (!panel) return;
+        const isHidden = panel.classList.contains('hidden');
+        closeOrderFeedbackPanels();
+        closeLoadFeedbackPanels();
+        if (isHidden) {
+          panel.classList.remove('hidden');
+        }
+      });
+    });
+
+    function openOrderFeedbackPanel(loadId, orderId) {
+      const panel = document.getElementById(`order-remove-${loadId}`);
+      if (!panel) return;
+      const input = panel.querySelector('input[name="order_id"]');
+      if (input) input.value = orderId || '';
+      const label = panel.querySelector('[data-order-label]');
+      if (label) {
+        label.textContent = orderId ? `#${orderId}` : 'Select an order in the schematic';
+      }
+      panel.classList.remove('hidden');
+    }
+
+    function highlightSchematicOrder(loadId, orderId, active) {
+      const card = document.getElementById(`schematic-card-${loadId}`);
+      if (!card) return;
+      const blocks = card.querySelectorAll('.unit-block[data-order-id]');
+      blocks.forEach((block) => {
+        const match = (block.dataset.orderId || '') === (orderId || '');
+        block.classList.toggle('highlighted', Boolean(active && match));
+        block.classList.toggle('dimmed', Boolean(active && !match));
+      });
+    }
+
+    function bindSchematicRemove(root = document) {
+      root.querySelectorAll('.js-schematic-remove').forEach((btn) => {
+        if (btn.dataset.bound === 'true') return;
+        btn.dataset.bound = 'true';
+        btn.addEventListener('mouseenter', () => {
+          highlightSchematicOrder(btn.dataset.loadId, btn.dataset.orderId, true);
+        });
+        btn.addEventListener('mouseleave', () => {
+          highlightSchematicOrder(btn.dataset.loadId, btn.dataset.orderId, false);
+        });
+        btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const loadId = btn.dataset.loadId;
+          const orderId = btn.dataset.orderId;
+          if (!loadId || !orderId) return;
+          closeLoadFeedbackPanels();
+          closeOrderFeedbackPanels();
+          openOrderFeedbackPanel(loadId, orderId);
+        });
+      });
+    }
+
+    function updateUtilSummary(loadId, payload) {
+      const container = document.querySelector(`.load-summary-metric.util[data-load-id="${loadId}"]`);
+      if (!container) return;
+      const pct = Math.round(payload.utilization_pct || 0);
+      const grade = payload.utilization_grade || 'F';
+      const utilValue = container.querySelector('[data-util-value]');
+      const utilGrade = container.querySelector('[data-util-grade]');
+      const utilFill = container.querySelector('[data-util-fill]');
+      const utilFlag = container.querySelector('[data-util-flag]');
+      if (utilValue) utilValue.textContent = `${pct}%`;
+      if (utilGrade) utilGrade.textContent = `Grade ${grade}`;
+      const showFlag = Boolean(payload.over_capacity || payload.exceeds_capacity);
+      if (utilFlag) utilFlag.classList.toggle('hidden', !showFlag);
+      if (utilFill) {
+        utilFill.style.width = `${Math.min(100, pct)}%`;
+        utilFill.classList.remove('success', 'warning', 'danger');
+        if (pct >= 80) {
+          utilFill.classList.add('success');
+        } else if (pct >= 70) {
+          utilFill.classList.add('warning');
+        } else {
+          utilFill.classList.add('danger');
+        }
+      }
+    }
+
+    function bindTrailerSelect(root = document) {
+      root.querySelectorAll('.load-trailer-select').forEach((select) => {
+        if (select.dataset.bound === 'true') return;
+        select.dataset.bound = 'true';
+        select.addEventListener('change', () => {
+          const loadId = select.dataset.loadId;
+          if (!loadId) return;
+          select.disabled = true;
+          const formData = new FormData();
+          formData.append('trailer_type', select.value);
+          fetch(`/loads/${loadId}/trailer`, {
+            method: 'POST',
+            body: formData,
+          })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error('Trailer update failed');
+              }
+              return fetch(`/loads/${loadId}/schematic`);
+            })
+            .then((response) => response.json())
+            .then((payload) => {
+              if (payload && payload.schematic_html) {
+                const existing = document.getElementById(`schematic-card-${loadId}`);
+                if (existing) {
+                  existing.outerHTML = payload.schematic_html;
+                  const replacement = document.getElementById(`schematic-card-${loadId}`);
+                  bindSchematicRemove(replacement || document);
+                  bindTrailerSelect(replacement || document);
+                }
+              }
+              updateUtilSummary(loadId, payload || {});
+              const alert = document.getElementById(`over-capacity-${loadId}`);
+              if (alert) {
+                alert.classList.toggle('hidden', !(payload && payload.over_capacity));
+              }
+            })
+            .catch(() => {
+              window.alert('Unable to update trailer type. Please try again.');
+            })
+            .finally(() => {
+              select.disabled = false;
+            });
+        });
+      });
+    }
+
+    function updateSectionVisibility() {
+      document.querySelectorAll('.load-section').forEach((section) => {
+        const visibleRows = section.querySelectorAll('.load-row:not(.hidden)');
+        section.classList.toggle('hidden', visibleRows.length === 0);
+      });
+    }
+
+    function recalcOptimizationSummary() {
+      const rows = Array.from(document.querySelectorAll('.load-row'));
+      let totalOrders = 0;
+      let totalCost = 0;
+      let totalUtil = 0;
+      let loadCount = 0;
+      const gradeCounts = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+
+      rows.forEach((row) => {
+        if (row.dataset.removed === 'true') return;
+        const orders = Number(row.dataset.loadOrders || 0);
+        const cost = Number(row.dataset.loadCost || 0);
+        const util = Number(row.dataset.loadUtil || 0);
+        const grade = (row.dataset.loadGrade || 'F').toUpperCase();
+        totalOrders += orders;
+        totalCost += cost;
+        totalUtil += util;
+        loadCount += 1;
+        gradeCounts[grade] = (gradeCounts[grade] || 0) + 1;
+      });
+
+      const avgUtil = loadCount ? (totalUtil / loadCount) : 0;
+      const loadChip = document.querySelector('[data-opt-total-loads]');
+      const orderValue = document.querySelector('[data-opt-total-orders]');
+      const spendValue = document.querySelector('[data-opt-total-spend]');
+      const avgValue = document.querySelector('[data-opt-avg-util]');
+
+      if (loadChip) loadChip.textContent = `${loadCount} Loads`;
+      if (orderValue) orderValue.textContent = totalOrders;
+      if (spendValue) spendValue.textContent = `$${Math.round(totalCost)}`;
+      if (avgValue) avgValue.textContent = `${avgUtil.toFixed(1)}%`;
+      const draftTabCount = document.querySelector('.load-tab .tab-count.warning');
+      if (draftTabCount) draftTabCount.textContent = loadCount;
+
+      Object.entries(gradeCounts).forEach(([grade, count]) => {
+        const el = document.querySelector(`[data-grade-count="${grade}"]`);
+        if (el) el.textContent = count;
+      });
+    }
+
+    function removeLoadFromView(loadId) {
+      const row = document.querySelector(`.load-row[data-load-id="${loadId}"]`);
+      const panel = document.getElementById(`load-detail-${loadId}`);
+      if (panel) panel.remove();
+      if (row) {
+        row.dataset.removed = 'true';
+        row.remove();
+      }
+      updateSectionVisibility();
+      recalcOptimizationSummary();
+    }
+
+    function bindAsyncApprove() {
+      document.querySelectorAll('form[data-async-approve]').forEach((form) => {
+        if (form.dataset.bound === 'true') return;
+        form.dataset.bound = 'true';
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const formData = new FormData(form);
+          form.querySelector('button')?.setAttribute('disabled', 'true');
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+          })
+            .then(async (response) => {
+              let payload = null;
+              const contentType = response.headers.get('Content-Type') || '';
+              if (contentType.includes('application/json')) {
+                payload = await response.json();
+              } else {
+                const text = await response.text();
+                payload = { error: text || `Request failed (${response.status})` };
+              }
+              if (!response.ok || !payload || payload.error) {
+                const message = payload?.error || `Approval failed (${response.status})`;
+                throw new Error(message);
+              }
+              return payload;
+            })
+            .then((payload) => {
+              removeLoadFromView(payload.load_id);
+            })
+            .catch((error) => {
+              form.querySelector('button')?.removeAttribute('disabled');
+              if (!form.dataset.fallback) {
+                form.dataset.fallback = 'true';
+                // Fallback to standard form submit if async approve fails.
+                form.submit();
+                return;
+              }
+              window.alert(error?.message || 'Unable to approve load. Please try again.');
+            });
+        });
+      });
+    }
+
+    document.querySelectorAll('[data-feedback-cancel]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('.manifest-feedback-row');
+        if (row) {
+          row.classList.add('hidden');
+          return;
+        }
+        const panel = btn.closest('.inline-feedback-panel');
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+      });
+    });
+
+    document.querySelectorAll('.load-row-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.target;
+        const panel = document.getElementById(targetId);
+        if (!panel) return;
+        const isOpen = !panel.classList.contains('hidden');
+
+        if (!isOpen) {
+          document.querySelectorAll('.load-detail-panel').forEach((other) => {
+            if (other === panel) return;
+            other.classList.add('hidden');
+            const otherToggle = document.querySelector(`.load-row-toggle[data-target="${other.id}"]`);
+            if (otherToggle) {
+              otherToggle.setAttribute('aria-expanded', 'false');
+              otherToggle.classList.remove('open');
+            }
+          });
+        }
+
+        panel.classList.toggle('hidden');
+        btn.setAttribute('aria-expanded', (!isOpen).toString());
+        btn.classList.toggle('open', !isOpen);
+
+        if (!isOpen) {
+          const row = btn.closest('.load-row');
+          if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          const mapContainer = panel.querySelector('.load-map');
+          initLoadMap(mapContainer);
+          const mapInstance = mapInstances.get(mapContainer?.id);
+          if (mapInstance) {
+            setTimeout(() => mapInstance.invalidateSize(), 50);
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('.load-detail-panel:not(.hidden)').forEach((panel) => {
+      const mapContainer = panel.querySelector('.load-map');
+      initLoadMap(mapContainer);
+      const mapInstance = mapInstances.get(mapContainer?.id);
+      if (mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 50);
+      }
+    });
+
+    document.querySelectorAll('.load-row').forEach((row) => {
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('button')) return;
+        if (event.target.closest('a')) return;
+        if (event.target.closest('select')) return;
+        if (event.target.closest('.inline-feedback-panel')) return;
+        const btn = row.querySelector('.load-row-toggle');
+        if (btn) btn.click();
+      });
+    });
+
+    bindSchematicRemove();
+    bindTrailerSelect();
+    bindAsyncApprove();
+
+    document.querySelectorAll('.manifest-order-row').forEach((row) => {
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('.manifest-toggle')) {
+          event.preventDefault();
+        } else if (event.target.closest('button') || event.target.closest('form') || event.target.closest('a')) {
+          return;
+        }
+        const targetId = row.dataset.target;
+        if (!targetId) return;
+        const detailRow = document.getElementById(targetId);
+        if (!detailRow) return;
+        const toggle = row.querySelector('.manifest-toggle');
+        const isHidden = detailRow.classList.contains('hidden');
+        detailRow.classList.toggle('hidden');
+        row.classList.toggle('open', isHidden);
+        if (toggle) toggle.textContent = isHidden ? '-' : '+';
+      });
+    });
+
+    function debounce(fn, delayMs) {
+      let handle;
+      return (...args) => {
+        clearTimeout(handle);
+        handle = setTimeout(() => fn(...args), delayMs);
+      };
+    }
+
+    function initManualLoadModal() {
+      const modal = document.getElementById('manual-load-modal');
+      if (!modal) return;
+
+      const openButtons = document.querySelectorAll('[data-manual-load-open]');
+      const closeButton = modal.querySelector('[data-manual-load-close]');
+      const cancelButton = modal.querySelector('[data-manual-load-cancel]');
+
+      const plantSelect = document.getElementById('manual-load-plant');
+      const searchInput = document.getElementById('manual-load-search');
+      const resultsContainer = document.getElementById('manual-load-search-results');
+      const suggestMeta = document.getElementById('manual-load-suggest-meta');
+      const suggestList = document.getElementById('manual-load-suggest-list');
+      const submitBtn = document.getElementById('manual-load-submit');
+
+      let seedOrder = null;
+      let activeSearchController = null;
+      let activeSuggestController = null;
+
+      const closeModal = () => {
+        modal.classList.add('hidden');
+      };
+
+      const resetState = () => {
+        seedOrder = null;
+        if (searchInput) searchInput.value = '';
+        if (resultsContainer) resultsContainer.innerHTML = '';
+        if (suggestMeta) suggestMeta.textContent = '';
+        if (suggestList) {
+          suggestList.innerHTML = '<div class="subtext">Select a seed order to see suggestions.</div>';
+        }
+        if (submitBtn) submitBtn.disabled = true;
+      };
+
+      const openModal = () => {
+        resetState();
+        modal.classList.remove('hidden');
+        if (searchInput) searchInput.focus();
+      };
+
+      openButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openModal();
+        });
+      });
+
+      if (closeButton) closeButton.addEventListener('click', closeModal);
+      if (cancelButton) cancelButton.addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (modal.classList.contains('hidden')) return;
+        closeModal();
+      });
+
+      if (plantSelect) {
+        plantSelect.addEventListener('change', () => {
+          resetState();
+          if (searchInput) searchInput.value = '';
+        });
+      }
+
+      function renderEmpty(container, message) {
+        if (!container) return;
+        const div = document.createElement('div');
+        div.className = 'subtext';
+        div.textContent = message;
+        container.innerHTML = '';
+        container.appendChild(div);
+      }
+
+      function renderSearchResults(orders) {
+        if (!resultsContainer) return;
+        resultsContainer.innerHTML = '';
+        if (!orders || orders.length === 0) {
+          renderEmpty(resultsContainer, 'No matching draft-scope orders found.');
+          return;
+        }
+
+        orders.forEach((order) => {
+          const soNum = (order.so_num || '').toString().trim();
+          if (!soNum) return;
+
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'manual-order-item';
+          button.dataset.soNum = soNum;
+
+          const title = document.createElement('div');
+          title.className = 'manual-order-title';
+          title.textContent = `#${soNum}`;
+
+          const meta = document.createElement('div');
+          meta.className = 'manual-order-meta';
+          const cust = (order.cust_name || '').toString().trim();
+          const due = (order.due_date || '').toString().trim();
+          const city = (order.city || '').toString().trim();
+          const state = (order.state || '').toString().trim();
+          meta.textContent = `${cust || 'Customer'} • Due ${due || '—'} • ${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim();
+
+          button.appendChild(title);
+          button.appendChild(meta);
+
+          if (seedOrder && seedOrder === soNum) {
+            button.classList.add('active');
+          }
+
+          button.addEventListener('click', () => {
+            seedOrder = soNum;
+            document.querySelectorAll('.manual-order-item.active').forEach((node) => node.classList.remove('active'));
+            button.classList.add('active');
+            loadSuggestions();
+          });
+
+          resultsContainer.appendChild(button);
+        });
+      }
+
+      const loadSearchResults = debounce(() => {
+        if (!plantSelect || !searchInput) return;
+        const q = (searchInput.value || '').trim();
+        if (!q) {
+          if (resultsContainer) resultsContainer.innerHTML = '';
+          return;
+        }
+
+        const plant = (plantSelect.value || '').trim();
+        if (!plant) return;
+
+        if (activeSearchController) activeSearchController.abort();
+        activeSearchController = new AbortController();
+        const url = `/loads/manual/search?plant=${encodeURIComponent(plant)}&q=${encodeURIComponent(q)}`;
+        fetch(url, { signal: activeSearchController.signal })
+          .then((response) => response.json())
+          .then((payload) => renderSearchResults(payload.orders || []))
+          .catch((err) => {
+            if (err && err.name === 'AbortError') return;
+            renderEmpty(resultsContainer, 'Search failed. Try again.');
+          });
+      }, 250);
+
+      if (searchInput) {
+        searchInput.addEventListener('input', loadSearchResults);
+      }
+
+      function renderSuggestions(seed, suggestions, params) {
+        if (!suggestList) return;
+        suggestList.innerHTML = '';
+
+        const metaBits = [];
+        if (params && params.geo_radius) metaBits.push(`Radius ${Math.round(params.geo_radius)} mi`);
+        if (params && params.time_window_days) metaBits.push(`Window ±${params.time_window_days}d`);
+        if (suggestMeta) {
+          suggestMeta.textContent = metaBits.join(' • ');
+        }
+
+        if (seed && seed.so_num) {
+          const seedWrap = document.createElement('div');
+          seedWrap.className = 'manual-order-item seed';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = true;
+          checkbox.disabled = true;
+
+          const hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = 'so_nums';
+          hidden.value = seed.so_num;
+
+          const textWrap = document.createElement('div');
+          textWrap.className = 'manual-order-text';
+
+          const title = document.createElement('div');
+          title.className = 'manual-order-title';
+          title.textContent = `Seed #${seed.so_num}`;
+
+          const meta = document.createElement('div');
+          meta.className = 'manual-order-meta';
+          meta.textContent = `${(seed.cust_name || '').toString().trim() || 'Customer'} • Due ${(seed.due_date || '').toString().trim() || '—'}`;
+
+          textWrap.appendChild(title);
+          textWrap.appendChild(meta);
+
+          seedWrap.appendChild(checkbox);
+          seedWrap.appendChild(hidden);
+          seedWrap.appendChild(textWrap);
+          suggestList.appendChild(seedWrap);
+        }
+
+        if (!suggestions || suggestions.length === 0) {
+          const msg = document.createElement('div');
+          msg.className = 'subtext';
+          msg.textContent = 'No nearby draft-scope orders match the due date window.';
+          suggestList.appendChild(msg);
+          if (submitBtn) submitBtn.disabled = false;
+          return;
+        }
+
+        suggestions.forEach((item) => {
+          const soNum = (item.so_num || '').toString().trim();
+          if (!soNum) return;
+
+          const row = document.createElement('label');
+          row.className = 'manual-order-item checkbox';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.name = 'so_nums';
+          checkbox.value = soNum;
+
+          const textWrap = document.createElement('div');
+          textWrap.className = 'manual-order-text';
+
+          const title = document.createElement('div');
+          title.className = 'manual-order-title';
+          const distance = item.distance_miles != null ? ` • ${item.distance_miles} mi` : '';
+          title.textContent = `#${soNum}${distance}`;
+
+          const meta = document.createElement('div');
+          meta.className = 'manual-order-meta';
+          const cust = (item.cust_name || '').toString().trim();
+          const due = (item.due_date || '').toString().trim();
+          const city = (item.city || '').toString().trim();
+          const state = (item.state || '').toString().trim();
+          meta.textContent = `${cust || 'Customer'} • Due ${due || '—'} • ${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim();
+
+          textWrap.appendChild(title);
+          textWrap.appendChild(meta);
+
+          row.appendChild(checkbox);
+          row.appendChild(textWrap);
+          suggestList.appendChild(row);
+        });
+
+        if (submitBtn) submitBtn.disabled = false;
+      }
+
+      function loadSuggestions() {
+        if (!plantSelect || !seedOrder) return;
+        const plant = (plantSelect.value || '').trim();
+        if (!plant) return;
+
+        if (activeSuggestController) activeSuggestController.abort();
+        activeSuggestController = new AbortController();
+        if (suggestList) suggestList.innerHTML = '<div class="subtext">Loading suggestions…</div>';
+        if (submitBtn) submitBtn.disabled = true;
+
+        const url = `/loads/manual/suggest?plant=${encodeURIComponent(plant)}&seed=${encodeURIComponent(seedOrder)}`;
+        fetch(url, { signal: activeSuggestController.signal })
+          .then((response) => response.json())
+          .then((payload) => {
+            renderSuggestions(payload.seed || null, payload.suggestions || [], payload.params || {});
+          })
+          .catch((err) => {
+            if (err && err.name === 'AbortError') return;
+            renderEmpty(suggestList, 'Suggestion lookup failed. Try again.');
+          });
+      }
+    }
+
+    function initLoadsPlantCards() {
+      const container = document.querySelector('.loads-plant-cards');
+      if (!container) return;
+      const storageKey = 'loads-last-plants';
+      container.querySelectorAll('[data-plant]').forEach((card) => {
+        card.addEventListener('click', () => {
+          const plant = (card.dataset.plant || '').trim().toUpperCase();
+          if (!plant) return;
+
+          const url = new URL(window.location.href);
+          const params = url.searchParams;
+          const currentPlantsParam = (params.get('plants') || '').trim().toUpperCase();
+          const isAllMode = !currentPlantsParam || currentPlantsParam === 'ALL';
+
+          if (plant === 'ALL') {
+            if (isAllMode) {
+              const last = (window.localStorage.getItem(storageKey) || '').trim().toUpperCase();
+              if (last && last !== 'ALL') {
+                params.set('plants', last);
+              } else {
+                params.delete('plants');
+              }
+            } else {
+              window.localStorage.setItem(storageKey, currentPlantsParam);
+              params.delete('plants');
+            }
+          } else {
+            const selected = new Set(
+              (params.get('plants') || '')
+                .split(',')
+                .map((value) => value.trim().toUpperCase())
+                .filter(Boolean)
+            );
+
+            if (isAllMode) selected.clear();
+
+            if (selected.has(plant)) {
+              selected.delete(plant);
+            } else {
+              selected.add(plant);
+            }
+
+            if (!selected.size) {
+              params.delete('plants');
+              window.localStorage.removeItem(storageKey);
+            } else {
+              const next = Array.from(selected).join(',');
+              params.set('plants', next);
+              window.localStorage.setItem(storageKey, next);
+            }
+          }
+
+          url.search = params.toString();
+          window.location.assign(url.toString());
+        });
+      });
+    }
+
+    initManualLoadModal();
+    initLoadsPlantCards();
+
+  </script>
 {% endblock %}

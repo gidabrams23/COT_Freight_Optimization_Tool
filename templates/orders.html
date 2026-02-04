@@ -1,134 +1,706 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="page-section">
-    <div class="section-heading">
-      <h2>Orders</h2>
-      <p>Create and track load orders before assigning dispatch details.</p>
+  <section class="orders-page">
+    <header class="orders-header">
+      <div class="orders-header-top">
+        <div class="orders-plant-cards{% if profile_default_plants and not is_admin %} focus{% endif %}">
+          {% set focus_mode = profile_default_plants and not is_admin %}
+          {% set total_orders = plant_cards | sum(attribute='orders') %}
+          {% if not focus_mode %}
+            <button type="button" class="plant-card{% if plant_filters | length == 0 %} active{% endif %}" data-plant="ALL">
+              <span class="plant-code">All Plants</span>
+              <span class="plant-count">{{ total_orders }}</span>
+              <span class="plant-meta">Open orders</span>
+            </button>
+            {% for plant in plant_cards %}
+              <button type="button" class="plant-card{% if plant_filters and plant.code in plant_filters %} active{% endif %}" data-plant="{{ plant.code }}">
+                <span class="plant-code">{{ plant.code }}</span>
+                <span class="plant-count">{{ plant.orders }}</span>
+                <span class="plant-meta">{{ plant.name }}</span>
+              </button>
+            {% endfor %}
+          {% else %}
+            {% set hidden_count = (plant_cards | length) - (profile_default_plants | length) %}
+            {% for plant in plant_cards %}
+              {% if plant.code in profile_default_plants %}
+                <button type="button" class="plant-card{% if plant_filters and plant.code in plant_filters %} active{% endif %}" data-plant="{{ plant.code }}">
+                  <span class="plant-code">{{ plant.code }}</span>
+                  <span class="plant-count">{{ plant.orders }}</span>
+                  <span class="plant-meta">{{ plant.name }}</span>
+                </button>
+              {% endif %}
+            {% endfor %}
+            {% if hidden_count > 0 %}
+              <button
+                type="button"
+                class="plant-card plant-card-more"
+                data-more-toggle
+                aria-controls="orders-plant-cards-more"
+                aria-expanded="{% if show_more_plants %}true{% else %}false{% endif %}"
+                title="Show more plants"
+              >
+                <span class="plant-more-label" data-more-label data-count="{{ hidden_count }}">
+                  {% if show_more_plants %}-{% else %}+{% endif %}{{ hidden_count }}
+                </span>
+              </button>
+              <div class="orders-plant-cards-more-inline{% if not show_more_plants %} is-collapsed{% endif %}" id="orders-plant-cards-more">
+                <button type="button" class="plant-card{% if plant_filters | length == 0 %} active{% endif %}" data-plant="ALL">
+                  <span class="plant-code">All Plants</span>
+                  <span class="plant-count">{{ total_orders }}</span>
+                  <span class="plant-meta">Open orders</span>
+                </button>
+                {% for plant in plant_cards %}
+                  {% if plant.code not in profile_default_plants %}
+                    <button type="button" class="plant-card{% if plant_filters and plant.code in plant_filters %} active{% endif %}" data-plant="{{ plant.code }}">
+                      <span class="plant-code">{{ plant.code }}</span>
+                      <span class="plant-count">{{ plant.orders }}</span>
+                      <span class="plant-meta">{{ plant.name }}</span>
+                    </button>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endif %}
+        </div>
+        <div class="orders-header-actions">
+          <h1>Orders & Intake</h1>
+          <details class="optimize-disclosure"{% if optimize_errors and optimize_errors | length %} open{% endif %}>
+            <summary class="btn-success orders-cta">
+              <span class="material-symbols-outlined">rocket_launch</span>
+              Generate Draft Loads
+              <span class="material-symbols-outlined optimize-chevron">expand_more</span>
+            </summary>
+            <form method="post" action="{{ url_for('orders_optimize') }}" class="orders-optimize-form optimize-panel">
+              <input type="hidden" name="opt_toggles" value="1">
+              <input type="hidden" name="origin_plant" value="{{ optimize_defaults.origin_plant }}">
+              <input type="hidden" name="trailer_type" value="{{ optimize_defaults.trailer_type or 'STEP_DECK' }}">
+              <input type="hidden" name="capacity_feet" value="{{ optimize_defaults.capacity_feet }}">
+              <input type="hidden" name="max_detour_pct" value="{{ optimize_defaults.max_detour_pct }}">
+              <input type="hidden" name="geo_radius" value="{{ optimize_defaults.geo_radius }}">
+
+              <div class="optimize-panel-grid">
+                <label class="optimize-toggle-row">
+                  <input type="checkbox" name="enforce_time_window" value="1" data-opt-toggle="time-window"
+                         {% if optimize_defaults.enforce_time_window %}checked{% endif %}>
+                  <span class="toggle-label">Due Date Flexibility (days)</span>
+                  <input class="optimize-inline-input" type="number" name="time_window_days" min="1" step="1"
+                         value="{{ optimize_defaults.time_window_days }}"
+                         data-opt-target="time-window">
+                </label>
+
+                <label class="optimize-toggle-row">
+                  <input type="checkbox" name="batch_horizon_enabled" value="1" data-opt-toggle="batch-end"
+                         {% if optimize_defaults.batch_horizon_enabled %}checked{% endif %}>
+                  <span class="toggle-label">Batch Orders Up Until</span>
+                  <input class="optimize-inline-input" type="date" name="batch_end_date"
+                         value="{{ optimize_defaults.batch_end_date }}"
+                         data-opt-target="batch-end">
+                </label>
+              </div>
+
+              <div class="optimize-panel-actions">
+                <button class="btn-success btn-sm" type="submit">
+                  <span class="material-symbols-outlined">rocket_launch</span>
+                  Run Optimizer
+                </button>
+              </div>
+            </form>
+          </details>
+        </div>
+      </div>
+      {% if optimize_errors and optimize_errors | length %}
+        <div class="alert-message warning orders-header-alert">
+          {{ optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
+        </div>
+      {% endif %}
+    </header>
+
+    <div class="orders-top-grid">
+      <div class="card-widget data-intake-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h3>Data Intake</h3>
+          </div>
+          <div class="panel-actions">
+            {% if last_upload %}
+              <span class="meta-chip">Last import {{ last_upload.uploaded_at }}</span>
+            {% endif %}
+            {% if is_admin %}
+              <form method="post" action="{{ url_for('clear_orders') }}" onsubmit="return confirm('Delete all orders? This cannot be undone.');">
+                <button class="btn-danger btn-xs" type="submit">
+                  <span class="material-symbols-outlined">delete_forever</span>
+                  Delete All Orders
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+        <div class="panel-body">
+          <form class="data-dropzone" method="post" enctype="multipart/form-data" action="{{ url_for('orders_upload') }}">
+            <label>
+              <input type="file" name="file" accept=".csv" required onchange="this.form.submit()">
+              <span class="material-symbols-outlined">upload_file</span>
+              <span class="drop-title">Drop CSV file to stage orders</span>
+              <span class="drop-meta">or click to browse local files</span>
+            </label>
+          </form>
+        </div>
+      </div>
+
+      <div class="card-widget recent-imports-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h3>Recent Imports</h3>
+            {% if upload_history %}
+              <span class="meta-chip">{{ upload_history | length }} uploads</span>
+            {% endif %}
+          </div>
+          <div class="panel-actions">
+            {% if upload_history %}
+              <button class="btn-ghost btn-xs" type="button">View All</button>
+            {% endif %}
+          </div>
+        </div>
+        <div class="panel-body">
+          {% if upload_history %}
+            <div class="recent-imports-list">
+              {% for upload in upload_history %}
+                <div class="import-item">
+                  <div class="import-info">
+                    <span class="import-file">{{ upload.filename or "Untitled CSV" }}</span>
+                    <span class="import-meta">{{ upload.uploaded_at }}</span>
+                  </div>
+                  <div class="import-mapping">
+                    <div class="mapping-header">
+                      <span class="mapping-rate">{{ (upload.mapping_rate or 0) | round(1) }}% mapped</span>
+                      {% if upload.unmapped_count %}
+                        <span class="metric-badge danger">{{ upload.unmapped_count }} unmapped</span>
+                      {% endif %}
+                    </div>
+                    <div class="import-progress{% if upload.unmapped_count %} warning{% endif %}">
+                      <span style="width: {{ (upload.mapping_rate or 0) }}%"></span>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state">No uploads yet. Add a CSV to begin mapping.</div>
+          {% endif %}
+        </div>
+      </div>
     </div>
-    {% if success_message %}
-      <div class="card callout callout-success">
-        {{ success_message }}
-      </div>
-    {% endif %}
 
-    {% if not customers %}
-      <div class="card callout callout-warning">
-        <strong>No customers yet.</strong> Add a customer before creating order lines.
-        <a href="{{ url_for('customers') }}">Go to customers</a>
+    <div class="orders-snapshot-grid">
+      <div class="snapshot-card">
+        <span class="material-symbols-outlined snapshot-icon">inventory</span>
+        <span class="snapshot-label">Total Orders</span>
+        <span class="snapshot-value">{{ orders_snapshot.total }}</span>
+        <span class="snapshot-meta">Active Demand</span>
       </div>
-    {% endif %}
+      <div class="snapshot-card danger">
+        <span class="material-symbols-outlined snapshot-icon">event_busy</span>
+        <span class="snapshot-label">Past Due</span>
+        <span class="snapshot-value">{{ orders_snapshot.past_due }}</span>
+        <span class="snapshot-meta">Needs Attention</span>
+      </div>
+      <div class="snapshot-card warning">
+        <span class="material-symbols-outlined snapshot-icon">calendar_today</span>
+        <span class="snapshot-label">Due This Week</span>
+        <span class="snapshot-value">{{ orders_snapshot.this_week }}</span>
+        <span class="snapshot-meta">In Range</span>
+      </div>
+      <div class="snapshot-card">
+        <span class="material-symbols-outlined snapshot-icon">pending</span>
+        <span class="snapshot-label">Unassigned</span>
+        <span class="snapshot-value">{{ orders_snapshot.unassigned }}</span>
+        <span class="snapshot-meta">Awaiting Load</span>
+      </div>
+    </div>
 
-    <div class="card-grid">
-      <article class="card">
-        <h3>Add Order Line</h3>
-        <form class="form-stack" method="post" action="{{ url_for('add_order_line') }}">
-          <label for="customer_id">
-            Customer
-            <select id="customer_id" name="customer_id" {% if not customers %}disabled{% endif %}>
-              <option value="">Select a customer</option>
-              {% for customer in customers %}
-                <option value="{{ customer.id }}" {% if form_data.customer_id == customer.id|string %}selected{% endif %}>
-                  {{ customer.name }}
-                </option>
+    <div class="section-divider"></div>
+
+    <div class="card-widget orders-panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Active Orders Grid</h3>
+          <span class="meta-chip">{{ summary.total_orders }} Orders</span>
+        </div>
+        <div class="panel-actions orders-panel-actions">
+          <div class="orders-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="text" id="orders-search" placeholder="Filter orders...">
+          </div>
+          <button class="btn-secondary btn-xs orders-filter-toggle" type="button">
+            <span class="material-symbols-outlined">filter_list</span>
+            Filter
+          </button>
+        </div>
+      </div>
+
+      <div class="orders-toolbar" id="orders-filters">
+        <form class="filters" method="get">
+          {% if plant_filter_param %}
+            <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+          {% endif %}
+          <label>
+            Due Date
+            <select name="due" id="due-filter">
+              <option value="" {% if not due_filter %}selected{% endif %}>All Dates</option>
+              <option value="PAST_DUE" {% if due_filter == 'PAST_DUE' %}selected{% endif %}>Past Due</option>
+              <option value="THIS_WEEK" {% if due_filter == 'THIS_WEEK' %}selected{% endif %}>Due This Week</option>
+              <option value="NEXT_WEEK" {% if due_filter == 'NEXT_WEEK' %}selected{% endif %}>Due Next Week</option>
+              <option value="CUSTOM" {% if due_filter == 'CUSTOM' %}selected{% endif %}>Custom Range</option>
+            </select>
+          </label>
+          <label>
+            Start
+            <input type="date" name="due_start" value="{{ due_start or '' }}" id="due-start">
+          </label>
+          <label>
+            End
+            <input type="date" name="due_end" value="{{ due_end or '' }}" id="due-end">
+          </label>
+          <label>
+            Assignment
+            <select name="assigned">
+              <option value="" {% if not assignment_filter %}selected{% endif %}>All</option>
+              <option value="ASSIGNED" {% if assignment_filter == 'ASSIGNED' %}selected{% endif %}>Assigned</option>
+              <option value="UNASSIGNED" {% if assignment_filter == 'UNASSIGNED' %}selected{% endif %}>Unassigned</option>
+            </select>
+          </label>
+          <label>
+            State
+            <select name="state">
+              <option value="">All States</option>
+              {% for state in states %}
+                <option value="{{ state }}" {% if filters.state == state %}selected{% endif %}>{{ state }}</option>
               {% endfor %}
             </select>
-            {% if errors.customer_id %}
-              <span class="form-error">{{ errors.customer_id }}</span>
-            {% endif %}
           </label>
-
-          <label for="qty">
-            Quantity
-            <input id="qty" name="qty" type="number" min="1" value="{{ form_data.qty }}" {% if not customers %}disabled{% endif %}>
-            {% if errors.qty %}
-              <span class="form-error">{{ errors.qty }}</span>
-            {% endif %}
+          <label>
+            Customer
+            <select name="customer">
+              <option value="">All Customers</option>
+              {% for cust in customers %}
+                <option value="{{ cust }}" {% if filters.cust_name == cust %}selected{% endif %}>{{ cust }}</option>
+              {% endfor %}
+            </select>
           </label>
-
-          <label for="feet_per_unit">
-            Feet per Unit
-            <input id="feet_per_unit" name="feet_per_unit" type="number" min="0" step="0.01" value="{{ form_data.feet_per_unit }}" {% if not customers %}disabled{% endif %}>
-            {% if errors.feet_per_unit %}
-              <span class="form-error">{{ errors.feet_per_unit }}</span>
-            {% endif %}
-          </label>
-
-          <label for="due_date">
-            Due Date
-            <input id="due_date" name="due_date" type="date" value="{{ form_data.due_date }}" {% if not customers %}disabled{% endif %}>
-          </label>
-
-          <label for="notes">
-            Notes
-            <textarea id="notes" name="notes" rows="3" {% if not customers %}disabled{% endif %}>{{ form_data.notes }}</textarea>
-          </label>
-
-          <button class="btn" type="submit" {% if not customers %}disabled{% endif %}>Add Line</button>
-        </form>
-      </article>
-
-      <article class="card">
-        <h3>Order Totals</h3>
-        <ul class="totals-list">
-          <li><span>Order lines</span><strong>{{ totals.total_lines }}</strong></li>
-          <li><span>Total quantity</span><strong>{{ totals.total_qty }}</strong></li>
-          <li>
-            <span>Total feet</span>
-            <strong>{{ "%.2f"|format(totals.total_feet) }}</strong>
-          </li>
-        </ul>
-      </article>
-    </div>
-
-    <article class="card">
-      <div class="card-header">
-        <div>
-          <h3>Order Lines</h3>
-          <p class="muted-text">Review pending order lines before assigning loads.</p>
-        </div>
-        <form method="post" action="{{ url_for('clear_order_lines') }}">
-          <button class="btn btn-secondary" type="submit">Clear all</button>
+          <button class="btn-secondary" type="submit">
+            <span class="material-symbols-outlined">filter_alt</span>
+            Apply
+          </button>
+          <a class="btn-secondary" href="{% if plant_filter_param %}{{ url_for('orders', plants=plant_filter_param) }}{% else %}{{ url_for('orders') }}{% endif %}">
+            <span class="material-symbols-outlined">restart_alt</span>
+            Reset
+          </a>
         </form>
       </div>
-      {% if order_lines %}
-        <div class="table-wrapper">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Customer</th>
-                <th>Qty</th>
-                <th>Feet/Unit</th>
-                <th>Total Feet</th>
-                <th>Due Date</th>
-                <th>Notes</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for line in order_lines %}
-                <tr>
-                  <td>{{ line.customer_name }}</td>
-                  <td>{{ line.qty }}</td>
-                  <td>{{ "%.2f"|format(line.feet_per_unit) }}</td>
-                  <td>{{ "%.2f"|format(line.qty * line.feet_per_unit) }}</td>
-                  <td>{{ line.due_date or "—" }}</td>
-                  <td>{{ line.notes or "—" }}</td>
-                  <td>{{ line.created_at }}</td>
-                  <td>
-                    <form method="post" action="{{ url_for('delete_order_line', order_line_id=line.id) }}">
-                      <button class="btn btn-danger" type="submit">Delete</button>
-                    </form>
+
+      <div class="table-container">
+        <table class="orders-table orders-table-tight">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Due Date</th>
+              <th>Client</th>
+              <th>Destination</th>
+              <th>Plant</th>
+              <th>Items</th>
+              <th>Total Qty</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for section in order_sections %}
+              {% if section.orders and section.orders | length %}
+                <tr class="orders-group-row">
+                  <td colspan="8">
+                    <div class="orders-group-header">
+                      <div class="orders-group-title">
+                        <strong>{{ section.label }}</strong>
+                        <span class="meta-chip">{{ section.orders | length }} orders</span>
+                        {% if section.limit %}
+                          <span class="muted">Showing first {{ section.limit }}</span>
+                        {% endif %}
+                      </div>
+                      {% if section.hidden_count and section.hidden_count > 0 %}
+                        <button
+                          type="button"
+                          class="btn-ghost btn-xs"
+                          data-orders-group-toggle="{{ section.key }}"
+                          data-hidden-count="{{ section.hidden_count }}"
+                          data-expanded="false"
+                        >
+                          Show {{ section.hidden_count }} more
+                        </button>
+                      {% endif %}
+                    </div>
                   </td>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="empty-state">No order lines yet. Add one to start building loads.</div>
-      {% endif %}
-    </article>
+
+                {% for order in section.orders %}
+                  {% set is_overflow = section.limit and loop.index > section.limit %}
+                  <tr
+                    class="order-row{% if is_overflow %} group-hidden{% endif %}"
+                    data-order-id="{{ order.id }}"
+                    data-so-num="{{ order.so_num }}"
+                    data-group="{{ section.key }}"
+                    data-overflow="{{ 1 if is_overflow else 0 }}"
+                  >
+                    <td>
+                      <span class="expand-pill">
+                        <span class="expand-icon">v</span>
+                        {{ order.so_num }}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="due-cell">
+                        <span class="due-date">{{ order.due_date }}</span>
+                        {% if order.due_status == 'PAST_DUE' %}
+                          <span class="badge badge-danger">Past Due</span>
+                        {% elif order.due_status == 'DUE_SOON' %}
+                          <span class="badge badge-warning">Due Soon</span>
+                        {% endif %}
+                      </div>
+                    </td>
+                    <td>{{ order.cust_name }}</td>
+                    <td>{% if order.city %}{{ order.city }}, {% endif %}{{ order.state }} {{ order.zip }}</td>
+                    <td>{{ order.plant }}</td>
+                    <td>{{ order.line_count }}</td>
+                    <td>{{ order.total_qty }}</td>
+                    <td>
+                      {% if order.is_excluded %}
+                        <span class="badge badge-neutral">Excluded</span>
+                      {% else %}
+                        <span class="badge badge-ready">Ready</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  <tr
+                    class="order-expanded hidden{% if is_overflow %} group-hidden{% endif %}"
+                    id="expanded-{{ order.id }}"
+                    data-loaded="false"
+                    data-group="{{ section.key }}"
+                    data-overflow="{{ 1 if is_overflow else 0 }}"
+                  >
+                    <td colspan="8">
+                      <div class="order-expand-body">
+                        <div class="expand-heading">
+                          <div class="expand-title">Order Details</div>
+                          <div class="expand-subtitle">SONUM {{ order.so_num }} | {{ order.cust_name }} | {{ order.state }} {{ order.zip }}</div>
+                        </div>
+                        <div class="expand-grid expand-grid-tight">
+                          <div class="expand-panel">
+                            <h3>Line Items</h3>
+                            <div class="line-items" id="line-items-{{ order.id }}">
+                              <div class="loading">Loading line items...</div>
+                            </div>
+                          </div>
+                          <div class="expand-panel">
+                            <h3>Stack Constraints</h3>
+                            <div class="stack-visual compact" id="stack-visual-{{ order.id }}">
+                              <div class="loading">Calculating stack layout...</div>
+                            </div>
+                            <div class="stack-summary" id="stack-summary-{{ order.id }}"></div>
+                            <div class="stack-warnings" id="stack-warnings-{{ order.id }}"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </section>
+
+  <script>
+    const dueFilter = document.getElementById('due-filter');
+    const dueStart = document.getElementById('due-start');
+    const dueEnd = document.getElementById('due-end');
+
+    function syncOptimizeToggles() {
+      document.querySelectorAll('[data-opt-toggle]').forEach((toggle) => {
+        const key = toggle.dataset.optToggle || '';
+        if (!key) return;
+        const enabled = toggle.checked;
+        document.querySelectorAll(`[data-opt-target=\"${key}\"]`).forEach((input) => {
+          input.disabled = !enabled;
+        });
+      });
+    }
+
+    syncOptimizeToggles();
+    document.querySelectorAll('[data-opt-toggle]').forEach((toggle) => {
+      toggle.addEventListener('change', syncOptimizeToggles);
+    });
+
+    function toggleDueInputs() {
+      if (!dueFilter || !dueStart || !dueEnd) return;
+      const isCustom = dueFilter.value === 'CUSTOM';
+      dueStart.disabled = !isCustom;
+      dueEnd.disabled = !isCustom;
+    }
+
+    toggleDueInputs();
+    if (dueFilter) {
+      dueFilter.addEventListener('change', toggleDueInputs);
+    }
+
+    const filterToggle = document.querySelector('.orders-filter-toggle');
+    const filterPanel = document.getElementById('orders-filters');
+    if (filterToggle && filterPanel) {
+      filterToggle.addEventListener('click', () => {
+        filterPanel.classList.toggle('hidden');
+      });
+    }
+
+    const searchInput = document.getElementById('orders-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        const term = searchInput.value.trim().toLowerCase();
+        document.querySelectorAll('.order-row').forEach((row) => {
+          const matches = row.textContent.toLowerCase().includes(term);
+          row.classList.toggle('hidden', !matches);
+          const expanded = document.getElementById(`expanded-${row.dataset.orderId}`);
+          if (expanded && !matches) {
+            expanded.classList.add('hidden');
+          }
+        });
+      });
+    }
+
+    document.querySelectorAll('[data-orders-group-toggle]').forEach((btn) => {
+      btn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        const groupKey = btn.dataset.ordersGroupToggle || '';
+        if (!groupKey) return;
+        const hiddenCount = parseInt(btn.dataset.hiddenCount || '0', 10) || 0;
+        const expanded = btn.dataset.expanded === 'true';
+        const nextExpanded = !expanded;
+
+        document.querySelectorAll(`[data-group=\"${groupKey}\"][data-overflow=\"1\"]`).forEach((row) => {
+          row.classList.toggle('group-hidden', !nextExpanded);
+          if (!nextExpanded && row.classList.contains('order-expanded')) {
+            row.classList.add('hidden');
+          }
+        });
+
+        if (!nextExpanded) {
+          document.querySelectorAll(`.order-row[data-group=\"${groupKey}\"][data-overflow=\"1\"] .expand-icon`).forEach((icon) => {
+            icon.textContent = 'v';
+          });
+        }
+
+        btn.dataset.expanded = nextExpanded ? 'true' : 'false';
+        btn.textContent = nextExpanded ? 'Show less' : `Show ${hiddenCount} more`;
+      });
+    });
+
+    document.querySelectorAll('.orders-plant-cards [data-plant]').forEach((card) => {
+      card.addEventListener('click', () => {
+        const plant = (card.dataset.plant || '').trim().toUpperCase();
+        const url = new URL(window.location.href);
+        const params = url.searchParams;
+
+        const focusPlants = {{ (profile_default_plants or []) | tojson }};
+        const focusMode = focusPlants && focusPlants.length > 0;
+        const storageKey = 'orders-last-plants';
+        const currentPlantsParam = (params.get('plants') || '').trim().toUpperCase();
+        const isAllMode = !currentPlantsParam || currentPlantsParam === 'ALL';
+
+        if (!plant) return;
+
+        if (plant === 'ALL') {
+          if (focusMode) {
+            // Toggle between explicit ALL (all plants) and focus plants (default scope).
+            if (isAllMode) {
+              params.set('plants', focusPlants.join(','));
+            } else {
+              params.set('plants', 'ALL');
+            }
+          } else {
+            // Admin: toggle between ALL and the last explicit selection (if any).
+            if (isAllMode) {
+              const last = (window.localStorage.getItem(storageKey) || '').trim().toUpperCase();
+              if (last && last !== 'ALL') {
+                params.set('plants', last);
+              } else {
+                params.set('plants', 'ALL');
+              }
+            } else {
+              window.localStorage.setItem(storageKey, currentPlantsParam);
+              params.set('plants', 'ALL');
+            }
+          }
+        } else {
+          const selected = new Set(
+            (params.get('plants') || '')
+              .split(',')
+              .map((value) => value.trim().toUpperCase())
+              .filter(Boolean)
+          );
+
+          // If user was in ALL mode, start from empty and let them pick specifics.
+          if (isAllMode) selected.clear();
+
+          if (selected.has(plant)) {
+            selected.delete(plant);
+          } else {
+            selected.add(plant);
+          }
+
+          if (!selected.size) {
+            params.delete('plants');
+          } else {
+            const next = Array.from(selected).join(',');
+            params.set('plants', next);
+            window.localStorage.setItem(storageKey, next);
+          }
+        }
+        url.search = params.toString();
+        window.location.assign(url.toString());
+      });
+    });
+
+    const moreToggle = document.querySelector('[data-more-toggle]');
+    if (moreToggle) {
+      const targetId = moreToggle.getAttribute('aria-controls');
+      const panel = targetId ? document.getElementById(targetId) : null;
+      moreToggle.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        if (!panel) return;
+        const isCollapsed = panel.classList.toggle('is-collapsed');
+        const expanded = !isCollapsed;
+        moreToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        const label = moreToggle.querySelector('[data-more-label]');
+        if (label) {
+          const count = label.dataset.count || '';
+          label.textContent = `${expanded ? '-' : '+'}${count}`;
+        }
+      });
+    }
+
+    function renderLineItems(containerId, items) {
+      const container = document.getElementById(containerId);
+      if (!items || !items.length) {
+        container.innerHTML = '<div class="empty">No line items for this order.</div>';
+        return;
+      }
+
+      let html = '<div class="table-container"><table class="orders-table compact"><thead><tr>' +
+        '<th>SKU</th><th>Description</th><th>Qty</th><th>Length</th><th>Max Stack</th><th>Positions</th><th>Linear Ft</th>' +
+        '</tr></thead><tbody>';
+
+      items.forEach((item) => {
+        html += '<tr>' +
+          `<td>${item.sku || ''}</td>` +
+          `<td>${item.item || ''}</td>` +
+          `<td>${item.qty || 0}</td>` +
+          `<td>${(item.unit_length_ft || 0).toFixed(1)} ft</td>` +
+          `<td>${item.max_stack_height || 0}</td>` +
+          `<td>${item.positions_required || 0}</td>` +
+          `<td>${(item.linear_feet || 0).toFixed(1)}</td>` +
+          '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    function renderStack(containerId, summaryId, warningsId, config) {
+      const container = document.getElementById(containerId);
+      const summary = document.getElementById(summaryId);
+      const warnings = document.getElementById(warningsId);
+
+      if (!config || !config.positions || !config.positions.length) {
+        container.innerHTML = '<div class="empty">No stack layout available.</div>';
+        summary.innerHTML = '';
+        warnings.innerHTML = '';
+        return;
+      }
+
+      const capacity = config.capacity_feet || 53;
+      let html = '<div class="position-bar">';
+      config.positions.forEach((pos, idx) => {
+        const width = Math.min((pos.length_ft || 0) / capacity * 100, 100);
+        html += `<div class="position-segment" style="width: ${width.toFixed(1)}%">${idx + 1}</div>`;
+      });
+      html += '</div>';
+
+      const utilization = (config.utilization_pct || 0).toFixed(1);
+      container.innerHTML = html + `
+        <div class="position-metrics">
+          <span>Positions: <strong>${config.positions.length}</strong></span>
+          <span>Occupies: <strong>${utilization}%</strong></span>
+          <span>Linear Ft: <strong>${(config.total_linear_feet || 0).toFixed(1)}</strong></span>
+        </div>
+      `;
+
+      const totalItems = config.positions.reduce((sum, pos) => {
+        return sum + pos.items.reduce((innerSum, item) => innerSum + (item.units || 0), 0);
+      }, 0);
+
+      summary.innerHTML = `
+        <div class="summary-metric"><span class="metric-label">Items:</span><span class="metric-value">${totalItems}</span></div>
+        <div class="summary-metric"><span class="metric-label">Max Stack:</span><span class="metric-value">${config.max_stack_height || 0}</span></div>
+        <div class="summary-metric"><span class="metric-label">Capacity:</span><span class="metric-value">${capacity} ft</span></div>
+      `;
+
+      const issues = config.compatibility_issues || [];
+      const warningsHtml = [];
+      if (config.exceeds_capacity) {
+        warningsHtml.push('Order exceeds single trailer capacity.');
+      }
+      issues.forEach((issue) => warningsHtml.push(issue));
+      warnings.innerHTML = warningsHtml.length
+        ? warningsHtml.map((msg) => `<div class="warning">${msg}</div>`).join('')
+        : '<div class="ok">All items appear compatible.</div>';
+    }
+
+    document.querySelectorAll('.order-row').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('input, button, a, select, label')) {
+          return;
+        }
+
+        const orderId = row.dataset.orderId;
+        const soNum = row.dataset.soNum || '';
+        const expanded = document.getElementById(`expanded-${orderId}`);
+        const icon = row.querySelector('.expand-icon');
+        if (!expanded) return;
+
+        if (expanded.classList.contains('hidden')) {
+          expanded.classList.remove('hidden');
+          if (icon) icon.textContent = '^';
+          if (expanded.dataset.loaded !== 'true') {
+            fetch(`/api/orders/${encodeURIComponent(soNum)}/stack-config`)
+              .then((response) => response.json())
+              .then((data) => {
+                if (data.error) {
+                  document.getElementById(`line-items-${orderId}`).innerHTML = `<div class="warning">${data.error}</div>`;
+                  document.getElementById(`stack-visual-${orderId}`).innerHTML = '';
+                  return;
+                }
+                renderLineItems(`line-items-${orderId}`, data.line_items);
+                renderStack(`stack-visual-${orderId}`, `stack-summary-${orderId}`, `stack-warnings-${orderId}`, data);
+                expanded.dataset.loaded = 'true';
+              })
+              .catch(() => {
+                document.getElementById(`line-items-${orderId}`).innerHTML = '<div class="warning">Failed to load line items.</div>';
+              });
+          }
+        } else {
+          expanded.classList.add('hidden');
+          if (icon) icon.textContent = 'v';
+        }
+      });
+    });
+  </script>
 {% endblock %}

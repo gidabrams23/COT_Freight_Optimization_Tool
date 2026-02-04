@@ -1,0 +1,257 @@
+<div class="schematic-card" id="schematic-card-{{ load.id }}" data-load-id="{{ load.id }}">
+  {% set trailer = load.trailer_type or 'STEP_DECK' %}
+  {% set has_upper = load.schematic.upper_deck_length and load.schematic.upper_deck_length > 0 %}
+  {% set lower_width = (load.schematic.lower_deck_length / load.schematic.capacity_feet * 100) | round(1) %}
+  {% set upper_width = (load.schematic.upper_deck_length / load.schematic.capacity_feet * 100) | round(1) if has_upper else 0 %}
+  {% set util_pct = load.schematic.utilization_pct or 0 %}
+  {% set util_width = 100 if util_pct > 100 else util_pct %}
+  {% set util_pct_display = util_pct | round(1) %}
+  {% set util_grade = load.schematic.utilization_grade or 'F' %}
+  <div class="card-header-row schematic-header compact">
+    <div class="schematic-header-left">
+      <div class="schematic-title-row">
+        <h3>Stacking Schematic</h3>
+        <div class="schematic-stats">
+          <span class="metric-label">Linear Ft Used</span>
+          <span class="metric-value">{{ util_pct_display }}%</span>
+          <span class="metric-label">Grade</span>
+          <span class="metric-value grade">Grade {{ util_grade }}</span>
+        </div>
+        {% if load.auto_trailer_label %}
+          <span class="badge badge-warning" title="{{ load.auto_trailer_reason or '' }}">{{ load.auto_trailer_label }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="schematic-header-right">
+      <select class="select-field select-compact load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
+        <option value="STEP_DECK" {% if trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
+        <option value="WEDGE" {% if trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
+        <option value="FLATBED" {% if trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
+      </select>
+    </div>
+  </div>
+  <div class="trailer-schematic trailer-{{ load.schematic.trailer_type | lower }}">
+    <div class="trailer-body">
+      {% if trailer == 'STEP_DECK' and has_upper %}
+        {% set lower_positions = load.schematic.positions | selectattr('deck', 'equalto', 'lower') | list %}
+        {% set upper_positions = load.schematic.positions | selectattr('deck', 'equalto', 'upper') | list %}
+        {% set lower_used_ft = (lower_positions | sum(attribute='length_ft')) | float %}
+        {% set upper_used_ft = (upper_positions | sum(attribute='length_ft')) | float %}
+        {% set lower_rem_ft = (load.schematic.lower_deck_length | float) - lower_used_ft %}
+        {% set upper_rem_ft = (load.schematic.upper_deck_length | float) - upper_used_ft %}
+        {% set lower_rem_pct = ((lower_rem_ft / (load.schematic.lower_deck_length | float)) * 100) if (load.schematic.lower_deck_length | float) else 0 %}
+        {% set upper_rem_pct = ((upper_rem_ft / (load.schematic.upper_deck_length | float)) * 100) if (load.schematic.upper_deck_length | float) else 0 %}
+
+        <div class="trailer-deck-row step-deck step-deck-frame">
+          <div class="trailer-deck lower deck-section" style="flex: 0 1 {{ lower_width }}%;">
+            <div class="deck-header">
+              <div class="deck-label">Lower Deck</div>
+              <div class="deck-measure">{{ load.schematic.lower_deck_length }} ft</div>
+            </div>
+            <div class="deck-positions">
+              {% for pos in lower_positions %}
+                <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                  {% set order_ids = namespace(items=[]) %}
+                  {% for item in pos["items"] %}
+                    {% if item.order_id and item.order_id not in order_ids.items %}
+                      {% set _ = order_ids.items.append(item.order_id) %}
+                    {% endif %}
+                  {% endfor %}
+                  <div class="position-stack">
+                    {% for item in pos["items"] %}
+                      {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                      {% set block_height = 100 / (item.max_stack or 1) %}
+                      {% set item_length = item.unit_length_ft or pos.length_ft %}
+                      {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
+                      {% set block_width = 100 if width_raw > 100 else width_raw %}
+                      {% for _ in range(item.units) %}
+                        <div class="unit-block glass-block"
+                             data-order-id="{{ item.order_id }}"
+                             style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                          <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                        </div>
+                      {% endfor %}
+                    {% endfor %}
+                  </div>
+                  {% if order_ids.items %}
+                    <div class="position-actions">
+                      {% for order_id in order_ids.items %}
+                        <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
+                          Remove #{{ order_id }}
+                        </button>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="position-label">{{ pos.length_ft }} ft</div>
+                </div>
+              {% endfor %}
+
+              {% if lower_rem_ft > 0.05 %}
+                <div class="position-column vacant" style="flex: 0 0 {{ lower_rem_pct }}%;">
+                  <div class="position-stack vacant-stack">
+                    <div class="vacant-block">
+                      <div class="vacant-watermark">VACANT</div>
+                      <div class="vacant-meta">{{ lower_rem_ft | round(1) }} ft remaining</div>
+                      <div class="vacant-submeta">MAX HEIGHT: 13'6&quot;</div>
+                    </div>
+                  </div>
+                  <div class="position-label">{{ lower_rem_ft | round(1) }} ft</div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="trailer-deck upper deck-section" style="flex: 0 1 {{ upper_width }}%;">
+            <div class="deck-header">
+              <div class="deck-label">Upper Deck</div>
+              <div class="deck-measure">{{ load.schematic.upper_deck_length }} ft</div>
+            </div>
+            <div class="deck-stage deck-stage-upper">
+              <div class="deck-positions">
+                {% for pos in upper_positions %}
+                  <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                    {% set order_ids = namespace(items=[]) %}
+                    {% for item in pos["items"] %}
+                      {% if item.order_id and item.order_id not in order_ids.items %}
+                        {% set _ = order_ids.items.append(item.order_id) %}
+                      {% endif %}
+                    {% endfor %}
+                    <div class="position-stack">
+                      {% for item in pos["items"] %}
+                        {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                        {% set block_height = 100 / (item.max_stack or 1) %}
+                        {% set item_length = item.unit_length_ft or pos.length_ft %}
+                        {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
+                        {% set block_width = 100 if width_raw > 100 else width_raw %}
+                        {% for _ in range(item.units) %}
+                          <div class="unit-block glass-block"
+                               data-order-id="{{ item.order_id }}"
+                               style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                            <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                          </div>
+                        {% endfor %}
+                      {% endfor %}
+                    </div>
+                    {% if order_ids.items %}
+                      <div class="position-actions">
+                        {% for order_id in order_ids.items %}
+                          <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
+                            Remove #{{ order_id }}
+                          </button>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                    <div class="position-label">{{ pos.length_ft }} ft</div>
+                  </div>
+                {% endfor %}
+
+                {% if upper_rem_ft > 0.05 %}
+                  <div class="position-column vacant" style="flex: 0 0 {{ upper_rem_pct }}%;">
+                    <div class="position-stack vacant-stack">
+                      <div class="vacant-block">
+                        <div class="vacant-watermark">VACANT</div>
+                      </div>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+              <div class="deck-void" title="Unusable lower portion under the upper deck">
+                <div class="void-x" aria-hidden="true"></div>
+                <div class="void-label">UNUSABLE</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="trailer-deck lower" style="flex: 1 1 auto;">
+          <div class="deck-label">Lower Deck - {{ load.schematic.lower_deck_length }} ft</div>
+          <div class="deck-positions">
+            {% for pos in load.schematic.positions if pos.deck == 'lower' %}
+              <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                {% set order_ids = namespace(items=[]) %}
+                {% for item in pos["items"] %}
+                  {% if item.order_id and item.order_id not in order_ids.items %}
+                    {% set _ = order_ids.items.append(item.order_id) %}
+                  {% endif %}
+                {% endfor %}
+                <div class="position-stack">
+                  {% for item in pos["items"] %}
+                    {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                    {% set block_height = 100 / (item.max_stack or 1) %}
+                    {% set item_length = item.unit_length_ft or pos.length_ft %}
+                    {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
+                    {% set block_width = 100 if width_raw > 100 else width_raw %}
+                    {% for _ in range(item.units) %}
+                      <div class="unit-block glass-block"
+                           data-order-id="{{ item.order_id }}"
+                           style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                        <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                      </div>
+                    {% endfor %}
+                  {% endfor %}
+                </div>
+                {% if order_ids.items %}
+                  <div class="position-actions">
+                    {% for order_id in order_ids.items %}
+                      <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
+                        Remove #{{ order_id }}
+                      </button>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                <div class="position-label">{{ pos.length_ft }} ft</div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% if has_upper %}
+          {% set upper_offset = (load.schematic.lower_deck_length / load.schematic.capacity_feet * 100) | round(1) %}
+          <div class="trailer-deck upper" style="width: {{ upper_width }}%; left: {{ upper_offset }}%;">
+            <div class="deck-label">Upper Deck - {{ load.schematic.upper_deck_length }} ft</div>
+            <div class="deck-positions">
+              {% for pos in load.schematic.positions if pos.deck == 'upper' %}
+                <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                  {% set order_ids = namespace(items=[]) %}
+                  {% for item in pos["items"] %}
+                    {% if item.order_id and item.order_id not in order_ids.items %}
+                      {% set _ = order_ids.items.append(item.order_id) %}
+                    {% endif %}
+                  {% endfor %}
+                  <div class="position-stack">
+                    {% for item in pos["items"] %}
+                      {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                      {% set block_height = 100 / (item.max_stack or 1) %}
+                      {% set item_length = item.unit_length_ft or pos.length_ft %}
+                      {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
+                      {% set block_width = 100 if width_raw > 100 else width_raw %}
+                      {% for _ in range(item.units) %}
+                        <div class="unit-block glass-block"
+                             data-order-id="{{ item.order_id }}"
+                             style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                          <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                        </div>
+                      {% endfor %}
+                    {% endfor %}
+                  </div>
+                  {% if order_ids.items %}
+                    <div class="position-actions">
+                      {% for order_id in order_ids.items %}
+                        <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
+                          Remove #{{ order_id }}
+                        </button>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="position-label">{{ pos.length_ft }} ft</div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      {% endif %}
+      <div class="trailer-truck">
+        <span class="material-symbols-outlined">local_shipping</span>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,41 +1,32 @@
 import db
 
-from services import totals, validation
+
+def list_orders(filters=None, sort_key="due_date"):
+    orders = db.list_orders(filters=filters, sort_key=sort_key)
+    summary = summarize_orders(orders)
+    return {"orders": orders, "summary": summary}
 
 
-def list_orders():
-    orders = db.list_orders()
-    total_cents = totals.calculate_orders_total_cents(orders)
-    return {"orders": orders, "total_cents": total_cents}
-
-
-def create_order(form):
-    customer_id = form.get("customer_id", "").strip()
-    origin = form.get("origin", "").strip()
-    destination = form.get("destination", "").strip()
-    miles = form.get("miles", "").strip()
-    rate_cents = form.get("rate_cents", "").strip()
-
-    errors = {}
-    if customer_id and not customer_id.isdigit():
-        errors["customer_id"] = "Customer ID must be numeric."
-    validation.validate_required(origin, "origin", errors)
-    validation.validate_required(destination, "destination", errors)
-    validation.validate_positive_int(miles, "miles", errors)
-    validation.validate_positive_int(rate_cents, "rate_cents", errors)
-
-    if errors:
-        return {"errors": errors, "form_data": form}
-
-    db.add_order(
-        customer_id=int(customer_id) if customer_id else None,
-        origin=origin,
-        destination=destination,
-        miles=int(miles),
-        rate_cents=int(rate_cents),
+def summarize_orders(orders):
+    total_orders = len(orders)
+    total_length = sum(order.get("total_length_ft") or 0 for order in orders)
+    avg_utilization = (
+        sum(order.get("utilization_pct") or 0 for order in orders) / total_orders
+        if total_orders
+        else 0.0
     )
-    return {"errors": {}, "form_data": {}}
+    trailers_required = total_length / 53 if total_length else 0.0
+    return {
+        "total_orders": total_orders,
+        "total_length": total_length,
+        "avg_utilization": avg_utilization,
+        "trailers_required": trailers_required,
+    }
 
 
-def delete_order(order_id):
-    db.delete_order(order_id)
+def exclude_orders(order_ids):
+    db.update_orders_excluded(order_ids, True)
+
+
+def include_orders(order_ids):
+    db.update_orders_excluded(order_ids, False)

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% set show_nav = false %}
+
+{% block content %}
+  <section class="session-page">
+    <div class="session-card">
+      <div class="session-header">
+        <h1>Start Session</h1>
+        <p>Select your role and plant scope for this session.</p>
+      </div>
+
+      {% if error %}
+        <div class="alert-message warning">{{ error }}</div>
+      {% endif %}
+
+      <form method="post">
+        <input type="hidden" name="next" value="{{ next_url or '' }}">
+
+        <div class="session-section">
+          <div class="session-label">Role</div>
+          <div class="role-options">
+            <label class="option-card">
+              <input type="radio" name="role" value="admin" {% if role == 'admin' %}checked{% endif %}>
+              <div>
+                <div class="option-title">Admin</div>
+                <div class="option-subtitle">All plants, full Settings access</div>
+              </div>
+            </label>
+            <label class="option-card">
+              <input type="radio" name="role" value="planner" {% if role == 'planner' %}checked{% endif %}>
+              <div>
+                <div class="option-title">Planner</div>
+                <div class="option-subtitle">Assigned plants, read-only Settings</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="session-section role-admin{% if role != 'admin' %} hidden{% endif %}">
+          <div class="session-label">Admin Default Plant</div>
+          <label>
+            Default View
+            <select name="default_plant">
+              <option value="ALL" {% if default_plant == 'ALL' %}selected{% endif %}>All Plants</option>
+              {% for plant in plants %}
+                <option value="{{ plant }}" {% if default_plant == plant %}selected{% endif %}>{{ plant }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <div class="session-section role-planner{% if role != 'planner' %} hidden{% endif %}">
+          <div class="session-label">Planner Plants</div>
+          <div class="plant-options">
+            {% for plant in plants %}
+              <label class="checkbox-card">
+                <input type="checkbox" name="plants" value="{{ plant }}" {% if plant in selected_plants %}checked{% endif %}>
+                <span>{{ plant }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="session-actions">
+          <button class="btn-primary" type="submit">
+            <span class="material-symbols-outlined">check_circle</span>
+            Start Session
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <script>
+    const roleInputs = document.querySelectorAll('input[name="role"]');
+    const adminSection = document.querySelector('.role-admin');
+    const plannerSection = document.querySelector('.role-planner');
+
+    function toggleRoleSections() {
+      const selected = document.querySelector('input[name="role"]:checked');
+      const role = selected ? selected.value : '';
+      if (adminSection) adminSection.classList.toggle('hidden', role !== 'admin');
+      if (plannerSection) plannerSection.classList.toggle('hidden', role !== 'planner');
+    }
+
+    roleInputs.forEach((input) => input.addEventListener('change', toggleRoleSections));
+    toggleRoleSections();
+  </script>
+{% endblock %}

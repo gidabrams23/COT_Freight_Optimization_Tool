@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <section class="load-detail-page">
+    <div class="page-header">
+      <div>
+        {% if load.load_number %}
+          <h1>Load {{ load.load_number }}</h1>
+        {% else %}
+          <h1>Load #{{ load.id }}</h1>
+        {% endif %}
+        <p>{{ load.origin_plant }} -> {{ load.destination_state }} | {{ utilization_pct | round(1) }}% Utilization</p>
+      </div>
+      <div class="header-actions">
+        <a class="btn-secondary" href="{{ url_for('loads') }}">Back to Loads</a>
+      </div>
+    </div>
+
+    {% if over_capacity %}
+      <div class="alert-message warning">
+        <strong>Over Capacity:</strong> This is a single-order load that exceeds trailer capacity. Review before dispatch.
+      </div>
+    {% endif %}
+
+    <div class="load-detail-content">
+      <div class="load-main">
+        <div class="load-route-grid">
+          <div class="route-timeline">
+            <h3>Route Timeline</h3>
+            <div class="route-track">
+              {% for node in load.route_nodes %}
+                <div class="route-node {{ node.type }}">
+                  <span class="material-symbols-outlined route-icon" style="color: {{ node.color }}; border-color: {{ node.color }}; background: {{ node.bg }};">{{ node.icon }}</span>
+                  <div class="route-label">{{ node.label }}</div>
+                  {% if node.subtitle %}
+                    <div class="route-subtitle">{{ node.subtitle }}</div>
+                  {% endif %}
+                </div>
+                {% if not loop.last %}
+                  {% set leg = load.route_legs[loop.index0] %}
+                  <div class="route-leg">
+                    <div class="route-line"></div>
+                    <div class="route-miles">{{ leg if leg is not none else '-' }} mi</div>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="map-card">
+            <h3>Route Map</h3>
+            <div class="load-map" id="load-detail-map" data-stops='{{ load.map_stops | tojson }}'></div>
+          </div>
+        </div>
+
+        <div class="schematic-card">
+          <h3>Load Schematic</h3>
+          <div class="trailer-schematic trailer-{{ schematic.trailer_type | lower }}">
+            <div class="trailer-label">
+              {{ schematic.trailer_type | replace('_', ' ') }} - {{ schematic.capacity_feet }} ft
+            </div>
+            <div class="trailer-deck lower">
+              <div class="deck-label">Lower Deck - {{ schematic.lower_deck_length }} ft</div>
+              <div class="deck-positions">
+                {% for pos in schematic.positions if pos.deck == 'lower' %}
+                  <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                    <div class="position-stack">
+                      {% for item in pos["items"] %}
+                        {% set sku = item.sku or '' %}
+                        {% set color = sku_colors.get(sku, '#64748b') %}
+                        {% for _ in range(item.units) %}
+                          <div class="unit-block" style="background: {{ color }};">{{ sku }}</div>
+                        {% endfor %}
+                      {% endfor %}
+                    </div>
+                    <div class="position-label">Pos {{ loop.index }} - {{ pos.length_ft }} ft</div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% if schematic.upper_deck_length and schematic.upper_deck_length > 0 %}
+              {% set upper_width = (schematic.upper_deck_length / schematic.capacity_feet * 100) | round(1) %}
+              <div class="trailer-deck upper" style="width: {{ upper_width }}%;">
+                <div class="deck-label">Upper Deck - {{ schematic.upper_deck_length }} ft</div>
+                <div class="deck-positions">
+                  {% for pos in schematic.positions if pos.deck == 'upper' %}
+                    <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                      <div class="position-stack">
+                        {% for item in pos["items"] %}
+                          {% set sku = item.sku or '' %}
+                          {% set color = sku_colors.get(sku, '#64748b') %}
+                          {% for _ in range(item.units) %}
+                            <div class="unit-block" style="background: {{ color }};">{{ sku }}</div>
+                          {% endfor %}
+                        {% endfor %}
+                      </div>
+                      <div class="position-label">Pos {{ loop.index }} - {{ pos.length_ft }} ft</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+            <div class="trailer-utilization">
+              <div class="util-bar">
+                <div class="util-fill" style="width: {{ schematic.utilization_pct }}%;">{{ schematic.utilization_pct }}%</div>
+              </div>
+              <div class="util-label">{{ schematic.total_linear_feet }} ft of {{ schematic.capacity_feet }} ft capacity</div>
+            </div>
+          </div>
+          <div class="schematic-legend">
+            {% for sku, color in sku_colors.items() %}
+              <span class="legend-item"><span class="legend-color" style="background: {{ color }};"></span>{{ sku }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="manifest-card">
+          <h3>Manifest</h3>
+          <div class="table-container">
+            <table class="manifest-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Customer</th>
+                  <th>Destination</th>
+                  <th>Due Date</th>
+                  <th>SKU</th>
+                  <th>Qty</th>
+                  <th>Linear Ft</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for line in manifest_rows %}
+                  <tr>
+                    <td>#{{ line.so_num }}</td>
+                    <td>{{ line.cust_name }}</td>
+                    <td>{{ line.destination }}</td>
+                    <td>{{ line.due_date }}</td>
+                    <td>{{ line.sku }}</td>
+                    <td>{{ line.qty }}</td>
+                    <td>{{ line.linear_feet }} ft</td>
+                    <td>
+                      {% if line.status %}
+                        {% if 'Past Due' in line.status %}
+                          <span class="badge badge-danger">Past Due</span>
+                        {% else %}
+                          <span class="badge badge-warning">{{ line.status }}</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="badge badge-neutral">On Time</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <aside class="utilization-sidebar">
+        <div class="sidebar-card">
+          <h3>Utilization</h3>
+          <div class="badge-grade util-{{ utilization_grade | lower }}">Grade {{ utilization_grade }}</div>
+          <div class="utilization-meter">
+            <div class="meter-header">
+              <span class="meter-label">Capacity Use</span>
+              <span class="meter-value">{{ utilization_pct | round(0) }}%</span>
+            </div>
+            <div class="meter-bar">
+              <div class="meter-fill high" style="width: {{ utilization_pct | round(0) }}%"></div>
+            </div>
+          </div>
+          <div class="sidebar-metrics">
+            <div class="metric-row">
+              <span>Est Miles</span>
+              <strong>{{ (load.estimated_miles or 0) | round(0) }}</strong>
+            </div>
+            <div class="metric-row">
+              <span>Rate</span>
+              <strong>${{ (load.rate_per_mile or 0) | round(2) }}</strong>
+            </div>
+            <div class="metric-row">
+              <span>Est Cost</span>
+              <strong>${{ (load.estimated_cost or 0) | round(0) }}</strong>
+            </div>
+            <div class="metric-row">
+              <span>Stops</span>
+              <strong>{{ load.stops | length }}</strong>
+            </div>
+            <div class="metric-row">
+              <span>Util Credit</span>
+              <strong>{{ utilization_credit_ft }} ft</strong>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-card">
+          <h3>Status</h3>
+          {% set status = load.status or 'PROPOSED' %}
+          {% if status == 'APPROVED' %}
+            <span class="badge badge-success">Approved</span>
+          {% elif status == 'DRAFT' %}
+            <span class="badge badge-warning">Draft</span>
+          {% else %}
+            <span class="badge badge-neutral">Proposed</span>
+          {% endif %}
+          <div class="form-actions" style="margin-top: 8px;">
+            {% if status == 'PROPOSED' %}
+              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                <input type="hidden" name="action" value="approve_draft">
+                <button class="btn-secondary" type="submit">Approve to Draft</button>
+              </form>
+              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                <input type="hidden" name="action" value="approve_lock">
+                <button class="btn-primary" type="submit">Approve & Lock</button>
+              </form>
+            {% elif status == 'DRAFT' %}
+              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                <input type="hidden" name="action" value="approve_lock">
+                <button class="btn-primary" type="submit">Approve & Lock</button>
+              </form>
+            {% else %}
+              <span class="muted">Locked - enter in Sugar.</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="sidebar-card">
+          <h3>Trailer Type</h3>
+          {% set trailer = load.trailer_type or 'STEP_DECK' %}
+          <select class="select-field load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
+            <option value="STEP_DECK" {% if trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
+            <option value="WEDGE" {% if trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
+            <option value="FLATBED" {% if trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
+          </select>
+          <p class="muted">Trailer type affects stacking and capacity limits.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    (function initLoadDetailMap() {
+      const container = document.getElementById('load-detail-map');
+      if (!container) return;
+      const stops = JSON.parse(container.dataset.stops || '[]');
+      const validStops = stops.filter((stop) => stop.lat !== null && stop.lng !== null);
+      if (!validStops.length) {
+        container.innerHTML = '<div class="empty">No map coordinates available for stops.</div>';
+        return;
+      }
+
+      const map = L.map(container, {
+        zoomControl: true,
+        scrollWheelZoom: false,
+      });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 18,
+      }).addTo(map);
+
+      const bounds = [];
+      validStops.forEach((stop, idx) => {
+        const coords = [stop.lat, stop.lng];
+        const isOrigin = stop.type === 'origin';
+        const markerColor = stop.color || (isOrigin ? '#137fec' : '#f59e0b');
+        const marker = L.circleMarker(coords, {
+          radius: isOrigin ? 8 : 6,
+          color: markerColor,
+          fillColor: markerColor,
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(map);
+        const label = stop.label || `Stop ${idx + 1}`;
+        marker.bindPopup(label);
+        bounds.push(coords);
+      });
+
+      if (bounds.length === 1) {
+        map.setView(bounds[0], 8);
+      } else {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+    })();
+
+    document.querySelectorAll('.load-trailer-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const loadId = select.dataset.loadId;
+        if (!loadId) return;
+        const formData = new FormData();
+        formData.append('trailer_type', select.value);
+        fetch(`/loads/${loadId}/trailer`, {
+          method: 'POST',
+          body: formData,
+        }).then(() => {
+          window.location.reload();
+        });
+      });
+    });
+  </script>
+{% endblock %}

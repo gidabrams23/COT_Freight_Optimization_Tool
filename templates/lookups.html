@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-heading">
+      <h1>Item Lookup Rules</h1>
+      <p>Map Plant + BIN + Item patterns to SKUs.</p>
+    </div>
+
+    <article class="card">
+      <h2>Add Lookup Rule</h2>
+      <form class="form-grid" method="post" action="{{ url_for('add_lookup') }}">
+        <label>
+          Plant
+          <input name="plant" type="text" required>
+        </label>
+        <label>
+          BIN
+          <input name="bin" type="text" required>
+        </label>
+        <label>
+          Item Pattern
+          <input name="item_pattern" type="text" placeholder="4X6CG%">
+        </label>
+        <label>
+          SKU
+          <select name="sku" required>
+            {% for spec in specs %}
+              <option value="{{ spec.sku }}">{{ spec.sku }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">Save Rule</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>Lookup Rules</h2>
+      {% if lookups %}
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Plant</th>
+                <th>BIN</th>
+                <th>Item Pattern</th>
+                <th>SKU</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lookup in lookups %}
+                <tr>
+                  <td>{{ lookup.plant }}</td>
+                  <td>{{ lookup.bin }}</td>
+                  <td>{{ lookup.item_pattern or '-' }}</td>
+                  <td>{{ lookup.sku }}</td>
+                  <td>
+                    <form method="post" action="{{ url_for('delete_lookup', entry_id=lookup.id) }}">
+                      <button class="btn btn-danger" type="submit">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No lookup rules yet.</p>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}
