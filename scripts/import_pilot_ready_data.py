@@ -1,10 +1,17 @@
 import math
+import sys
+from pathlib import Path
+
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import db
 
-CHEAT_FILE = "Master Load Building Cheat Sheet (01.22.25).xlsx"
-RATE_FILE = "COT Rate MAtrix 2026.xlsx"
+CHEAT_FILE = ROOT / "data" / "reference" / "Master Load Building Cheat Sheet (01.22.25).xlsx"
+RATE_FILE = ROOT / "data" / "reference" / "COT Rate MAtrix 2026.xlsx"
 
 
 def _clean(value):
@@ -156,6 +163,11 @@ def import_rates():
 
 
 if __name__ == "__main__":
+    missing_files = [path for path in (CHEAT_FILE, RATE_FILE) if not path.exists()]
+    if missing_files:
+        missing_list = ", ".join(str(path) for path in missing_files)
+        raise SystemExit(f"Missing required input file(s): {missing_list}")
+
     translations = import_cheat_sheet()
     import_lookups(translations)
     import_rates()

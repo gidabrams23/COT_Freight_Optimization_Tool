@@ -63,8 +63,8 @@ def main():
     parser = argparse.ArgumentParser(description="Import US ZIP coordinates into SQLite.")
     parser.add_argument(
         "--file",
-        default="uszips.xlsx",
-        help="Path to uszips.xlsx (default: uszips.xlsx in repo root)",
+        default=str(ROOT / "data" / "reference" / "uszips.xlsx"),
+        help="Path to uszips.xlsx (default: data/reference/uszips.xlsx)",
     )
     args = parser.parse_args()
     path = Path(args.file)

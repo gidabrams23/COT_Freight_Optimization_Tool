@@ -16,10 +16,8 @@
         <aside class="sidebar" data-sidebar>
           <div class="sidebar-header">
             <div class="sidebar-brand">
-              <span class="material-symbols-outlined">local_shipping</span>
-              <div class="brand-text">
-                <span class="brand-title">Load Planner</span>
-                <span class="brand-subtitle">Optimization Suite</span>
+              <div class="sidebar-logo-wrap primary">
+                <img class="sidebar-logo primary" src="{{ url_for('static', filename='images/cot-logo.png') }}" alt="Carry-On Trailer">
               </div>
             </div>
             <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Toggle sidebar">
@@ -54,6 +52,12 @@
               </a>
             </div>
           </nav>
+          <div class="sidebar-feedback">
+            <div class="sidebar-feedback-header">
+              <span class="meta-label">App Feedback</span>
+            </div>
+            <button class="btn-primary btn-xs" type="button" data-feedback-open>Give Feedback</button>
+          </div>
           <div class="sidebar-footer">
             {% if session_role %}
               {% set profile_display = session_profile_name or (session_role | title) %}
@@ -96,13 +100,63 @@
                 <span class="nav-text">Set Session</span>
               </a>
             {% endif %}
+            <div class="sidebar-brand secondary">
+              <div class="sidebar-logo-wrap secondary">
+                <img class="sidebar-logo secondary" src="{{ url_for('static', filename='images/ssa-logo.png') }}" alt="SSA & Company">
+              </div>
+            </div>
           </div>
         </aside>
       {% endif %}
       <div class="app-main">
-        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') %} page-full{% endif %}">
+        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') or request.path.startswith('/dashboard') or request.path == '/' or request.path.startswith('/settings') %} page-full{% endif %}">
           {% block content %}{% endblock %}
         </main>
+      </div>
+    </div>
+    <div class="modal-backdrop hidden" id="app-feedback-modal" data-feedback-modal>
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>App Feedback</h3>
+            <p>Pick a type and tell us what you need.</p>
+          </div>
+          <button class="btn-icon" type="button" data-feedback-close aria-label="Close app feedback">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form method="post" action="{{ url_for('submit_app_feedback') }}" class="modal-body" data-feedback-form>
+          <input type="hidden" name="category" id="feedback-category" required>
+          <input type="hidden" name="page" value="{{ request.path }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+
+          <div class="feedback-type-grid" data-feedback-types>
+            <button class="feedback-type-btn" type="button" data-type="Bug">
+              <span class="material-symbols-outlined">bug_report</span>
+              Bug
+            </button>
+            <button class="feedback-type-btn" type="button" data-type="Feature">
+              <span class="material-symbols-outlined">lightbulb</span>
+              Feature
+            </button>
+            <button class="feedback-type-btn" type="button" data-type="Other">
+              <span class="material-symbols-outlined">forum</span>
+              Other
+            </button>
+          </div>
+
+          <label class="feedback-field">
+            Title
+            <input class="select-field" name="title" type="text" placeholder="Short summary" required>
+          </label>
+          <label class="feedback-field">
+            Details
+            <textarea class="select-field" name="message" rows="4" placeholder="Share details..." required></textarea>
+          </label>
+          <div class="modal-footer feedback-modal-footer">
+            <button class="btn-primary" type="submit" data-feedback-submit disabled>Send Feedback</button>
+          </div>
+        </form>
       </div>
     </div>
     <script>
@@ -122,6 +176,53 @@
           localStorage.setItem(storageKey, next ? 'true' : 'false');
         });
       }
+
+      const feedbackModal = document.getElementById('app-feedback-modal');
+      const feedbackOpen = document.querySelector('[data-feedback-open]');
+      const feedbackClose = feedbackModal ? feedbackModal.querySelector('[data-feedback-close]') : null;
+      const feedbackForm = feedbackModal ? feedbackModal.querySelector('[data-feedback-form]') : null;
+      const feedbackCategory = document.getElementById('feedback-category');
+      const feedbackTypes = feedbackModal ? feedbackModal.querySelectorAll('[data-type]') : [];
+      const feedbackSubmit = feedbackModal ? feedbackModal.querySelector('[data-feedback-submit]') : null;
+
+      function openFeedbackModal() {
+        if (!feedbackModal) return;
+        feedbackModal.classList.remove('hidden');
+      }
+
+      function closeFeedbackModal() {
+        if (!feedbackModal) return;
+        feedbackModal.classList.add('hidden');
+        if (feedbackForm) feedbackForm.reset();
+        if (feedbackCategory) feedbackCategory.value = '';
+        feedbackTypes.forEach((btn) => btn.classList.remove('active'));
+        if (feedbackSubmit) feedbackSubmit.disabled = true;
+      }
+
+      if (feedbackOpen) feedbackOpen.addEventListener('click', openFeedbackModal);
+      if (feedbackClose) feedbackClose.addEventListener('click', closeFeedbackModal);
+
+      if (feedbackModal) {
+        feedbackModal.addEventListener('click', (event) => {
+          if (event.target === feedbackModal) closeFeedbackModal();
+        });
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (!feedbackModal || feedbackModal.classList.contains('hidden')) return;
+        closeFeedbackModal();
+      });
+
+      feedbackTypes.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const type = btn.dataset.type || '';
+          feedbackTypes.forEach((item) => item.classList.remove('active'));
+          btn.classList.add('active');
+          if (feedbackCategory) feedbackCategory.value = type;
+          if (feedbackSubmit) feedbackSubmit.disabled = !type;
+        });
+      });
     </script>
   </body>
 </html>

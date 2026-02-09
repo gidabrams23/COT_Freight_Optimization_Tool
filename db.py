@@ -2,7 +2,9 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "app.db"
+ROOT = Path(__file__).resolve().parent
+DB_PATH = ROOT / "data" / "db" / "app.db"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_PLANTS = {
     "GA": {"name": "Lavonia", "lat": 34.43611, "lng": -83.10639},
@@ -395,6 +397,66 @@ def _rebuild_load_feedback_if_needed(connection):
     connection.execute("DROP TABLE load_feedback_old")
 
 
+def _rebuild_app_feedback_if_needed(connection):
+    columns_info = _get_columns_info(connection, "app_feedback")
+    if not columns_info:
+        return
+    column_names = {column["name"] for column in columns_info}
+    required = {"category", "title", "message", "status"}
+    needs_rebuild = not required.issubset(column_names)
+    if not needs_rebuild:
+        return
+
+    connection.execute("ALTER TABLE app_feedback RENAME TO app_feedback_old")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            page TEXT,
+            planner_id TEXT,
+            status TEXT NOT NULL DEFAULT 'OPEN',
+            resolved_at TEXT,
+            resolved_by TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+
+    old_rows = connection.execute("SELECT * FROM app_feedback_old").fetchall()
+    migrated = []
+    for row in old_rows:
+        row_dict = dict(row)
+        migrated.append(
+            (
+                row_dict.get("category") or "Other",
+                row_dict.get("title") or "",
+                row_dict.get("message") or row_dict.get("details") or "",
+                row_dict.get("page"),
+                row_dict.get("planner_id"),
+                row_dict.get("status") or "OPEN",
+                row_dict.get("resolved_at"),
+                row_dict.get("resolved_by"),
+                row_dict.get("created_at"),
+            )
+        )
+
+    if migrated:
+        connection.executemany(
+            """
+            INSERT INTO app_feedback (
+                category, title, message, page, planner_id, status, resolved_at, resolved_by, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            migrated,
+        )
+
+    connection.execute("DROP TABLE app_feedback_old")
+
+
 def init_db():
     with get_connection() as connection:
         connection.execute(
@@ -683,6 +745,23 @@ def init_db():
             """
         )
         _rebuild_load_feedback_if_needed(connection)
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                page TEXT,
+                planner_id TEXT,
+                status TEXT NOT NULL DEFAULT 'OPEN',
+                resolved_at TEXT,
+                resolved_by TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        _rebuild_app_feedback_if_needed(connection)
 
         connection.execute(
             """
@@ -2018,6 +2097,121 @@ def list_feedback_filter_options():
         "planners": sorted({value for value in planners if value}),
         "action_types": sorted({value for value in action_types if value}),
         "reason_categories": sorted({value for value in reasons if value}),
+    }
+
+
+def add_app_feedback(category, title, message, page=None, planner_id=None):
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO app_feedback (
+                category, title, message, page, planner_id
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (category, title, message, page, planner_id),
+        )
+        connection.commit()
+
+
+def list_app_feedback(filters=None, limit=None):
+    filters = filters or {}
+    clauses = []
+    params = []
+
+    start_date = filters.get("start_date")
+    end_date = filters.get("end_date")
+    if start_date:
+        clauses.append("DATE(created_at) >= DATE(?)")
+        params.append(start_date)
+    if end_date:
+        clauses.append("DATE(created_at) <= DATE(?)")
+        params.append(end_date)
+
+    planner_id = filters.get("planner_id")
+    if planner_id:
+        clauses.append("planner_id = ?")
+        params.append(planner_id)
+
+    category = filters.get("category")
+    if category:
+        clauses.append("category = ?")
+        params.append(category)
+
+    status = filters.get("status")
+    if status:
+        clauses.append("status = ?")
+        params.append(status)
+
+    search = (filters.get("search") or "").strip()
+    if search:
+        clauses.append("(title LIKE ? OR message LIKE ? OR page LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sort_key = (filters.get("sort") or "timestamp_desc").strip().lower()
+    sort_map = {
+        "timestamp_desc": "created_at DESC",
+        "timestamp_asc": "created_at ASC",
+        "planner": "planner_id ASC, created_at DESC",
+        "status": "status ASC, created_at DESC",
+    }
+    order_clause = sort_map.get(sort_key, "created_at DESC")
+    limit_clause = f"LIMIT {int(limit)}" if limit else ""
+
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT *
+            FROM app_feedback
+            {where_clause}
+            ORDER BY {order_clause}
+            {limit_clause}
+            """,
+            params,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def resolve_app_feedback(feedback_id, resolved_by=None):
+    with get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE app_feedback
+            SET status = 'RESOLVED',
+                resolved_at = datetime('now'),
+                resolved_by = ?
+            WHERE id = ?
+            """,
+            (resolved_by, feedback_id),
+        )
+        connection.commit()
+
+
+def list_app_feedback_filter_options():
+    with get_connection() as connection:
+        planners = [
+            row["planner_id"]
+            for row in connection.execute(
+                "SELECT DISTINCT planner_id FROM app_feedback WHERE planner_id IS NOT NULL"
+            ).fetchall()
+        ]
+        categories = [
+            row["category"]
+            for row in connection.execute(
+                "SELECT DISTINCT category FROM app_feedback WHERE category IS NOT NULL"
+            ).fetchall()
+        ]
+        statuses = [
+            row["status"]
+            for row in connection.execute(
+                "SELECT DISTINCT status FROM app_feedback WHERE status IS NOT NULL"
+            ).fetchall()
+        ]
+    return {
+        "planners": sorted({value for value in planners if value}),
+        "categories": sorted({value for value in categories if value}),
+        "statuses": sorted({value for value in statuses if value}),
     }
 
 

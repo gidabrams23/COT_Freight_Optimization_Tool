@@ -9,6 +9,11 @@
       </div>
     </div>
 
+    <div class="feedback-log-tabs">
+      <a class="feedback-log-tab active" href="{{ url_for('feedback_log') }}">Load Feedback</a>
+      <a class="feedback-log-tab" href="{{ url_for('app_feedback_log') }}">App Feedback</a>
+    </div>
+
     <div class="card-widget">
       <form class="table-filters feedback-filters" method="get">
         <div class="inline-select">

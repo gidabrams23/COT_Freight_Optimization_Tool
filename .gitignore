@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Local databases / outputs
+data/db/*.db
+data/db/*.db-*
+data/exports/
+logs/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

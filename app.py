@@ -25,6 +25,39 @@ from services.order_importer import OrderImporter
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-session-key")
 
+@app.template_filter("short_date")
+def short_date(value):
+    if value is None:
+        return "—"
+
+    if isinstance(value, datetime):
+        parsed = value.date()
+    elif isinstance(value, date):
+        parsed = value
+    else:
+        raw = str(value).strip()
+        if not raw:
+            return "—"
+
+        parsed = None
+        try:
+            parsed = date.fromisoformat(raw)
+        except ValueError:
+            try:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+            except ValueError:
+                for fmt in ("%m/%d/%Y", "%Y/%m/%d", "%b %d %Y", "%b %d, %Y"):
+                    try:
+                        parsed = datetime.strptime(raw, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+
+        if parsed is None:
+            return raw
+
+    return f"{parsed.strftime('%b')} {parsed.day}"
+
 PLANT_CODES = ["GA", "TX", "VA", "IA", "OR", "NV"]
 PLANT_NAMES = {
     "GA": "Lavonia",
@@ -631,6 +664,8 @@ def _period_range(period, today):
         start = today.replace(day=1)
         end = (start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
         return start, end
+    if key == "last_30_days":
+        return today - timedelta(days=29), today
     if key == "last_7_days":
         return today - timedelta(days=6), today
     # default to this_week
@@ -793,150 +828,532 @@ def inject_session_context():
     }
 
 
-@app.route("/")
-@app.route("/dashboard")
-def dashboard():
-    session_redirect = _require_session()
-    if session_redirect:
-        return session_redirect
-
+def _build_command_center_dashboard_context():
     allowed_plants = _get_allowed_plants()
     plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
     plant_scope = plant_filters or allowed_plants
 
-    def scope_clause(column):
-        if not plant_scope:
-            return "", []
-        placeholders = ", ".join("?" for _ in plant_scope)
-        return f" AND {column} IN ({placeholders})", plant_scope
+    period_options = [
+        ("last_30_days", "Last 30 Days"),
+        ("last_7_days", "Last 7 Days"),
+        ("this_month", "This Month"),
+        ("today", "Today"),
+    ]
+    period_label_map = dict(period_options)
+    period = (request.args.get("period") or "last_30_days").strip().lower()
+    if period not in period_label_map:
+        period = "last_30_days"
 
-    with db.get_connection() as connection:
-        cursor = connection.cursor()
+    today = date.today()
+    start_date, end_date = _period_range(period, today)
+    period_len_days = (end_date - start_date).days + 1
+    prev_end = start_date - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=period_len_days - 1)
 
-        load_scope, load_params = scope_clause("origin_plant")
+    def _iso(value):
+        return value.strftime("%Y-%m-%d")
 
-        today = date.today()
-        trend_start = (today - timedelta(days=13)).strftime("%Y-%m-%d")
-        cursor.execute(
+    start_iso = _iso(start_date)
+    end_iso = _iso(end_date)
+    prev_start_iso = _iso(prev_start)
+    prev_end_iso = _iso(prev_end)
+
+    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
+    plant_scope_label = (
+        ", ".join([PLANT_NAMES.get(code, code) for code in plant_filters])
+        if plant_filters
+        else "All Plants"
+    )
+    period_label = period_label_map.get(period, "Last 30 Days")
+    date_range_label = f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d')}"
+
+    def _format_int(value):
+        try:
+            return f"{int(value or 0):,}"
+        except (TypeError, ValueError):
+            return "0"
+
+    def _format_currency(amount, decimals=2):
+        amount = float(amount or 0)
+        return f"${amount:,.{decimals}f}"
+
+    def _format_compact_currency(amount):
+        amount = float(amount or 0)
+        abs_amount = abs(amount)
+        if abs_amount >= 1_000_000:
+            return f"${amount / 1_000_000:.2f}M"
+        if abs_amount >= 100_000:
+            return f"${amount / 1_000:.0f}K"
+        if abs_amount >= 10_000:
+            return f"${amount / 1_000:.1f}K"
+        return f"${amount:,.0f}"
+
+    def _pct_change(current, previous):
+        if current is None or previous is None:
+            return None
+        current = float(current or 0)
+        previous = float(previous or 0)
+        if previous == 0:
+            return None
+        return (current - previous) / previous * 100.0
+
+    def _trend_meta(delta_pct):
+        if delta_pct is None:
+            return {"display": None, "icon": "trending_flat", "class": ""}
+        icon = "trending_up" if delta_pct >= 0 else "trending_down"
+        cls = "positive" if delta_pct >= 0 else "negative"
+        return {"display": f"{delta_pct:+.1f}%", "icon": icon, "class": cls}
+
+    def _point_delta_meta(delta_points):
+        if delta_points is None:
+            return {"display": None, "icon": "trending_flat", "class": ""}
+        icon = "trending_up" if delta_points >= 0 else "trending_down"
+        cls = "positive" if delta_points >= 0 else "negative"
+        return {"display": f"{delta_points:+.1f} pts", "icon": icon, "class": cls}
+
+    def _bucket_series(items, bucket_count=7):
+        if not items:
+            return []
+        if len(items) <= bucket_count:
+            return [
+                {
+                    "start": entry["date"],
+                    "end": entry["date"],
+                    "spend": float(entry.get("spend") or 0),
+                    "qty": float(entry.get("qty") or 0),
+                }
+                for entry in items
+            ]
+        size = len(items)
+        base = size // bucket_count
+        remainder = size % bucket_count
+        buckets = []
+        idx = 0
+        for bucket_index in range(bucket_count):
+            take = base + (1 if bucket_index < remainder else 0)
+            segment = items[idx:idx + take]
+            idx += take
+            if not segment:
+                continue
+            buckets.append(
+                {
+                    "start": segment[0]["date"],
+                    "end": segment[-1]["date"],
+                    "spend": sum(float(item.get("spend") or 0) for item in segment),
+                    "qty": sum(float(item.get("qty") or 0) for item in segment),
+                }
+            )
+        return buckets
+
+    def _axis_label(value_date):
+        if not value_date:
+            return ""
+        if value_date == today:
+            return "Today"
+        return value_date.strftime("%b %d")
+
+    def _fetch_period_totals(connection, plants, start_value, end_value):
+        if not plants:
+            return {"loads": 0, "avg_util": 0.0, "spend": 0.0, "qty": 0.0}
+        placeholders = ", ".join("?" for _ in plants)
+        params = list(plants) + [start_value, end_value]
+        loads_row = connection.execute(
             f"""
-            SELECT DATE(created_at) as day, AVG(utilization_pct) as avg_util
+            SELECT
+                COUNT(*) AS load_count,
+                AVG(utilization_pct) AS avg_util,
+                SUM(COALESCE(estimated_cost, 0)) AS total_spend
             FROM loads
             WHERE status = 'APPROVED'
-            {load_scope}
-              AND DATE(created_at) >= DATE(?)
-            GROUP BY day
+              AND origin_plant IN ({placeholders})
+              AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
             """,
-            load_params + [trend_start],
+            params,
+        ).fetchone()
+        qty_row = connection.execute(
+            f"""
+            SELECT
+                SUM(COALESCE(ol.qty, 0)) AS total_qty
+            FROM loads l
+            JOIN load_lines ll ON ll.load_id = l.id
+            JOIN order_lines ol ON ol.id = ll.order_line_id
+            WHERE l.status = 'APPROVED'
+              AND l.origin_plant IN ({placeholders})
+              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+              AND COALESCE(ol.is_excluded, 0) = 0
+            """,
+            params,
+        ).fetchone()
+        return {
+            "loads": int(loads_row["load_count"] or 0) if loads_row else 0,
+            "avg_util": float(loads_row["avg_util"] or 0) if loads_row else 0.0,
+            "spend": float(loads_row["total_spend"] or 0) if loads_row else 0.0,
+            "qty": float(qty_row["total_qty"] or 0) if qty_row else 0.0,
+        }
+
+    with db.get_connection() as connection:
+        current_totals = _fetch_period_totals(connection, plant_scope, start_iso, end_iso)
+        prev_totals = _fetch_period_totals(connection, plant_scope, prev_start_iso, prev_end_iso)
+
+        current_cpu = (
+            (current_totals["spend"] / current_totals["qty"]) if current_totals["qty"] else None
         )
-        trend_rows = cursor.fetchall()
+        prev_cpu = (prev_totals["spend"] / prev_totals["qty"]) if prev_totals["qty"] else None
 
-        trend_map = {row["day"]: row["avg_util"] for row in trend_rows if row["day"]}
-        trend_days = [today - timedelta(days=6 - idx) for idx in range(7)]
-        prev_days = [today - timedelta(days=13 - idx) for idx in range(7)]
+        loads_trend = _trend_meta(_pct_change(current_totals["loads"], prev_totals["loads"]))
+        spend_trend = _trend_meta(_pct_change(current_totals["spend"], prev_totals["spend"]))
+        cpu_trend = _trend_meta(_pct_change(current_cpu, prev_cpu))
+        util_trend = _point_delta_meta(
+            (current_totals["avg_util"] - prev_totals["avg_util"]) if prev_totals["loads"] else None
+        )
 
-        current_values = [
-            trend_map.get(day.strftime("%Y-%m-%d"))
-            for day in trend_days
-            if trend_map.get(day.strftime("%Y-%m-%d")) is not None
+        avg_util = float(current_totals["avg_util"] or 0)
+        health_label = "NO DATA"
+        health_class = "neutral"
+        if current_totals["loads"]:
+            if avg_util >= 80:
+                health_label = "OPTIMAL"
+                health_class = "success"
+            elif avg_util >= 70:
+                health_label = "MONITOR"
+                health_class = "warning"
+            else:
+                health_label = "AT RISK"
+                health_class = "danger"
+
+        kpis = [
+            {
+                "label": "Total Loads Batched",
+                "icon": "inventory_2",
+                "value": _format_int(current_totals["loads"]),
+                "unit": "",
+                "delta_display": loads_trend["display"],
+                "delta_icon": loads_trend["icon"],
+                "delta_class": loads_trend["class"],
+                "footer": "vs previous period",
+            },
+            {
+                "label": "Average Utilization",
+                "icon": "speed",
+                "value": f"{avg_util:.1f}%",
+                "unit": "",
+                "delta_display": util_trend["display"],
+                "delta_icon": util_trend["icon"],
+                "delta_class": util_trend["class"],
+                "footer": "vs previous period",
+            },
+            {
+                "label": "Total Logistics Spend",
+                "icon": "payments",
+                "value": _format_compact_currency(current_totals["spend"]),
+                "unit": "",
+                "delta_display": spend_trend["display"],
+                "delta_icon": spend_trend["icon"],
+                "delta_class": spend_trend["class"],
+                "footer": "vs previous period",
+            },
+            {
+                "label": "Cost Per Unit",
+                "icon": "straighten",
+                "value": _format_currency(current_cpu, decimals=2) if current_cpu is not None else "—",
+                "unit": "/ unit",
+                "delta_display": cpu_trend["display"],
+                "delta_icon": cpu_trend["icon"],
+                "delta_class": cpu_trend["class"],
+                "footer": "vs previous period",
+            },
         ]
-        prev_values = [
-            trend_map.get(day.strftime("%Y-%m-%d"))
-            for day in prev_days
-            if trend_map.get(day.strftime("%Y-%m-%d")) is not None
-        ]
-        current_avg = round(sum(current_values) / len(current_values), 1) if current_values else 0.0
-        prev_avg = round(sum(prev_values) / len(prev_values), 1) if prev_values else 0.0
-        delta = round(current_avg - prev_avg, 1) if prev_values else 0.0
 
-        spark_values = [trend_map.get(day.strftime("%Y-%m-%d")) or 0 for day in trend_days]
-        spark_max = max(spark_values) if spark_values else 0
-        spark_bars = []
-        for day, value in zip(trend_days, spark_values):
-            height = 8
-            if spark_max:
-                height = max(8, round((value / spark_max) * 100))
-            spark_bars.append(
+        # Plant cards.
+        open_orders_by_plant = {plant: 0 for plant in allowed_plants}
+        planned_loads_by_plant = {plant: 0 for plant in allowed_plants}
+        plant_spend = {plant: 0.0 for plant in allowed_plants}
+        plant_avg_util = {plant: None for plant in allowed_plants}
+        plant_qty = {plant: 0.0 for plant in allowed_plants}
+
+        allowed_placeholders = ", ".join("?" for _ in allowed_plants) if allowed_plants else "''"
+
+        assigned_clause = """
+            EXISTS (
+                SELECT 1
+                FROM order_lines ol
+                JOIN load_lines ll ON ll.order_line_id = ol.id
+                WHERE ol.so_num = orders.so_num
+                LIMIT 1
+            )
+        """
+
+        for row in connection.execute(
+            f"""
+            SELECT plant, COUNT(*) AS open_orders
+            FROM orders
+            WHERE is_excluded = 0
+              AND plant IN ({allowed_placeholders})
+              AND NOT {assigned_clause}
+            GROUP BY plant
+            """,
+            list(allowed_plants),
+        ).fetchall():
+            open_orders_by_plant[row["plant"]] = int(row["open_orders"] or 0)
+
+        for row in connection.execute(
+            f"""
+            SELECT origin_plant, COUNT(*) AS planned_loads
+            FROM loads
+            WHERE UPPER(status) IN ('PROPOSED', 'DRAFT')
+              AND origin_plant IN ({allowed_placeholders})
+            GROUP BY origin_plant
+            """,
+            list(allowed_plants),
+        ).fetchall():
+            planned_loads_by_plant[row["origin_plant"]] = int(row["planned_loads"] or 0)
+
+        for row in connection.execute(
+            f"""
+            SELECT
+                origin_plant,
+                AVG(utilization_pct) AS avg_util,
+                SUM(COALESCE(estimated_cost, 0)) AS spend
+            FROM loads
+            WHERE status = 'APPROVED'
+              AND origin_plant IN ({allowed_placeholders})
+              AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY origin_plant
+            """,
+            list(allowed_plants) + [start_iso, end_iso],
+        ).fetchall():
+            plant = row["origin_plant"]
+            plant_spend[plant] = float(row["spend"] or 0)
+            plant_avg_util[plant] = float(row["avg_util"]) if row["avg_util"] is not None else None
+
+        for row in connection.execute(
+            f"""
+            SELECT
+                l.origin_plant AS origin_plant,
+                SUM(COALESCE(ol.qty, 0)) AS qty
+            FROM loads l
+            JOIN load_lines ll ON ll.load_id = l.id
+            JOIN order_lines ol ON ol.id = ll.order_line_id
+            WHERE l.status = 'APPROVED'
+              AND l.origin_plant IN ({allowed_placeholders})
+              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+              AND COALESCE(ol.is_excluded, 0) = 0
+            GROUP BY l.origin_plant
+            """,
+            list(allowed_plants) + [start_iso, end_iso],
+        ).fetchall():
+            plant_qty[row["origin_plant"]] = float(row["qty"] or 0)
+
+        selected_set = set(plant_filters or [])
+        plant_cards = []
+        for plant in allowed_plants:
+            avg_util_value = plant_avg_util.get(plant)
+            status = "neutral"
+            if avg_util_value is not None:
+                if avg_util_value >= 80:
+                    status = "success"
+                elif avg_util_value >= 70:
+                    status = "warning"
+                else:
+                    status = "error"
+
+            qty_value = float(plant_qty.get(plant) or 0)
+            spend_value = float(plant_spend.get(plant) or 0)
+            cost_unit_value = (spend_value / qty_value) if qty_value else None
+            plant_cards.append(
                 {
-                    "label": day.strftime("%a"),
-                    "value": round(value, 1) if value else 0,
-                    "height": height,
+                    "code": plant,
+                    "name": PLANT_NAMES.get(plant, plant),
+                    "open_orders": open_orders_by_plant.get(plant, 0),
+                    "planned_loads": planned_loads_by_plant.get(plant, 0),
+                    "cost_per_unit_display": _format_currency(cost_unit_value, decimals=2)
+                    if cost_unit_value is not None
+                    else "—",
+                    "status": status,
+                    "selected": plant in selected_set,
                 }
             )
 
-    orders_scope = db.list_orders(filters={"plants": plant_scope})
-    orders_scope = [order for order in orders_scope if not order.get("is_excluded")]
-    unassigned_orders = [order for order in orders_scope if not order.get("is_assigned")]
+        # Spend vs Volume trend.
+        spend_by_day = {}
+        qty_by_day = {}
+        if plant_scope:
+            scope_placeholders = ", ".join("?" for _ in plant_scope)
+            for row in connection.execute(
+                f"""
+                SELECT DATE(created_at) AS day, SUM(COALESCE(estimated_cost, 0)) AS spend
+                FROM loads
+                WHERE status = 'APPROVED'
+                  AND origin_plant IN ({scope_placeholders})
+                  AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+                GROUP BY day
+                ORDER BY day
+                """,
+                list(plant_scope) + [start_iso, end_iso],
+            ).fetchall():
+                if row["day"]:
+                    spend_by_day[row["day"]] = float(row["spend"] or 0)
 
-    start_week, end_week, next_start, next_end = _week_bounds(date.today())
-    order_status_summary = {"past_due": 0, "this_week": 0, "next_week": 0}
-    for order in unassigned_orders:
-        due_date = _parse_date(order.get("due_date"))
-        if not due_date:
-            continue
-        if due_date < date.today():
-            order_status_summary["past_due"] += 1
-        elif date.today() <= due_date <= end_week:
-            order_status_summary["this_week"] += 1
-        elif next_start <= due_date <= next_end:
-            order_status_summary["next_week"] += 1
+            for row in connection.execute(
+                f"""
+                SELECT DATE(l.created_at) AS day, SUM(COALESCE(ol.qty, 0)) AS qty
+                FROM loads l
+                JOIN load_lines ll ON ll.load_id = l.id
+                JOIN order_lines ol ON ol.id = ll.order_line_id
+                WHERE l.status = 'APPROVED'
+                  AND l.origin_plant IN ({scope_placeholders})
+                  AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+                  AND COALESCE(ol.is_excluded, 0) = 0
+                GROUP BY day
+                ORDER BY day
+                """,
+                list(plant_scope) + [start_iso, end_iso],
+            ).fetchall():
+                if row["day"]:
+                    qty_by_day[row["day"]] = float(row["qty"] or 0)
 
-    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
+        daily_items = []
+        for offset in range(period_len_days):
+            day = start_date + timedelta(days=offset)
+            day_key = _iso(day)
+            daily_items.append(
+                {
+                    "date": day,
+                    "spend": float(spend_by_day.get(day_key) or 0),
+                    "qty": float(qty_by_day.get(day_key) or 0),
+                }
+            )
 
-    order_links = {
-        "past_due": url_for(
-            "orders",
-            due="PAST_DUE",
-            assigned="UNASSIGNED",
-            plants=plant_filter_param or None,
-        ),
-        "this_week": url_for(
-            "orders",
-            due="THIS_WEEK",
-            assigned="UNASSIGNED",
-            plants=plant_filter_param or None,
-        ),
-        "next_week": url_for(
-            "orders",
-            due="NEXT_WEEK",
-            assigned="UNASSIGNED",
-            plants=plant_filter_param or None,
-        ),
-    }
+        raw_buckets = _bucket_series(daily_items, bucket_count=7)
+        max_spend = max((bucket["spend"] for bucket in raw_buckets), default=0.0)
+        max_qty = max((bucket["qty"] for bucket in raw_buckets), default=0.0)
+        trend_buckets = []
+        for bucket in raw_buckets:
+            spend_height = 0
+            volume_height = 0
+            if max_spend and bucket["spend"]:
+                spend_height = max(4, round((bucket["spend"] / max_spend) * 100))
+            if max_qty and bucket["qty"]:
+                volume_height = max(4, round((bucket["qty"] / max_qty) * 100))
+            trend_buckets.append(
+                {
+                    "start": bucket["start"],
+                    "end": bucket["end"],
+                    "spend": bucket["spend"],
+                    "qty": bucket["qty"],
+                    "spend_height": spend_height,
+                    "volume_height": volume_height,
+                }
+            )
 
-    period_options = [
-        ("today", "Today"),
-        ("this_week", "This Week"),
-        ("last_7_days", "Last 7 Days"),
-        ("this_month", "This Month"),
-    ]
-    top_period = (request.args.get("top_period") or "this_week").lower()
-    low_period = (request.args.get("low_period") or "this_week").lower()
-    top_scope = (request.args.get("top_scope") or "filtered").lower()
-    low_scope = (request.args.get("low_scope") or "filtered").lower()
+        trend_axis = {"start": "", "mid1": "", "mid2": "", "end": ""}
+        if trend_buckets:
+            if len(trend_buckets) == 1:
+                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
+                trend_axis["end"] = _axis_label(trend_buckets[0]["end"])
+            elif len(trend_buckets) == 2:
+                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
+                trend_axis["end"] = _axis_label(trend_buckets[1]["end"])
+            elif len(trend_buckets) == 3:
+                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
+                trend_axis["mid1"] = _axis_label(trend_buckets[1]["start"])
+                trend_axis["end"] = _axis_label(trend_buckets[2]["end"])
+            else:
+                idx1 = len(trend_buckets) // 3
+                idx2 = (len(trend_buckets) * 2) // 3
+                idx1 = min(max(idx1, 1), len(trend_buckets) - 2)
+                idx2 = min(max(idx2, idx1 + 1), len(trend_buckets) - 2)
+                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
+                trend_axis["mid1"] = _axis_label(trend_buckets[idx1]["start"])
+                trend_axis["mid2"] = _axis_label(trend_buckets[idx2]["start"])
+                trend_axis["end"] = _axis_label(trend_buckets[-1]["end"])
 
-    top_start, top_end = _period_range(top_period, date.today())
-    low_start, low_end = _period_range(low_period, date.today())
-    top_plants = allowed_plants if top_scope == "all" else plant_scope
-    low_plants = allowed_plants if low_scope == "all" else plant_scope
+        # Efficiency distribution bins.
+        efficiency = {"a": 0, "b": 0, "c": 0, "df": 0, "total": 0}
+        if plant_scope:
+            scope_placeholders = ", ".join("?" for _ in plant_scope)
+            row = connection.execute(
+                f"""
+                SELECT
+                    SUM(CASE WHEN utilization_pct >= 95 THEN 1 ELSE 0 END) AS grade_a,
+                    SUM(CASE WHEN utilization_pct >= 85 AND utilization_pct < 95 THEN 1 ELSE 0 END) AS grade_b,
+                    SUM(CASE WHEN utilization_pct >= 70 AND utilization_pct < 85 THEN 1 ELSE 0 END) AS grade_c,
+                    SUM(CASE WHEN utilization_pct < 70 THEN 1 ELSE 0 END) AS grade_df,
+                    COUNT(*) AS total
+                FROM loads
+                WHERE status = 'APPROVED'
+                  AND origin_plant IN ({scope_placeholders})
+                  AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+                """,
+                list(plant_scope) + [start_iso, end_iso],
+            ).fetchone()
+            if row:
+                efficiency = {
+                    "a": int(row["grade_a"] or 0),
+                    "b": int(row["grade_b"] or 0),
+                    "c": int(row["grade_c"] or 0),
+                    "df": int(row["grade_df"] or 0),
+                    "total": int(row["total"] or 0),
+                }
 
-    def fetch_loads_for_table(start_date, end_date, plants, limit, ascending, max_util=None):
-        if not plants:
-            return []
-        placeholders = ", ".join("?" for _ in plants)
-        util_clause = ""
-        params = list(plants)
-        if max_util is not None:
-            util_clause = " AND utilization_pct < ?"
-            params.append(max_util)
-        params.extend([start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"), limit])
-        order_dir = "ASC" if ascending else "DESC"
-        with db.get_connection() as connection:
+        eff_total = efficiency["total"] or 0
+        efficiency_rows = [
+            {
+                "label": "Grade A (95%+)",
+                "count": efficiency["a"],
+                "width": round((efficiency["a"] / eff_total) * 100) if eff_total else 0,
+                "class": "success",
+            },
+            {
+                "label": "Grade B (85-94%)",
+                "count": efficiency["b"],
+                "width": round((efficiency["b"] / eff_total) * 100) if eff_total else 0,
+                "class": "info",
+            },
+            {
+                "label": "Grade C (70-84%)",
+                "count": efficiency["c"],
+                "width": round((efficiency["c"] / eff_total) * 100) if eff_total else 0,
+                "class": "neutral",
+            },
+            {
+                "label": "Grade D/F (<70%)",
+                "count": efficiency["df"],
+                "width": round((efficiency["df"] / eff_total) * 100) if eff_total else 0,
+                "class": "danger",
+            },
+        ]
+
+        # Load review widgets.
+        sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
+        color_palette = [
+            "#137fec",
+            "#10b981",
+            "#f59e0b",
+            "#ef4444",
+            "#8b5cf6",
+            "#22d3ee",
+            "#f472b6",
+            "#f97316",
+        ]
+
+        def _fetch_loads(limit, ascending, max_util=None):
+            if not plant_scope:
+                return []
+            scope_placeholders = ", ".join("?" for _ in plant_scope)
+            util_clause = ""
+            params = list(plant_scope)
+            if max_util is not None:
+                util_clause = " AND utilization_pct < ?"
+                params.append(max_util)
+            params.extend([start_iso, end_iso, limit])
+            order_dir = "ASC" if ascending else "DESC"
             rows = connection.execute(
                 f"""
                 SELECT id, load_number, origin_plant, utilization_pct, created_at, trailer_type
                 FROM loads
                 WHERE status = 'APPROVED'
-                  AND origin_plant IN ({placeholders})
+                  AND origin_plant IN ({scope_placeholders})
                   AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
                   {util_clause}
                 ORDER BY utilization_pct {order_dir}, created_at DESC
@@ -944,67 +1361,59 @@ def dashboard():
                 """,
                 params,
             ).fetchall()
-        return [dict(row) for row in rows]
+            return [dict(row) for row in rows]
 
-    top_loads = fetch_loads_for_table(top_start, top_end, top_plants, 5, ascending=False)
-    low_loads = fetch_loads_for_table(low_start, low_end, low_plants, 5, ascending=True, max_util=70)
+        def _format_load_rows(loads):
+            formatted = []
+            for load in loads:
+                created_at = load.get("created_at") or ""
+                ship_date = ""
+                try:
+                    ship_date = datetime.fromisoformat(created_at).strftime("%m/%d")
+                except (TypeError, ValueError):
+                    parsed = _parse_date(created_at)
+                    ship_date = parsed.strftime("%m/%d") if parsed else ""
+                formatted.append(
+                    {
+                        "id": load["id"],
+                        "load_number": load.get("load_number") or f"Load #{load['id']}",
+                        "origin_plant": load.get("origin_plant"),
+                        "utilization_pct": round(load.get("utilization_pct") or 0, 1),
+                        "ship_date": ship_date,
+                        "thumbnail": _build_load_thumbnail(load, sku_specs, color_palette),
+                    }
+                )
+            return formatted
 
-    sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
-    color_palette = [
-        "#137fec",
-        "#10b981",
-        "#f59e0b",
-        "#ef4444",
-        "#8b5cf6",
-        "#22d3ee",
-        "#f472b6",
-        "#f97316",
-    ]
+        top_loads = _format_load_rows(_fetch_loads(limit=5, ascending=False))
+        problem_loads = _format_load_rows(_fetch_loads(limit=5, ascending=True, max_util=70))
 
-    def format_load_rows(loads):
-        formatted = []
-        for load in loads:
-            created_at = load.get("created_at") or ""
-            ship_date = ""
-            try:
-                ship_date = datetime.fromisoformat(created_at).strftime("%m/%d")
-            except (TypeError, ValueError):
-                parsed = _parse_date(created_at)
-                ship_date = parsed.strftime("%m/%d") if parsed else ""
-            formatted.append(
-                {
-                    "id": load["id"],
-                    "load_number": load.get("load_number") or f"Load #{load['id']}",
-                    "origin_plant": load.get("origin_plant"),
-                    "utilization_pct": round(load.get("utilization_pct") or 0, 1),
-                    "ship_date": ship_date,
-                    "thumbnail": _build_load_thumbnail(load, sku_specs, color_palette),
-                }
-            )
-        return formatted
+    return {
+        "period": period,
+        "period_label": period_label,
+        "period_options": period_options,
+        "date_range_label": date_range_label,
+        "start_date": start_date,
+        "end_date": end_date,
+        "plant_scope_label": plant_scope_label,
+        "plant_filter_param": plant_filter_param,
+        "network_health": {"label": health_label, "class": health_class},
+        "kpis": kpis,
+        "plant_cards": plant_cards,
+        "trend_buckets": trend_buckets,
+        "trend_axis": trend_axis,
+        "efficiency_rows": efficiency_rows,
+        "top_loads": top_loads,
+        "problem_loads": problem_loads,
+    }
 
-    top_load_rows = format_load_rows(top_loads)
-    low_load_rows = format_load_rows(low_loads)
 
-    trend_plants_label = ", ".join([PLANT_NAMES.get(code, code) for code in plant_filters]) if plant_filters else "All Plants"
-
-    return render_template(
-        "dashboard.html",
-        trend_current_avg=current_avg,
-        trend_delta=delta,
-        trend_bars=spark_bars,
-        trend_plants_label=trend_plants_label,
-        order_status_summary=order_status_summary,
-        order_links=order_links,
-        period_options=period_options,
-        top_period=top_period,
-        low_period=low_period,
-        top_scope=top_scope,
-        low_scope=low_scope,
-        top_loads=top_load_rows,
-        low_loads=low_load_rows,
-        plant_filter_param=plant_filter_param,
-    )
+@app.route("/")
+@app.route("/dashboard")
+def dashboard():
+    _require_session()
+    context = _build_command_center_dashboard_context()
+    return render_template("dashboard.html", **context)
 
 
 @app.route("/upload", methods=["GET", "POST"])
@@ -2334,6 +2743,68 @@ def feedback_log():
     )
 
 
+@app.route("/feedback/app")
+def app_feedback_log():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    filters = {
+        "start_date": request.args.get("start_date") or "",
+        "end_date": request.args.get("end_date") or "",
+        "planner_id": request.args.get("planner_id") or "",
+        "category": request.args.get("category") or "",
+        "status": request.args.get("status") or "",
+        "search": request.args.get("search") or "",
+        "sort": request.args.get("sort") or "timestamp_desc",
+    }
+    entries = db.list_app_feedback(filters)
+    options = db.list_app_feedback_filter_options()
+    return render_template(
+        "app_feedback_log.html",
+        entries=entries,
+        filters=filters,
+        options=options,
+    )
+
+
+@app.route("/feedback/app", methods=["POST"])
+def submit_app_feedback():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    category = (request.form.get("category") or "").strip()
+    title = (request.form.get("title") or "").strip()
+    message = (request.form.get("message") or "").strip()
+    page = (request.form.get("page") or "").strip()
+    planner_id = _get_session_profile_name() or _get_session_role()
+
+    next_url = request.form.get("next") or request.referrer or url_for("app_feedback_log")
+    if not category or not title or not message:
+        return redirect(next_url)
+
+    db.add_app_feedback(
+        category=category,
+        title=title,
+        message=message,
+        page=page,
+        planner_id=planner_id,
+    )
+    return redirect(next_url)
+
+
+@app.route("/feedback/app/<int:feedback_id>/resolve", methods=["POST"])
+def resolve_app_feedback(feedback_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    resolved_by = _get_session_profile_name() or _get_session_role()
+    db.resolve_app_feedback(feedback_id, resolved_by=resolved_by)
+    return redirect(request.form.get("next") or request.referrer or url_for("app_feedback_log"))
+
+
 @app.route("/loads/<int:load_id>")
 def load_detail(load_id):
     session_redirect = _require_session()
@@ -2731,7 +3202,7 @@ def load_schematic_fragment(load_id):
     )
 
 
-@app.route("/loads/<int:load_id>/status", methods=["POST"])
+@app.route("/loads/<int:load_id>/status", methods=["POST"], strict_slashes=False)
 def update_load_status(load_id):
     is_async = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     session_redirect = _require_session()
@@ -3373,6 +3844,34 @@ def order_stack_config(so_num):
             """,
             (so_num,),
         ).fetchall()
+        order_row = connection.execute(
+            """
+            SELECT
+                orders.so_num,
+                orders.plant,
+                orders.cust_name,
+                orders.due_date,
+                orders.state,
+                orders.zip,
+                orders.total_qty,
+                orders.total_length_ft,
+                orders.utilization_pct,
+                orders.line_count,
+                orders.is_excluded,
+                (
+                    SELECT city
+                    FROM order_lines
+                    WHERE order_lines.so_num = orders.so_num
+                      AND city IS NOT NULL
+                      AND city != ''
+                    LIMIT 1
+                ) AS city
+            FROM orders
+            WHERE orders.so_num = ?
+            LIMIT 1
+            """,
+            (so_num,),
+        ).fetchone()
 
     if not rows:
         return jsonify({"error": "Order not found"}), 404
@@ -3404,6 +3903,63 @@ def order_stack_config(so_num):
     config["order_id"] = so_num
     config["line_items"] = line_items
     config["positions_count"] = len(config["positions"])
+
+    plant_code = (order_row["plant"] if order_row else None) or rows[0]["plant"]
+    dest_zip = order_row["zip"] if order_row else None
+    dest_state = order_row["state"] if order_row else None
+    dest_city = order_row["city"] if order_row else None
+
+    zip_coords = geo_utils.load_zip_coordinates()
+    origin_coords = geo_utils.plant_coords_for_code(plant_code) if plant_code else None
+    dest_coords = (
+        zip_coords.get(geo_utils.normalize_zip(dest_zip)) if dest_zip else None
+    )
+
+    destination_label_parts = []
+    if dest_city:
+        destination_label_parts.append(str(dest_city))
+    if dest_state:
+        destination_label_parts.append(str(dest_state))
+    if dest_zip:
+        destination_label_parts.append(str(dest_zip))
+    destination_label = " ".join(part for part in destination_label_parts if part).strip()
+
+    map_stops = []
+    map_stops.append(
+        {
+            "label": f"{plant_code} Plant" if plant_code else "Origin Plant",
+            "lat": origin_coords[0] if origin_coords else None,
+            "lng": origin_coords[1] if origin_coords else None,
+            "type": "origin",
+            "sequence": 1,
+        }
+    )
+    map_stops.append(
+        {
+            "label": destination_label or "Destination",
+            "lat": dest_coords[0] if dest_coords else None,
+            "lng": dest_coords[1] if dest_coords else None,
+            "type": "final",
+            "sequence": 2,
+        }
+    )
+    config["map_stops"] = map_stops
+
+    if order_row:
+        config["order_meta"] = {
+            "so_num": order_row["so_num"],
+            "plant": order_row["plant"],
+            "cust_name": order_row["cust_name"],
+            "due_date": order_row["due_date"],
+            "city": order_row["city"],
+            "state": order_row["state"],
+            "zip": order_row["zip"],
+            "total_qty": order_row["total_qty"],
+            "total_length_ft": order_row["total_length_ft"],
+            "utilization_pct": order_row["utilization_pct"],
+            "line_count": order_row["line_count"],
+            "is_excluded": order_row["is_excluded"],
+        }
 
     return jsonify(config)
 

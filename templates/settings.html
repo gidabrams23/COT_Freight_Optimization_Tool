@@ -2,12 +2,18 @@
 
 {% block content %}
   <section class="settings-page">
-    <div class="page-header">
-      <div>
-        <h1>Settings</h1>
-        <p>Manage rates, SKUs, lookups, and plant locations.</p>
+    <header class="orders-header loads-header settings-header">
+      <div class="loads-hero-row settings-hero-row">
+        <div class="loads-hero-title settings-hero-title">
+          <div class="loads-title-row">
+            <div class="orders-title loads-title">
+              <h1>Settings</h1>
+            </div>
+          </div>
+          <p class="settings-subtitle">Manage rates, SKUs, lookups, and plant locations.</p>
+        </div>
       </div>
-    </div>
+    </header>
     {% if not is_admin %}
       <div class="alert-message warning">Read-only access for Planner role.</div>
     {% endif %}

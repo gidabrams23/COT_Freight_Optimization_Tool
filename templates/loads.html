@@ -6,143 +6,73 @@
     <header class="orders-header loads-header">
       <div class="loads-hero-row">
         <div class="loads-hero-title">
-          <div class="loads-title-row">
-            <div class="orders-title loads-title">
-              <h1>Load Management</h1>
-              <p>Review draft vs finalized loads and resolve approvals.</p>
+            <div class="loads-title-row">
+              <div class="orders-title loads-title">
+                <h1>Load Review Center</h1>
+              </div>
             </div>
-            <div class="loads-title-actions">
-              {% if plant_filter_param %}
-                <a class="btn-ghost btn-xs" href="{{ url_for('orders', plants=plant_filter_param) }}">
-                  <span class="material-symbols-outlined">list_alt</span>
-                  Orders
-                </a>
-              {% else %}
-                <a class="btn-ghost btn-xs" href="{{ url_for('orders') }}">
-                  <span class="material-symbols-outlined">list_alt</span>
-                  Orders
-                </a>
-              {% endif %}
+            <div class="loads-optimization-inline" aria-label="Optimization output">
+              <div class="loads-optimization-metrics">
+                <div class="loads-optimization-metric">
+                  <span class="metric-label">Orders</span>
+                  <span class="metric-value metric-value-primary" data-opt-total-orders>{{ optimization_summary.total_orders }} <span class="metric-suffix">Items</span></span>
+                </div>
+                <div class="loads-optimization-metric">
+                  <span class="metric-label">Avg Util</span>
+                  <span class="metric-value metric-value-success" data-opt-avg-util>{{ optimization_summary.avg_utilization | round(1) }}%</span>
+                </div>
+                <div class="loads-optimization-metric">
+                  <span class="metric-label">Est Spend</span>
+                  <span class="metric-value metric-value-warning" data-opt-total-spend>${{ "{:,.2f}".format((optimization_summary.total_spend or 0) | float) }}</span>
+                </div>
+                <div class="loads-optimization-metric">
+                  <span class="metric-label">Plants</span>
+                  <span class="metric-value metric-value-muted">{% if plant_filter_param %}{{ plant_filter_param }}{% else %}All Plants{% endif %}</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="loads-scope">
-            <span class="meta-label">Scope:</span>
-            <span class="meta-chip">{% if plant_filter_param %}{{ plant_filter_param }}{% else %}All Plants{% endif %}</span>
-          </div>
-        </div>
 
-        <div class="loads-optimization-inline" aria-label="Optimization output">
-          <span class="meta-label">Optimization Output</span>
-          <div class="loads-optimization-metrics">
-            <div class="loads-optimization-metric">
-              <span class="metric-label">Orders</span>
-              <span class="metric-value" data-opt-total-orders>{{ optimization_summary.total_orders }}</span>
-            </div>
-            <div class="loads-optimization-metric">
-              <span class="metric-label">Avg Util</span>
-              <span class="metric-value" data-opt-avg-util>{{ optimization_summary.avg_utilization | round(1) }}%</span>
-            </div>
-            <div class="loads-optimization-metric">
-              <span class="metric-label">Est Spend</span>
-              <span class="metric-value" data-opt-total-spend>${{ optimization_summary.total_spend | round(0) }}</span>
-            </div>
-          </div>
-        </div>
+        <div class="approval-tracker approval-tracker-compact" aria-label="Daily goal progress" data-approval-tracker>
+          {% set progress_display = (progress_pct or 0) | round(0) %}
+          {% set progress_width = progress_display %}
+          {% if progress_width > 100 %}
+            {% set progress_width = 100 %}
+          {% elif progress_width < 0 %}
+            {% set progress_width = 0 %}
+          {% endif %}
 
-        <div class="approval-tracker approval-tracker-compact">
-          <span class="tracker-label">Approval Tracker</span>
-          <div class="tracker-body">
-            <div class="tracker-metrics">
-              <span class="tracker-pct">{{ progress_pct | round(0) }}%</span>
-              <span class="tracker-sub">{{ approved_orders }} of {{ total_orders }} orders</span>
+          <div class="approval-tracker-head">
+            <span class="tracker-label">Daily Goal Progress</span>
+            <span class="tracker-label tracker-label-right">Approved</span>
+          </div>
+
+          <div class="approval-tracker-main">
+            <div class="approval-tracker-left">
+              <span class="approval-tracker-pct" data-approval-pct>{{ progress_display }}%</span>
             </div>
-            <div class="tracker-bar">
-              <span style="width: {{ progress_pct }}%"></span>
+
+            <div
+              class="approval-tracker-bar"
+              data-approval-bar
+              role="progressbar"
+              aria-label="Approved orders progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="{{ progress_width }}"
+            >
+              <span class="approval-tracker-fill" data-approval-fill style="width: {{ progress_width }}%"></span>
+            </div>
+
+            <div class="approval-tracker-right">
+              <span class="approval-tracker-count" data-approval-count>{{ approved_orders }} / {{ total_orders }} Orders</span>
             </div>
           </div>
         </div>
       </div>
     </header>
 
-    <div class="load-tabs">
-      <div class="load-tabs-left">
-        {% if plant_filter_param %}
-          <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='draft') }}">
-            <span class="material-symbols-outlined">edit_document</span>
-            Draft Loads
-            <span class="tab-count warning">{{ draft_tab_count }}</span>
-          </a>
-          <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='final') }}">
-            <span class="material-symbols-outlined">verified</span>
-            Finalized Loads
-            <span class="tab-count success">{{ final_tab_count }}</span>
-          </a>
-        {% else %}
-          <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft') }}">
-            <span class="material-symbols-outlined">edit_document</span>
-            Draft Loads
-            <span class="tab-count warning">{{ draft_tab_count }}</span>
-          </a>
-          <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', tab='final') }}">
-            <span class="material-symbols-outlined">verified</span>
-            Finalized Loads
-            <span class="tab-count success">{{ final_tab_count }}</span>
-          </a>
-        {% endif %}
-      </div>
-      <div class="load-tabs-actions">
-        {% if tab != 'final' %}
-          <button class="btn-secondary btn-xs" type="button" data-manual-load-open>
-            <span class="material-symbols-outlined">add_box</span>
-            Manual Load
-          </button>
-        {% endif %}
-        <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Clear all loads for the current plant scope?');">
-          <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-          <button class="btn-danger btn-xs" type="submit">
-            <span class="material-symbols-outlined">delete_forever</span>
-            Clear Loads
-          </button>
-        </form>
-      </div>
-    </div>
-
     <div class="card-widget loads-panel">
-      <div class="panel-header">
-        <div class="panel-title">
-          {% if tab == 'final' %}
-            <h3>Finalized Loads</h3>
-          {% else %}
-            <h3>Draft Loads</h3>
-          {% endif %}
-          <span class="meta-chip">{{ loads | length }} Loads</span>
-        </div>
-        {% if tab != 'final' %}
-          <div class="panel-actions">
-            <form method="post" action="{{ url_for('approve_all_loads') }}">
-              {% if plant_filter_param %}
-                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-              {% endif %}
-              <input type="hidden" name="tab" value="{{ tab }}">
-              <button class="btn-primary btn-xs" type="submit">
-                <span class="material-symbols-outlined">done_all</span>
-                Accept All
-              </button>
-            </form>
-            <form method="post" action="{{ url_for('reject_all_loads') }}" onsubmit="return confirm('Reject all visible loads and re-optimize?');">
-              {% if plant_filter_param %}
-                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-              {% endif %}
-              <input type="hidden" name="tab" value="{{ tab }}">
-              <button class="btn-danger btn-xs" type="submit">
-                <span class="material-symbols-outlined">block</span>
-                Reject All
-              </button>
-            </form>
-          </div>
-        {% endif %}
-      </div>
-
       {% if reopt_status == 'done' %}
         <div class="banner">Re-optimization complete.</div>
       {% endif %}
@@ -151,137 +81,209 @@
         <div class="alert alert-error">{{ manual_error }}</div>
       {% endif %}
 
-      {% if loads %}
-        {% for section in load_sections %}
-          {% if section.loads %}
-            <div class="load-section" data-section="{{ section.kind }}">
-              <div class="load-section-title">{{ section.title }}</div>
-              <div class="loads-list">
-                {% for load in section.loads %}
-                  {% set status = load.status or 'PROPOSED' %}
-                  {% set panel_open = feedback_target.startswith('load-' ~ load.id) or feedback_target.startswith('order-' ~ load.id ~ '-') %}
-                  {% set display_label = load.load_number if status == 'APPROVED' and load.load_number else 'Load #' ~ (load.draft_sequence if load.draft_sequence else load.id) %}
-                  {% set util_value = (load.utilization_pct or 0) | round(0) %}
-                  {% set util_width = 100 if util_value > 100 else util_value %}
-                  {% set util_grade = (load.schematic.utilization_grade if load.schematic else 'F') %}
-                  {% if util_value >= 80 %}
-                    {% set util_class = 'success' %}
-                  {% elif util_value >= 70 %}
-                    {% set util_class = 'warning' %}
-                  {% else %}
-                    {% set util_class = 'danger' %}
-                  {% endif %}
-                  <div class="load-row" data-load-id="{{ load.id }}" data-load-grade="{{ util_grade }}" data-load-orders="{{ load.order_count or 0 }}" data-load-cost="{{ load.estimated_cost or 0 }}" data-load-util="{{ util_value }}">
-                    <button class="load-row-toggle{% if panel_open %} open{% endif %}" type="button" data-target="load-detail-{{ load.id }}" aria-expanded="{% if panel_open %}true{% else %}false{% endif %}">
-                      <span class="material-symbols-outlined">expand_more</span>
-                    </button>
-                    <div class="load-row-main load-summary-grid">
-                      <div class="load-summary-id summary-cell">
-                        <div class="load-id">
-                          <div class="load-title-box">
-                            <span class="load-title-icon material-symbols-outlined">local_shipping</span>
-                            <div class="load-title-text">
+        {% if loads %}
+          <div class="loads-review-layout" data-load-review-layout>
+            <div class="loads-left-shell">
+              <div class="loads-tabs-shell">
+                  <div class="load-tabs">
+                    <div class="load-tabs-left">
+                      {% if plant_filter_param %}
+                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='draft') }}">
+                          <span class="material-symbols-outlined">edit_document</span>
+                          Draft Loads
+                          <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
+                        </a>
+                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='final') }}">
+                          <span class="material-symbols-outlined">verified</span>
+                          Finalize Loads
+                          <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
+                        </a>
+                      {% else %}
+                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft') }}">
+                          <span class="material-symbols-outlined">edit_document</span>
+                          Draft Loads
+                          <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
+                        </a>
+                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', tab='final') }}">
+                          <span class="material-symbols-outlined">verified</span>
+                          Finalize Loads
+                          <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
+                        </a>
+                      {% endif %}
+                    </div>
+                    {% if tab != 'final' %}
+                      <div class="load-tabs-actions" aria-label="Bulk load actions">
+                        <form method="post" action="{{ url_for('approve_all_loads') }}">
+                          <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                          <input type="hidden" name="tab" value="{{ tab }}">
+                          <button class="btn-primary btn-xs" type="submit">
+                            <span class="material-symbols-outlined">done_all</span>
+                            Accept All
+                          </button>
+                        </form>
+                      </div>
+                    {% endif %}
+	                  </div>
+	                </div>
+	              <div class="loads-list-shell">
+	                <div class="loads-shell-header loads-shell-header-left">
+	                  <div class="loads-list-bar">
+	                    <div class="loads-list-actions">
+                      {% if tab != 'final' %}
+                        <button class="btn-secondary btn-xs" type="button" data-manual-load-open>
+                          <span class="material-symbols-outlined">add_box</span>
+                          Manual Load
+                        </button>
+                      {% endif %}
+                      <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Clear all loads for the current plant scope?');">
+                        <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                        <button class="btn-danger btn-xs" type="submit">
+                          <span class="material-symbols-outlined">delete_forever</span>
+                          Clear Loads
+                        </button>
+                      </form>
+                    </div>
+                    <div class="search-field loads-search-field">
+                      <span class="material-symbols-outlined">search</span>
+                      <input type="text" placeholder="Search Load ID..." data-load-search-input aria-label="Search loads">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="loads-master" data-load-review-master>
+                  <div class="loads-grid-head" aria-hidden="true">
+                    <div class="loads-grid-head-cell">Load / Route</div>
+                    <div class="loads-grid-head-cell">Details</div>
+                    <div class="loads-grid-head-cell">Utilization</div>
+                    <div class="loads-grid-head-cell loads-grid-head-cell-right">Financials</div>
+                  </div>
+                  {% for section in load_sections %}
+                    {% if section.loads %}
+                      <div class="load-section" data-section="{{ section.kind }}">
+                        <div class="load-section-title">{{ section.title }}</div>
+                        <div class="loads-list">
+                          {% for load in section.loads %}
+                      {% set status = load.status or 'PROPOSED' %}
+                      {% set panel_open = feedback_target.startswith('load-' ~ load.id) or feedback_target.startswith('order-' ~ load.id ~ '-') %}
+                      {% set display_label = load.load_number if status == 'APPROVED' and load.load_number else 'Load #' ~ (load.draft_sequence if load.draft_sequence else load.id) %}
+                      {% set util_value = (load.utilization_pct or 0) | round(0) %}
+                      {% set util_width = 100 if util_value > 100 else util_value %}
+                      {% set util_grade = (load.schematic.utilization_grade if load.schematic else 'F') %}
+                      {% if util_value >= 80 %}
+                        {% set util_class = 'success' %}
+                      {% elif util_value >= 70 %}
+                        {% set util_class = 'warning' %}
+                      {% else %}
+                        {% set util_class = 'danger' %}
+                      {% endif %}
+                      {% set miles = (load.route_distance if load.route_distance is not none else (load.estimated_miles or 0)) | round(0) %}
+                      <div
+                        class="load-row{% if panel_open %} selected{% endif %}"
+                        data-load-id="{{ load.id }}"
+                        data-load-label="{{ display_label }}"
+                        {% if panel_open %}data-initial-selected="true"{% endif %}
+                        data-load-grade="{{ util_grade }}"
+                        data-load-orders="{{ load.order_count or 0 }}"
+                        data-load-cost="{{ load.estimated_cost or 0 }}"
+                        data-load-util="{{ util_value }}"
+                        role="button"
+                        tabindex="0"
+                        aria-label="Select {{ display_label }}"
+                        aria-selected="{% if panel_open %}true{% else %}false{% endif %}"
+                      >
+                        <div class="load-summary-grid">
+                          <div class="load-summary-id summary-cell">
+                            <div class="load-id">
                               <div class="load-title-row">
                                 <span class="load-title-label">{{ display_label }}</span>
                                 {% if status == 'APPROVED' %}
                                   <span class="badge badge-success load-status-badge">Approved</span>
                                 {% elif status == 'DRAFT' %}
                                   <span class="badge badge-warning load-status-badge">Draft</span>
-                                {% else %}
-                                  <span class="badge badge-neutral load-status-badge">Proposed</span>
                                 {% endif %}
                               </div>
-                              <span class="subtext">{{ load.origin_plant }} -> {{ load.destination_state }}</span>
+                              <div class="subtext">
+                                {{ load.origin_plant }}
+                                <span class="route-arrow" aria-hidden="true">&rarr;</span>
+                                {{ load.destination_state }}
+                                <span class="route-meta" aria-label="Stops and miles">
+                                  &middot;
+                                  {% if load.stop_count == 1 %}
+                                    1 stop
+                                  {% else %}
+                                    {{ load.stop_count }} stops
+                                  {% endif %}
+                                  &middot;
+                                  {{ miles }} mi
+                                </span>
+                              </div>
                             </div>
                           </div>
-                          <div class="load-quick-meta">
-                            <div class="load-quick-row">
-                              <span class="quick-label">Units</span>
-                              <span class="quick-value">{{ load.total_units }}</span>
-                            </div>
-                            <div class="load-quick-row">
-                              <span class="quick-label">Ship Date</span>
-                              <span class="quick-value">{{ load.ship_date or '—' }}</span>
-                              {% if load.ship_date_status == 'PAST_DUE' %}
-                                <span class="badge badge-danger">Past Due</span>
-                              {% elif load.ship_date_status == 'DUE_SOON' %}
-                                <span class="badge badge-warning">Due Soon</span>
-                              {% endif %}
-                            </div>
-                        </div>
-                        </div>
-                      </div>
-                      <div class="load-summary-timeline summary-cell">
-                        <div class="summary-timeline-header">
-                          <span class="meta-chip">{{ load.stop_count }} Stops - {{ (load.route_distance if load.route_distance is not none else (load.estimated_miles or 0)) | round(0) }} mi</span>
-                        </div>
-                        <div class="summary-route">
-                          {% for node in load.route_nodes %}
-                            <div class="summary-route-node {{ node.type }}">
-                              <div class="summary-route-badge" style="border-color: {{ node.color }};">
-                                {% if node.type == 'origin' %}
-                                  <span class="material-symbols-outlined">home</span>
-                                {% elif node.type == 'final' %}
-                                  <span class="material-symbols-outlined">flag</span>
-                                {% else %}
-                                  <span>{{ node.sequence }}</span>
-                                {% endif %}
-                              </div>
-                              <span class="summary-route-label">{{ node.subtitle or node.label }}</span>
-                            </div>
-                            {% if not loop.last %}
-                              {% set leg = load.route_legs[loop.index0] if load.route_legs and loop.index0 < (load.route_legs | length) else none %}
-                              <div class="summary-route-line">
-                                <span class="summary-route-mile">{% if leg is not none %}{{ leg }} mi{% endif %}</span>
-                                <div class="summary-route-bar"></div>
-                              </div>
-                            {% endif %}
-                          {% endfor %}
-                        </div>
-                      </div>
-                      <div class="load-summary-metric util summary-cell" data-load-id="{{ load.id }}">
-                        <span class="metric-label">Utilization</span>
-                        <div class="util-meta">
-                          <span class="metric-value" data-util-value>{{ util_value }}%</span>
-                          <span class="util-grade" data-util-grade>Grade {{ util_grade }}</span>
-                          <span class="util-flag{% if not (load.over_capacity or (load.schematic and load.schematic.exceeds_capacity)) %} hidden{% endif %}" data-util-flag>Over Cap</span>
-                        </div>
-                        <div class="util-progress">
-                          <span class="util-fill {{ util_class }}" data-util-fill style="width: {{ util_width }}%;"></span>
-                        </div>
-                      </div>
-                      <div class="load-summary-metric sales summary-cell">
-                        <span class="metric-label">Total Sales</span>
-                        <span class="metric-value">${{ (load.total_sales or 0) | round(0) }}</span>
-                      </div>
-                      <div class="load-summary-metric cost summary-cell">
-                        <span class="metric-label">Est Cost</span>
-                        <span class="metric-value">${{ (load.estimated_cost or 0) | round(0) }}</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div class="load-detail-panel{% if not panel_open %} hidden{% endif %}" id="load-detail-{{ load.id }}">
+                          <div class="load-summary-details summary-cell">
+                            <div class="load-detail-line">
+                              <span class="detail-label">Units:</span>
+                              <span class="detail-value">{{ load.total_units }}</span>
+                            </div>
+                            <div class="load-detail-line">
+                              {% if load.ship_date_status == 'PAST_DUE' %}
+                                <span class="badge badge-danger badge-compact">Past Due</span>
+                              {% elif load.ship_date_status == 'DUE_SOON' %}
+                                <span class="badge badge-warning badge-compact">Due Soon</span>
+                              {% endif %}
+                              <span class="detail-date">{{ load.ship_date | short_date }}</span>
+                            </div>
+                          </div>
+
+                          <div class="load-summary-metric util summary-cell" data-load-id="{{ load.id }}">
+                            <div class="util-meta">
+                              <span class="metric-value util-pct {{ util_class }}" data-util-value>{{ util_value }}%</span>
+                              <span class="util-grade {{ util_class }}" data-util-grade>GRADE {{ util_grade }}</span>
+                            </div>
+                            <div class="util-progress">
+                              <span class="util-fill {{ util_class }}" data-util-fill style="width: {{ util_width }}%;"></span>
+                            </div>
+                          </div>
+
+                          <div class="load-summary-metric cost summary-cell">
+                            <div class="fin-line fin-freight">
+                              Freight: <span class="fin-freight-value">${{ "{:,.0f}".format((load.estimated_cost or 0) | float) }}</span>
+                            </div>
+                            <div class="fin-line fin-sales">
+                              Sales Value: <span class="fin-sales-value">${{ "{:,.0f}".format((load.total_sales or 0) | float) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="load-detail-panel hidden" id="load-detail-{{ load.id }}" data-load-id="{{ load.id }}">
                     {% set reject_target = 'load-' ~ load.id %}
                     {% set order_error_id = '' %}
                     {% if feedback_target.startswith('order-' ~ load.id ~ '-') %}
                       {% set order_error_id = feedback_target | replace('order-' ~ load.id ~ '-', '') %}
                     {% endif %}
-                    <div class="load-approval-bar">
-                      <div class="alert-message warning{% if not load.over_capacity %} hidden{% endif %}" id="over-capacity-{{ load.id }}">
-                        <strong>Over Capacity:</strong> This is a single-order load that exceeds trailer capacity. Review before dispatch.
+                    <div class="load-approval-stash hidden" data-approval-stash>
+                      <div class="load-approval-actions-slot" data-approval-actions-slot>
+                        <div class="load-approval-actions">
+                          {% if status == 'APPROVED' %}
+                            <span class="approval-status approved">Approved</span>
+                          {% else %}
+                            <span class="approval-status">Pending Approval</span>
+                          {% endif %}
+                          {% if tab != 'final' %}
+                            <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
+                              <input type="hidden" name="action" value="approve_lock">
+                              <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                              <button class="btn-success approval-btn" type="submit" {% if status == 'APPROVED' %}disabled{% endif %}>Approve</button>
+                            </form>
+                            <button class="btn-danger approval-btn feedback-toggle" type="button" data-feedback-target="load-reject-{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>Reject</button>
+                          {% endif %}
+                        </div>
                       </div>
-                      <div class="load-approval-actions">
-                        {% if status == 'APPROVED' %}
-                          <span class="approval-status approved">Approved</span>
-                        {% else %}
-                          <span class="approval-status">Pending Approval</span>
-                        {% endif %}
-                        <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
-                            <input type="hidden" name="action" value="approve_lock">
-                            <button class="btn-success approval-btn" type="submit" {% if status == 'APPROVED' %}disabled{% endif %}>Approve Load</button>
-                          </form>
-                          <button class="btn-danger approval-btn feedback-toggle" type="button" data-feedback-target="load-reject-{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>Reject Load</button>
+                      <div class="load-approval-warning-slot" data-approval-warning-slot>
+                        <div class="alert-message warning{% if not load.over_capacity %} hidden{% endif %}" id="over-capacity-{{ load.id }}">
+                          <strong>Over Capacity:</strong> This is a single-order load that exceeds trailer capacity. Review before dispatch.
+                        </div>
                       </div>
                     </div>
 
@@ -368,14 +370,13 @@
                             <thead>
                               <tr>
                                 <th>Order ID</th>
-                                <th>Due Date</th>
-                                <th>Customer</th>
-                                <th>Stop</th>
-                                <th>Qty</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {% for group in load.manifest_groups %}
+                                    <th>Due Date</th>
+                                    <th>Customer</th>
+                                    <th>Stop</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {% for group in load.manifest_groups %}
                                 {% set row_id = 'manifest-' ~ load.id ~ '-' ~ loop.index0 %}
                                 <tr class="manifest-order-row" data-target="{{ row_id }}">
                                   <td>
@@ -396,16 +397,15 @@
                                       {% endif %}
                                     </div>
                                   </td>
-                                  <td>{{ group.cust_name }}</td>
-                                  <td>{% if group.city %}{{ group.city }}, {% endif %}{{ group.state }}</td>
-                                  <td>{{ group.total_qty }}</td>
-                                </tr>
-                                <tr class="manifest-item-row hidden" id="{{ row_id }}">
-                                  <td colspan="5">
-                                    <table class="manifest-subtable">
-                                      <thead>
-                                        <tr>
-                                          <th>SKU</th>
+                                    <td>{{ group.cust_name }}</td>
+                                    <td>{% if group.city %}{{ group.city }}, {% endif %}{{ group.state }}</td>
+                                  </tr>
+                                  <tr class="manifest-item-row hidden" id="{{ row_id }}">
+                                    <td colspan="4">
+                                      <table class="manifest-subtable">
+                                        <thead>
+                                          <tr>
+                                            <th>SKU</th>
                                           <th>Description</th>
                                           <th>Qty</th>
                                           <th>Length</th>
@@ -431,20 +431,52 @@
                       </div>
 
                       <div class="map-card">
-                        <div class="card-header-row">
-                          <h3>Route Map</h3>
-                        </div>
                         <div class="load-map" id="load-map-{{ load.id }}" data-stops='{{ load.map_stops | tojson }}'></div>
                       </div>
                     </div>
                   </div>
-                {% endfor %}
+                          {% endfor %}
+                        </div>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                  <div class="hidden" id="load-detail-stash" data-load-review-stash aria-hidden="true"></div>
+                </div>
               </div>
             </div>
-          {% endif %}
-        {% endfor %}
+
+            <div class="loads-preview-shell">
+              <div class="loads-shell-header loads-shell-header-right">
+                <div class="selected-preview-bar">
+                  <div class="selected-preview-meta">
+                    <span class="material-symbols-outlined selected-load-icon" aria-hidden="true">info</span>
+                    <span class="meta-label">Selected Load:</span>
+                    <span class="loads-review-label" id="selected-load-label"></span>
+                  </div>
+                  <div class="selected-load-actions" id="selected-load-actions"></div>
+                </div>
+                <div class="selected-load-warning" id="selected-load-warning"></div>
+              </div>
+
+              <aside class="loads-review" aria-label="Selected load preview">
+                <div class="loads-review-pane" id="load-review-pane" data-load-review-pane>
+                  <div class="loads-review-empty" id="load-review-empty">Select a load to review.</div>
+                </div>
+              </aside>
+            </div>
+          </div>
 
       {% else %}
+        <div class="panel-header">
+          <div class="panel-title">
+            {% if tab == 'final' %}
+              <h3>Finalize Loads</h3>
+            {% else %}
+              <h3>Draft Loads</h3>
+            {% endif %}
+            <span class="meta-chip">0 Loads</span>
+          </div>
+        </div>
         <div class="empty-state">
           <span class="material-symbols-outlined">local_shipping</span>
           <p>No loads available yet.</p>
@@ -512,6 +544,32 @@
           <div class="modal-footer">
             <button class="btn-ghost" type="button" data-manual-load-cancel>Cancel</button>
             <button class="btn-primary" type="submit" id="manual-load-submit" disabled>Create Manual Load</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="modal-backdrop hidden" id="manual-add-modal" data-manual-add-modal>
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>Manually Add Orders</h3>
+            <p>Add nearby draft-scope orders that fit in the remaining trailer space. This converts the load to MANUAL and re-optimizes the remaining orders.</p>
+          </div>
+          <button class="btn-icon" type="button" data-manual-add-close aria-label="Close manual add orders">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form id="manual-add-form">
+          <div class="modal-body">
+            <div class="subtext" id="manual-add-meta"></div>
+            <div class="manual-order-list" id="manual-add-list">
+              <div class="subtext">Select a load’s “Manually Add Orders” button to see suggestions.</div>
+            </div>
+            <div class="subtext hidden" id="manual-add-error"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-ghost" type="button" data-manual-add-cancel>Cancel</button>
+            <button class="btn-primary" type="submit" id="manual-add-submit" disabled>Add Selected Orders</button>
           </div>
         </form>
       </div>
@@ -706,11 +764,8 @@
       const utilValue = container.querySelector('[data-util-value]');
       const utilGrade = container.querySelector('[data-util-grade]');
       const utilFill = container.querySelector('[data-util-fill]');
-      const utilFlag = container.querySelector('[data-util-flag]');
       if (utilValue) utilValue.textContent = `${pct}%`;
       if (utilGrade) utilGrade.textContent = `Grade ${grade}`;
-      const showFlag = Boolean(payload.over_capacity || payload.exceeds_capacity);
-      if (utilFlag) utilFlag.classList.toggle('hidden', !showFlag);
       if (utilFill) {
         utilFill.style.width = `${Math.min(100, pct)}%`;
         utilFill.classList.remove('success', 'warning', 'danger');
@@ -748,13 +803,14 @@
             .then((payload) => {
               if (payload && payload.schematic_html) {
                 const existing = document.getElementById(`schematic-card-${loadId}`);
-                if (existing) {
-                  existing.outerHTML = payload.schematic_html;
-                  const replacement = document.getElementById(`schematic-card-${loadId}`);
-                  bindSchematicRemove(replacement || document);
-                  bindTrailerSelect(replacement || document);
+                  if (existing) {
+                    existing.outerHTML = payload.schematic_html;
+                    const replacement = document.getElementById(`schematic-card-${loadId}`);
+                    bindSchematicRemove(replacement || document);
+                    bindTrailerSelect(replacement || document);
+                    bindManualAddButtons(replacement || document);
+                  }
                 }
-              }
               updateUtilSummary(loadId, payload || {});
               const alert = document.getElementById(`over-capacity-${loadId}`);
               if (alert) {
@@ -805,12 +861,12 @@
       const spendValue = document.querySelector('[data-opt-total-spend]');
       const avgValue = document.querySelector('[data-opt-avg-util]');
 
-      if (loadChip) loadChip.textContent = `${loadCount} Loads`;
+      if (loadChip) loadChip.textContent = String(loadCount);
       if (orderValue) orderValue.textContent = totalOrders;
       if (spendValue) spendValue.textContent = `$${Math.round(totalCost)}`;
       if (avgValue) avgValue.textContent = `${avgUtil.toFixed(1)}%`;
-      const draftTabCount = document.querySelector('.load-tab .tab-count.warning');
-      if (draftTabCount) draftTabCount.textContent = loadCount;
+      const activeDraftTabCount = document.querySelector('.load-tab.active [data-tab-count="draft"]');
+      if (activeDraftTabCount) activeDraftTabCount.textContent = String(loadCount);
 
       Object.entries(gradeCounts).forEach(([grade, count]) => {
         const el = document.querySelector(`[data-grade-count="${grade}"]`);
@@ -818,16 +874,228 @@
       });
     }
 
+    function updateTabCounts(tabCounts) {
+      if (!tabCounts) return;
+      const draftEl = document.querySelector('[data-tab-count="draft"]');
+      const finalEl = document.querySelector('[data-tab-count="final"]');
+      if (draftEl && Number.isFinite(Number(tabCounts.draft))) draftEl.textContent = String(tabCounts.draft);
+      if (finalEl && Number.isFinite(Number(tabCounts.final))) finalEl.textContent = String(tabCounts.final);
+    }
+
+    function updateApprovalTracker(progress) {
+      if (!progress) return;
+      const tracker = document.querySelector('[data-approval-tracker]');
+      if (!tracker) return;
+
+      const approvedOrders = Number(progress.approved_orders || 0);
+      const totalOrders = Number(progress.total_orders || 0);
+      const pctRaw = Number(progress.progress_pct || 0);
+      const pctDisplay = Math.round(pctRaw);
+      const pctWidth = Math.max(0, Math.min(100, pctDisplay));
+
+      const pctEl = tracker.querySelector('[data-approval-pct]');
+      if (pctEl) pctEl.textContent = `${pctDisplay}%`;
+
+      const fill = tracker.querySelector('[data-approval-fill]');
+      if (fill) fill.style.width = `${pctWidth}%`;
+
+      const bar = tracker.querySelector('[data-approval-bar]');
+      if (bar) bar.setAttribute('aria-valuenow', String(pctWidth));
+
+      const countEl = tracker.querySelector('[data-approval-count]');
+      if (countEl) countEl.textContent = `${approvedOrders} / ${totalOrders} Orders`;
+    }
+
+    let selectedLoadId = null;
+
+    function syncReviewLayoutHeight() {
+      const layout = document.querySelector('[data-load-review-layout]');
+      if (!layout) return;
+      const top = layout.getBoundingClientRect().top;
+      const available = window.innerHeight - top - 16;
+      const clamped = Math.max(520, Math.floor(available));
+      layout.style.setProperty('--loads-review-height', `${clamped}px`);
+    }
+
+    function showReviewEmpty(message) {
+      if (selectedLoadId) {
+        restoreSelectedHeaderElements(selectedLoadId);
+      }
+      const pane = document.getElementById('load-review-pane');
+      const stash = document.getElementById('load-detail-stash');
+      if (pane && stash) {
+        pane.querySelectorAll('.load-detail-panel').forEach((panel) => {
+          panel.classList.add('hidden');
+          panel.classList.remove('single-screen');
+          stash.appendChild(panel);
+        });
+      }
+      clearSelectedPreviewHeader();
+      const empty = document.getElementById('load-review-empty');
+      if (empty) {
+        empty.textContent = message || 'Select a load to review.';
+        empty.classList.remove('hidden');
+      }
+      const label = document.getElementById('selected-load-label');
+      if (label) label.textContent = '';
+      document.querySelectorAll('.load-row.selected').forEach((row) => {
+        row.classList.remove('selected');
+        row.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.load-row-toggle[aria-pressed="true"]').forEach((btn) => btn.setAttribute('aria-pressed', 'false'));
+      selectedLoadId = null;
+    }
+
+    function clearSelectedPreviewHeader() {
+      const actionsHost = document.getElementById('selected-load-actions');
+      const warningHost = document.getElementById('selected-load-warning');
+      if (actionsHost) actionsHost.innerHTML = '';
+      if (warningHost) warningHost.innerHTML = '';
+    }
+
+    function restoreSelectedHeaderElements(loadId) {
+      const actionsHost = document.getElementById('selected-load-actions');
+      const warningHost = document.getElementById('selected-load-warning');
+      const panel = document.getElementById(`load-detail-${loadId}`);
+      if (!panel) return;
+
+      const actionsSlot = panel.querySelector('[data-approval-actions-slot]');
+      const warningSlot = panel.querySelector('[data-approval-warning-slot]');
+
+      const actions = actionsHost?.querySelector('.load-approval-actions');
+      if (actions && actionsSlot) actionsSlot.appendChild(actions);
+
+      const warning = warningHost?.querySelector(`#over-capacity-${loadId}`);
+      if (warning && warningSlot) warningSlot.appendChild(warning);
+
+      if (actionsHost && !actionsHost.hasChildNodes()) actionsHost.innerHTML = '';
+      if (warningHost && !warningHost.hasChildNodes()) warningHost.innerHTML = '';
+    }
+
+    function moveSelectedHeaderElements(loadId) {
+      const actionsHost = document.getElementById('selected-load-actions');
+      const warningHost = document.getElementById('selected-load-warning');
+      const panel = document.getElementById(`load-detail-${loadId}`);
+      if (!panel) return;
+      if (actionsHost) {
+        const actions = panel.querySelector('.load-approval-actions');
+        if (actions) actionsHost.appendChild(actions);
+      }
+      if (warningHost) {
+        const warning = panel.querySelector(`#over-capacity-${loadId}`);
+        if (warning) warningHost.appendChild(warning);
+      }
+    }
+
+    function stashAllDetailPanels() {
+      const stash = document.getElementById('load-detail-stash');
+      if (!stash) return;
+      if (selectedLoadId) {
+        restoreSelectedHeaderElements(selectedLoadId);
+        clearSelectedPreviewHeader();
+      }
+      document.querySelectorAll('.load-detail-panel').forEach((panel) => {
+        panel.classList.add('hidden');
+        panel.classList.remove('single-screen');
+        stash.appendChild(panel);
+      });
+    }
+
+    function selectLoad(loadId, { scrollIntoView = true } = {}) {
+      const pane = document.getElementById('load-review-pane');
+      const stash = document.getElementById('load-detail-stash');
+      const empty = document.getElementById('load-review-empty');
+      if (!pane || !stash) return;
+      if (!loadId) return;
+
+      const row = document.querySelector(`.load-row[data-load-id="${loadId}"]`);
+      const panel = document.getElementById(`load-detail-${loadId}`);
+      if (!row || !panel) {
+        showReviewEmpty('Select a load to review.');
+        return;
+      }
+
+      if (selectedLoadId && selectedLoadId === String(loadId)) {
+        if (scrollIntoView) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        return;
+      }
+
+      if (selectedLoadId && selectedLoadId !== String(loadId)) {
+        restoreSelectedHeaderElements(selectedLoadId);
+        const prevRow = document.querySelector(`.load-row[data-load-id="${selectedLoadId}"]`);
+        if (prevRow) {
+          prevRow.classList.remove('selected');
+          prevRow.setAttribute('aria-selected', 'false');
+        }
+        const prevPanel = document.getElementById(`load-detail-${selectedLoadId}`);
+        if (prevPanel) {
+          prevPanel.classList.add('hidden');
+          prevPanel.classList.remove('single-screen');
+          stash.appendChild(prevPanel);
+        }
+      }
+
+      selectedLoadId = String(loadId);
+      row.classList.add('selected');
+      row.setAttribute('aria-selected', 'true');
+      const label = document.getElementById('selected-load-label');
+      if (label) label.textContent = row.dataset.loadLabel || '';
+      if (empty) empty.classList.add('hidden');
+
+      panel.classList.remove('hidden');
+      panel.classList.add('single-screen');
+      pane.appendChild(panel);
+      clearSelectedPreviewHeader();
+      moveSelectedHeaderElements(loadId);
+
+      const mapContainer = panel.querySelector('.load-map');
+      initLoadMap(mapContainer);
+      const mapInstance = mapInstances.get(mapContainer?.id);
+      if (mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 50);
+      }
+
+      if (scrollIntoView) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
     function removeLoadFromView(loadId) {
       const row = document.querySelector(`.load-row[data-load-id="${loadId}"]`);
       const panel = document.getElementById(`load-detail-${loadId}`);
-      if (panel) panel.remove();
+      let nextSelectionId = null;
+      if (row && selectedLoadId === String(loadId)) {
+        restoreSelectedHeaderElements(loadId);
+        clearSelectedPreviewHeader();
+        const rows = Array.from(document.querySelectorAll('.load-row:not(.hidden)')).filter((r) => r.dataset.removed !== 'true');
+        const idx = rows.indexOf(row);
+        const nextRow = (idx >= 0 && rows[idx + 1]) ? rows[idx + 1] : (idx > 0 ? rows[idx - 1] : null);
+        nextSelectionId = nextRow?.dataset.loadId || null;
+      }
+      if (panel) {
+        const mapContainer = panel.querySelector('.load-map');
+        const mapInstance = mapInstances.get(mapContainer?.id);
+        if (mapInstance) {
+          mapInstance.remove();
+          mapInstances.delete(mapContainer.id);
+        }
+        panel.remove();
+      }
       if (row) {
         row.dataset.removed = 'true';
         row.remove();
       }
       updateSectionVisibility();
       recalcOptimizationSummary();
+      if (selectedLoadId === String(loadId)) {
+        if (nextSelectionId) {
+          selectLoad(nextSelectionId, { scrollIntoView: false });
+        } else {
+          showReviewEmpty('No loads available.');
+        }
+      }
     }
 
     function bindAsyncApprove() {
@@ -837,12 +1105,21 @@
         form.addEventListener('submit', (event) => {
           event.preventDefault();
           const formData = new FormData(form);
+          // `form.action` can be shadowed by an `<input name="action">` inside the form.
+          // Always read from the attribute to avoid posting to `/[object HTMLInputElement]`.
+          const postUrl = form.getAttribute('action') || '';
+          if (!postUrl) {
+            window.alert('Unable to approve load: missing form action URL.');
+            return;
+          }
           form.querySelector('button')?.setAttribute('disabled', 'true');
-          fetch(form.action, {
+          fetch(postUrl, {
             method: 'POST',
             body: formData,
+            credentials: 'same-origin',
             headers: {
               'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
             },
           })
             .then(async (response) => {
@@ -852,25 +1129,28 @@
                 payload = await response.json();
               } else {
                 const text = await response.text();
-                payload = { error: text || `Request failed (${response.status})` };
+                const titleMatch = text.match(/<title>([^<]+)<\/title>/i);
+                const summary = (titleMatch && titleMatch[1] ? titleMatch[1] : '').trim();
+                payload = {
+                  error: summary || `Request failed (${response.status})`,
+                  _raw: text,
+                };
               }
               if (!response.ok || !payload || payload.error) {
-                const message = payload?.error || `Approval failed (${response.status})`;
+                const finalUrl = response.url || postUrl;
+                const message = `${payload?.error || `Approval failed (${response.status})`}${finalUrl ? `\n\nURL: ${finalUrl}` : ''}`;
                 throw new Error(message);
               }
               return payload;
             })
             .then((payload) => {
               removeLoadFromView(payload.load_id);
+              updateApprovalTracker(payload.progress);
+              updateTabCounts(payload.tab_counts);
             })
             .catch((error) => {
               form.querySelector('button')?.removeAttribute('disabled');
-              if (!form.dataset.fallback) {
-                form.dataset.fallback = 'true';
-                // Fallback to standard form submit if async approve fails.
-                form.submit();
-                return;
-              }
+              console.error('Async approve failed', error);
               window.alert(error?.message || 'Unable to approve load. Please try again.');
             });
         });
@@ -891,67 +1171,66 @@
       });
     });
 
-    document.querySelectorAll('.load-row-toggle').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const targetId = btn.dataset.target;
-        const panel = document.getElementById(targetId);
-        if (!panel) return;
-        const isOpen = !panel.classList.contains('hidden');
-
-        if (!isOpen) {
-          document.querySelectorAll('.load-detail-panel').forEach((other) => {
-            if (other === panel) return;
-            other.classList.add('hidden');
-            const otherToggle = document.querySelector(`.load-row-toggle[data-target="${other.id}"]`);
-            if (otherToggle) {
-              otherToggle.setAttribute('aria-expanded', 'false');
-              otherToggle.classList.remove('open');
-            }
-          });
-        }
-
-        panel.classList.toggle('hidden');
-        btn.setAttribute('aria-expanded', (!isOpen).toString());
-        btn.classList.toggle('open', !isOpen);
-
-        if (!isOpen) {
-          const row = btn.closest('.load-row');
-          if (row) {
-            row.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-          const mapContainer = panel.querySelector('.load-map');
-          initLoadMap(mapContainer);
-          const mapInstance = mapInstances.get(mapContainer?.id);
-          if (mapInstance) {
-            setTimeout(() => mapInstance.invalidateSize(), 50);
-          }
-        }
-      });
-    });
-
-    document.querySelectorAll('.load-detail-panel:not(.hidden)').forEach((panel) => {
-      const mapContainer = panel.querySelector('.load-map');
-      initLoadMap(mapContainer);
-      const mapInstance = mapInstances.get(mapContainer?.id);
-      if (mapInstance) {
-        setTimeout(() => mapInstance.invalidateSize(), 50);
-      }
-    });
-
     document.querySelectorAll('.load-row').forEach((row) => {
       row.addEventListener('click', (event) => {
         if (event.target.closest('button')) return;
         if (event.target.closest('a')) return;
         if (event.target.closest('select')) return;
         if (event.target.closest('.inline-feedback-panel')) return;
-        const btn = row.querySelector('.load-row-toggle');
-        if (btn) btn.click();
+        selectLoad(row.dataset.loadId, { scrollIntoView: true });
+      });
+
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        selectLoad(row.dataset.loadId, { scrollIntoView: true });
       });
     });
+
+    const loadSearchInput = document.querySelector('[data-load-search-input]');
+    if (loadSearchInput) {
+      const applySearch = debounce(() => {
+        const query = (loadSearchInput.value || '').trim().toLowerCase();
+        document.querySelectorAll('.load-row').forEach((row) => {
+          if (row.dataset.removed === 'true') return;
+          const haystack = `${row.dataset.loadLabel || ''} ${row.textContent || ''}`.toLowerCase();
+          const match = !query || haystack.includes(query);
+          row.classList.toggle('hidden', !match);
+        });
+        updateSectionVisibility();
+
+        const selectedRow = selectedLoadId
+          ? document.querySelector(`.load-row[data-load-id="${selectedLoadId}"]`)
+          : null;
+        const firstVisible = document.querySelector('.load-row:not(.hidden)');
+
+        if (!firstVisible) {
+          showReviewEmpty(query ? 'No loads match your search.' : 'No loads available.');
+          return;
+        }
+
+        if (!selectedRow || selectedRow.classList.contains('hidden')) {
+          selectLoad(firstVisible.dataset.loadId, { scrollIntoView: false });
+        }
+      }, 120);
+
+      loadSearchInput.addEventListener('input', applySearch);
+    }
 
     bindSchematicRemove();
     bindTrailerSelect();
     bindAsyncApprove();
+    stashAllDetailPanels();
+
+    const initialRow = document.querySelector('.load-row[data-initial-selected="true"]:not(.hidden)') || document.querySelector('.load-row:not(.hidden)');
+    if (initialRow?.dataset?.loadId) {
+      selectLoad(initialRow.dataset.loadId, { scrollIntoView: false });
+    } else {
+      showReviewEmpty('No loads available.');
+    }
+
+    syncReviewLayoutHeight();
+    window.addEventListener('resize', debounce(syncReviewLayoutHeight, 100));
 
     document.querySelectorAll('.manifest-order-row').forEach((row) => {
       row.addEventListener('click', (event) => {
@@ -1247,6 +1526,213 @@
       }
     }
 
+    let manualAddApi = null;
+
+    function bindManualAddButtons(root = document) {
+      root.querySelectorAll('.js-manual-add-open').forEach((btn) => {
+        if (btn.dataset.bound === 'true') return;
+        btn.dataset.bound = 'true';
+        btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const loadId = btn.dataset.loadId;
+          if (!loadId) return;
+          if (!manualAddApi || typeof manualAddApi.open !== 'function') return;
+          manualAddApi.open(loadId);
+        });
+      });
+    }
+
+    function initManualAddModal() {
+      const modal = document.getElementById('manual-add-modal');
+      if (!modal) return;
+
+      const closeButton = modal.querySelector('[data-manual-add-close]');
+      const cancelButton = modal.querySelector('[data-manual-add-cancel]');
+      const form = document.getElementById('manual-add-form');
+      const meta = document.getElementById('manual-add-meta');
+      const list = document.getElementById('manual-add-list');
+      const error = document.getElementById('manual-add-error');
+      const submitBtn = document.getElementById('manual-add-submit');
+
+      let activeLoadId = null;
+      let activeController = null;
+
+      const setError = (message) => {
+        if (!error) return;
+        if (!message) {
+          error.classList.add('hidden');
+          error.textContent = '';
+          return;
+        }
+        error.textContent = message;
+        error.classList.remove('hidden');
+      };
+
+      const closeModal = () => {
+        if (activeController) activeController.abort();
+        activeController = null;
+        activeLoadId = null;
+        modal.classList.add('hidden');
+      };
+
+      const updateSubmitState = () => {
+        if (!submitBtn) return;
+        const checked = modal.querySelectorAll('input[name="so_nums"]:checked').length;
+        submitBtn.disabled = checked === 0;
+      };
+
+      const renderEmpty = (message) => {
+        if (!list) return;
+        list.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'subtext';
+        div.textContent = message;
+        list.appendChild(div);
+      };
+
+      const renderSuggestions = (payload) => {
+        if (!list) return;
+        list.innerHTML = '';
+
+        const load = payload.load || {};
+        const space = payload.space || {};
+        const params = payload.params || {};
+        const suggestions = payload.suggestions || [];
+
+        const bits = [];
+        if (space.main_remaining_ft != null) bits.push(`Main deck remaining ${space.main_remaining_ft} ft`);
+        if (params.geo_radius) bits.push(`Radius ${Math.round(params.geo_radius)} mi`);
+        if (params.time_window_days) bits.push(`Window ±${params.time_window_days}d`);
+        if (meta) meta.textContent = bits.join(' • ');
+
+        if (!suggestions.length) {
+          renderEmpty('No nearby draft-scope orders fit in the remaining trailer space.');
+          return;
+        }
+
+        suggestions.forEach((item) => {
+          const soNum = (item.so_num || '').toString().trim();
+          if (!soNum) return;
+
+          const row = document.createElement('label');
+          row.className = 'manual-order-item checkbox';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.name = 'so_nums';
+          checkbox.value = soNum;
+          checkbox.addEventListener('change', updateSubmitState);
+
+          const textWrap = document.createElement('div');
+          textWrap.className = 'manual-order-text';
+
+          const title = document.createElement('div');
+          title.className = 'manual-order-title';
+          const distance = item.distance_miles != null ? ` • ${item.distance_miles} mi` : '';
+          const delta = item.delta_utilization_pct != null ? ` • +${item.delta_utilization_pct}% util` : '';
+          title.textContent = `#${soNum}${distance}${delta}`;
+
+          const metaRow = document.createElement('div');
+          metaRow.className = 'manual-order-meta';
+          const cust = (item.cust_name || '').toString().trim();
+          const due = (item.due_date || '').toString().trim();
+          const city = (item.city || '').toString().trim();
+          const state = (item.state || '').toString().trim();
+          const maxUnit = item.max_unit_length_ft != null ? ` • Max unit ${item.max_unit_length_ft} ft` : '';
+          metaRow.textContent = `${cust || 'Customer'} • Due ${due || '—'} • ${city || ''}${city && state ? ', ' : ''}${state || ''}${maxUnit}`.trim();
+
+          textWrap.appendChild(title);
+          textWrap.appendChild(metaRow);
+
+          row.appendChild(checkbox);
+          row.appendChild(textWrap);
+          list.appendChild(row);
+        });
+
+        updateSubmitState();
+      };
+
+      const loadSuggestions = (loadId) => {
+        if (!list) return;
+        setError('');
+        if (meta) meta.textContent = '';
+        list.innerHTML = '<div class="subtext">Loading suggestions…</div>';
+        if (submitBtn) submitBtn.disabled = true;
+
+        if (activeController) activeController.abort();
+        activeController = new AbortController();
+
+        fetch(`/loads/${loadId}/manual_add/suggestions`, { signal: activeController.signal })
+          .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok) {
+              throw new Error((data && data.error) || 'Suggestion lookup failed.');
+            }
+            renderSuggestions(data || {});
+          })
+          .catch((err) => {
+            if (err && err.name === 'AbortError') return;
+            renderEmpty('Suggestion lookup failed. Try again.');
+          });
+      };
+
+      const openModal = (loadId) => {
+        activeLoadId = loadId;
+        modal.classList.remove('hidden');
+        loadSuggestions(loadId);
+      };
+
+      manualAddApi = { open: openModal, close: closeModal };
+
+      if (closeButton) closeButton.addEventListener('click', closeModal);
+      if (cancelButton) cancelButton.addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (modal.classList.contains('hidden')) return;
+        closeModal();
+      });
+
+      if (form) {
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          setError('');
+          if (!activeLoadId) return;
+
+          const selected = Array.from(modal.querySelectorAll('input[name=\"so_nums\"]:checked')).map((node) => node.value);
+          if (!selected.length) return;
+
+          const confirmMsg = 'Convert this load to MANUAL, add the selected orders, and re-optimize remaining orders?';
+          if (!window.confirm(confirmMsg)) return;
+
+          if (submitBtn) submitBtn.disabled = true;
+          const formData = new FormData();
+          selected.forEach((soNum) => formData.append('so_nums', soNum));
+
+          fetch(`/loads/${activeLoadId}/manual_add`, { method: 'POST', body: formData })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+              if (!ok) {
+                throw new Error((data && data.error) || 'Unable to add orders.');
+              }
+              const url = (data && data.redirect_url) || window.location.href;
+              window.location.assign(url);
+            })
+            .catch((err) => {
+              setError((err && err.message) || 'Unable to add orders. Try again.');
+              updateSubmitState();
+            });
+        });
+      }
+    }
+
     function initLoadsPlantCards() {
       const container = document.querySelector('.loads-plant-cards');
       if (!container) return;
@@ -1306,7 +1792,9 @@
     }
 
     initManualLoadModal();
+    initManualAddModal();
     initLoadsPlantCards();
+    bindManualAddButtons();
 
   </script>
 {% endblock %}

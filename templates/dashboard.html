@@ -1,97 +1,190 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="dashboard-page">
-    <div class="page-header">
-      <div>
-        <h1>Dashboard</h1>
-        <p>Performance snapshot across plants, utilization, and load quality.</p>
-      </div>
-      <div class="header-actions">
-        <div class="inline-select">
-          <span class="meta-label">Date Range</span>
-          <select disabled>
-            <option selected>Last 7 Days</option>
-          </select>
+  <section class="command-center-page" data-command-center>
+    <header class="command-center-hero loads-header orders-header">
+      <div class="command-center-hero-left">
+        <div class="command-center-title-row">
+          <h1>Performance Command Center</h1>
+          <span class="badge badge-info">Live Ops</span>
         </div>
+        <p class="command-center-subtitle">
+          <span class="meta-label">Scope</span>
+          {{ plant_scope_label }} •
+          <span class="meta-label">Range</span>
+          {{ period_label }} ({{ date_range_label }})
+        </p>
       </div>
+
+      <div class="command-center-hero-right">
+        <div class="command-center-health">
+          <span class="meta-label">Global Network Health</span>
+          <span class="command-center-health-value {{ network_health.class }}">{{ network_health.label }}</span>
+        </div>
+
+        <form class="command-center-period" method="get">
+          {% if plant_filter_param %}
+            <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+          {% endif %}
+          <label class="inline-select">
+            <span class="meta-label">Date Range</span>
+            <select name="period" onchange="this.form.submit()">
+              {% for value, label in period_options %}
+                <option value="{{ value }}" {% if period == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </form>
+      </div>
+    </header>
+
+    <div class="command-center-kpis">
+      {% for kpi in kpis %}
+        <div class="kpi-card command-center-kpi">
+          <div class="kpi-header">
+            <span class="kpi-label">{{ kpi.label }}</span>
+            <span class="material-symbols-outlined kpi-icon">{{ kpi.icon }}</span>
+          </div>
+          <div class="command-center-kpi-main">
+            <div class="kpi-value-row">
+              <span class="kpi-value">{{ kpi.value }}</span>
+              {% if kpi.unit %}
+                <span class="kpi-unit">{{ kpi.unit }}</span>
+              {% endif %}
+            </div>
+            {% if kpi.delta_display %}
+              <div class="kpi-trend {{ kpi.delta_class }}">
+                <span class="material-symbols-outlined">{{ kpi.delta_icon }}</span>
+                {{ kpi.delta_display }}
+              </div>
+            {% else %}
+              <div class="kpi-trend neutral">—</div>
+            {% endif %}
+          </div>
+          <div class="kpi-footer">{{ kpi.footer }}</div>
+        </div>
+      {% endfor %}
     </div>
 
-    <div class="dashboard-grid">
-      <div class="card-widget trend-widget">
+    <div class="command-center-section-head">
+      <div class="section-heading">
+        <h2>Plant Snapshot</h2>
+        <p>Open orders, draft pipeline, and cost efficiency by plant.</p>
+      </div>
+      {% if plant_filter_param %}
+        <a class="btn-ghost btn-xs" href="{{ url_for('dashboard', period=period) }}">
+          <span class="material-symbols-outlined">filter_alt_off</span>
+          All Plants
+        </a>
+      {% endif %}
+    </div>
+
+    <div class="command-center-plants" data-command-center-plants>
+      {% for plant in plant_cards %}
+        <button
+          type="button"
+          class="plant-stat-card{% if plant.selected %} is-selected{% endif %}"
+          data-plant="{{ plant.code }}"
+          aria-pressed="{% if plant.selected %}true{% else %}false{% endif %}"
+          title="Toggle plant filter"
+        >
+          <div class="plant-stat-card-head">
+            <div class="plant-stat-card-title">
+              <span class="plant-stat-code">{{ plant.code }}</span>
+              <span class="plant-stat-name">{{ plant.name }}</span>
+            </div>
+            <span class="status-dot {{ plant.status }}" aria-hidden="true"></span>
+          </div>
+          <div class="plant-stat-card-body">
+            <div class="plant-stat">
+              <span class="plant-stat-label">Open</span>
+              <span class="plant-stat-value">{{ plant.open_orders }}</span>
+            </div>
+            <div class="plant-stat">
+              <span class="plant-stat-label">Planned</span>
+              <span class="plant-stat-value">{{ plant.planned_loads }}</span>
+            </div>
+            <div class="plant-stat">
+              <span class="plant-stat-label">Cost/Unit</span>
+              <span class="plant-stat-value plant-stat-value-mono">{{ plant.cost_per_unit_display }}</span>
+            </div>
+          </div>
+        </button>
+      {% endfor %}
+    </div>
+
+    <div class="command-center-charts">
+      <div class="card-widget chart-card">
         <div class="widget-header">
           <div>
-            <span class="meta-label">Space-Based Utilization (7-Day)</span>
-            <div class="widget-subtitle">{{ trend_plants_label }}</div>
+            <h3>Spend vs. Volume Trend</h3>
+            <p class="muted">{{ period_label }} • {{ plant_scope_label }}</p>
+          </div>
+          <div class="chart-legend" aria-label="Chart legend">
+            <div class="legend-item">
+              <span class="legend-swatch legend-volume"></span>
+              <span class="legend-label">Volume</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-swatch legend-spend"></span>
+              <span class="legend-label">Spend</span>
+            </div>
           </div>
         </div>
-        <div class="trend-metrics">
-          <div class="trend-value">{{ trend_current_avg | round(1) }}%</div>
-          <div class="trend-delta {% if trend_delta >= 0 %}positive{% else %}negative{% endif %}">
-            <span class="material-symbols-outlined">{% if trend_delta >= 0 %}trending_up{% else %}trending_down{% endif %}</span>
-            {{ trend_delta | round(1) }}%
+
+        <div class="trend-bars" aria-label="Spend vs Volume bars">
+          {% if trend_buckets and trend_buckets|length %}
+            {% for bucket in trend_buckets %}
+              <div class="trend-bucket" title="Qty: {{ bucket.qty | round(0) }} • Spend: ${{ bucket.spend | round(0) }}">
+                <div class="trend-stack">
+                  <div class="trend-bar trend-bar-volume" style="height: {{ bucket.volume_height }}%"></div>
+                  <div class="trend-bar trend-bar-spend" style="height: {{ bucket.spend_height }}%"></div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="trend-empty muted">No approved loads found for this range.</div>
+          {% endif %}
+        </div>
+
+        <div class="trend-axis" aria-label="Trend axis labels">
+          <span>{{ trend_axis.start }}</span>
+          <span>{{ trend_axis.mid1 }}</span>
+          <span>{{ trend_axis.mid2 }}</span>
+          <span>{{ trend_axis.end }}</span>
+        </div>
+      </div>
+
+      <div class="card-widget chart-card">
+        <div class="widget-header">
+          <div>
+            <h3>Load Efficiency Distribution</h3>
+            <p class="muted">Approved loads in range.</p>
           </div>
         </div>
-        <div class="trend-sparkline">
-          {% for bar in trend_bars %}
-            <div class="spark-bar">
-              <span class="spark-fill" style="height: {{ bar.height }}%"></span>
-              <span class="spark-label">{{ bar.label }}</span>
+        <div class="efficiency-list">
+          {% for row in efficiency_rows %}
+            <div class="efficiency-row">
+              <div class="efficiency-row-head">
+                <span class="efficiency-label">{{ row.label }}</span>
+                <span class="efficiency-count {{ row['class'] }}">{{ row.count }} loads</span>
+              </div>
+              <div class="efficiency-bar">
+                <span class="efficiency-fill {{ row['class'] }}" style="width: {{ row.width }}%"></span>
+              </div>
             </div>
           {% endfor %}
         </div>
       </div>
+    </div>
 
-      <div class="card-widget order-status-widget">
-        <div class="widget-header">
-          <h3>Orders Requiring Attention</h3>
-        </div>
-        <div class="status-list">
-          <a class="status-row status-error" href="{{ order_links.past_due }}">
-            <span class="status-dot"></span>
-            <span class="status-label">Past Due (No Assignment)</span>
-            <span class="status-count">{{ order_status_summary.past_due }}</span>
-          </a>
-          <a class="status-row status-warning" href="{{ order_links.this_week }}">
-            <span class="status-dot"></span>
-            <span class="status-label">Due This Week</span>
-            <span class="status-count">{{ order_status_summary.this_week }}</span>
-          </a>
-          <a class="status-row status-info" href="{{ order_links.next_week }}">
-            <span class="status-dot"></span>
-            <span class="status-label">Due Next Week</span>
-            <span class="status-count">{{ order_status_summary.next_week }}</span>
-          </a>
-        </div>
-      </div>
+    <div class="command-center-reviews">
       <div class="card-widget">
         <div class="widget-header">
           <div>
-            <h3>Top Performers: Highest Utilization</h3>
-            <p class="muted">Loads with the best space utilization in the selected period.</p>
+            <h3>Top Load Review</h3>
+            <p class="muted">Highest utilization loads in range.</p>
           </div>
-          <form class="table-filters" method="get">
-            {% if plant_filter_param %}
-              <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-            {% endif %}
-            <input type="hidden" name="low_period" value="{{ low_period }}">
-            <input type="hidden" name="low_scope" value="{{ low_scope }}">
-            <label class="inline-select">
-              <span class="meta-label">Period</span>
-              <select name="top_period" onchange="this.form.submit()">
-                {% for value, label in period_options %}
-                  <option value="{{ value }}" {% if top_period == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-              </select>
-            </label>
-            <label class="inline-select">
-              <span class="meta-label">Plants</span>
-              <select name="top_scope" onchange="this.form.submit()">
-                <option value="filtered" {% if top_scope != 'all' %}selected{% endif %}>Selected</option>
-                <option value="all" {% if top_scope == 'all' %}selected{% endif %}>All</option>
-              </select>
-            </label>
-          </form>
         </div>
         <div class="table-container">
           <table class="data-table table-compact">
@@ -138,31 +231,9 @@
       <div class="card-widget">
         <div class="widget-header">
           <div>
-            <h3>Needs Improvement: Low Utilization (&lt;70%)</h3>
-            <p class="muted">Focus on loads below the 70% utilization target.</p>
+            <h3>Problem Load Review</h3>
+            <p class="muted">Lowest utilization loads (&lt;70%) in range.</p>
           </div>
-          <form class="table-filters" method="get">
-            {% if plant_filter_param %}
-              <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-            {% endif %}
-            <input type="hidden" name="top_period" value="{{ top_period }}">
-            <input type="hidden" name="top_scope" value="{{ top_scope }}">
-            <label class="inline-select">
-              <span class="meta-label">Period</span>
-              <select name="low_period" onchange="this.form.submit()">
-                {% for value, label in period_options %}
-                  <option value="{{ value }}" {% if low_period == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-              </select>
-            </label>
-            <label class="inline-select">
-              <span class="meta-label">Plants</span>
-              <select name="low_scope" onchange="this.form.submit()">
-                <option value="filtered" {% if low_scope != 'all' %}selected{% endif %}>Selected</option>
-                <option value="all" {% if low_scope == 'all' %}selected{% endif %}>All</option>
-              </select>
-            </label>
-          </form>
         </div>
         <div class="table-container">
           <table class="data-table table-compact">
@@ -176,8 +247,8 @@
               </tr>
             </thead>
             <tbody>
-              {% if low_loads %}
-                {% for load in low_loads %}
+              {% if problem_loads %}
+                {% for load in problem_loads %}
                   <tr class="table-row">
                     <td><a class="table-link" href="{{ url_for('load_detail', load_id=load.id) }}">{{ load.load_number }}</a></td>
                     <td>{{ load.origin_plant }}</td>
@@ -207,4 +278,47 @@
       </div>
     </div>
   </section>
+
+  <script>
+    (function() {
+      const container = document.querySelector('[data-command-center-plants]');
+      if (!container) return;
+
+      container.querySelectorAll('[data-plant]').forEach((card) => {
+        card.addEventListener('click', () => {
+          const plant = (card.dataset.plant || '').trim().toUpperCase();
+          if (!plant) return;
+
+          const url = new URL(window.location.href);
+          const params = url.searchParams;
+          const currentPlantsParam = (params.get('plants') || '').trim().toUpperCase();
+          const isAllMode = !currentPlantsParam || currentPlantsParam === 'ALL';
+
+          const selected = new Set(
+            (params.get('plants') || '')
+              .split(',')
+              .map((value) => value.trim().toUpperCase())
+              .filter(Boolean)
+          );
+
+          if (isAllMode) selected.clear();
+
+          if (selected.has(plant)) {
+            selected.delete(plant);
+          } else {
+            selected.add(plant);
+          }
+
+          if (!selected.size) {
+            params.delete('plants');
+          } else {
+            params.set('plants', Array.from(selected).join(','));
+          }
+
+          url.search = params.toString();
+          window.location.assign(url.toString());
+        });
+      });
+    })();
+  </script>
 {% endblock %}
