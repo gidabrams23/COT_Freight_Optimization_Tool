@@ -463,7 +463,7 @@
                   <div class="schematic-card">
                     <div class="card-header-row">
                       <div class="card-header-left">
-                        <h3>Stack Constraints</h3>
+                        <h3>Stacking Schematic</h3>
                         <span class="meta-chip" id="order-stack-meta"></span>
                       </div>
                     </div>
@@ -709,7 +709,7 @@
       }
 
       let html = '<div class="table-container"><table class="manifest-table manifest-grouped orders-line-items-table"><thead><tr>' +
-        '<th>SKU</th><th>Description</th><th>Qty</th><th>Length</th><th>Max Stack</th><th>Positions</th><th>Linear Ft</th>' +
+        '<th>SKU</th><th>Description</th><th>Qty</th><th>Length</th><th>Max Stack</th>' +
         '</tr></thead><tbody>';
 
       items.forEach((item) => {
@@ -719,8 +719,6 @@
           `<td>${item.qty || 0}</td>` +
           `<td>${(item.unit_length_ft || 0).toFixed(1)} ft</td>` +
           `<td>${item.max_stack_height || 0}</td>` +
-          `<td>${item.positions_required || 0}</td>` +
-          `<td>${(item.linear_feet || 0).toFixed(1)}</td>` +
           '</tr>';
       });
 
@@ -742,6 +740,12 @@
         const num = Number(value || 0);
         if (!Number.isFinite(num)) return '0';
         return Number.isInteger(num) ? String(num) : num.toFixed(1);
+      }
+
+      function fmtFeetFixed(value) {
+        const num = Number(value || 0);
+        if (!Number.isFinite(num)) return '0.0';
+        return num.toFixed(1);
       }
 
       function clampPct(value) {
@@ -773,11 +777,24 @@
       const upperUsedFt = upperPositions.reduce((sum, pos) => sum + (Number(pos.length_ft) || 0), 0);
       const lowerRemFt = Math.max(lowerDeck - lowerUsedFt, 0);
       const upperRemFt = Math.max(upperDeck - upperUsedFt, 0);
-      const lowerRemPct = lowerDeck ? clampPct((lowerRemFt / lowerDeck) * 100) : 0;
-      const upperRemPct = upperDeck ? clampPct((upperRemFt / upperDeck) * 100) : 0;
+      const lowerDisplayFt = Math.max(lowerDeck, lowerUsedFt);
+      const upperDisplayFt = Math.max(upperDeck, upperUsedFt);
+      const lowerOverhang = (lowerUsedFt - lowerDeck) > 0.05;
+      const upperOverhang = (upperUsedFt - upperDeck) > 0.05;
+      const lowerOverhangFt = Math.max(lowerUsedFt - lowerDeck, 0);
+      const upperOverhangFt = Math.max(upperUsedFt - upperDeck, 0);
+      const lowerLineSpan = lowerDisplayFt ? clampPct((lowerDeck / lowerDisplayFt) * 100) : 100;
+      const upperLineSpan = upperDisplayFt ? clampPct((upperDeck / upperDisplayFt) * 100) : 100;
+      const displayCapacity = isStepDeck
+        ? Math.max(capacity, lowerDisplayFt + upperDisplayFt)
+        : Math.max(capacity, lowerDisplayFt);
+      const lowerRemPct = lowerDisplayFt ? clampPct((lowerRemFt / lowerDisplayFt) * 100) : 0;
+      const upperRemPct = upperDisplayFt ? clampPct((upperRemFt / upperDisplayFt) * 100) : 0;
 
-      const lowerWidth = capacity ? clampPct((lowerDeck / capacity) * 100) : 100;
-      const upperWidth = capacity ? clampPct((upperDeck / capacity) * 100) : 0;
+      const lowerWidth = displayCapacity ? clampPct((lowerDisplayFt / displayCapacity) * 100) : 100;
+      const upperWidth = (displayCapacity && isStepDeck)
+        ? clampPct((upperDisplayFt / displayCapacity) * 100)
+        : 0;
 
       function renderPositionStack(pos) {
         let html = '<div class="position-stack">';
@@ -807,13 +824,14 @@
           <div class="trailer-deck lower deck-section" style="flex: 0 1 ${lowerWidth.toFixed(1)}%;">
             <div class="deck-header">
               <div class="deck-label">Lower Deck</div>
-              <div class="deck-measure">${fmtFeet(lowerDeck)} ft</div>
             </div>
             <div class="deck-positions">
         `;
 
         lowerPositions.forEach((pos) => {
-          const widthPct = clampPct(pos.width_pct || 0);
+          const widthPct = lowerDisplayFt
+            ? clampPct(((Number(pos.length_ft) || 0) / lowerDisplayFt) * 100)
+            : 0;
           schematic += `<div class="position-column" style="flex: 0 0 ${widthPct}%;">`;
           schematic += renderPositionStack(pos);
           schematic += `<div class="position-label">${fmtFeet(pos.length_ft)} ft</div>`;
@@ -835,27 +853,36 @@
           `;
         }
 
-        schematic += `</div></div>`;
+        schematic += `
+          </div>
+          <div class="deck-footer" style="--line-span: ${lowerLineSpan}%; ">
+            <div class="deck-line">
+              <span class="deck-length">${fmtFeetFixed(lowerDeck)} FT</span>
+            </div>
+            ${lowerOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(lowerOverhangFt)} FT</span></div>` : ''}
+          </div>
+        </div>`;
 
         schematic += `
           <div class="trailer-deck upper deck-section" style="flex: 0 1 ${upperWidth.toFixed(1)}%;">
             <div class="deck-header">
               <div class="deck-label">Upper Deck</div>
-              <div class="deck-measure">${fmtFeet(upperDeck)} ft</div>
             </div>
             <div class="deck-stage deck-stage-upper">
               <div class="deck-positions">
         `;
 
         upperPositions.forEach((pos) => {
-          const widthPct = clampPct(pos.width_pct || 0);
+          const widthPct = upperDisplayFt
+            ? clampPct(((Number(pos.length_ft) || 0) / upperDisplayFt) * 100)
+            : 0;
           schematic += `<div class="position-column" style="flex: 0 0 ${widthPct}%;">`;
           schematic += renderPositionStack(pos);
           schematic += `<div class="position-label">${fmtFeet(pos.length_ft)} ft</div>`;
           schematic += `</div>`;
         });
 
-        if (upperRemFt > 0.05) {
+        if (upperRemFt > 0.05 && upperUsedFt <= 0.05) {
           schematic += `
             <div class="position-column vacant" style="flex: 0 0 ${upperRemPct}%;"><div class="position-stack vacant-stack">
               <div class="vacant-block"><div class="vacant-watermark">VACANT</div></div>
@@ -865,10 +892,13 @@
 
         schematic += `
               </div>
-              <div class="deck-void" title="Unusable lower portion under the upper deck">
-                <div class="void-x" aria-hidden="true"></div>
-                <div class="void-label">UNUSABLE</div>
+              <div class="deck-void"></div>
+            </div>
+            <div class="deck-footer" style="--line-span: ${upperLineSpan}%; ">
+              <div class="deck-line">
+                <span class="deck-length">${fmtFeetFixed(upperDeck)} FT</span>
               </div>
+              ${upperOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(upperOverhangFt)} FT</span></div>` : ''}
             </div>
           </div>
         `;
@@ -877,33 +907,43 @@
       } else {
         schematic += `
           <div class="trailer-deck lower" style="flex: 1 1 auto;">
-            <div class="deck-label">Lower Deck - ${fmtFeet(lowerDeck)} ft</div>
+            <div class="deck-label">${trailerKey === 'FLATBED' ? 'Main Deck' : `Lower Deck - ${fmtFeet(lowerDeck)} ft`}</div>
             <div class="deck-positions">
         `;
 
         lowerPositions.forEach((pos) => {
-          const widthPct = clampPct(pos.width_pct || 0);
+          const widthPct = lowerDisplayFt
+            ? clampPct(((Number(pos.length_ft) || 0) / lowerDisplayFt) * 100)
+            : 0;
           schematic += `<div class="position-column" style="flex: 0 0 ${widthPct}%;">`;
           schematic += renderPositionStack(pos);
           schematic += `<div class="position-label">${fmtFeet(pos.length_ft)} ft</div>`;
           schematic += `</div>`;
         });
 
-        schematic += `</div></div>`;
+        schematic += `
+          </div>
+          <div class="deck-footer" style="--line-span: ${lowerLineSpan}%; ">
+            <div class="deck-line">
+              <span class="deck-length">${fmtFeetFixed(lowerDeck)} FT</span>
+            </div>
+            ${lowerOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(lowerOverhangFt)} FT</span></div>` : ''}
+          </div>
+        </div>`;
       }
 
-      schematic += `<div class="trailer-truck"><span class="material-symbols-outlined">local_shipping</span></div></div></div>`;
+      schematic += `
+        <div class="trailer-truck"><span class="material-symbols-outlined">local_shipping</span></div>
+        </div>
+      </div>`;
       container.innerHTML = schematic;
 
       const totalItems = config.positions.reduce((sum, pos) => {
         return sum + pos.items.reduce((innerSum, item) => innerSum + (item.units || 0), 0);
       }, 0);
 
-      summary.innerHTML = `
-        <div class="summary-metric"><span class="metric-label">Items:</span><span class="metric-value">${totalItems}</span></div>
-        <div class="summary-metric"><span class="metric-label">Max Stack:</span><span class="metric-value">${config.max_stack_height || 0}</span></div>
-        <div class="summary-metric"><span class="metric-label">Capacity:</span><span class="metric-value">${capacity} ft</span></div>
-      `;
+      summary.innerHTML = '';
+      if (orderStackMeta) orderStackMeta.textContent = `Items: ${totalItems}`;
 
       const issues = config.compatibility_issues || [];
       const warningsHtml = [];
@@ -913,7 +953,7 @@
       issues.forEach((issue) => warningsHtml.push(issue));
       warnings.innerHTML = warningsHtml.length
         ? warningsHtml.map((msg) => `<div class="warning">${msg}</div>`).join('')
-        : '<div class="ok">All items appear compatible.</div>';
+        : '';
     }
 
     const expandedLabel = document.getElementById('expanded-order-label');
@@ -1142,7 +1182,7 @@
       if (detailPanel) detailPanel.classList.remove('hidden');
 
       if (orderLinesMeta) orderLinesMeta.textContent = `${meta.lineCount} lines`;
-      if (orderStackMeta) orderStackMeta.textContent = `${meta.utilization}% util`;
+      if (orderStackMeta) orderStackMeta.textContent = `Items: ${meta.totalQty || 0}`;
       if (orderMapMeta) orderMapMeta.textContent = destination || meta.plant || '';
 
       if (lineItemsHost) lineItemsHost.innerHTML = '<div class="loading">Loading line items...</div>';

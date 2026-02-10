@@ -2637,6 +2637,8 @@ def manual_load_suggest():
                 "state": order.get("state") or "",
                 "zip": order.get("zip") or "",
                 "total_length_ft": order.get("total_length_ft") or 0,
+                "total_qty": order.get("total_qty") or 0,
+                "utilization_pct": order.get("utilization_pct") or 0,
                 "distance_miles": round(dist, 1) if dist is not None else None,
             }
         )
@@ -2659,6 +2661,8 @@ def manual_load_suggest():
                 "state": seed.get("state") or "",
                 "zip": seed.get("zip") or "",
                 "total_length_ft": seed.get("total_length_ft") or 0,
+                "total_qty": seed.get("total_qty") or 0,
+                "utilization_pct": seed.get("utilization_pct") or 0,
             },
             "suggestions": suggestions[:25],
             "params": {
@@ -2716,6 +2720,211 @@ def manual_load_create():
 
     _reoptimize_for_plant(plant_code)
     return redirect(url_for("loads", plants=plant_code, tab="draft", reopt="done"))
+
+
+def _capacity_for_trailer(trailer_type):
+    trailer_key = (trailer_type or "STEP_DECK").strip().upper()
+    config = stack_calculator.TRAILER_CONFIGS.get(trailer_key, stack_calculator.TRAILER_CONFIGS["STEP_DECK"])
+    try:
+        return float(config.get("capacity") or 53)
+    except (TypeError, ValueError):
+        return 53.0
+
+
+@app.route("/loads/<int:load_id>/manual_add/suggestions")
+def manual_add_suggestions(load_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return jsonify({"error": "Session expired"}), 401
+
+    load = db.get_load(load_id)
+    if not load:
+        return jsonify({"error": "Load not found"}), 404
+
+    allowed_plants = _get_allowed_plants()
+    if load.get("origin_plant") not in allowed_plants:
+        return jsonify({"error": "Not authorized for this plant"}), 403
+
+    status = (load.get("status") or STATUS_PROPOSED).upper()
+    if status == STATUS_APPROVED:
+        return jsonify({"error": "Approved loads cannot be modified."}), 400
+
+    plant_code = load.get("origin_plant")
+    trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+    capacity_ft = _capacity_for_trailer(trailer_type)
+
+    lines = db.list_load_lines(load_id)
+    existing_so_nums = {
+        line.get("so_num")
+        for line in lines
+        if line.get("so_num")
+    }
+    line_totals = {}
+    for line in lines:
+        so_num = line.get("so_num")
+        if not so_num:
+            continue
+        line_totals[so_num] = line_totals.get(so_num, 0) + float(line.get("total_length_ft") or 0)
+
+    order_rows = db.list_orders_by_so_nums(plant_code, list(existing_so_nums)) if existing_so_nums else []
+    order_map = {row.get("so_num"): row for row in order_rows if row.get("so_num")}
+
+    used_ft = 0.0
+    for so_num in existing_so_nums:
+        order = order_map.get(so_num)
+        if order and order.get("total_length_ft") is not None:
+            used_ft += float(order.get("total_length_ft") or 0)
+        else:
+            used_ft += float(line_totals.get(so_num) or 0)
+
+    remaining_ft = max(capacity_ft - used_ft, 0)
+    util_pct = round((used_ft / capacity_ft) * 100, 1) if capacity_ft else 0.0
+
+    anchor_due = None
+    for line in lines:
+        due_date = _parse_date(line.get("due_date"))
+        if due_date and (anchor_due is None or due_date < anchor_due):
+            anchor_due = due_date
+
+    settings = db.get_optimizer_settings(plant_code) or {}
+    try:
+        geo_radius = float(settings.get("geo_radius") or load_builder.DEFAULT_BUILD_PARAMS.get("geo_radius") or 0)
+    except (TypeError, ValueError):
+        geo_radius = float(load_builder.DEFAULT_BUILD_PARAMS.get("geo_radius") or 0)
+    try:
+        time_window_days = int(settings.get("time_window_days") or load_builder.DEFAULT_BUILD_PARAMS.get("time_window_days") or 0)
+    except (TypeError, ValueError):
+        time_window_days = int(load_builder.DEFAULT_BUILD_PARAMS.get("time_window_days") or 0)
+
+    zip_coords = geo_utils.load_zip_coordinates()
+    stop_coords = []
+    for line in lines:
+        zip_code = geo_utils.normalize_zip(line.get("zip"))
+        coords = zip_coords.get(zip_code) if zip_code else None
+        if coords and coords not in stop_coords:
+            stop_coords.append(coords)
+
+    candidates = db.list_eligible_manual_orders(plant_code, search=None, limit=None)
+    suggestions = []
+    for order in candidates:
+        so_num = str(order.get("so_num") or "").strip()
+        if not so_num or so_num in existing_so_nums:
+            continue
+
+        order_due = _parse_date(order.get("due_date"))
+        if anchor_due and order_due and time_window_days and time_window_days > 0:
+            if abs((order_due - anchor_due).days) > time_window_days:
+                continue
+
+        dist = None
+        order_zip = geo_utils.normalize_zip(order.get("zip"))
+        order_coords = zip_coords.get(order_zip) if order_zip else None
+        if order_coords and stop_coords:
+            dist = min(
+                geo_utils.haversine_distance_coords(order_coords, stop)
+                for stop in stop_coords
+            )
+            if geo_radius and geo_radius > 0 and dist > geo_radius:
+                continue
+
+        total_length_ft = float(order.get("total_length_ft") or 0)
+        if total_length_ft > remaining_ft:
+            continue
+
+        suggestions.append(
+            {
+                "so_num": so_num,
+                "cust_name": order.get("cust_name") or "",
+                "due_date": order.get("due_date") or "",
+                "city": order.get("city") or "",
+                "state": order.get("state") or "",
+                "zip": order.get("zip") or "",
+                "total_length_ft": total_length_ft,
+                "utilization_pct": order.get("utilization_pct") or 0,
+                "distance_miles": round(dist, 1) if dist is not None else None,
+            }
+        )
+
+    suggestions.sort(
+        key=lambda item: (
+            item["distance_miles"] is None,
+            item["distance_miles"] if item["distance_miles"] is not None else 0,
+            item.get("due_date") or "",
+        )
+    )
+
+    return jsonify(
+        {
+            "load": {
+                "id": load_id,
+                "origin_plant": plant_code,
+                "trailer_type": trailer_type,
+            },
+            "space": {
+                "capacity_ft": round(capacity_ft, 1),
+                "used_ft": round(used_ft, 1),
+                "remaining_ft": round(remaining_ft, 1),
+                "util_pct": util_pct,
+            },
+            "params": {
+                "geo_radius": geo_radius,
+                "time_window_days": time_window_days,
+            },
+            "suggestions": suggestions[:25],
+        }
+    )
+
+
+@app.route("/loads/<int:load_id>/manual_add", methods=["POST"])
+def manual_add_orders(load_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return jsonify({"error": "Session expired"}), 401
+
+    load = db.get_load(load_id)
+    if not load:
+        return jsonify({"error": "Load not found"}), 404
+
+    allowed_plants = _get_allowed_plants()
+    if load.get("origin_plant") not in allowed_plants:
+        return jsonify({"error": "Not authorized for this plant"}), 403
+
+    status = (load.get("status") or STATUS_PROPOSED).upper()
+    if status == STATUS_APPROVED:
+        return jsonify({"error": "Approved loads cannot be modified."}), 400
+
+    selected = list(
+        dict.fromkeys(
+            [value.strip() for value in request.form.getlist("so_nums") if (value or "").strip()]
+        )
+    )
+    if not selected:
+        return jsonify({"error": "Select at least one order."}), 400
+
+    existing_lines = db.list_load_lines(load_id)
+    existing_so_nums = {line.get("so_num") for line in existing_lines if line.get("so_num")}
+    if any(so_num in existing_so_nums for so_num in selected):
+        return jsonify({"error": "Some selected orders are already in this load."}), 400
+
+    plant_code = load.get("origin_plant")
+    eligible = db.filter_eligible_manual_so_nums(plant_code, selected)
+    if eligible != set(selected) or len(eligible) != len(selected):
+        return jsonify({"error": "Some selected orders are no longer available in Draft Loads."}), 400
+
+    order_lines = db.list_order_lines_for_so_nums(plant_code, selected)
+    if not order_lines:
+        return jsonify({"error": "No eligible order lines found."}), 400
+
+    db.update_load_build_source(load_id, "MANUAL")
+    for line in order_lines:
+        db.create_load_line(load_id, line["id"], line.get("total_length_ft") or 0)
+
+    _reoptimize_for_plant(plant_code)
+    return jsonify(
+        {
+            "redirect_url": url_for("loads", plants=plant_code, tab="draft", reopt="done")
+        }
+    )
 
 
 @app.route("/feedback")
@@ -3186,10 +3395,12 @@ def load_schematic_fragment(load_id):
         return jsonify({"error": "Not authorized for this plant"}), 403
 
     status = (load_data.get("status") or STATUS_PROPOSED).upper()
+    tab = (request.args.get("tab") or "").strip().lower()
     schematic_html = render_template(
         "partials/load_schematic_card.html",
         load=load_data,
         status=status,
+        tab=tab,
     )
     return jsonify(
         {

@@ -1157,6 +1157,29 @@ def list_order_lines_for_so_nums(origin_plant, so_nums):
         return [dict(row) for row in rows]
 
 
+def list_orders_by_so_nums(origin_plant, so_nums):
+    if not origin_plant or not so_nums:
+        return []
+    cleaned = [str(value).strip() for value in so_nums if str(value or "").strip()]
+    if not cleaned:
+        return []
+    placeholders = ", ".join("?" for _ in cleaned)
+    params = [origin_plant] + cleaned
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT *
+            FROM orders
+            WHERE is_excluded = 0
+              AND plant = ?
+              AND so_num IN ({placeholders})
+            ORDER BY DATE(due_date) ASC, so_num ASC
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def filter_eligible_manual_so_nums(origin_plant, so_nums):
     if not origin_plant or not so_nums:
         return set()
@@ -1926,6 +1949,15 @@ def get_load(load_id):
             (load_id,),
         ).fetchone()
         return dict(row) if row else None
+
+
+def update_load_build_source(load_id, build_source):
+    with get_connection() as connection:
+        connection.execute(
+            "UPDATE loads SET build_source = ? WHERE id = ?",
+            (build_source, load_id),
+        )
+        connection.commit()
 
 
 def _list_load_numbers_for_prefix(prefix):

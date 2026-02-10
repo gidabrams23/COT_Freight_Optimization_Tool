@@ -2,7 +2,7 @@
 
 {% block content %}
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <section class="loads-page">
+  <section class="loads-page" data-loads-tab="{{ tab }}">
     <header class="orders-header loads-header">
       <div class="loads-hero-row">
         <div class="loads-hero-title">
@@ -359,53 +359,52 @@
                               <span class="meta-chip">Ship Date {{ load.ship_date }}</span>
                             {% endif %}
                           </div>
-                          <div class="order-legend">
-                            {% for order_id, color in load.order_colors.items() %}
-                              <span class="legend-item"><span class="legend-color" style="background: {{ color }};"></span>#{{ order_id }}</span>
-                            {% endfor %}
-                          </div>
                         </div>
                         <div class="table-container">
                           <table class="manifest-table manifest-grouped">
                             <thead>
                               <tr>
-                                <th>Order ID</th>
-                                    <th>Due Date</th>
-                                    <th>Customer</th>
-                                    <th>Stop</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {% for group in load.manifest_groups %}
+                                <th>Order</th>
+                                <th>Customer Info</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for group in load.manifest_groups %}
                                 {% set row_id = 'manifest-' ~ load.id ~ '-' ~ loop.index0 %}
                                 <tr class="manifest-order-row" data-target="{{ row_id }}">
                                   <td>
-                                    <button class="manifest-toggle" type="button">+</button>
-                                    <span class="order-color-dot" style="background: {{ group.color }};"></span>
-                                    #{{ group.order_id }}
-                                  </td>
-                                  <td>
-                                    <div class="due-cell">
-                                      <span class="due-date">{{ group.due_date }}</span>
-                                      {% if group.due_status == 'PAST_DUE' %}
-                                        <span class="badge badge-danger">Past Due</span>
-                                      {% elif group.due_status == 'DUE_SOON' %}
-                                        <span class="badge badge-warning">Due Soon</span>
-                                      {% endif %}
-                                      {% if group.early_days and group.early_days > 0 and group.due_status != 'PAST_DUE' %}
-                                        <span class="badge badge-info">Early {{ group.early_days }}d</span>
-                                      {% endif %}
+                                    <div class="manifest-order-cell">
+                                      <div class="manifest-order-top">
+                                        <button class="manifest-toggle" type="button">+</button>
+                                        <span class="order-color-dot" style="background: {{ group.color }};"></span>
+                                        <span class="manifest-order-id">#{{ group.order_id }}</span>
+                                      </div>
+                                      <div class="due-cell">
+                                        <span class="due-date">{{ group.due_date }}</span>
+                                        {% if group.due_status == 'PAST_DUE' %}
+                                          <span class="badge badge-danger">Past Due</span>
+                                        {% elif group.due_status == 'DUE_SOON' %}
+                                          <span class="badge badge-warning">Due Soon</span>
+                                        {% endif %}
+                                        {% if group.early_days and group.early_days > 0 and group.due_status != 'PAST_DUE' %}
+                                          <span class="badge badge-info">Early {{ group.early_days }}d</span>
+                                        {% endif %}
+                                      </div>
                                     </div>
                                   </td>
-                                    <td>{{ group.cust_name }}</td>
-                                    <td>{% if group.city %}{{ group.city }}, {% endif %}{{ group.state }}</td>
-                                  </tr>
-                                  <tr class="manifest-item-row hidden" id="{{ row_id }}">
-                                    <td colspan="4">
-                                      <table class="manifest-subtable">
-                                        <thead>
-                                          <tr>
-                                            <th>SKU</th>
+                                  <td>
+                                    <div class="manifest-customer-cell">
+                                      <div class="manifest-customer-name">{{ group.cust_name }}</div>
+                                      <div class="manifest-customer-location">{% if group.city %}{{ group.city }}, {% endif %}{{ group.state }}</div>
+                                    </div>
+                                  </td>
+                                </tr>
+                                <tr class="manifest-item-row hidden" id="{{ row_id }}">
+                                  <td colspan="2">
+                                    <table class="manifest-subtable">
+                                      <thead>
+                                        <tr>
+                                          <th>SKU</th>
                                           <th>Description</th>
                                           <th>Qty</th>
                                           <th>Length</th>
@@ -499,48 +498,73 @@
         </div>
         <form id="manual-load-form" method="post" action="{{ url_for('manual_load_create') }}" onsubmit="return confirm('Create this manual load and re-optimize the remaining orders?');">
           <div class="modal-body">
-            <div class="form-grid manual-load-grid">
-              <label>
-                Plant
-                <select class="select-field" name="plant" id="manual-load-plant">
-                  {% for plant in plants %}
-                    <option value="{{ plant }}" {% if plant_filters|length == 1 and plant_filters[0] == plant %}selected{% endif %}>{{ plant }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-              <label>
-                Trailer Type
-                <select class="select-field" name="trailer_type" id="manual-load-trailer">
-                  <option value="STEP_DECK">53' Step Deck</option>
-                  <option value="WEDGE">51' Wedge</option>
-                  <option value="FLATBED">53' Flatbed</option>
-                </select>
-              </label>
-              <label class="manual-load-search-field">
-                Search by Order # or Customer
-                <input class="select-field" type="text" id="manual-load-search" placeholder="e.g. 45001234 or Lowe's" autocomplete="off">
-              </label>
-            </div>
+            <input type="hidden" name="plant" id="manual-load-plant" value="{% if plant_filters|length == 1 %}{{ plant_filters[0] }}{% elif plants|length %}{{ plants[0] }}{% endif %}">
+            <input type="hidden" name="trailer_type" value="STEP_DECK">
 
-            <div class="manual-load-columns">
-              <div class="manual-column">
-                <div class="manual-column-header">
-                  <span class="metric-label">Search Results</span>
-                  <span class="subtext">Pick a seed order to start.</span>
+            <div class="manual-builder-layout">
+              <div class="manual-builder-left">
+                <div class="manual-base-panel">
+                  <div class="manual-column-header">
+                    <span class="metric-label">Base Order</span>
+                    <span class="subtext">Search and select a base order.</span>
+                  </div>
+                  <div class="manual-base-search">
+                    <span class="material-symbols-outlined">search</span>
+                    <input class="select-field" type="text" id="manual-load-search" placeholder="Search orders..." autocomplete="off" aria-label="Search base order">
+                  </div>
+                  <div class="manual-order-list" id="manual-load-search-results"></div>
                 </div>
-                <div class="manual-order-list" id="manual-load-search-results"></div>
+
+                <div class="manual-suggest-panel">
+                  <div class="manual-column-header">
+                    <span class="metric-label">Suggested Orders</span>
+                    <span class="subtext" id="manual-load-suggest-meta"></span>
+                  </div>
+                  <div class="manual-suggest-table" id="manual-load-suggest-list">
+                    <div class="subtext">Select a base order to see suggestions.</div>
+                  </div>
+                </div>
               </div>
-              <div class="manual-column">
-                <div class="manual-column-header">
-                  <span class="metric-label">Suggested Nearby Orders</span>
-                  <span class="subtext" id="manual-load-suggest-meta"></span>
+
+              <div class="manual-builder-right">
+                <div class="manual-metrics-card">
+                  <div class="manual-metrics-header">
+                    <span class="metric-label">Proposed Load Metrics</span>
+                    <span class="subtext" id="manual-load-util-meta"></span>
+                  </div>
+                  <div class="manual-util-bar">
+                    <span class="manual-util-fill" id="manual-load-util-fill" style="width: 0%;"></span>
+                  </div>
+                  <div class="manual-metrics-grid">
+                    <div class="manual-metric">
+                      <span class="metric-label">Total Qty</span>
+                      <span class="metric-value" id="manual-load-qty">--</span>
+                    </div>
+                    <div class="manual-metric">
+                      <span class="metric-label">Total Length</span>
+                      <span class="metric-value" id="manual-load-length">--</span>
+                    </div>
+                    <div class="manual-metric">
+                      <span class="metric-label">Orders</span>
+                      <span class="metric-value" id="manual-load-orders">--</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="manual-order-list" id="manual-load-suggest-list">
-                  <div class="subtext">Select a seed order to see suggestions.</div>
+
+                <div class="manual-route-card">
+                  <div class="manual-column-header">
+                    <span class="metric-label">Draft Route</span>
+                    <span class="subtext">Base order + selected stops</span>
+                  </div>
+                  <ol class="manual-route-list" id="manual-load-route-list">
+                    <li class="subtext">Select a base order to draft a route.</li>
+                  </ol>
                 </div>
+
+                <div id="manual-load-selected-inputs" class="hidden"></div>
               </div>
             </div>
-          </div>
+</div>
           <div class="modal-footer">
             <button class="btn-ghost" type="button" data-manual-load-cancel>Cancel</button>
             <button class="btn-primary" type="submit" id="manual-load-submit" disabled>Create Manual Load</button>
@@ -561,6 +585,15 @@
         </div>
         <form id="manual-add-form">
           <div class="modal-body">
+            <div class="manual-util-card manual-add-util">
+              <div class="manual-util-header">
+                <span class="metric-label">Remaining Capacity</span>
+                <span class="subtext" id="manual-add-util-meta"></span>
+              </div>
+              <div class="manual-util-bar">
+                <span class="manual-util-fill" id="manual-add-util-fill" style="width: 0%;"></span>
+              </div>
+            </div>
             <div class="subtext" id="manual-add-meta"></div>
             <div class="manual-order-list" id="manual-add-list">
               <div class="subtext">Select a load’s “Manually Add Orders” button to see suggestions.</div>
@@ -579,6 +612,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const mapInstances = new Map();
+    const loadsPage = document.querySelector('.loads-page');
+    const loadsTab = loadsPage ? (loadsPage.dataset.loadsTab || '') : '';
 
     function toRad(value) {
       return (value * Math.PI) / 180;
@@ -797,7 +832,8 @@
               if (!response.ok) {
                 throw new Error('Trailer update failed');
               }
-              return fetch(`/loads/${loadId}/schematic`);
+              const tabParam = loadsTab ? `?tab=${encodeURIComponent(loadsTab)}` : '';
+              return fetch(`/loads/${loadId}/schematic${tabParam}`);
             })
             .then((response) => response.json())
             .then((payload) => {
@@ -1273,8 +1309,20 @@
       const suggestMeta = document.getElementById('manual-load-suggest-meta');
       const suggestList = document.getElementById('manual-load-suggest-list');
       const submitBtn = document.getElementById('manual-load-submit');
+      const selectedInputs = document.getElementById('manual-load-selected-inputs');
+      const utilMeta = document.getElementById('manual-load-util-meta');
+      const utilFill = document.getElementById('manual-load-util-fill');
+      const qtyValue = document.getElementById('manual-load-qty');
+      const lengthValue = document.getElementById('manual-load-length');
+      const ordersValue = document.getElementById('manual-load-orders');
+      const routeList = document.getElementById('manual-load-route-list');
+      const trailerSelect = document.getElementById('manual-load-trailer');
 
       let seedOrder = null;
+      let seedOrderData = null;
+      let selectedOrders = new Map();
+      let cachedSuggestions = [];
+      let cachedParams = {};
       let activeSearchController = null;
       let activeSuggestController = null;
 
@@ -1284,12 +1332,17 @@
 
       const resetState = () => {
         seedOrder = null;
+        seedOrderData = null;
+        selectedOrders = new Map();
+        cachedSuggestions = [];
+        cachedParams = {};
         if (searchInput) searchInput.value = '';
         if (resultsContainer) resultsContainer.innerHTML = '';
         if (suggestMeta) suggestMeta.textContent = '';
         if (suggestList) {
           suggestList.innerHTML = '<div class="subtext">Select a seed order to see suggestions.</div>';
         }
+        updateSelectedState();
         if (submitBtn) submitBtn.disabled = true;
       };
 
@@ -1327,6 +1380,141 @@
         });
       }
 
+      if (trailerSelect) {
+        trailerSelect.addEventListener('change', () => {
+          updateUtilizationUI();
+          renderSuggestionList();
+        });
+      }
+
+      const trailerCapacities = {
+        STEP_DECK: 53,
+        FLATBED: 53,
+        WEDGE: 51,
+      };
+
+      const getCapacity = () => {
+        const value = (trailerSelect && trailerSelect.value ? trailerSelect.value : 'STEP_DECK')
+          .toString()
+          .trim()
+          .toUpperCase();
+        return trailerCapacities[value] || 53;
+      };
+
+      const normalizeOrder = (order) => ({
+        so_num: (order.so_num || '').toString().trim(),
+        cust_name: (order.cust_name || '').toString().trim(),
+        due_date: (order.due_date || '').toString().trim(),
+        city: (order.city || '').toString().trim(),
+        state: (order.state || '').toString().trim(),
+        total_length_ft: Number(order.total_length_ft || 0),
+        total_qty: Number(order.total_qty || 0),
+        utilization_pct: Number(order.utilization_pct || 0),
+        distance_miles: order.distance_miles,
+      });
+
+      const getSelectedTotalFt = () => {
+        let total = 0;
+        selectedOrders.forEach((order) => {
+          total += Number(order.total_length_ft || 0);
+        });
+        return total;
+      };
+
+      const updateSubmitState = () => {
+        if (!submitBtn) return;
+        submitBtn.disabled = !seedOrderData;
+      };
+
+      const updateUtilizationUI = () => {
+        if (!utilMeta || !utilFill) return;
+        if (!seedOrderData) {
+          utilMeta.textContent = 'Select a base order to see utilization.';
+          utilFill.style.width = '0%';
+          return;
+        }
+        const capacity = getCapacity();
+        const used = getSelectedTotalFt();
+        const remaining = Math.max(capacity - used, 0);
+        const pct = capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
+        utilMeta.textContent = `Utilization ${pct}% | ${used.toFixed(1)} / ${capacity} ft | ${remaining.toFixed(1)} ft remaining`;
+        utilFill.style.width = `${pct}%`;
+        utilFill.classList.remove('success', 'warning', 'danger');
+        if (pct >= 85) {
+          utilFill.classList.add('success');
+        } else if (pct >= 70) {
+          utilFill.classList.add('warning');
+        } else {
+          utilFill.classList.add('danger');
+        }
+      };
+
+      const getSelectedTotalQty = () => {
+        let total = 0;
+        selectedOrders.forEach((order) => {
+          total += Number(order.total_qty || 0);
+        });
+        return total;
+      };
+
+      const updateMetrics = () => {
+        if (!qtyValue || !lengthValue || !ordersValue) return;
+        if (!seedOrderData) {
+          qtyValue.textContent = '--';
+          lengthValue.textContent = '--';
+          ordersValue.textContent = '--';
+          return;
+        }
+        qtyValue.textContent = getSelectedTotalQty().toLocaleString();
+        lengthValue.textContent = `${getSelectedTotalFt().toFixed(1)} ft`;
+        ordersValue.textContent = String(selectedOrders.size);
+      };
+
+      const updateRoute = () => {
+        if (!routeList) return;
+        routeList.innerHTML = '';
+        if (!seedOrderData) {
+          routeList.innerHTML = '<li class="subtext">Select a base order to draft a route.</li>';
+          return;
+        }
+
+        let index = 0;
+        selectedOrders.forEach((order) => {
+          const city = order.city || '';
+          const state = order.state || '';
+          let label = `${city}${city && state ? ', ' : ''}${state}`.trim();
+          if (!label) {
+            label = `Order #${order.so_num}`;
+          }
+          const item = document.createElement('li');
+          item.className = 'manual-route-stop';
+          item.innerHTML = `<span class="manual-route-dot">${index + 1}</span><span class="manual-route-text">${label}</span>`;
+          if (order.so_num === seedOrder) {
+            item.classList.add('base');
+            item.querySelector('.manual-route-text').textContent = `Base - ${label}`;
+          }
+          routeList.appendChild(item);
+          index += 1;
+        });
+      };
+
+      const updateSelectedState = () => {
+        if (selectedInputs) {
+          selectedInputs.innerHTML = '';
+          selectedOrders.forEach((order) => {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'so_nums';
+            hidden.value = order.so_num;
+            selectedInputs.appendChild(hidden);
+          });
+        }
+        updateUtilizationUI();
+        updateMetrics();
+        updateRoute();
+        updateSubmitState();
+      };
+
       function renderEmpty(container, message) {
         if (!container) return;
         const div = document.createElement('div');
@@ -1339,7 +1527,7 @@
       function renderSearchResults(orders) {
         if (!resultsContainer) return;
         resultsContainer.innerHTML = '';
-        if (!orders || orders.length === 0) {
+        if (!orders || orders.length == 0) {
           renderEmpty(resultsContainer, 'No matching draft-scope orders found.');
           return;
         }
@@ -1363,7 +1551,18 @@
           const due = (order.due_date || '').toString().trim();
           const city = (order.city || '').toString().trim();
           const state = (order.state || '').toString().trim();
-          meta.textContent = `${cust || 'Customer'} • Due ${due || '—'} • ${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim();
+          const length = order.total_length_ft != null ? `${Number(order.total_length_ft || 0).toFixed(1)} ft` : '';
+          const qty = order.total_qty != null ? `${Number(order.total_qty || 0)} units` : '';
+          const util = order.utilization_pct != null ? `${Math.round(order.utilization_pct || 0)}% util` : '';
+          const bits = [
+            cust || 'Customer',
+            due ? `Due ${due}` : 'Due --',
+            `${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim(),
+            length,
+            qty,
+            util,
+          ].filter(Boolean);
+          meta.textContent = bits.join(' | ');
 
           button.appendChild(title);
           button.appendChild(meta);
@@ -1373,14 +1572,130 @@
           }
 
           button.addEventListener('click', () => {
-            seedOrder = soNum;
+            const normalized = normalizeOrder(order);
+            seedOrder = normalized.so_num;
+            seedOrderData = normalized;
+            selectedOrders = new Map();
+            selectedOrders.set(seedOrder, normalized);
             document.querySelectorAll('.manual-order-item.active').forEach((node) => node.classList.remove('active'));
             button.classList.add('active');
+              updateSelectedState();
             loadSuggestions();
           });
 
           resultsContainer.appendChild(button);
         });
+      }
+
+      function renderSuggestionList() {
+        if (!suggestList) return;
+        suggestList.innerHTML = '';
+
+        if (!seedOrderData) {
+          renderEmpty(suggestList, 'Select a base order to see suggestions.');
+          if (suggestMeta) suggestMeta.textContent = '';
+          updateSubmitState();
+          updateUtilizationUI();
+          updateMetrics();
+          return;
+        }
+
+        const capacity = getCapacity();
+        const used = getSelectedTotalFt();
+        const remaining = Math.max(capacity - used, 0);
+
+        const metaBits = [`Remaining ${remaining.toFixed(1)} ft`];
+        if (cachedParams.geo_radius) metaBits.push(`Radius ${Math.round(cachedParams.geo_radius)} mi`);
+        if (cachedParams.time_window_days) metaBits.push(`Window +/-${cachedParams.time_window_days}d`);
+        if (suggestMeta) {
+          suggestMeta.textContent = metaBits.join(' | ');
+        }
+
+        const visible = cachedSuggestions.filter((item) => {
+          const soNum = (item.so_num || '').toString().trim();
+          if (!soNum) return false;
+          const length = Number(item.total_length_ft || 0);
+          if (selectedOrders.has(soNum)) return true;
+          return length <= remaining;
+        });
+
+        if (!visible.length) {
+          renderEmpty(suggestList, 'No nearby draft-scope orders fit in the remaining trailer space.');
+          updateSubmitState();
+          updateUtilizationUI();
+          updateMetrics();
+          return;
+        }
+
+        const header = document.createElement('div');
+        header.className = 'manual-suggest-row head';
+        ['Order', 'Customer', 'Due', 'Stop', 'Length', 'Action'].forEach((label) => {
+          const cell = document.createElement('div');
+          cell.textContent = label;
+          header.appendChild(cell);
+        });
+        suggestList.appendChild(header);
+
+        visible.forEach((item) => {
+          const soNum = (item.so_num || '').toString().trim();
+          if (!soNum) return;
+
+          const row = document.createElement('div');
+          row.className = 'manual-suggest-row';
+
+          const orderCell = document.createElement('div');
+          orderCell.textContent = `#${soNum}`;
+
+          const custCell = document.createElement('div');
+          custCell.textContent = (item.cust_name || '').toString().trim() || 'Customer';
+
+          const dueCell = document.createElement('div');
+          const due = (item.due_date || '').toString().trim();
+          dueCell.textContent = due || '--';
+
+          const stopCell = document.createElement('div');
+          const city = (item.city || '').toString().trim();
+          const state = (item.state || '').toString().trim();
+          stopCell.textContent = `${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim();
+
+          const lengthCell = document.createElement('div');
+          const length = Number(item.total_length_ft || 0);
+          lengthCell.textContent = `${length.toFixed(1)} ft`;
+
+          const actionCell = document.createElement('div');
+          const button = document.createElement('button');
+          if (selectedOrders.has(soNum)) {
+            button.type = 'button';
+            button.className = 'btn-ghost btn-xs manual-suggest-action';
+            button.textContent = 'Remove';
+            button.addEventListener('click', () => {
+              selectedOrders.delete(soNum);
+              updateSelectedState();
+              renderSuggestionList();
+            });
+          } else {
+            button.type = 'button';
+            button.className = 'btn-secondary btn-xs manual-suggest-action';
+            button.textContent = 'Add';
+            button.addEventListener('click', () => {
+              const normalized = normalizeOrder(item);
+              if (Number(normalized.total_length_ft || 0) > Math.max(getCapacity() - getSelectedTotalFt(), 0)) {
+                return;
+              }
+              selectedOrders.set(soNum, normalized);
+              updateSelectedState();
+              renderSuggestionList();
+            });
+          }
+          actionCell.appendChild(button);
+
+          [orderCell, custCell, dueCell, stopCell, lengthCell, actionCell].forEach((cell) => row.appendChild(cell));
+          suggestList.appendChild(row);
+        });
+
+        updateSubmitState();
+        updateUtilizationUI();
+        updateMetrics();
       }
 
       const loadSearchResults = debounce(() => {
@@ -1411,96 +1726,21 @@
       }
 
       function renderSuggestions(seed, suggestions, params) {
-        if (!suggestList) return;
-        suggestList.innerHTML = '';
-
-        const metaBits = [];
-        if (params && params.geo_radius) metaBits.push(`Radius ${Math.round(params.geo_radius)} mi`);
-        if (params && params.time_window_days) metaBits.push(`Window ±${params.time_window_days}d`);
-        if (suggestMeta) {
-          suggestMeta.textContent = metaBits.join(' • ');
-        }
+        cachedSuggestions = Array.isArray(suggestions) ? suggestions : [];
+        cachedParams = params || {};
 
         if (seed && seed.so_num) {
-          const seedWrap = document.createElement('div');
-          seedWrap.className = 'manual-order-item seed';
-
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.checked = true;
-          checkbox.disabled = true;
-
-          const hidden = document.createElement('input');
-          hidden.type = 'hidden';
-          hidden.name = 'so_nums';
-          hidden.value = seed.so_num;
-
-          const textWrap = document.createElement('div');
-          textWrap.className = 'manual-order-text';
-
-          const title = document.createElement('div');
-          title.className = 'manual-order-title';
-          title.textContent = `Seed #${seed.so_num}`;
-
-          const meta = document.createElement('div');
-          meta.className = 'manual-order-meta';
-          meta.textContent = `${(seed.cust_name || '').toString().trim() || 'Customer'} • Due ${(seed.due_date || '').toString().trim() || '—'}`;
-
-          textWrap.appendChild(title);
-          textWrap.appendChild(meta);
-
-          seedWrap.appendChild(checkbox);
-          seedWrap.appendChild(hidden);
-          seedWrap.appendChild(textWrap);
-          suggestList.appendChild(seedWrap);
+          const normalized = normalizeOrder(seed);
+          if (seedOrder !== normalized.so_num) {
+            seedOrder = normalized.so_num;
+            selectedOrders = new Map();
+          }
+          seedOrderData = normalized;
+          selectedOrders.set(seedOrder, normalized);
         }
 
-        if (!suggestions || suggestions.length === 0) {
-          const msg = document.createElement('div');
-          msg.className = 'subtext';
-          msg.textContent = 'No nearby draft-scope orders match the due date window.';
-          suggestList.appendChild(msg);
-          if (submitBtn) submitBtn.disabled = false;
-          return;
-        }
-
-        suggestions.forEach((item) => {
-          const soNum = (item.so_num || '').toString().trim();
-          if (!soNum) return;
-
-          const row = document.createElement('label');
-          row.className = 'manual-order-item checkbox';
-
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.name = 'so_nums';
-          checkbox.value = soNum;
-
-          const textWrap = document.createElement('div');
-          textWrap.className = 'manual-order-text';
-
-          const title = document.createElement('div');
-          title.className = 'manual-order-title';
-          const distance = item.distance_miles != null ? ` • ${item.distance_miles} mi` : '';
-          title.textContent = `#${soNum}${distance}`;
-
-          const meta = document.createElement('div');
-          meta.className = 'manual-order-meta';
-          const cust = (item.cust_name || '').toString().trim();
-          const due = (item.due_date || '').toString().trim();
-          const city = (item.city || '').toString().trim();
-          const state = (item.state || '').toString().trim();
-          meta.textContent = `${cust || 'Customer'} • Due ${due || '—'} • ${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim();
-
-          textWrap.appendChild(title);
-          textWrap.appendChild(meta);
-
-          row.appendChild(checkbox);
-          row.appendChild(textWrap);
-          suggestList.appendChild(row);
-        });
-
-        if (submitBtn) submitBtn.disabled = false;
+        updateSelectedState();
+        renderSuggestionList();
       }
 
       function loadSuggestions() {
@@ -1510,7 +1750,7 @@
 
         if (activeSuggestController) activeSuggestController.abort();
         activeSuggestController = new AbortController();
-        if (suggestList) suggestList.innerHTML = '<div class="subtext">Loading suggestions…</div>';
+        if (suggestList) suggestList.innerHTML = '<div class="subtext">Loading suggestions...</div>';
         if (submitBtn) submitBtn.disabled = true;
 
         const url = `/loads/manual/suggest?plant=${encodeURIComponent(plant)}&seed=${encodeURIComponent(seedOrder)}`;
@@ -1554,9 +1794,15 @@
       const list = document.getElementById('manual-add-list');
       const error = document.getElementById('manual-add-error');
       const submitBtn = document.getElementById('manual-add-submit');
+      const utilMeta = document.getElementById('manual-add-util-meta');
+      const utilFill = document.getElementById('manual-add-util-fill');
 
       let activeLoadId = null;
       let activeController = null;
+      let cachedSuggestions = [];
+      let cachedSpace = {};
+      let cachedParams = {};
+      let selectedOrders = new Map();
 
       const setError = (message) => {
         if (!error) return;
@@ -1573,13 +1819,18 @@
         if (activeController) activeController.abort();
         activeController = null;
         activeLoadId = null;
+        cachedSuggestions = [];
+        cachedSpace = {};
+        cachedParams = {};
+        selectedOrders = new Map();
+        if (utilMeta) utilMeta.textContent = '';
+        if (utilFill) utilFill.style.width = '0%';
         modal.classList.add('hidden');
       };
 
       const updateSubmitState = () => {
         if (!submitBtn) return;
-        const checked = modal.querySelectorAll('input[name="so_nums"]:checked').length;
-        submitBtn.disabled = checked === 0;
+        submitBtn.disabled = selectedOrders.size === 0;
       };
 
       const renderEmpty = (message) => {
@@ -1591,27 +1842,81 @@
         list.appendChild(div);
       };
 
-      const renderSuggestions = (payload) => {
+      const getSelectedTotalFt = () => {
+        let total = 0;
+        selectedOrders.forEach((order) => {
+          total += Number(order.total_length_ft || 0);
+        });
+        return total;
+      };
+
+      const normalizeOrder = (order) => ({
+        so_num: (order.so_num || '').toString().trim(),
+        cust_name: (order.cust_name || '').toString().trim(),
+        due_date: (order.due_date || '').toString().trim(),
+        city: (order.city || '').toString().trim(),
+        state: (order.state || '').toString().trim(),
+        total_length_ft: Number(order.total_length_ft || 0),
+        utilization_pct: Number(order.utilization_pct || 0),
+        distance_miles: order.distance_miles,
+      });
+
+      const updateUtilizationUI = () => {
+        if (!utilMeta || !utilFill) return;
+        const capacity = Number(cachedSpace.capacity_ft || 0);
+        const baseUsed = Number(cachedSpace.used_ft || 0);
+        const selected = getSelectedTotalFt();
+        const used = baseUsed + selected;
+        const remaining = capacity ? Math.max(capacity - used, 0) : 0;
+        const pct = capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
+        if (!capacity) {
+          utilMeta.textContent = 'No capacity data available.';
+          utilFill.style.width = '0%';
+          return;
+        }
+        utilMeta.textContent = `${used.toFixed(1)} ft used / ${capacity} ft capacity | ${remaining.toFixed(1)} ft remaining`;
+        utilFill.style.width = `${pct}%`;
+        utilFill.classList.remove('success', 'warning', 'danger');
+        if (pct >= 85) {
+          utilFill.classList.add('success');
+        } else if (pct >= 70) {
+          utilFill.classList.add('warning');
+        } else {
+          utilFill.classList.add('danger');
+        }
+      };
+
+      const renderSuggestionList = () => {
         if (!list) return;
         list.innerHTML = '';
 
-        const load = payload.load || {};
-        const space = payload.space || {};
-        const params = payload.params || {};
-        const suggestions = payload.suggestions || [];
+        const capacity = Number(cachedSpace.capacity_ft || 0);
+        const baseUsed = Number(cachedSpace.used_ft || 0);
+        const selected = getSelectedTotalFt();
+        const remaining = capacity ? Math.max(capacity - (baseUsed + selected), 0) : 0;
 
-        const bits = [];
-        if (space.main_remaining_ft != null) bits.push(`Main deck remaining ${space.main_remaining_ft} ft`);
-        if (params.geo_radius) bits.push(`Radius ${Math.round(params.geo_radius)} mi`);
-        if (params.time_window_days) bits.push(`Window ±${params.time_window_days}d`);
-        if (meta) meta.textContent = bits.join(' • ');
+        const metaBits = [];
+        if (capacity) metaBits.push(`Remaining ${remaining.toFixed(1)} ft`);
+        if (cachedParams.geo_radius) metaBits.push(`Radius ${Math.round(cachedParams.geo_radius)} mi`);
+        if (cachedParams.time_window_days) metaBits.push(`Window +/-${cachedParams.time_window_days}d`);
+        if (meta) meta.textContent = metaBits.join(' | ');
 
-        if (!suggestions.length) {
+        const visible = cachedSuggestions.filter((item) => {
+          const soNum = (item.so_num || '').toString().trim();
+          if (!soNum) return false;
+          const length = Number(item.total_length_ft || 0);
+          if (selectedOrders.has(soNum)) return true;
+          return length <= remaining;
+        });
+
+        if (!visible.length) {
           renderEmpty('No nearby draft-scope orders fit in the remaining trailer space.');
+          updateSubmitState();
+          updateUtilizationUI();
           return;
         }
 
-        suggestions.forEach((item) => {
+        visible.forEach((item) => {
           const soNum = (item.so_num || '').toString().trim();
           if (!soNum) return;
 
@@ -1622,16 +1927,33 @@
           checkbox.type = 'checkbox';
           checkbox.name = 'so_nums';
           checkbox.value = soNum;
-          checkbox.addEventListener('change', updateSubmitState);
+          checkbox.checked = selectedOrders.has(soNum);
+          checkbox.addEventListener('change', () => {
+            const normalized = normalizeOrder(item);
+            if (checkbox.checked) {
+              const remainingNow = capacity ? Math.max(capacity - (baseUsed + getSelectedTotalFt()), 0) : 0;
+              if (Number(normalized.total_length_ft || 0) > remainingNow) {
+                checkbox.checked = false;
+                return;
+              }
+              selectedOrders.set(soNum, normalized);
+            } else {
+              selectedOrders.delete(soNum);
+            }
+            updateSubmitState();
+            updateUtilizationUI();
+            renderSuggestionList();
+          });
 
           const textWrap = document.createElement('div');
           textWrap.className = 'manual-order-text';
 
           const title = document.createElement('div');
           title.className = 'manual-order-title';
-          const distance = item.distance_miles != null ? ` • ${item.distance_miles} mi` : '';
-          const delta = item.delta_utilization_pct != null ? ` • +${item.delta_utilization_pct}% util` : '';
-          title.textContent = `#${soNum}${distance}${delta}`;
+          const titleBits = [`#${soNum}`];
+          if (item.distance_miles != null) titleBits.push(`${item.distance_miles} mi`);
+          if (item.total_length_ft != null) titleBits.push(`${Number(item.total_length_ft || 0).toFixed(1)} ft`);
+          title.textContent = titleBits.join(' | ');
 
           const metaRow = document.createElement('div');
           metaRow.className = 'manual-order-meta';
@@ -1639,8 +1961,13 @@
           const due = (item.due_date || '').toString().trim();
           const city = (item.city || '').toString().trim();
           const state = (item.state || '').toString().trim();
-          const maxUnit = item.max_unit_length_ft != null ? ` • Max unit ${item.max_unit_length_ft} ft` : '';
-          metaRow.textContent = `${cust || 'Customer'} • Due ${due || '—'} • ${city || ''}${city && state ? ', ' : ''}${state || ''}${maxUnit}`.trim();
+          const metaBitsRow = [
+            cust || 'Customer',
+            due ? `Due ${due}` : 'Due --',
+            `${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim(),
+          ].filter(Boolean);
+          if (item.utilization_pct != null) metaBitsRow.push(`${Math.round(item.utilization_pct || 0)}% util`);
+          metaRow.textContent = metaBitsRow.join(' | ');
 
           textWrap.appendChild(title);
           textWrap.appendChild(metaRow);
@@ -1651,14 +1978,27 @@
         });
 
         updateSubmitState();
+        updateUtilizationUI();
+      };
+
+      const renderSuggestions = (payload) => {
+        cachedSuggestions = Array.isArray(payload.suggestions) ? payload.suggestions : [];
+        cachedSpace = payload.space || {};
+        cachedParams = payload.params || {};
+        selectedOrders = new Map();
+        updateSubmitState();
+        updateUtilizationUI();
+        renderSuggestionList();
       };
 
       const loadSuggestions = (loadId) => {
         if (!list) return;
         setError('');
         if (meta) meta.textContent = '';
-        list.innerHTML = '<div class="subtext">Loading suggestions…</div>';
+        list.innerHTML = '<div class="subtext">Loading suggestions...</div>';
         if (submitBtn) submitBtn.disabled = true;
+        if (utilMeta) utilMeta.textContent = '';
+        if (utilFill) utilFill.style.width = '0%';
 
         if (activeController) activeController.abort();
         activeController = new AbortController();

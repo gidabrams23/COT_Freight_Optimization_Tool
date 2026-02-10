@@ -1,8 +1,18 @@
 <div class="schematic-card" id="schematic-card-{{ load.id }}" data-load-id="{{ load.id }}">
   {% set trailer = load.trailer_type or 'STEP_DECK' %}
   {% set has_upper = load.schematic.upper_deck_length and load.schematic.upper_deck_length > 0 %}
-  {% set lower_width = (load.schematic.lower_deck_length / load.schematic.capacity_feet * 100) | round(1) %}
-  {% set upper_width = (load.schematic.upper_deck_length / load.schematic.capacity_feet * 100) | round(1) if has_upper else 0 %}
+  {% set capacity_ft = load.schematic.capacity_feet | float %}
+  {% set lower_deck_ft = load.schematic.lower_deck_length | float %}
+  {% set upper_deck_ft = load.schematic.upper_deck_length | float %}
+  {% set lower_positions = load.schematic.positions | selectattr('deck', 'equalto', 'lower') | list %}
+  {% set upper_positions = load.schematic.positions | selectattr('deck', 'equalto', 'upper') | list %}
+  {% set lower_used_ft = (lower_positions | sum(attribute='length_ft')) | float %}
+  {% set upper_used_ft = (upper_positions | sum(attribute='length_ft')) | float %}
+  {% set lower_display_ft = ([lower_deck_ft, lower_used_ft] | max) %}
+  {% set upper_display_ft = ([upper_deck_ft, upper_used_ft] | max) if has_upper else 0 %}
+  {% set display_capacity = ([capacity_ft, lower_display_ft + upper_display_ft] | max) if (trailer == 'STEP_DECK' and has_upper) else ([capacity_ft, lower_display_ft] | max) %}
+  {% set lower_width = ((lower_display_ft / display_capacity) * 100) | round(1) if display_capacity else 100 %}
+  {% set upper_width = ((upper_display_ft / display_capacity) * 100) | round(1) if (has_upper and display_capacity) else 0 %}
   {% set util_pct = load.schematic.utilization_pct or 0 %}
   {% set util_width = 100 if util_pct > 100 else util_pct %}
   {% set util_pct_display = util_pct | round(1) %}
@@ -23,6 +33,12 @@
       </div>
     </div>
     <div class="schematic-header-right">
+      {% if status != 'APPROVED' and tab != 'final' %}
+        <button class="btn-secondary btn-xs js-manual-add-open" type="button" data-load-id="{{ load.id }}">
+          <span class="material-symbols-outlined">add_box</span>
+          Manually Add Orders
+        </button>
+      {% endif %}
       <select class="select-field select-compact load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
         <option value="STEP_DECK" {% if trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
         <option value="WEDGE" {% if trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
@@ -33,24 +49,26 @@
   <div class="trailer-schematic trailer-{{ load.schematic.trailer_type | lower }}">
     <div class="trailer-body">
       {% if trailer == 'STEP_DECK' and has_upper %}
-        {% set lower_positions = load.schematic.positions | selectattr('deck', 'equalto', 'lower') | list %}
-        {% set upper_positions = load.schematic.positions | selectattr('deck', 'equalto', 'upper') | list %}
-        {% set lower_used_ft = (lower_positions | sum(attribute='length_ft')) | float %}
-        {% set upper_used_ft = (upper_positions | sum(attribute='length_ft')) | float %}
-        {% set lower_rem_ft = (load.schematic.lower_deck_length | float) - lower_used_ft %}
-        {% set upper_rem_ft = (load.schematic.upper_deck_length | float) - upper_used_ft %}
-        {% set lower_rem_pct = ((lower_rem_ft / (load.schematic.lower_deck_length | float)) * 100) if (load.schematic.lower_deck_length | float) else 0 %}
-        {% set upper_rem_pct = ((upper_rem_ft / (load.schematic.upper_deck_length | float)) * 100) if (load.schematic.upper_deck_length | float) else 0 %}
+        {% set lower_rem_ft = lower_deck_ft - lower_used_ft %}
+        {% set upper_rem_ft = upper_deck_ft - upper_used_ft %}
+        {% set lower_rem_pct = ((lower_rem_ft / lower_display_ft) * 100) if lower_display_ft else 0 %}
+        {% set upper_rem_pct = ((upper_rem_ft / upper_display_ft) * 100) if upper_display_ft else 0 %}
+        {% set lower_overhang_ft = (lower_used_ft - lower_deck_ft) if (lower_used_ft - lower_deck_ft) > 0.05 else 0 %}
+        {% set upper_overhang_ft = (upper_used_ft - upper_deck_ft) if (upper_used_ft - upper_deck_ft) > 0.05 else 0 %}
+        {% set lower_overhang = lower_overhang_ft > 0 %}
+        {% set upper_overhang = upper_overhang_ft > 0 %}
+        {% set lower_line_span = ((lower_deck_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 100 %}
+        {% set upper_line_span = ((upper_deck_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 100 %}
 
         <div class="trailer-deck-row step-deck step-deck-frame">
           <div class="trailer-deck lower deck-section" style="flex: 0 1 {{ lower_width }}%;">
             <div class="deck-header">
               <div class="deck-label">Lower Deck</div>
-              <div class="deck-measure">{{ load.schematic.lower_deck_length }} ft</div>
             </div>
             <div class="deck-positions">
               {% for pos in lower_positions %}
-                <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                {% set pos_width = ((pos.length_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 0 %}
+                <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
                   {% set order_ids = namespace(items=[]) %}
                   {% for item in pos["items"] %}
                     {% if item.order_id and item.order_id not in order_ids.items %}
@@ -99,17 +117,27 @@
                 </div>
               {% endif %}
             </div>
+            <div class="deck-footer" style="--line-span: {{ lower_line_span }}%;">
+              <div class="deck-line">
+                <span class="deck-length">{{ lower_deck_ft | round(1) }} FT</span>
+              </div>
+              {% if lower_overhang %}
+                <div class="deck-overhang-line">
+                  <span class="deck-overhang">OVERHANG: {{ lower_overhang_ft | round(1) }} FT</span>
+                </div>
+              {% endif %}
+            </div>
           </div>
 
           <div class="trailer-deck upper deck-section" style="flex: 0 1 {{ upper_width }}%;">
             <div class="deck-header">
               <div class="deck-label">Upper Deck</div>
-              <div class="deck-measure">{{ load.schematic.upper_deck_length }} ft</div>
             </div>
             <div class="deck-stage deck-stage-upper">
               <div class="deck-positions">
                 {% for pos in upper_positions %}
-                  <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                  {% set pos_width = ((pos.length_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 0 %}
+                  <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
                     {% set order_ids = namespace(items=[]) %}
                     {% for item in pos["items"] %}
                       {% if item.order_id and item.order_id not in order_ids.items %}
@@ -145,7 +173,7 @@
                   </div>
                 {% endfor %}
 
-                {% if upper_rem_ft > 0.05 %}
+                {% if upper_rem_ft > 0.05 and upper_used_ft <= 0.05 %}
                   <div class="position-column vacant" style="flex: 0 0 {{ upper_rem_pct }}%;">
                     <div class="position-stack vacant-stack">
                       <div class="vacant-block">
@@ -155,19 +183,31 @@
                   </div>
                 {% endif %}
               </div>
-              <div class="deck-void" title="Unusable lower portion under the upper deck">
-                <div class="void-x" aria-hidden="true"></div>
-                <div class="void-label">UNUSABLE</div>
+              <div class="deck-void"></div>
+            </div>
+            <div class="deck-footer" style="--line-span: {{ upper_line_span }}%;">
+              <div class="deck-line">
+                <span class="deck-length">{{ upper_deck_ft | round(1) }} FT</span>
               </div>
+              {% if upper_overhang %}
+                <div class="deck-overhang-line">
+                  <span class="deck-overhang">OVERHANG: {{ upper_overhang_ft | round(1) }} FT</span>
+                </div>
+              {% endif %}
             </div>
           </div>
         </div>
       {% else %}
         <div class="trailer-deck lower" style="flex: 1 1 auto;">
-          <div class="deck-label">Lower Deck - {{ load.schematic.lower_deck_length }} ft</div>
+          {% if trailer == 'FLATBED' %}
+            <div class="deck-label">Main Deck</div>
+          {% else %}
+            <div class="deck-label">Lower Deck - {{ load.schematic.lower_deck_length }} ft</div>
+          {% endif %}
           <div class="deck-positions">
             {% for pos in load.schematic.positions if pos.deck == 'lower' %}
-              <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+              {% set pos_width = ((pos.length_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 0 %}
+              <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
                 {% set order_ids = namespace(items=[]) %}
                 {% for item in pos["items"] %}
                   {% if item.order_id and item.order_id not in order_ids.items %}
@@ -203,14 +243,28 @@
               </div>
             {% endfor %}
           </div>
+          {% set lower_overhang_ft = (lower_used_ft - lower_deck_ft) if (lower_used_ft - lower_deck_ft) > 0.05 else 0 %}
+          {% set lower_overhang = lower_overhang_ft > 0 %}
+          {% set lower_line_span = ((lower_deck_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 100 %}
+          <div class="deck-footer" style="--line-span: {{ lower_line_span }}%;">
+            <div class="deck-line">
+              <span class="deck-length">{{ lower_deck_ft | round(1) }} FT</span>
+            </div>
+            {% if lower_overhang %}
+              <div class="deck-overhang-line">
+                <span class="deck-overhang">OVERHANG: {{ lower_overhang_ft | round(1) }} FT</span>
+              </div>
+            {% endif %}
+          </div>
         </div>
         {% if has_upper %}
-          {% set upper_offset = (load.schematic.lower_deck_length / load.schematic.capacity_feet * 100) | round(1) %}
+          {% set upper_offset = ((lower_display_ft / display_capacity) * 100) | round(1) if display_capacity else 0 %}
           <div class="trailer-deck upper" style="width: {{ upper_width }}%; left: {{ upper_offset }}%;">
             <div class="deck-label">Upper Deck - {{ load.schematic.upper_deck_length }} ft</div>
             <div class="deck-positions">
               {% for pos in load.schematic.positions if pos.deck == 'upper' %}
-                <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
+                {% set pos_width = ((pos.length_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 0 %}
+                <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
                   {% set order_ids = namespace(items=[]) %}
                   {% for item in pos["items"] %}
                     {% if item.order_id and item.order_id not in order_ids.items %}
@@ -245,6 +299,19 @@
                   <div class="position-label">{{ pos.length_ft }} ft</div>
                 </div>
               {% endfor %}
+            </div>
+            {% set upper_overhang_ft = (upper_used_ft - upper_deck_ft) if (upper_used_ft - upper_deck_ft) > 0.05 else 0 %}
+            {% set upper_overhang = upper_overhang_ft > 0 %}
+            {% set upper_line_span = ((upper_deck_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 100 %}
+            <div class="deck-footer" style="--line-span: {{ upper_line_span }}%;">
+              <div class="deck-line">
+                <span class="deck-length">{{ upper_deck_ft | round(1) }} FT</span>
+              </div>
+              {% if upper_overhang %}
+                <div class="deck-overhang-line">
+                  <span class="deck-overhang">OVERHANG: {{ upper_overhang_ft | round(1) }} FT</span>
+                </div>
+              {% endif %}
             </div>
           </div>
         {% endif %}
