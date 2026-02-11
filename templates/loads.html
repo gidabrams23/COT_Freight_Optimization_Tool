@@ -14,8 +14,12 @@
             <div class="loads-optimization-inline" aria-label="Optimization output">
               <div class="loads-optimization-metrics">
                 <div class="loads-optimization-metric">
+                  <span class="metric-label">Plants</span>
+                  <span class="metric-value metric-value-muted">{% if plant_filter_param %}{{ plant_filter_param }}{% else %}All Plants{% endif %}</span>
+                </div>
+                <div class="loads-optimization-metric">
                   <span class="metric-label">Orders</span>
-                  <span class="metric-value metric-value-primary" data-opt-total-orders>{{ optimization_summary.total_orders }} <span class="metric-suffix">Items</span></span>
+                  <span class="metric-value metric-value-primary" data-opt-total-orders>{{ optimization_summary.total_orders }}</span>
                 </div>
                 <div class="loads-optimization-metric">
                   <span class="metric-label">Avg Util</span>
@@ -23,11 +27,11 @@
                 </div>
                 <div class="loads-optimization-metric">
                   <span class="metric-label">Est Spend</span>
-                  <span class="metric-value metric-value-warning" data-opt-total-spend>${{ "{:,.2f}".format((optimization_summary.total_spend or 0) | float) }}</span>
+                  <span class="metric-value metric-value-warning" data-opt-total-spend>${{ "{:,.0f}".format((optimization_summary.total_spend or 0) | float) }}</span>
                 </div>
                 <div class="loads-optimization-metric">
-                  <span class="metric-label">Plants</span>
-                  <span class="metric-value metric-value-muted">{% if plant_filter_param %}{{ plant_filter_param }}{% else %}All Plants{% endif %}</span>
+                  <span class="metric-label">Spend / Unit</span>
+                  <span class="metric-value metric-value-muted metric-value-sub" data-opt-spend-unit>${{ "{:,.2f}".format((optimization_summary.spend_per_unit or 0) | float) }}</span>
                 </div>
               </div>
             </div>
@@ -104,7 +108,7 @@
         <div class="alert alert-error">{{ manual_error }}</div>
       {% endif %}
 
-        {% if loads %}
+        {% set has_loads = loads and loads | length %}
           <div class="loads-review-layout" data-load-review-layout>
             <div class="loads-left-shell">
               <div class="loads-tabs-shell">
@@ -116,7 +120,11 @@
                           Draft Loads
                           <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
                         </a>
-                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='final', sort=sort_mode, today=today_override_value or None) }}">
+                        <a
+                          class="load-tab{% if tab == 'final' %} active{% endif %}{% if final_tab_count == 0 %} disabled{% endif %}"
+                          href="{{ url_for('loads', plants=plant_filter_param, tab='final', sort=sort_mode, today=today_override_value or None) }}"
+                          {% if final_tab_count == 0 %}aria-disabled="true" tabindex="-1"{% endif %}
+                        >
                           <span class="material-symbols-outlined">verified</span>
                           Finalize Loads
                           <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
@@ -127,7 +135,11 @@
                           Draft Loads
                           <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
                         </a>
-                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', tab='final', sort=sort_mode, today=today_override_value or None) }}">
+                        <a
+                          class="load-tab{% if tab == 'final' %} active{% endif %}{% if final_tab_count == 0 %} disabled{% endif %}"
+                          href="{{ url_for('loads', tab='final', sort=sort_mode, today=today_override_value or None) }}"
+                          {% if final_tab_count == 0 %}aria-disabled="true" tabindex="-1"{% endif %}
+                        >
                           <span class="material-symbols-outlined">verified</span>
                           Finalize Loads
                           <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
@@ -159,9 +171,9 @@
                           {% if today_override_value %}
                             <input type="hidden" name="today" value="{{ today_override_value }}">
                           {% endif %}
-                          <button class="btn-primary btn-xs" type="submit">
+                          <button class="btn-secondary btn-xs" type="submit">
                             <span class="material-symbols-outlined">done_all</span>
-                            Accept All
+                            Accept All Draft Loads
                           </button>
                         </form>
                       {% endif %}
@@ -205,28 +217,29 @@
                     <div class="loads-grid-head-cell">Utilization</div>
                     <div class="loads-grid-head-cell loads-grid-head-cell-right">Financials</div>
                   </div>
-                  {% for section in load_sections %}
-                    {% if section.loads %}
-                      <div class="load-section" data-section="{{ section.kind }}">
-                      <div class="load-section-title load-section-title-row">
-                        <span>{{ section.title }}</span>
-                        {% if tab == 'draft' and section.kind == 'full' %}
-                          <form method="post" action="{{ url_for('approve_full_truckloads') }}">
-                            <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-                            <input type="hidden" name="tab" value="{{ tab }}">
-                            <input type="hidden" name="sort" value="{{ sort_mode }}">
-                            {% if today_override_value %}
-                              <input type="hidden" name="today" value="{{ today_override_value }}">
-                            {% endif %}
-                            <button class="btn-primary btn-xs" type="submit">
-                              <span class="material-symbols-outlined">done_all</span>
-                              Accept All
-                            </button>
-                          </form>
-                        {% endif %}
-                      </div>
-                        <div class="loads-list">
-                          {% for load in section.loads %}
+                  {% if has_loads %}
+                    {% for section in load_sections %}
+                      {% if section.loads %}
+                        <div class="load-section" data-section="{{ section.kind }}">
+                        <div class="load-section-title load-section-title-row">
+                          <span>{{ section.title }}</span>
+                          {% if tab == 'draft' and section.kind == 'full' %}
+                            <form method="post" action="{{ url_for('approve_full_truckloads') }}">
+                              <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                              <input type="hidden" name="tab" value="{{ tab }}">
+                              <input type="hidden" name="sort" value="{{ sort_mode }}">
+                              {% if today_override_value %}
+                                <input type="hidden" name="today" value="{{ today_override_value }}">
+                              {% endif %}
+                              <button class="btn-secondary btn-xs" type="submit">
+                                <span class="material-symbols-outlined">done_all</span>
+                                Accept All Full Truckload Loads
+                              </button>
+                            </form>
+                          {% endif %}
+                        </div>
+                          <div class="loads-list">
+                            {% for load in section.loads %}
                       {% set status = load.status or 'PROPOSED' %}
                       {% set panel_open = feedback_target.startswith('load-' ~ load.id) or feedback_target.startswith('order-' ~ load.id ~ '-') %}
                       {% set display_label = load.load_number if status == 'APPROVED' and load.load_number else 'Load #' ~ (load.draft_sequence if load.draft_sequence else load.id) %}
@@ -248,6 +261,7 @@
                         {% if panel_open %}data-initial-selected="true"{% endif %}
                         data-load-grade="{{ util_grade }}"
                         data-load-orders="{{ load.order_count or 0 }}"
+                        data-load-units="{{ load.total_units or 0 }}"
                         data-load-cost="{{ load.estimated_cost or 0 }}"
                         data-load-util="{{ util_value }}"
                         role="button"
@@ -290,12 +304,13 @@
                               <span class="detail-value">{{ load.total_units }}</span>
                             </div>
                             <div class="load-detail-line">
+                              <span class="detail-label">Ship On:</span>
+                              <span class="detail-date">{{ load.ship_date | short_date }}</span>
                               {% if load.ship_date_status == 'PAST_DUE' %}
                                 <span class="badge badge-danger badge-compact">Past Due</span>
                               {% elif load.ship_date_status == 'DUE_SOON' %}
                                 <span class="badge badge-warning badge-compact">Due Soon</span>
                               {% endif %}
-                              <span class="detail-date">{{ load.ship_date | short_date }}</span>
                             </div>
                           </div>
 
@@ -498,11 +513,17 @@
                       </div>
                     </div>
                   </div>
-                          {% endfor %}
+                            {% endfor %}
+                          </div>
                         </div>
-                      </div>
-                    {% endif %}
-                  {% endfor %}
+                      {% endif %}
+                    {% endfor %}
+                  {% else %}
+                    <div class="empty-state">
+                      <span class="material-symbols-outlined">local_shipping</span>
+                      <p>No loads available yet.</p>
+                    </div>
+                  {% endif %}
                   <div class="hidden" id="load-detail-stash" data-load-review-stash aria-hidden="true"></div>
                 </div>
               </div>
@@ -529,22 +550,6 @@
             </div>
           </div>
 
-      {% else %}
-        <div class="panel-header">
-          <div class="panel-title">
-            {% if tab == 'final' %}
-              <h3>Finalize Loads</h3>
-            {% else %}
-              <h3>Draft Loads</h3>
-            {% endif %}
-            <span class="meta-chip">0 Loads</span>
-          </div>
-        </div>
-        <div class="empty-state">
-          <span class="material-symbols-outlined">local_shipping</span>
-          <p>No loads available yet.</p>
-        </div>
-      {% endif %}
     </div>
   </section>
 
@@ -1028,35 +1033,19 @@
 
     function recalcOptimizationSummary() {
       const rows = Array.from(document.querySelectorAll('.load-row'));
-      let totalOrders = 0;
-      let totalCost = 0;
-      let totalUtil = 0;
       let loadCount = 0;
       const gradeCounts = { A: 0, B: 0, C: 0, D: 0, F: 0 };
 
       rows.forEach((row) => {
         if (row.dataset.removed === 'true') return;
-        const orders = Number(row.dataset.loadOrders || 0);
-        const cost = Number(row.dataset.loadCost || 0);
-        const util = Number(row.dataset.loadUtil || 0);
         const grade = (row.dataset.loadGrade || 'F').toUpperCase();
-        totalOrders += orders;
-        totalCost += cost;
-        totalUtil += util;
         loadCount += 1;
         gradeCounts[grade] = (gradeCounts[grade] || 0) + 1;
       });
 
-      const avgUtil = loadCount ? (totalUtil / loadCount) : 0;
       const loadChip = document.querySelector('[data-opt-total-loads]');
-      const orderValue = document.querySelector('[data-opt-total-orders]');
-      const spendValue = document.querySelector('[data-opt-total-spend]');
-      const avgValue = document.querySelector('[data-opt-avg-util]');
 
       if (loadChip) loadChip.textContent = String(loadCount);
-      if (orderValue) orderValue.textContent = totalOrders;
-      if (spendValue) spendValue.textContent = `$${Math.round(totalCost)}`;
-      if (avgValue) avgValue.textContent = `${avgUtil.toFixed(1)}%`;
       const activeDraftTabCount = document.querySelector('.load-tab.active [data-tab-count="draft"]');
       if (activeDraftTabCount) activeDraftTabCount.textContent = String(loadCount);
 
@@ -1071,7 +1060,22 @@
       const draftEl = document.querySelector('[data-tab-count="draft"]');
       const finalEl = document.querySelector('[data-tab-count="final"]');
       if (draftEl && Number.isFinite(Number(tabCounts.draft))) draftEl.textContent = String(tabCounts.draft);
-      if (finalEl && Number.isFinite(Number(tabCounts.final))) finalEl.textContent = String(tabCounts.final);
+      if (finalEl && Number.isFinite(Number(tabCounts.final))) {
+        const finalCount = Number(tabCounts.final);
+        finalEl.textContent = String(finalCount);
+        const finalTab = finalEl.closest('.load-tab');
+        if (finalTab) {
+          if (finalCount > 0) {
+            finalTab.classList.remove('disabled');
+            finalTab.removeAttribute('aria-disabled');
+            finalTab.removeAttribute('tabindex');
+          } else {
+            finalTab.classList.add('disabled');
+            finalTab.setAttribute('aria-disabled', 'true');
+            finalTab.setAttribute('tabindex', '-1');
+          }
+        }
+      }
     }
 
     function updateApprovalTracker(progress) {

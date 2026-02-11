@@ -384,10 +384,7 @@ def _compute_load_progress_snapshot(plant_scope=None, all_loads=None, allowed_pl
 
     optimized_loads = []
     for load in loads_for_progress:
-        status = (load.get("status") or STATUS_PROPOSED).upper()
         build_source = (load.get("build_source") or "OPTIMIZED").upper()
-        if status not in {STATUS_PROPOSED, STATUS_DRAFT}:
-            continue
         if build_source == "MANUAL":
             continue
         optimized_loads.append(load)
@@ -443,7 +440,7 @@ def _compute_load_progress_snapshot(plant_scope=None, all_loads=None, allowed_pl
             load_status_counts["proposed"] += 1
 
     total_orders = len(order_status_map)
-    approved_orders = order_status_counts["draft"] + order_status_counts["approved"]
+    approved_orders = order_status_counts["approved"]
     progress_pct = round((approved_orders / total_orders) * 100, 1) if total_orders else 0.0
 
     return {
@@ -2442,10 +2439,7 @@ def loads():
 
     optimized_loads = []
     for load in loads_data:
-        status = (load.get("status") or STATUS_PROPOSED).upper()
         build_source = (load.get("build_source") or "OPTIMIZED").upper()
-        if status not in {STATUS_PROPOSED, STATUS_DRAFT}:
-            continue
         if build_source == "MANUAL":
             continue
         optimized_loads.append(load)
@@ -2456,6 +2450,7 @@ def loads():
         if line.get("so_num")
     }
     optimized_total_spend = sum((load.get("estimated_cost") or 0) for load in optimized_loads)
+    optimized_total_units = sum((load.get("total_units") or 0) for load in optimized_loads)
     optimized_util_values = [load.get("utilization_pct") or 0 for load in optimized_loads]
     optimized_avg_util = (
         round(sum(optimized_util_values) / len(optimized_util_values), 1)
@@ -2491,10 +2486,15 @@ def loads():
             elif baseline_delta > 0:
                 baseline_direction = "above"
 
+    spend_per_unit = (
+        (optimized_total_spend / optimized_total_units) if optimized_total_units else 0.0
+    )
     optimization_summary = {
         "total_orders": len(optimized_order_ids),
         "total_loads": len(optimized_loads),
         "total_spend": optimized_total_spend,
+        "total_units": optimized_total_units,
+        "spend_per_unit": spend_per_unit,
         "avg_utilization": optimized_avg_util,
         "grade_counts": grade_counts,
         "baseline_cost": baseline_cost,

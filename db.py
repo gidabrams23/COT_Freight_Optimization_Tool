@@ -540,6 +540,11 @@ def _seed_reference_data(connection):
             ["key", "value_text", "updated_at"],
         ),
         (
+            "zip_coordinates",
+            "zip_coordinates.csv",
+            ["zip", "lat", "lng", "city", "state", "created_at"],
+        ),
+        (
             "optimizer_settings",
             "optimizer_settings.csv",
             [

@@ -43,6 +43,10 @@ TABLES = {
         "columns": ["key", "value_text", "updated_at"],
         "order_by": "key ASC",
     },
+    "zip_coordinates": {
+        "columns": ["zip", "lat", "lng", "city", "state", "created_at"],
+        "order_by": "zip ASC",
+    },
     "optimizer_settings": {
         "columns": [
             "plant_code",
