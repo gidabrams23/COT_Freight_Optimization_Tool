@@ -15,28 +15,30 @@
                 <span class="material-symbols-outlined">rocket_launch</span>
                 Generate Draft Loads
               </button>
-              <button class="btn-secondary orders-today-toggle" type="button" data-today-toggle aria-expanded="{% if today_override_value %}true{% else %}false{% endif %}" aria-controls="orders-today-panel">
-                <span class="material-symbols-outlined">event</span>
-                Today
-              </button>
+              <div class="orders-today-wrap">
+                <button class="btn-secondary orders-today-toggle" type="button" data-today-toggle aria-expanded="{% if today_override_value %}true{% else %}false{% endif %}" aria-controls="orders-today-panel">
+                  <span class="material-symbols-outlined">event</span>
+                  Today
+                </button>
+                <div class="orders-today-panel hidden" id="orders-today-panel" data-today-panel data-today-autoshow="{% if today_override_value %}true{% else %}false{% endif %}">
+                  <div class="form-grid">
+                    <label>
+                      As Of Date
+                      <input class="select-field" type="date" id="orders-today-input" value="{{ today_override_value }}">
+                    </label>
+                    <div class="form-actions">
+                      <button class="btn-secondary" type="button" data-today-apply>Apply</button>
+                      <button class="btn-ghost" type="button" data-today-clear>Use Real Today</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="orders-today-shell">
             {% if today_override_label %}
               <span class="orders-today-meta">As of {{ today_override_label }}</span>
             {% endif %}
-            <div class="orders-today-panel hidden" id="orders-today-panel" data-today-panel data-today-autoshow="{% if today_override_value %}true{% else %}false{% endif %}">
-              <div class="form-grid">
-                <label>
-                  As Of Date
-                  <input class="select-field" type="date" id="orders-today-input" value="{{ today_override_value }}">
-                </label>
-                <div class="form-actions">
-                  <button class="btn-secondary" type="button" data-today-apply>Apply</button>
-                  <button class="btn-ghost" type="button" data-today-clear>Use Real Today</button>
-                </div>
-              </div>
-            </div>
           </div>
           <div class="orders-header-controls">
             <div class="orders-plant-cards{% if profile_default_plants and not is_admin %} focus{% endif %}">
@@ -126,8 +128,8 @@
                 </div>
               {% endif %}
 
-              <div class="optimize-filter-block">
-                <label>
+              <div class="optimize-filter-row">
+                <label class="optimize-field">
                   Origin Plant
                   <select class="select-field" name="origin_plant" required>
                     <option value="">Select a plant</option>
@@ -136,59 +138,98 @@
                     {% endfor %}
                   </select>
                 </label>
-              </div>
-
-              <div class="optimize-filter-block">
-                <div class="optimize-filter-actions">
+                <div class="optimize-field">
                   <span class="meta-label">States</span>
-                  <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
-                  <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
-                </div>
-                {% if states %}
-                  <div class="optimize-filter-list optimize-filter-scroll" data-filter-list="states">
-                    {% for state in states %}
-                      <label class="checkbox-pill">
-                        <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
-                        <span>{{ state }}</span>
-                      </label>
-                    {% endfor %}
+                  <button class="dropdown-trigger" type="button" data-dropdown-toggle="states">
+                    <span data-state-label>All States</span>
+                    <span class="material-symbols-outlined">expand_more</span>
+                  </button>
+                  <div class="dropdown-panel hidden" data-dropdown-panel="states">
+                    <div class="dropdown-actions">
+                      <span class="meta-label">Select States</span>
+                      <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
+                      <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
+                    </div>
+                    {% if states %}
+                      <div class="dropdown-scroll" data-filter-list="states">
+                        {% for state in states %}
+                          <label class="checkbox-pill">
+                            <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
+                            <span>{{ state }}</span>
+                          </label>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="empty-state">No states available.</div>
+                    {% endif %}
                   </div>
-                {% else %}
-                  <div class="empty-state">No states available.</div>
-                {% endif %}
+                </div>
               </div>
 
               <div class="optimize-filter-block">
+                {% set ns = namespace(lowes=None, tractor=None) %}
+                {% for group in strategic_customer_groups or [] %}
+                  {% set label = group.label | lower %}
+                  {% if ns.lowes is none and 'lowe' in label %}
+                    {% set ns.lowes = group %}
+                  {% elif ns.tractor is none and 'tractor' in label %}
+                    {% set ns.tractor = group %}
+                  {% endif %}
+                {% endfor %}
                 <div class="optimize-filter-actions">
                   <span class="meta-label">Customers</span>
                   <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
                 </div>
-                <div class="optimize-filter-search">
-                  <span class="material-symbols-outlined">search</span>
-                  <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
-                </div>
-                {% if strategic_customer_groups %}
-                  <div class="optimize-filter-list">
-                    {% for group in strategic_customer_groups %}
-                      <label class="checkbox-pill">
-                        <input type="checkbox" data-strategic-key="{{ group.key }}">
-                        <span>{{ group.label }}</span>
-                      </label>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                {% if customers %}
-                  <div class="optimize-filter-list optimize-filter-scroll" data-customer-list>
-                    {% for cust in customers %}
-                      <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
-                        <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
+                <div class="customer-chip-row" data-customer-chips>
+                  <label class="checkbox-pill">
+                    <input type="checkbox" data-customer-all>
+                    <span>All Customers</span>
+                  </label>
+                  {% if ns.lowes %}
+                    <label class="checkbox-pill">
+                      <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
+                      <span>{{ ns.lowes.label }}</span>
+                    </label>
+                  {% endif %}
+                  {% if ns.tractor %}
+                    <label class="checkbox-pill">
+                      <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
+                      <span>{{ ns.tractor.label }}</span>
+                    </label>
+                  {% endif %}
+                  <div class="customer-selected" data-selected-chips>
+                    {% for cust in selected_customers %}
+                      <button class="chip-chip" type="button" data-selected-chip="{{ cust }}">
                         <span>{{ cust }}</span>
-                      </label>
+                        <span class="material-symbols-outlined">close</span>
+                      </button>
                     {% endfor %}
                   </div>
-                {% else %}
-                  <div class="empty-state">No customers available.</div>
-                {% endif %}
+                </div>
+                <div class="optimize-dropdown">
+                  <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
+                    Add Customers
+                    <span class="material-symbols-outlined">expand_more</span>
+                  </button>
+                  <div class="dropdown-panel hidden" data-dropdown-panel="customers">
+                    <div class="dropdown-search">
+                      <span class="material-symbols-outlined">search</span>
+                      <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                    </div>
+                    {% if customers %}
+                      <div class="dropdown-scroll" data-customer-list>
+                        {% for cust in customers %}
+                          <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
+                            <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
+                            <span>{{ cust }}</span>
+                          </label>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="empty-state">No customers available.</div>
+                    {% endif %}
+                  </div>
+                </div>
               </div>
 
               <div class="form-grid optimize-form-grid">
@@ -755,46 +796,95 @@
       });
     }
 
+    function closeAllDropdowns(exceptKey) {
+      document.querySelectorAll('[data-dropdown-panel]').forEach((panel) => {
+        const key = panel.dataset.dropdownPanel || '';
+        if (exceptKey && key === exceptKey) return;
+        panel.classList.add('hidden');
+      });
+    }
+
+    document.querySelectorAll('[data-dropdown-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.dropdownToggle || '';
+        const panel = key ? document.querySelector(`[data-dropdown-panel="${key}"]`) : null;
+        if (!panel) return;
+        const isOpen = !panel.classList.contains('hidden');
+        closeAllDropdowns();
+        panel.classList.toggle('hidden', isOpen);
+      });
+    });
+
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('[data-dropdown-toggle]')) return;
+      if (event.target.closest('[data-dropdown-panel]')) return;
+      closeAllDropdowns();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closeAllDropdowns();
+    });
+
     const stateList = document.querySelector('[data-filter-list="states"]');
+    const stateLabel = document.querySelector('[data-state-label]');
+
+    function updateStateLabel() {
+      if (!stateLabel) return;
+      const selected = stateList
+        ? Array.from(stateList.querySelectorAll('input[type="checkbox"]:checked'))
+        : [];
+      if (!selected.length) {
+        stateLabel.textContent = 'All States';
+        return;
+      }
+      if (selected.length === 1) {
+        stateLabel.textContent = selected[0].value;
+        return;
+      }
+      stateLabel.textContent = `${selected.length} States`;
+    }
+
     document.querySelectorAll('[data-select-all="states"]').forEach((btn) => {
-      btn.addEventListener('click', () => setCheckboxes(stateList, true));
+      btn.addEventListener('click', () => {
+        setCheckboxes(stateList, true);
+        updateStateLabel();
+      });
     });
     document.querySelectorAll('[data-clear-all="states"]').forEach((btn) => {
-      btn.addEventListener('click', () => setCheckboxes(stateList, false));
+      btn.addEventListener('click', () => {
+        setCheckboxes(stateList, false);
+        updateStateLabel();
+      });
     });
+    if (stateList) {
+      stateList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+        input.addEventListener('change', updateStateLabel);
+      });
+    }
+    updateStateLabel();
 
     const customerList = document.querySelector('[data-customer-list]');
     const customerSearch = document.querySelector('[data-customer-search]');
     const customerInputs = new Map();
+    const selectedChips = document.querySelector('[data-selected-chips]');
+    const allCustomersToggle = document.querySelector('[data-customer-all]');
+
     if (customerList) {
       customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
         customerInputs.set(input.value, input);
       });
     }
 
-    if (customerSearch && customerList) {
-      customerSearch.addEventListener('input', () => {
-        const term = customerSearch.value.trim().toLowerCase();
-        customerList.querySelectorAll('[data-customer-item]').forEach((item) => {
-          const label = (item.dataset.customerItem || '').toLowerCase();
-          const matches = !term || label.includes(term);
-          item.classList.toggle('hidden', !matches);
-        });
-      });
-    }
-
-    document.querySelectorAll('[data-clear-all="customers"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (!customerList) return;
-        customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
-          input.checked = false;
-        });
-        syncStrategicCheckboxes();
-      });
-    });
-
     const strategicMap = new Map((strategicGroups || []).map((group) => [group.key, group.customers || []]));
     const strategicCheckboxes = new Map();
+
+    const excludedCustomers = new Set();
+    document.querySelectorAll('[data-strategic-key]').forEach((checkbox) => {
+      const key = checkbox.dataset.strategicKey || '';
+      const customers = strategicMap.get(key) || [];
+      customers.forEach((name) => excludedCustomers.add(name));
+    });
 
     function syncStrategicCheckbox(key) {
       const checkbox = strategicCheckboxes.get(key);
@@ -826,6 +916,63 @@
       strategicMap.forEach((_, key) => syncStrategicCheckbox(key));
     }
 
+    function setAllCustomers(value) {
+      if (!customerList) return;
+      customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
+        input.checked = false;
+      });
+      strategicCheckboxes.forEach((checkbox) => {
+        checkbox.checked = false;
+        checkbox.indeterminate = false;
+      });
+      if (allCustomersToggle) {
+        allCustomersToggle.checked = value;
+      }
+      syncCustomerChips();
+    }
+
+    function syncAllCustomersToggle() {
+      if (!allCustomersToggle || !customerList) return;
+      const anySelected = customerList.querySelector('input[type="checkbox"]:checked');
+      allCustomersToggle.checked = !anySelected;
+    }
+
+    function syncCustomerChips() {
+      if (!selectedChips) return;
+      selectedChips.querySelectorAll('[data-selected-chip]').forEach((chip) => chip.remove());
+      customerInputs.forEach((input, name) => {
+        if (!input.checked) return;
+        if (excludedCustomers.has(name)) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'chip-chip';
+        button.dataset.selectedChip = name;
+        button.innerHTML = `<span>${escapeHtml(name)}</span><span class="material-symbols-outlined">close</span>`;
+        button.addEventListener('click', () => {
+          input.checked = false;
+          syncStrategicCheckboxes();
+          syncAllCustomersToggle();
+          syncCustomerChips();
+        });
+        selectedChips.appendChild(button);
+      });
+    }
+
+    if (customerSearch && customerList) {
+      customerSearch.addEventListener('input', () => {
+        const term = customerSearch.value.trim().toLowerCase();
+        customerList.querySelectorAll('[data-customer-item]').forEach((item) => {
+          const label = (item.dataset.customerItem || '').toLowerCase();
+          const matches = !term || label.includes(term);
+          item.classList.toggle('hidden', !matches);
+        });
+      });
+    }
+
+    document.querySelectorAll('[data-clear-all="customers"]').forEach((btn) => {
+      btn.addEventListener('click', () => setAllCustomers(true));
+    });
+
     document.querySelectorAll('[data-strategic-key]').forEach((checkbox) => {
       const key = checkbox.dataset.strategicKey || '';
       if (!key) return;
@@ -837,16 +984,32 @@
           if (input) input.checked = checkbox.checked;
         });
         syncStrategicCheckboxes();
+        syncAllCustomersToggle();
+        syncCustomerChips();
       });
     });
 
     if (customerList) {
       customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
-        input.addEventListener('change', syncStrategicCheckboxes);
+        input.addEventListener('change', () => {
+          syncStrategicCheckboxes();
+          syncAllCustomersToggle();
+          syncCustomerChips();
+        });
+      });
+    }
+
+    if (allCustomersToggle) {
+      allCustomersToggle.addEventListener('change', () => {
+        if (allCustomersToggle.checked) {
+          setAllCustomers(true);
+        }
       });
     }
 
     syncStrategicCheckboxes();
+    syncAllCustomersToggle();
+    syncCustomerChips();
 
     const searchInput = document.getElementById('orders-search');
     if (searchInput) {
