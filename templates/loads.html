@@ -33,39 +33,62 @@
             </div>
           </div>
 
-        <div class="approval-tracker approval-tracker-compact" aria-label="Daily goal progress" data-approval-tracker>
-          {% set progress_display = (progress_pct or 0) | round(0) %}
-          {% set progress_width = progress_display %}
-          {% if progress_width > 100 %}
-            {% set progress_width = 100 %}
-          {% elif progress_width < 0 %}
-            {% set progress_width = 0 %}
-          {% endif %}
+        <div class="loads-hero-side">
+          <div class="approval-tracker approval-tracker-compact" aria-label="Daily goal progress" data-approval-tracker>
+            {% set progress_display = (progress_pct or 0) | round(0) %}
+            {% set progress_width = progress_display %}
+            {% if progress_width > 100 %}
+              {% set progress_width = 100 %}
+            {% elif progress_width < 0 %}
+              {% set progress_width = 0 %}
+            {% endif %}
 
-          <div class="approval-tracker-head">
-            <span class="tracker-label">Daily Goal Progress</span>
-            <span class="tracker-label tracker-label-right">Approved</span>
+            <div class="approval-tracker-head">
+              <span class="tracker-label">Daily Goal Progress</span>
+              <span class="tracker-label tracker-label-right">Approved</span>
+            </div>
+
+            <div class="approval-tracker-main">
+              <div class="approval-tracker-left">
+                <span class="approval-tracker-pct" data-approval-pct>{{ progress_display }}%</span>
+              </div>
+
+              <div
+                class="approval-tracker-bar"
+                data-approval-bar
+                role="progressbar"
+                aria-label="Approved orders progress"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="{{ progress_width }}"
+              >
+                <span class="approval-tracker-fill" data-approval-fill style="width: {{ progress_width }}%"></span>
+              </div>
+
+              <div class="approval-tracker-right">
+                <span class="approval-tracker-count" data-approval-count>{{ approved_orders }} / {{ total_orders }} Orders</span>
+              </div>
+            </div>
           </div>
-
-          <div class="approval-tracker-main">
-            <div class="approval-tracker-left">
-              <span class="approval-tracker-pct" data-approval-pct>{{ progress_display }}%</span>
-            </div>
-
-            <div
-              class="approval-tracker-bar"
-              data-approval-bar
-              role="progressbar"
-              aria-label="Approved orders progress"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow="{{ progress_width }}"
-            >
-              <span class="approval-tracker-fill" data-approval-fill style="width: {{ progress_width }}%"></span>
-            </div>
-
-            <div class="approval-tracker-right">
-              <span class="approval-tracker-count" data-approval-count>{{ approved_orders }} / {{ total_orders }} Orders</span>
+          <div class="loads-today-wrap">
+            <button class="btn-secondary loads-today-toggle" type="button" data-today-toggle aria-expanded="false" aria-controls="loads-today-panel">
+              <span class="material-symbols-outlined">event</span>
+              Today
+            </button>
+            {% if today_override_label %}
+              <div class="loads-today-meta">As of {{ today_override_label }}</div>
+            {% endif %}
+            <div class="loads-today-panel hidden" id="loads-today-panel" data-today-panel data-today-autoshow="false">
+              <div class="form-grid">
+                <label>
+                  As Of Date
+                  <input class="select-field" type="date" id="loads-today-input" value="{{ today_override_value }}">
+                </label>
+                <div class="form-actions">
+                  <button class="btn-secondary" type="button" data-today-apply>Apply</button>
+                  <button class="btn-ghost" type="button" data-today-clear>Use Real Today</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -88,47 +111,67 @@
                   <div class="load-tabs">
                     <div class="load-tabs-left">
                       {% if plant_filter_param %}
-                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='draft') }}">
+                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='draft', sort=sort_mode, today=today_override_value or None) }}">
                           <span class="material-symbols-outlined">edit_document</span>
                           Draft Loads
                           <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
                         </a>
-                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='final') }}">
+                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='final', sort=sort_mode, today=today_override_value or None) }}">
                           <span class="material-symbols-outlined">verified</span>
                           Finalize Loads
                           <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
                         </a>
                       {% else %}
-                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft') }}">
+                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft', sort=sort_mode, today=today_override_value or None) }}">
                           <span class="material-symbols-outlined">edit_document</span>
                           Draft Loads
                           <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
                         </a>
-                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', tab='final') }}">
+                        <a class="load-tab{% if tab == 'final' %} active{% endif %}" href="{{ url_for('loads', tab='final', sort=sort_mode, today=today_override_value or None) }}">
                           <span class="material-symbols-outlined">verified</span>
                           Finalize Loads
                           <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
                         </a>
                       {% endif %}
                     </div>
-                    {% if tab != 'final' %}
-                      <div class="load-tabs-actions" aria-label="Bulk load actions">
+                    <div class="load-tabs-actions" aria-label="Bulk load actions">
+                      <div class="loads-sort-wrap">
+                        <button class="btn-secondary loads-sort-toggle" type="button" data-sort-toggle aria-expanded="false" aria-controls="loads-sort-panel">
+                          <span class="material-symbols-outlined">sort</span>
+                          Sort
+                        </button>
+                        <div class="loads-sort-panel hidden" id="loads-sort-panel" data-sort-panel>
+                          <div class="loads-sort-options">
+                            <a class="loads-sort-option{% if sort_mode == 'flow' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='flow', today=today_override_value or None) }}">
+                              Flow
+                            </a>
+                            <a class="loads-sort-option{% if sort_mode == 'util' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='util', today=today_override_value or None) }}">
+                              Util
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                      {% if tab != 'final' %}
                         <form method="post" action="{{ url_for('approve_all_loads') }}">
                           <input type="hidden" name="plants" value="{{ plant_filter_param }}">
                           <input type="hidden" name="tab" value="{{ tab }}">
+                          <input type="hidden" name="sort" value="{{ sort_mode }}">
+                          {% if today_override_value %}
+                            <input type="hidden" name="today" value="{{ today_override_value }}">
+                          {% endif %}
                           <button class="btn-primary btn-xs" type="submit">
                             <span class="material-symbols-outlined">done_all</span>
                             Accept All
                           </button>
                         </form>
-                      </div>
-                    {% endif %}
+                      {% endif %}
+                    </div>
 	                  </div>
 	                </div>
 	              <div class="loads-list-shell">
 	                <div class="loads-shell-header loads-shell-header-left">
 	                  <div class="loads-list-bar">
-	                    <div class="loads-list-actions">
+                    <div class="loads-list-actions">
                       {% if tab != 'final' %}
                         <button class="btn-secondary btn-xs" type="button" data-manual-load-open>
                           <span class="material-symbols-outlined">add_box</span>
@@ -137,6 +180,11 @@
                       {% endif %}
                       <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Clear all loads for the current plant scope?');">
                         <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                        <input type="hidden" name="tab" value="{{ tab }}">
+                        <input type="hidden" name="sort" value="{{ sort_mode }}">
+                        {% if today_override_value %}
+                          <input type="hidden" name="today" value="{{ today_override_value }}">
+                        {% endif %}
                         <button class="btn-danger btn-xs" type="submit">
                           <span class="material-symbols-outlined">delete_forever</span>
                           Clear Loads
@@ -160,7 +208,23 @@
                   {% for section in load_sections %}
                     {% if section.loads %}
                       <div class="load-section" data-section="{{ section.kind }}">
-                        <div class="load-section-title">{{ section.title }}</div>
+                      <div class="load-section-title load-section-title-row">
+                        <span>{{ section.title }}</span>
+                        {% if tab == 'draft' and section.kind == 'full' %}
+                          <form method="post" action="{{ url_for('approve_full_truckloads') }}">
+                            <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                            <input type="hidden" name="tab" value="{{ tab }}">
+                            <input type="hidden" name="sort" value="{{ sort_mode }}">
+                            {% if today_override_value %}
+                              <input type="hidden" name="today" value="{{ today_override_value }}">
+                            {% endif %}
+                            <button class="btn-primary btn-xs" type="submit">
+                              <span class="material-symbols-outlined">done_all</span>
+                              Accept All
+                            </button>
+                          </form>
+                        {% endif %}
+                      </div>
                         <div class="loads-list">
                           {% for load in section.loads %}
                       {% set status = load.status or 'PROPOSED' %}
@@ -614,6 +678,98 @@
     const mapInstances = new Map();
     const loadsPage = document.querySelector('.loads-page');
     const loadsTab = loadsPage ? (loadsPage.dataset.loadsTab || '') : '';
+    const todayToggle = document.querySelector('[data-today-toggle]');
+    const todayPanel = document.querySelector('[data-today-panel]');
+    const todayInput = document.getElementById('loads-today-input');
+    const todayApply = document.querySelector('[data-today-apply]');
+    const todayClear = document.querySelector('[data-today-clear]');
+    const sortToggle = document.querySelector('[data-sort-toggle]');
+    const sortPanel = document.querySelector('[data-sort-panel]');
+
+    function openTodayPanel() {
+      if (!todayPanel || !todayToggle) return;
+      todayPanel.classList.remove('hidden');
+      todayToggle.setAttribute('aria-expanded', 'true');
+      if (todayInput) todayInput.focus();
+    }
+
+    function closeTodayPanel() {
+      if (!todayPanel || !todayToggle) return;
+      todayPanel.classList.add('hidden');
+      todayToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function applyTodayOverride(value) {
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+      if (value) {
+        params.set('today', value);
+      } else {
+        params.set('today', 'clear');
+      }
+      url.search = params.toString();
+      window.location.assign(url.toString());
+    }
+
+    if (todayToggle) {
+      todayToggle.addEventListener('click', () => {
+        if (!todayPanel) return;
+        const isOpen = !todayPanel.classList.contains('hidden');
+        if (isOpen) {
+          closeTodayPanel();
+        } else {
+          openTodayPanel();
+        }
+      });
+    }
+
+    if (todayPanel && todayPanel.dataset.todayAutoshow === 'true') {
+      openTodayPanel();
+    }
+
+    if (todayApply) {
+      todayApply.addEventListener('click', () => {
+        applyTodayOverride(todayInput ? todayInput.value : '');
+      });
+    }
+
+    if (todayClear) {
+      todayClear.addEventListener('click', () => {
+        applyTodayOverride('');
+      });
+    }
+
+    if (todayInput) {
+      todayInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        applyTodayOverride(todayInput.value);
+      });
+    }
+
+    function openSortPanel() {
+      if (!sortPanel || !sortToggle) return;
+      sortPanel.classList.remove('hidden');
+      sortToggle.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeSortPanel() {
+      if (!sortPanel || !sortToggle) return;
+      sortPanel.classList.add('hidden');
+      sortToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    if (sortToggle) {
+      sortToggle.addEventListener('click', () => {
+        if (!sortPanel) return;
+        const isOpen = !sortPanel.classList.contains('hidden');
+        if (isOpen) {
+          closeSortPanel();
+        } else {
+          openSortPanel();
+        }
+      });
+    }
 
     function toRad(value) {
       return (value * Math.PI) / 180;

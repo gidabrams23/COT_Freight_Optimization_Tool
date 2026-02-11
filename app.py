@@ -360,6 +360,103 @@ def _parse_date(value):
     return None
 
 
+def _resolve_today_override(value):
+    token = (value or "").strip().lower()
+    if token == "clear":
+        session.pop("today_override", None)
+        return None
+    if value:
+        parsed = _parse_date(value)
+        if parsed:
+            session["today_override"] = parsed.strftime("%Y-%m-%d")
+        return parsed
+    stored = session.get("today_override")
+    return _parse_date(stored)
+
+
+def _compute_load_progress_snapshot(plant_scope=None, all_loads=None, allowed_plants=None):
+    allowed_plants = allowed_plants or _get_allowed_plants()
+    plant_scope = plant_scope or allowed_plants
+    if all_loads is None:
+        all_loads = load_builder.list_loads(None)
+    all_loads = [load for load in all_loads if load.get("origin_plant") in allowed_plants]
+    loads_for_progress = [load for load in all_loads if load.get("origin_plant") in plant_scope]
+
+    optimized_loads = []
+    for load in loads_for_progress:
+        status = (load.get("status") or STATUS_PROPOSED).upper()
+        build_source = (load.get("build_source") or "OPTIMIZED").upper()
+        if status not in {STATUS_PROPOSED, STATUS_DRAFT}:
+            continue
+        if build_source == "MANUAL":
+            continue
+        optimized_loads.append(load)
+
+    optimized_order_ids = {
+        line.get("so_num")
+        for load in optimized_loads
+        for line in load.get("lines", [])
+        if line.get("so_num")
+    }
+    order_status_map = {so_num: "UNASSIGNED" for so_num in optimized_order_ids if so_num}
+
+    status_priority = {
+        "UNASSIGNED": 0,
+        STATUS_PROPOSED: 1,
+        STATUS_DRAFT: 2,
+        STATUS_APPROVED: 3,
+    }
+
+    for load in loads_for_progress:
+        load_status = (load.get("status") or STATUS_PROPOSED).upper()
+        for line in load.get("lines", []):
+            so_num = line.get("so_num")
+            if so_num in order_status_map:
+                current = order_status_map.get(so_num, "UNASSIGNED")
+                if status_priority.get(load_status, 0) > status_priority.get(current, 0):
+                    order_status_map[so_num] = load_status
+
+    order_status_counts = {
+        "unassigned": 0,
+        "proposed": 0,
+        "draft": 0,
+        "approved": 0,
+    }
+    for status in order_status_map.values():
+        if status == STATUS_PROPOSED:
+            order_status_counts["proposed"] += 1
+        elif status == STATUS_DRAFT:
+            order_status_counts["draft"] += 1
+        elif status == STATUS_APPROVED:
+            order_status_counts["approved"] += 1
+        else:
+            order_status_counts["unassigned"] += 1
+
+    load_status_counts = {"proposed": 0, "draft": 0, "approved": 0}
+    for load in loads_for_progress:
+        status = (load.get("status") or STATUS_PROPOSED).upper()
+        if status == STATUS_DRAFT:
+            load_status_counts["draft"] += 1
+        elif status == STATUS_APPROVED:
+            load_status_counts["approved"] += 1
+        else:
+            load_status_counts["proposed"] += 1
+
+    total_orders = len(order_status_map)
+    approved_orders = order_status_counts["draft"] + order_status_counts["approved"]
+    progress_pct = round((approved_orders / total_orders) * 100, 1) if total_orders else 0.0
+
+    return {
+        "order_status_counts": order_status_counts,
+        "load_status_counts": load_status_counts,
+        "approved_orders": approved_orders,
+        "total_orders": total_orders,
+        "progress_pct": progress_pct,
+        "draft_tab_count": load_status_counts["draft"] + load_status_counts["proposed"],
+        "final_tab_count": load_status_counts["approved"],
+    }
+
+
 def _due_status(due_date_value, today=None, due_soon_days=14):
     """Return a simple bucket for UI badges."""
     today = today or date.today()
@@ -654,6 +751,13 @@ def _default_batch_end_date(today=None):
     anchor = today + timedelta(days=14)
     # Friday = 4 (Mon=0 ... Sun=6)
     return anchor + timedelta(days=(4 - anchor.weekday()))
+
+
+def _is_full_truckload(load):
+    utilization = load.get("utilization_pct") or 0
+    order_numbers = {line.get("so_num") for line in load.get("lines", []) if line.get("so_num")}
+    is_single_order = len(order_numbers) <= 1
+    return is_single_order and (load.get("over_capacity") or utilization > 90)
 
 
 def _period_range(period, today):
@@ -1499,7 +1603,7 @@ def orders():
     allowed_plants = _get_allowed_plants()
     plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
     plant_scope = plant_filters or allowed_plants
-    today_override = _parse_date(request.args.get("today"))
+    today_override = _resolve_today_override(request.args.get("today"))
     today = today_override or date.today()
 
     due_filter = (request.args.get("due") or "").upper()
@@ -1775,7 +1879,7 @@ def orders_optimize():
     due_filter = (request.args.get("due") or "").upper()
     due_start = request.args.get("due_start", "")
     due_end = request.args.get("due_end", "")
-    today_override = _parse_date(request.values.get("today"))
+    today_override = _resolve_today_override(request.values.get("today"))
     today = today_override or date.today()
     if due_filter == "PAST_DUE":
         due_start = ""
@@ -2008,6 +2112,11 @@ def loads():
     plant_scope = plant_filters or allowed_plants
     tab = (request.args.get("tab") or "").strip().lower()
     status_filter = (request.args.get("status") or "").strip().upper()
+    sort_mode = (request.args.get("sort") or "flow").strip().lower()
+    if sort_mode not in {"flow", "util"}:
+        sort_mode = "flow"
+    today_override = _resolve_today_override(request.args.get("today"))
+    today = today_override or date.today()
     reopt_status = request.args.get("reopt", "")
     feedback_error = request.args.get("feedback_error") or ""
     feedback_target = request.args.get("feedback_target") or ""
@@ -2095,7 +2204,6 @@ def loads():
                 stop_map[key]["customers"].add(line.get("cust_name"))
 
         anchor_date = min(due_dates) if due_dates else None
-        today = date.today()
         load["ship_date"] = anchor_date.strftime("%Y-%m-%d") if anchor_date else ""
         load["ship_date_status"] = _due_status(anchor_date, today=today)
         for line in lines:
@@ -2472,7 +2580,24 @@ def loads():
                 -(load.get("id") or 0),
             )
 
-        loads_data.sort(key=_approval_sort_key)
+        if sort_mode == "util":
+            loads_data.sort(
+                key=lambda load: (
+                    -(load.get("utilization_pct") or 0),
+                    -(load.get("estimated_cost") or 0),
+                    -(load.get("id") or 0),
+                )
+            )
+        else:
+            loads_data.sort(key=_approval_sort_key)
+    elif sort_mode == "util":
+        loads_data.sort(
+            key=lambda load: (
+                -(load.get("utilization_pct") or 0),
+                -(load.get("estimated_cost") or 0),
+                -(load.get("id") or 0),
+            )
+        )
 
     full_truckloads = []
     manual_loads = []
@@ -2490,13 +2615,7 @@ def loads():
         ]
         full_ids = set()
         for load in other_loads:
-            utilization = load.get("utilization_pct") or 0
-            order_numbers = {line.get("so_num") for line in load.get("lines", []) if line.get("so_num")}
-            is_single_order = len(order_numbers) <= 1
-            is_full_truckload = is_single_order and (
-                load.get("over_capacity") or utilization > 90
-            )
-            if is_full_truckload:
+            if _is_full_truckload(load):
                 full_truckloads.append(load)
                 if load.get("id") is not None:
                     full_ids.add(load.get("id"))
@@ -2538,58 +2657,22 @@ def loads():
         )
 
     plant_scope = plant_scope or allowed_plants
-
-    order_status_map = {so_num: "UNASSIGNED" for so_num in optimized_order_ids if so_num}
-
-    status_priority = {
-        "UNASSIGNED": 0,
-        STATUS_PROPOSED: 1,
-        STATUS_DRAFT: 2,
-        STATUS_APPROVED: 3,
-    }
-
-    loads_for_progress = [load for load in all_loads if load.get("origin_plant") in plant_scope]
-    for load in loads_for_progress:
-        load_status = (load.get("status") or STATUS_PROPOSED).upper()
-        for line in load.get("lines", []):
-            so_num = line.get("so_num")
-            if so_num in order_status_map:
-                current = order_status_map.get(so_num, "UNASSIGNED")
-                if status_priority.get(load_status, 0) > status_priority.get(current, 0):
-                    order_status_map[so_num] = load_status
-
-    order_status_counts = {
-        "unassigned": 0,
-        "proposed": 0,
-        "draft": 0,
-        "approved": 0,
-    }
-    for status in order_status_map.values():
-        if status == STATUS_PROPOSED:
-            order_status_counts["proposed"] += 1
-        elif status == STATUS_DRAFT:
-            order_status_counts["draft"] += 1
-        elif status == STATUS_APPROVED:
-            order_status_counts["approved"] += 1
-        else:
-            order_status_counts["unassigned"] += 1
-
-    load_status_counts = {"proposed": 0, "draft": 0, "approved": 0}
-    for load in loads_for_progress:
-        status = (load.get("status") or STATUS_PROPOSED).upper()
-        if status == STATUS_DRAFT:
-            load_status_counts["draft"] += 1
-        elif status == STATUS_APPROVED:
-            load_status_counts["approved"] += 1
-        else:
-            load_status_counts["proposed"] += 1
-
-    total_orders = len(order_status_map)
-    approved_orders = order_status_counts["draft"] + order_status_counts["approved"]
+    progress_snapshot = _compute_load_progress_snapshot(
+        plant_scope=plant_scope,
+        all_loads=all_loads,
+        allowed_plants=allowed_plants,
+    )
+    order_status_counts = progress_snapshot["order_status_counts"]
+    load_status_counts = progress_snapshot["load_status_counts"]
+    total_orders = progress_snapshot["total_orders"]
+    approved_orders = progress_snapshot["approved_orders"]
     remaining_orders = max(total_orders - approved_orders, 0)
-    progress_pct = round((approved_orders / total_orders) * 100, 1) if total_orders else 0.0
-    draft_tab_count = load_status_counts["draft"] + load_status_counts["proposed"]
-    final_tab_count = load_status_counts["approved"]
+    progress_pct = progress_snapshot["progress_pct"]
+    draft_tab_count = progress_snapshot["draft_tab_count"]
+    final_tab_count = progress_snapshot["final_tab_count"]
+
+    today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
+    today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
 
     return render_template(
         "loads.html",
@@ -2601,6 +2684,7 @@ def loads():
         statuses=all_statuses,
         status_filter=status_filter,
         tab=tab,
+        sort_mode=sort_mode,
         draft_tab_count=draft_tab_count,
         final_tab_count=final_tab_count,
         reopt_status=reopt_status,
@@ -2618,6 +2702,9 @@ def loads():
         feedback_error=feedback_error,
         feedback_target=feedback_target,
         manual_error=manual_error,
+        today_override=today_override,
+        today_override_value=today_override_value,
+        today_override_label=today_override_label,
         order_removal_reasons=ORDER_REMOVAL_REASONS,
         load_rejection_reasons=LOAD_REJECTION_REASONS,
         is_admin=_get_session_role() == ROLE_ADMIN,
@@ -3501,6 +3588,13 @@ def update_load_status(load_id):
     if load["origin_plant"] not in allowed_plants:
         return jsonify({"error": "Not authorized for this plant"}), 403
 
+    plant_filters = _parse_plant_filters(request.form.get("plants"))
+    if plant_filters is None:
+        plant_filters = []
+    plant_scope = [code for code in plant_filters if code in allowed_plants] if plant_filters else []
+    if not plant_scope:
+        plant_scope = allowed_plants
+
     current_status = (load.get("status") or STATUS_PROPOSED).upper()
     load_number = load.get("load_number")
     plant_code = load.get("origin_plant")
@@ -3512,7 +3606,22 @@ def update_load_status(load_id):
         if current_status != STATUS_PROPOSED:
             db.update_load_status(load_id, STATUS_PROPOSED, load_number)
         if is_async:
-            return jsonify({"status": STATUS_PROPOSED, "load_id": load_id})
+            snapshot = _compute_load_progress_snapshot(plant_scope=plant_scope)
+            return jsonify(
+                {
+                    "status": STATUS_PROPOSED,
+                    "load_id": load_id,
+                    "progress": {
+                        "approved_orders": snapshot["approved_orders"],
+                        "total_orders": snapshot["total_orders"],
+                        "progress_pct": snapshot["progress_pct"],
+                    },
+                    "tab_counts": {
+                        "draft": snapshot["draft_tab_count"],
+                        "final": snapshot["final_tab_count"],
+                    },
+                }
+            )
         return redirect(redirect_target)
 
     if action == "approve_draft":
@@ -3527,7 +3636,23 @@ def update_load_status(load_id):
                 load_number = f"{normalized}-D"
         db.update_load_status(load_id, STATUS_DRAFT, load_number)
         if is_async:
-            return jsonify({"status": STATUS_DRAFT, "load_id": load_id, "load_number": load_number})
+            snapshot = _compute_load_progress_snapshot(plant_scope=plant_scope)
+            return jsonify(
+                {
+                    "status": STATUS_DRAFT,
+                    "load_id": load_id,
+                    "load_number": load_number,
+                    "progress": {
+                        "approved_orders": snapshot["approved_orders"],
+                        "total_orders": snapshot["total_orders"],
+                        "progress_pct": snapshot["progress_pct"],
+                    },
+                    "tab_counts": {
+                        "draft": snapshot["draft_tab_count"],
+                        "final": snapshot["final_tab_count"],
+                    },
+                }
+            )
         return redirect(redirect_target)
 
     if action == "approve_lock":
@@ -3540,7 +3665,23 @@ def update_load_status(load_id):
                 load_number = normalized[:-2] if normalized.endswith("-D") else normalized
         db.update_load_status(load_id, STATUS_APPROVED, load_number)
         if is_async:
-            return jsonify({"status": STATUS_APPROVED, "load_id": load_id, "load_number": load_number})
+            snapshot = _compute_load_progress_snapshot(plant_scope=plant_scope)
+            return jsonify(
+                {
+                    "status": STATUS_APPROVED,
+                    "load_id": load_id,
+                    "load_number": load_number,
+                    "progress": {
+                        "approved_orders": snapshot["approved_orders"],
+                        "total_orders": snapshot["total_orders"],
+                        "progress_pct": snapshot["progress_pct"],
+                    },
+                    "tab_counts": {
+                        "draft": snapshot["draft_tab_count"],
+                        "final": snapshot["final_tab_count"],
+                    },
+                }
+            )
         return redirect(redirect_target)
 
     return redirect(redirect_target)
@@ -3695,12 +3836,25 @@ def clear_loads():
 
     plant_filters = _resolve_plant_filters(request.form.get("plants") or request.form.get("plant"))
     plant_scope = plant_filters or _get_allowed_plants()
+    tab = (request.form.get("tab") or "").strip().lower()
+    sort_mode = (request.form.get("sort") or "").strip().lower()
+    today_param = request.form.get("today")
+    sort_mode = (request.form.get("sort") or "").strip().lower()
+    today_param = request.form.get("today")
     if plant_filters:
         for plant in plant_scope:
             db.clear_loads_for_plant(plant)
     else:
         db.clear_loads_for_plant(None)
-    return redirect(url_for("loads"))
+    return redirect(
+        url_for(
+            "loads",
+            plants=",".join(plant_filters) if plant_filters else None,
+            tab=tab or None,
+            sort=sort_mode or None,
+            today=today_param or None,
+        )
+    )
 
 
 @app.route("/loads/approve_all", methods=["POST"])
@@ -3713,6 +3867,8 @@ def approve_all_loads():
     plant_scope = plant_filters or _get_allowed_plants()
     status_filter = (request.form.get("status") or "").strip().upper()
     tab = (request.form.get("tab") or "").strip().lower()
+    sort_mode = (request.form.get("sort") or "").strip().lower()
+    today_param = request.form.get("today")
 
     if not plant_scope:
         return redirect(url_for("loads"))
@@ -3757,6 +3913,58 @@ def approve_all_loads():
             plants=",".join(plant_filters) if plant_filters else None,
             status=status_filter or None,
             tab=tab or None,
+            sort=sort_mode or None,
+            today=today_param or None,
+        )
+    )
+
+
+@app.route("/loads/approve_full", methods=["POST"])
+def approve_full_truckloads():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    plant_filters = _resolve_plant_filters(request.form.get("plants") or request.form.get("plant"))
+    plant_scope = plant_filters or _get_allowed_plants()
+    tab = (request.form.get("tab") or "").strip().lower()
+
+    if not plant_scope:
+        return redirect(url_for("loads"))
+
+    all_loads = load_builder.list_loads(None)
+    candidates = [
+        load
+        for load in all_loads
+        if load.get("origin_plant") in plant_scope
+        and (load.get("status") or STATUS_PROPOSED).upper() in {STATUS_PROPOSED, STATUS_DRAFT}
+        and (load.get("build_source") or "OPTIMIZED").upper() != "MANUAL"
+        and _is_full_truckload(load)
+    ]
+
+    year_suffix = _year_suffix()
+    for load in candidates:
+        current_status = (load.get("status") or STATUS_PROPOSED).upper()
+        if current_status == STATUS_APPROVED:
+            continue
+        plant_code = load.get("origin_plant")
+        load_number = load.get("load_number")
+        if not load_number:
+            seq = db.get_next_load_sequence(plant_code, year_suffix)
+            load_number = _format_load_number(plant_code, year_suffix, seq, draft=False)
+        else:
+            normalized, suffix = _normalize_load_number(load_number)
+            if suffix == "D":
+                load_number = normalized[:-2] if normalized.endswith("-D") else normalized
+        db.update_load_status(load["id"], STATUS_APPROVED, load_number)
+
+    return redirect(
+        url_for(
+            "loads",
+            plants=",".join(plant_filters) if plant_filters else None,
+            tab=tab or None,
+            sort=sort_mode or None,
+            today=today_param or None,
         )
     )
 

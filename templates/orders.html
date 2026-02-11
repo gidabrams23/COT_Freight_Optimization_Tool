@@ -170,11 +170,15 @@
                 </form>
               </div>
               <div class="orders-today-wrap">
-                <button class="btn-secondary orders-today-toggle" type="button" data-today-toggle aria-expanded="{% if today_override_value %}true{% else %}false{% endif %}" aria-controls="orders-today-panel">
+                <button class="btn-secondary orders-today-toggle" type="button" data-today-toggle aria-expanded="false" aria-controls="orders-today-panel">
                   <span class="material-symbols-outlined">event</span>
                   Today
                 </button>
-                <div class="orders-today-panel hidden" id="orders-today-panel" data-today-panel data-today-autoshow="{% if today_override_value %}true{% else %}false{% endif %}">
+                {% set today_label = today_override_label or (today_override.strftime("%b %d, %Y") if today_override else "") %}
+                {% if today_label %}
+                  <div class="orders-today-meta">As of {{ today_label }}</div>
+                {% endif %}
+                <div class="orders-today-panel hidden" id="orders-today-panel" data-today-panel data-today-autoshow="false">
                   <div class="form-grid">
                     <label>
                       As Of Date
@@ -188,11 +192,6 @@
                 </div>
               </div>
             </div>
-          </div>
-          <div class="orders-today-shell">
-            {% if today_override_label %}
-              <span class="orders-today-meta">As of {{ today_override_label }}</span>
-            {% endif %}
           </div>
           <div class="orders-header-controls">
             <div class="orders-plant-cards{% if profile_default_plants and not is_admin %} focus{% endif %}">
@@ -726,7 +725,7 @@
       if (value) {
         params.set('today', value);
       } else {
-        params.delete('today');
+        params.set('today', 'clear');
       }
       url.search = params.toString();
       window.location.assign(url.toString());
@@ -742,10 +741,6 @@
           openTodayPanel();
         }
       });
-    }
-
-    if (todayPanel && todayPanel.dataset.todayAutoshow === 'true') {
-      openTodayPanel();
     }
 
     if (todayApply) {
