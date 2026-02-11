@@ -37,6 +37,27 @@ def _truthy(value):
     return str(value).strip().lower() in {"1", "true", "yes", "on", "y"}
 
 
+def _get_list(form, key):
+    if hasattr(form, "getlist"):
+        return form.getlist(key)
+    value = form.get(key) if form else None
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    return [value]
+
+
+def _clean_list(values, upper=False):
+    cleaned = []
+    for value in values or []:
+        item = str(value or "").strip()
+        if not item:
+            continue
+        cleaned.append(item.upper() if upper else item)
+    return cleaned
+
+
 def list_loads(origin_plant=None):
     loads = db.list_loads(origin_plant)
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
@@ -85,6 +106,8 @@ def build_loads(form, reset_proposed=True, store_settings=True):
     ui_toggles = "opt_toggles" in form
     enforce_time_window = _truthy(form.get("enforce_time_window")) if ui_toggles else True
     batch_horizon_enabled = _truthy(form.get("batch_horizon_enabled")) if ui_toggles else False
+    state_filters = _clean_list(_get_list(form, "opt_states"), upper=True)
+    customer_filters = _clean_list(_get_list(form, "opt_customers"))
 
     form_data = {
         "origin_plant": _clean_value(form.get("origin_plant", "")),
@@ -96,6 +119,8 @@ def build_loads(form, reset_proposed=True, store_settings=True):
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": _clean_value(form.get("batch_end_date", "")),
+        "state_filters": state_filters,
+        "customer_filters": customer_filters,
     }
 
     errors = {}
@@ -139,6 +164,8 @@ def build_loads(form, reset_proposed=True, store_settings=True):
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": batch_end_date,
+        "state_filters": state_filters,
+        "customer_filters": customer_filters,
     }
 
     flex_days = params["time_window_days"] if enforce_time_window else 0

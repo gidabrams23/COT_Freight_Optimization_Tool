@@ -730,8 +730,8 @@ def _build_load_thumbnail(load, sku_specs, color_palette, max_blocks=4):
     return positions
 
 
-def _build_orders_snapshot(orders):
-    today = date.today()
+def _build_orders_snapshot(orders, today=None):
+    today = today or date.today()
     _, end_week, next_start, next_end = _week_bounds(today)
     active_orders = [order for order in orders if not order.get("is_excluded")]
     snapshot = {
@@ -1432,9 +1432,8 @@ def upload():
         try:
             importer = OrderImporter()
             summary = importer.parse_csv(file)
-            db.clear_orders()
-            db.add_order_lines(summary["order_lines"])
-            db.add_orders(summary["orders"])
+            db.upsert_order_lines(summary["order_lines"])
+            db.upsert_orders(summary["orders"])
             upload_id = db.add_upload_history(
                 {
                     "filename": file.filename,
@@ -1471,9 +1470,8 @@ def orders_upload():
     try:
         importer = OrderImporter()
         summary = importer.parse_csv(file)
-        db.clear_orders()
-        db.add_order_lines(summary["order_lines"])
-        db.add_orders(summary["orders"])
+        db.upsert_order_lines(summary["order_lines"])
+        db.upsert_orders(summary["orders"])
         upload_id = db.add_upload_history(
             {
                 "filename": file.filename,
@@ -1501,11 +1499,12 @@ def orders():
     allowed_plants = _get_allowed_plants()
     plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
     plant_scope = plant_filters or allowed_plants
+    today_override = _parse_date(request.args.get("today"))
+    today = today_override or date.today()
 
     due_filter = (request.args.get("due") or "").upper()
     due_start = request.args.get("due_start", "")
     due_end = request.args.get("due_end", "")
-    today = date.today()
     if due_filter == "PAST_DUE":
         due_start = ""
         due_end = (today - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1532,8 +1531,8 @@ def orders():
     sort_key = request.args.get("sort", "due_date")
     data = order_service.list_orders(filters=filters, sort_key=sort_key)
     orders_list = data["orders"]
-    _annotate_orders_due_status(orders_list)
-    orders_snapshot = _build_orders_snapshot(orders_list)
+    _annotate_orders_due_status(orders_list, today=today)
+    orders_snapshot = _build_orders_snapshot(orders_list, today=today)
 
     plants = allowed_plants
     states = _distinct([order.get("state") for order in orders_list])
@@ -1565,6 +1564,8 @@ def orders():
         optimize_defaults["origin_plant"] = plant_filters[0]
     elif not optimize_defaults["origin_plant"] and plants:
         optimize_defaults["origin_plant"] = plants[0]
+    optimize_defaults["state_filters"] = []
+    optimize_defaults["customer_filters"] = []
     optimize_defaults["enforce_time_window"] = True
     optimize_defaults["batch_horizon_enabled"] = True
     optimize_defaults["batch_end_date"] = _default_batch_end_date().strftime("%Y-%m-%d")
@@ -1593,6 +1594,21 @@ def orders():
     strategic_setting = db.get_planning_setting("strategic_customers") or {}
     strategic_customers_raw = strategic_setting.get("value_text") or ""
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
+    strategic_customer_groups = []
+    for entry in strategic_customers:
+        matching_customers = [
+            cust
+            for cust in customers
+            if customer_rules.matches_any_customer_pattern(cust, entry.get("patterns"))
+        ]
+        if matching_customers:
+            strategic_customer_groups.append(
+                {
+                    "key": entry["key"],
+                    "label": entry["label"],
+                    "customers": matching_customers,
+                }
+            )
     strategic_orders = {entry["key"]: [] for entry in strategic_customers}
     other_orders = []
     for order in orders_list:
@@ -1639,11 +1655,15 @@ def orders():
         else:
             show_more_plants = any(code not in profile_default_plants for code in plant_filters)
 
+    today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
+    today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
+
     return render_template(
         "orders.html",
         orders=orders_list,
         order_sections=order_sections,
         strategic_customers=strategic_customers,
+        strategic_customer_groups=strategic_customer_groups,
         summary=data["summary"],
         filters=filters,
         plants=plants,
@@ -1665,6 +1685,9 @@ def orders():
         assignment_filter=assignment_filter,
         plant_cards=plant_cards,
         orders_snapshot=orders_snapshot,
+        today_override=today_override,
+        today_override_value=today_override_value,
+        today_override_label=today_override_label,
         profile_default_plants=profile_default_plants,
         show_more_plants=show_more_plants,
         is_admin=role == ROLE_ADMIN,
@@ -1708,6 +1731,8 @@ def orders_optimize():
     if session_redirect:
         return session_redirect
 
+    role = _get_session_role()
+    profile_default_plants = session.get(SESSION_PROFILE_DEFAULT_PLANTS_KEY) or []
     allowed_plants = _get_allowed_plants()
     origin_plant = _normalize_plant_code(request.form.get("origin_plant"))
     if origin_plant and origin_plant not in allowed_plants:
@@ -1718,6 +1743,16 @@ def orders_optimize():
         form_data["geo_radius"] = request.form.get("geo_radius", form_data.get("geo_radius", "100"))
         form_data["max_detour_pct"] = request.form.get("max_detour_pct", form_data.get("max_detour_pct", "15"))
         form_data["capacity_feet"] = request.form.get("capacity_feet", form_data.get("capacity_feet", "53"))
+        form_data["state_filters"] = [
+            value.strip().upper()
+            for value in request.form.getlist("opt_states")
+            if value and value.strip()
+        ]
+        form_data["customer_filters"] = [
+            value.strip()
+            for value in request.form.getlist("opt_customers")
+            if value and value.strip()
+        ]
         ui_toggles = "opt_toggles" in request.form
         form_data["enforce_time_window"] = bool(request.form.get("enforce_time_window")) if ui_toggles else True
         form_data["batch_horizon_enabled"] = bool(request.form.get("batch_horizon_enabled")) if ui_toggles else False
@@ -1740,7 +1775,8 @@ def orders_optimize():
     due_filter = (request.args.get("due") or "").upper()
     due_start = request.args.get("due_start", "")
     due_end = request.args.get("due_end", "")
-    today = date.today()
+    today_override = _parse_date(request.values.get("today"))
+    today = today_override or date.today()
     if due_filter == "PAST_DUE":
         due_start = ""
         due_end = (today - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1766,8 +1802,8 @@ def orders_optimize():
     }
     data = order_service.list_orders(filters=filters, sort_key="due_date")
     orders_list = data["orders"]
-    _annotate_orders_due_status(orders_list)
-    orders_snapshot = _build_orders_snapshot(orders_list)
+    _annotate_orders_due_status(orders_list, today=today)
+    orders_snapshot = _build_orders_snapshot(orders_list, today=today)
     plants = allowed_plants
     states = _distinct([order.get("state") for order in orders_list])
     customers = _distinct([order.get("cust_name") for order in orders_list])
@@ -1816,6 +1852,21 @@ def orders_optimize():
     strategic_setting = db.get_planning_setting("strategic_customers") or {}
     strategic_customers_raw = strategic_setting.get("value_text") or ""
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
+    strategic_customer_groups = []
+    for entry in strategic_customers:
+        matching_customers = [
+            cust
+            for cust in customers
+            if customer_rules.matches_any_customer_pattern(cust, entry.get("patterns"))
+        ]
+        if matching_customers:
+            strategic_customer_groups.append(
+                {
+                    "key": entry["key"],
+                    "label": entry["label"],
+                    "customers": matching_customers,
+                }
+            )
     strategic_orders = {entry["key"]: [] for entry in strategic_customers}
     other_orders = []
     for order in orders_list:
@@ -1855,11 +1906,22 @@ def orders_optimize():
         }
     )
 
+    show_more_plants = False
+    if profile_default_plants and role != ROLE_ADMIN:
+        if not plant_filters:
+            show_more_plants = True
+        else:
+            show_more_plants = any(code not in profile_default_plants for code in plant_filters)
+
+    today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
+    today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
+
     return render_template(
         "orders.html",
         orders=orders_list,
         order_sections=order_sections,
         strategic_customers=strategic_customers,
+        strategic_customer_groups=strategic_customer_groups,
         summary=data["summary"],
         filters=filters,
         plants=plants,
@@ -1881,7 +1943,12 @@ def orders_optimize():
         assignment_filter=assignment_filter,
         plant_cards=plant_cards,
         orders_snapshot=orders_snapshot,
-        is_admin=_get_session_role() == ROLE_ADMIN,
+        today_override=today_override,
+        today_override_value=today_override_value,
+        today_override_label=today_override_label,
+        profile_default_plants=profile_default_plants,
+        show_more_plants=show_more_plants,
+        is_admin=role == ROLE_ADMIN,
     )
 
 

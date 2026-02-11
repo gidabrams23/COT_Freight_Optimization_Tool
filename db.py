@@ -1001,6 +1001,163 @@ def add_order_lines(order_lines):
         connection.commit()
 
 
+def upsert_order_lines(order_lines):
+    if not order_lines:
+        return
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
+    with get_connection() as connection:
+        for order in order_lines:
+            so_num = order.get("so_num")
+            plant = order.get("plant")
+            item = order.get("item")
+            bin_code = order.get("bin")
+            existing = None
+            if so_num and plant and item and bin_code:
+                existing = connection.execute(
+                    """
+                    SELECT id, is_excluded
+                    FROM order_lines
+                    WHERE so_num = ? AND plant = ? AND item = ? AND bin = ?
+                    LIMIT 1
+                    """,
+                    (so_num, plant, item, bin_code),
+                ).fetchone()
+
+            if existing:
+                is_excluded = 1 if existing["is_excluded"] else (1 if order.get("is_excluded") else 0)
+                connection.execute(
+                    """
+                    UPDATE order_lines
+                    SET due_date = ?,
+                        customer = ?,
+                        plant_full = ?,
+                        plant2 = ?,
+                        plant = ?,
+                        item = ?,
+                        qty = ?,
+                        sales = ?,
+                        so_num = ?,
+                        cust_name = ?,
+                        cpo = ?,
+                        salesman = ?,
+                        cust_num = ?,
+                        bin = ?,
+                        load_num = ?,
+                        address1 = ?,
+                        address2 = ?,
+                        city = ?,
+                        state = ?,
+                        zip = ?,
+                        sku = ?,
+                        unit_length_ft = ?,
+                        total_length_ft = ?,
+                        max_stack_height = ?,
+                        stack_position = ?,
+                        utilization_pct = ?,
+                        is_excluded = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        order.get("due_date"),
+                        order.get("customer"),
+                        order.get("plant_full"),
+                        order.get("plant2"),
+                        order.get("plant"),
+                        order.get("item"),
+                        order.get("qty"),
+                        order.get("sales"),
+                        order.get("so_num"),
+                        order.get("cust_name"),
+                        order.get("cpo"),
+                        order.get("salesman"),
+                        order.get("cust_num"),
+                        order.get("bin"),
+                        order.get("load_num"),
+                        order.get("address1"),
+                        order.get("address2"),
+                        order.get("city"),
+                        order.get("state"),
+                        order.get("zip"),
+                        order.get("sku"),
+                        order.get("unit_length_ft"),
+                        order.get("total_length_ft"),
+                        order.get("max_stack_height"),
+                        order.get("stack_position", 1),
+                        order.get("utilization_pct"),
+                        is_excluded,
+                        existing["id"],
+                    ),
+                )
+                continue
+
+            connection.execute(
+                """
+                INSERT INTO order_lines (
+                    due_date,
+                    customer,
+                    plant_full,
+                    plant2,
+                    plant,
+                    item,
+                    qty,
+                    sales,
+                    so_num,
+                    cust_name,
+                    cpo,
+                    salesman,
+                    cust_num,
+                    bin,
+                    load_num,
+                    address1,
+                    address2,
+                    city,
+                    state,
+                    zip,
+                    sku,
+                    unit_length_ft,
+                    total_length_ft,
+                    max_stack_height,
+                    stack_position,
+                    utilization_pct,
+                    is_excluded,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    order.get("due_date"),
+                    order.get("customer"),
+                    order.get("plant_full"),
+                    order.get("plant2"),
+                    order.get("plant"),
+                    order.get("item"),
+                    order.get("qty"),
+                    order.get("sales"),
+                    order.get("so_num"),
+                    order.get("cust_name"),
+                    order.get("cpo"),
+                    order.get("salesman"),
+                    order.get("cust_num"),
+                    order.get("bin"),
+                    order.get("load_num"),
+                    order.get("address1"),
+                    order.get("address2"),
+                    order.get("city"),
+                    order.get("state"),
+                    order.get("zip"),
+                    order.get("sku"),
+                    order.get("unit_length_ft"),
+                    order.get("total_length_ft"),
+                    order.get("max_stack_height"),
+                    order.get("stack_position", 1),
+                    order.get("utilization_pct"),
+                    order.get("is_excluded", 0),
+                    created_at,
+                ),
+            )
+        connection.commit()
+
+
 def add_orders(orders):
     if not orders:
         return
@@ -1054,6 +1211,117 @@ def add_orders(orders):
             """,
             rows,
         )
+        connection.commit()
+
+
+def upsert_orders(orders):
+    if not orders:
+        return
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
+    with get_connection() as connection:
+        for order in orders:
+            so_num = order.get("so_num")
+            plant = order.get("plant")
+            existing = None
+            if so_num and plant:
+                existing = connection.execute(
+                    """
+                    SELECT id, is_excluded
+                    FROM orders
+                    WHERE so_num = ? AND plant = ?
+                    LIMIT 1
+                    """,
+                    (so_num, plant),
+                ).fetchone()
+
+            if existing:
+                is_excluded = 1 if existing["is_excluded"] else (1 if order.get("is_excluded") else 0)
+                connection.execute(
+                    """
+                    UPDATE orders
+                    SET so_num = ?,
+                        due_date = ?,
+                        plant = ?,
+                        customer = ?,
+                        cust_name = ?,
+                        state = ?,
+                        zip = ?,
+                        total_qty = ?,
+                        total_sales = ?,
+                        total_length_ft = ?,
+                        utilization_pct = ?,
+                        utilization_grade = ?,
+                        utilization_credit_ft = ?,
+                        exceeds_capacity = ?,
+                        line_count = ?,
+                        is_excluded = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        order.get("so_num"),
+                        order.get("due_date"),
+                        order.get("plant"),
+                        order.get("customer"),
+                        order.get("cust_name"),
+                        order.get("state"),
+                        order.get("zip"),
+                        order.get("total_qty"),
+                        order.get("total_sales"),
+                        order.get("total_length_ft"),
+                        order.get("utilization_pct"),
+                        order.get("utilization_grade"),
+                        order.get("utilization_credit_ft"),
+                        order.get("exceeds_capacity", 0),
+                        order.get("line_count"),
+                        is_excluded,
+                        existing["id"],
+                    ),
+                )
+                continue
+
+            connection.execute(
+                """
+                INSERT INTO orders (
+                    so_num,
+                    due_date,
+                    plant,
+                    customer,
+                    cust_name,
+                    state,
+                    zip,
+                    total_qty,
+                    total_sales,
+                    total_length_ft,
+                    utilization_pct,
+                    utilization_grade,
+                    utilization_credit_ft,
+                    exceeds_capacity,
+                    line_count,
+                    is_excluded,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    order.get("so_num"),
+                    order.get("due_date"),
+                    order.get("plant"),
+                    order.get("customer"),
+                    order.get("cust_name"),
+                    order.get("state"),
+                    order.get("zip"),
+                    order.get("total_qty"),
+                    order.get("total_sales"),
+                    order.get("total_length_ft"),
+                    order.get("utilization_pct"),
+                    order.get("utilization_grade"),
+                    order.get("utilization_credit_ft"),
+                    order.get("exceeds_capacity", 0),
+                    order.get("line_count"),
+                    order.get("is_excluded", 0),
+                    created_at,
+                ),
+            )
         connection.commit()
 
 

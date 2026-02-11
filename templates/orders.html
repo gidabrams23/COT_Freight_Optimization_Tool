@@ -15,9 +15,30 @@
                 <span class="material-symbols-outlined">rocket_launch</span>
                 Generate Draft Loads
               </button>
+              <button class="btn-secondary orders-today-toggle" type="button" data-today-toggle aria-expanded="{% if today_override_value %}true{% else %}false{% endif %}" aria-controls="orders-today-panel">
+                <span class="material-symbols-outlined">event</span>
+                Today
+              </button>
             </div>
           </div>
-                    <div class="orders-header-controls">
+          <div class="orders-today-shell">
+            {% if today_override_label %}
+              <span class="orders-today-meta">As of {{ today_override_label }}</span>
+            {% endif %}
+            <div class="orders-today-panel hidden" id="orders-today-panel" data-today-panel data-today-autoshow="{% if today_override_value %}true{% else %}false{% endif %}">
+              <div class="form-grid">
+                <label>
+                  As Of Date
+                  <input class="select-field" type="date" id="orders-today-input" value="{{ today_override_value }}">
+                </label>
+                <div class="form-actions">
+                  <button class="btn-secondary" type="button" data-today-apply>Apply</button>
+                  <button class="btn-ghost" type="button" data-today-clear>Use Real Today</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="orders-header-controls">
             <div class="orders-plant-cards{% if profile_default_plants and not is_admin %} focus{% endif %}">
               {% set focus_mode = profile_default_plants and not is_admin %}
               {% set total_orders = plant_cards | sum(attribute='orders') %}
@@ -78,6 +99,8 @@
               {% endif %}
             </div>
           <div class="orders-optimize-inline-shell">
+            {% set selected_states = optimize_defaults.state_filters or [] %}
+            {% set selected_customers = optimize_defaults.customer_filters or [] %}
             <form
               method="post"
               action="{{ url_for('orders_optimize') }}"
@@ -87,7 +110,9 @@
               data-optimize-autoshow="{% if optimize_errors and optimize_errors | length %}true{% else %}false{% endif %}"
             >
               <input type="hidden" name="opt_toggles" value="1">
-              <input type="hidden" name="origin_plant" value="{{ optimize_defaults.origin_plant }}">
+              {% if today_override_value %}
+                <input type="hidden" name="today" value="{{ today_override_value }}">
+              {% endif %}
               <input type="hidden" name="trailer_type" value="{{ optimize_defaults.trailer_type or 'STEP_DECK' }}">
               <input type="hidden" name="capacity_feet" value="{{ optimize_defaults.capacity_feet }}">
               <input type="hidden" name="max_detour_pct" value="{{ optimize_defaults.max_detour_pct }}">
@@ -100,6 +125,71 @@
                   {{ optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
                 </div>
               {% endif %}
+
+              <div class="optimize-filter-block">
+                <label>
+                  Origin Plant
+                  <select class="select-field" name="origin_plant" required>
+                    <option value="">Select a plant</option>
+                    {% for plant in plants %}
+                      <option value="{{ plant }}" {% if optimize_defaults.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+
+              <div class="optimize-filter-block">
+                <div class="optimize-filter-actions">
+                  <span class="meta-label">States</span>
+                  <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
+                  <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
+                </div>
+                {% if states %}
+                  <div class="optimize-filter-list optimize-filter-scroll" data-filter-list="states">
+                    {% for state in states %}
+                      <label class="checkbox-pill">
+                        <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
+                        <span>{{ state }}</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="empty-state">No states available.</div>
+                {% endif %}
+              </div>
+
+              <div class="optimize-filter-block">
+                <div class="optimize-filter-actions">
+                  <span class="meta-label">Customers</span>
+                  <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
+                </div>
+                <div class="optimize-filter-search">
+                  <span class="material-symbols-outlined">search</span>
+                  <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                </div>
+                {% if strategic_customer_groups %}
+                  <div class="optimize-filter-list">
+                    {% for group in strategic_customer_groups %}
+                      <label class="checkbox-pill">
+                        <input type="checkbox" data-strategic-key="{{ group.key }}">
+                        <span>{{ group.label }}</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                {% if customers %}
+                  <div class="optimize-filter-list optimize-filter-scroll" data-customer-list>
+                    {% for cust in customers %}
+                      <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
+                        <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
+                        <span>{{ cust }}</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="empty-state">No customers available.</div>
+                {% endif %}
+              </div>
 
               <div class="form-grid optimize-form-grid">
                 <label>
@@ -267,6 +357,9 @@
               {% if plant_filter_param %}
                 <input type="hidden" name="plants" value="{{ plant_filter_param }}">
               {% endif %}
+              {% if today_override_value %}
+                <input type="hidden" name="today" value="{{ today_override_value }}">
+              {% endif %}
               <label>
                 Due Date
                 <select name="due" id="due-filter">
@@ -315,7 +408,7 @@
                 <span class="material-symbols-outlined">filter_alt</span>
                 Apply
               </button>
-              <a class="btn-secondary" href="{% if plant_filter_param %}{{ url_for('orders', plants=plant_filter_param) }}{% else %}{{ url_for('orders') }}{% endif %}">
+              <a class="btn-secondary" href="{% if plant_filter_param and today_override_value %}{{ url_for('orders', plants=plant_filter_param, today=today_override_value) }}{% elif plant_filter_param %}{{ url_for('orders', plants=plant_filter_param) }}{% elif today_override_value %}{{ url_for('orders', today=today_override_value) }}{% else %}{{ url_for('orders') }}{% endif %}">
                 <span class="material-symbols-outlined">restart_alt</span>
                 Reset
               </a>
@@ -506,6 +599,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
+    const strategicGroups = {{ (strategic_customer_groups or []) | tojson }};
     const dueFilter = document.getElementById('due-filter');
     const dueStart = document.getElementById('due-start');
     const dueEnd = document.getElementById('due-end');
@@ -515,6 +609,11 @@
     const optimizeFlexDays = document.getElementById('optimize-flex-days');
     const optimizeBatchEnd = document.getElementById('optimize-batch-end');
     const optimizeBatchToggle = document.getElementById('optimize-batch-toggle');
+    const todayToggle = document.querySelector('[data-today-toggle]');
+    const todayPanel = document.querySelector('[data-today-panel]');
+    const todayInput = document.getElementById('orders-today-input');
+    const todayApply = document.querySelector('[data-today-apply]');
+    const todayClear = document.querySelector('[data-today-clear]');
 
     function setBatchToggle() {
       if (!optimizeBatchToggle || !optimizeBatchEnd) return;
@@ -568,6 +667,67 @@
       openOptimizePanel();
     }
 
+    function openTodayPanel() {
+      if (!todayPanel || !todayToggle) return;
+      todayPanel.classList.remove('hidden');
+      todayToggle.setAttribute('aria-expanded', 'true');
+      if (todayInput) todayInput.focus();
+    }
+
+    function closeTodayPanel() {
+      if (!todayPanel || !todayToggle) return;
+      todayPanel.classList.add('hidden');
+      todayToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function applyTodayOverride(value) {
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+      if (value) {
+        params.set('today', value);
+      } else {
+        params.delete('today');
+      }
+      url.search = params.toString();
+      window.location.assign(url.toString());
+    }
+
+    if (todayToggle) {
+      todayToggle.addEventListener('click', () => {
+        if (!todayPanel) return;
+        const isOpen = !todayPanel.classList.contains('hidden');
+        if (isOpen) {
+          closeTodayPanel();
+        } else {
+          openTodayPanel();
+        }
+      });
+    }
+
+    if (todayPanel && todayPanel.dataset.todayAutoshow === 'true') {
+      openTodayPanel();
+    }
+
+    if (todayApply) {
+      todayApply.addEventListener('click', () => {
+        applyTodayOverride(todayInput ? todayInput.value : '');
+      });
+    }
+
+    if (todayClear) {
+      todayClear.addEventListener('click', () => {
+        applyTodayOverride('');
+      });
+    }
+
+    if (todayInput) {
+      todayInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        applyTodayOverride(todayInput.value);
+      });
+    }
+
     function toggleDueInputs() {
       if (!dueFilter || !dueStart || !dueEnd) return;
       const isCustom = dueFilter.value === 'CUSTOM';
@@ -587,6 +747,106 @@
         filterPanel.classList.toggle('hidden');
       });
     }
+
+    function setCheckboxes(container, checked) {
+      if (!container) return;
+      container.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+        input.checked = checked;
+      });
+    }
+
+    const stateList = document.querySelector('[data-filter-list="states"]');
+    document.querySelectorAll('[data-select-all="states"]').forEach((btn) => {
+      btn.addEventListener('click', () => setCheckboxes(stateList, true));
+    });
+    document.querySelectorAll('[data-clear-all="states"]').forEach((btn) => {
+      btn.addEventListener('click', () => setCheckboxes(stateList, false));
+    });
+
+    const customerList = document.querySelector('[data-customer-list]');
+    const customerSearch = document.querySelector('[data-customer-search]');
+    const customerInputs = new Map();
+    if (customerList) {
+      customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
+        customerInputs.set(input.value, input);
+      });
+    }
+
+    if (customerSearch && customerList) {
+      customerSearch.addEventListener('input', () => {
+        const term = customerSearch.value.trim().toLowerCase();
+        customerList.querySelectorAll('[data-customer-item]').forEach((item) => {
+          const label = (item.dataset.customerItem || '').toLowerCase();
+          const matches = !term || label.includes(term);
+          item.classList.toggle('hidden', !matches);
+        });
+      });
+    }
+
+    document.querySelectorAll('[data-clear-all="customers"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!customerList) return;
+        customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
+          input.checked = false;
+        });
+        syncStrategicCheckboxes();
+      });
+    });
+
+    const strategicMap = new Map((strategicGroups || []).map((group) => [group.key, group.customers || []]));
+    const strategicCheckboxes = new Map();
+
+    function syncStrategicCheckbox(key) {
+      const checkbox = strategicCheckboxes.get(key);
+      const customers = strategicMap.get(key) || [];
+      if (!checkbox) return;
+      if (!customers.length) {
+        checkbox.checked = false;
+        checkbox.indeterminate = false;
+        return;
+      }
+      let selected = 0;
+      customers.forEach((name) => {
+        const input = customerInputs.get(name);
+        if (input && input.checked) selected += 1;
+      });
+      if (selected === 0) {
+        checkbox.checked = false;
+        checkbox.indeterminate = false;
+      } else if (selected === customers.length) {
+        checkbox.checked = true;
+        checkbox.indeterminate = false;
+      } else {
+        checkbox.checked = false;
+        checkbox.indeterminate = true;
+      }
+    }
+
+    function syncStrategicCheckboxes() {
+      strategicMap.forEach((_, key) => syncStrategicCheckbox(key));
+    }
+
+    document.querySelectorAll('[data-strategic-key]').forEach((checkbox) => {
+      const key = checkbox.dataset.strategicKey || '';
+      if (!key) return;
+      strategicCheckboxes.set(key, checkbox);
+      checkbox.addEventListener('change', () => {
+        const customers = strategicMap.get(key) || [];
+        customers.forEach((name) => {
+          const input = customerInputs.get(name);
+          if (input) input.checked = checkbox.checked;
+        });
+        syncStrategicCheckboxes();
+      });
+    });
+
+    if (customerList) {
+      customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
+        input.addEventListener('change', syncStrategicCheckboxes);
+      });
+    }
+
+    syncStrategicCheckboxes();
 
     const searchInput = document.getElementById('orders-search');
     if (searchInput) {

@@ -70,6 +70,26 @@ class Optimizer:
                 if not group.get("due_date") or group.get("due_date") <= max_due_date
             ]
 
+        state_filters = {value.strip().upper() for value in (params.get("state_filters") or []) if value}
+        if state_filters:
+            grouped = [
+                group
+                for group in grouped
+                if (group.get("state") or "").strip().upper() in state_filters
+            ]
+
+        customer_filters = {
+            value.strip().casefold()
+            for value in (params.get("customer_filters") or [])
+            if value
+        }
+        if customer_filters:
+            grouped = [
+                group
+                for group in grouped
+                if (group.get("cust_name") or "").strip().casefold() in customer_filters
+            ]
+
         destinations = {}
         for group in grouped:
             state = (group.get("state") or "").strip().upper()
