@@ -11,10 +11,164 @@
               <h1>ORDER MANAGEMENT CENTER</h1>
             </div>
             <div class="loads-title-actions orders-title-actions">
-              <button class="btn-success orders-cta" type="button" data-optimize-toggle aria-expanded="{% if optimize_errors and optimize_errors | length %}true{% else %}false{% endif %}" aria-controls="orders-optimize-panel">
-                <span class="material-symbols-outlined">rocket_launch</span>
-                Generate Draft Loads
-              </button>
+              <div class="orders-optimize-wrap">
+                <button class="btn-success orders-cta" type="button" data-optimize-toggle aria-expanded="{% if optimize_errors and optimize_errors | length %}true{% else %}false{% endif %}" aria-controls="orders-optimize-panel">
+                  <span class="material-symbols-outlined">rocket_launch</span>
+                  Generate Draft Loads
+                </button>
+                <form
+                  method="post"
+                  action="{{ url_for('orders_optimize') }}"
+                  class="orders-optimize-form optimize-inline-panel hidden"
+                  id="orders-optimize-panel"
+                  data-optimize-panel
+                  data-optimize-autoshow="{% if optimize_errors and optimize_errors | length %}true{% else %}false{% endif %}"
+                >
+                  {% set selected_states = optimize_defaults.state_filters or [] %}
+                  {% set selected_customers = optimize_defaults.customer_filters or [] %}
+                  <input type="hidden" name="opt_toggles" value="1">
+                  {% if today_override_value %}
+                    <input type="hidden" name="today" value="{{ today_override_value }}">
+                  {% endif %}
+                  <input type="hidden" name="trailer_type" value="{{ optimize_defaults.trailer_type or 'STEP_DECK' }}">
+                  <input type="hidden" name="capacity_feet" value="{{ optimize_defaults.capacity_feet }}">
+                  <input type="hidden" name="max_detour_pct" value="{{ optimize_defaults.max_detour_pct }}">
+                  <input type="hidden" name="geo_radius" value="{{ optimize_defaults.geo_radius }}">
+                  <input type="hidden" name="enforce_time_window" value="1">
+                  <input type="hidden" name="batch_horizon_enabled" value="{% if optimize_defaults.batch_horizon_enabled %}1{% endif %}" id="optimize-batch-toggle">
+
+                  {% if optimize_errors and optimize_errors | length %}
+                    <div class="form-error optimize-error">
+                      {{ optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
+                    </div>
+                  {% endif %}
+
+                  <div class="optimize-filter-row">
+                    <label class="optimize-field">
+                      Origin Plant
+                      <select class="select-field" name="origin_plant" required>
+                        <option value="">Select a plant</option>
+                        {% for plant in plants %}
+                          <option value="{{ plant }}" {% if optimize_defaults.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
+                        {% endfor %}
+                      </select>
+                    </label>
+                    <div class="optimize-field">
+                      <span class="meta-label">States</span>
+                      <button class="dropdown-trigger" type="button" data-dropdown-toggle="states">
+                        <span data-state-label>All States</span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                      </button>
+                      <div class="dropdown-panel hidden" data-dropdown-panel="states">
+                        <div class="dropdown-actions">
+                          <span class="meta-label">Select States</span>
+                          <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
+                          <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
+                        </div>
+                        {% if states %}
+                          <div class="dropdown-scroll" data-filter-list="states">
+                            {% for state in states %}
+                              <label class="checkbox-pill">
+                                <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
+                                <span>{{ state }}</span>
+                              </label>
+                            {% endfor %}
+                          </div>
+                        {% else %}
+                          <div class="empty-state">No states available.</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="optimize-filter-block">
+                    {% set ns = namespace(lowes=None, tractor=None) %}
+                    {% for group in strategic_customer_groups or [] %}
+                      {% set label = group.label | lower %}
+                      {% if ns.lowes is none and 'lowe' in label %}
+                        {% set ns.lowes = group %}
+                      {% elif ns.tractor is none and 'tractor' in label %}
+                        {% set ns.tractor = group %}
+                      {% endif %}
+                    {% endfor %}
+                    <div class="optimize-filter-actions">
+                      <span class="meta-label">Customers</span>
+                      <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
+                    </div>
+                    <div class="customer-chip-row" data-customer-chips>
+                      <label class="checkbox-pill">
+                        <input type="checkbox" data-customer-all>
+                        <span>All Customers</span>
+                      </label>
+                      {% if ns.lowes %}
+                        <label class="checkbox-pill">
+                          <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
+                          <span>{{ ns.lowes.label }}</span>
+                        </label>
+                      {% endif %}
+                      {% if ns.tractor %}
+                        <label class="checkbox-pill">
+                          <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
+                          <span>{{ ns.tractor.label }}</span>
+                        </label>
+                      {% endif %}
+                      <div class="customer-selected" data-selected-chips>
+                        {% for cust in selected_customers %}
+                          <button class="chip-chip" type="button" data-selected-chip="{{ cust }}">
+                            <span>{{ cust }}</span>
+                            <span class="material-symbols-outlined">close</span>
+                          </button>
+                        {% endfor %}
+                      </div>
+                    </div>
+                    <div class="optimize-dropdown">
+                      <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
+                        Add Customers
+                        <span class="material-symbols-outlined">expand_more</span>
+                      </button>
+                      <div class="dropdown-panel hidden" data-dropdown-panel="customers">
+                        <div class="dropdown-search">
+                          <span class="material-symbols-outlined">search</span>
+                          <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                        </div>
+                        {% if customers %}
+                          <div class="dropdown-scroll" data-customer-list>
+                            {% for cust in customers %}
+                              <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
+                                <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
+                                <span>{{ cust }}</span>
+                              </label>
+                            {% endfor %}
+                          </div>
+                        {% else %}
+                          <div class="empty-state">No customers available.</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="form-grid optimize-form-grid">
+                    <label>
+                      Due Date Flexibility (days)
+                      <input class="select-field" type="number" name="time_window_days" min="1" step="1"
+                             value="{{ optimize_defaults.time_window_days }}"
+                             id="optimize-flex-days"
+                             required>
+                    </label>
+                    <label>
+                      Batch Orders Up Until (optional)
+                      <div class="optimize-inline-row">
+                        <input class="select-field" type="date" name="batch_end_date"
+                               value="{{ optimize_defaults.batch_end_date }}"
+                               id="optimize-batch-end">
+                        <button class="btn-success optimize-inline-run" type="submit" aria-label="Run Optimizer">
+                          <span class="material-symbols-outlined">rocket_launch</span>
+                        </button>
+                      </div>
+                    </label>
+                  </div>
+                </form>
+              </div>
               <div class="orders-today-wrap">
                 <button class="btn-secondary orders-today-toggle" type="button" data-today-toggle aria-expanded="{% if today_override_value %}true{% else %}false{% endif %}" aria-controls="orders-today-panel">
                   <span class="material-symbols-outlined">event</span>
@@ -100,161 +254,6 @@
                 {% endif %}
               {% endif %}
             </div>
-          <div class="orders-optimize-inline-shell">
-            {% set selected_states = optimize_defaults.state_filters or [] %}
-            {% set selected_customers = optimize_defaults.customer_filters or [] %}
-            <form
-              method="post"
-              action="{{ url_for('orders_optimize') }}"
-              class="orders-optimize-form optimize-inline-panel hidden"
-              id="orders-optimize-panel"
-              data-optimize-panel
-              data-optimize-autoshow="{% if optimize_errors and optimize_errors | length %}true{% else %}false{% endif %}"
-            >
-              <input type="hidden" name="opt_toggles" value="1">
-              {% if today_override_value %}
-                <input type="hidden" name="today" value="{{ today_override_value }}">
-              {% endif %}
-              <input type="hidden" name="trailer_type" value="{{ optimize_defaults.trailer_type or 'STEP_DECK' }}">
-              <input type="hidden" name="capacity_feet" value="{{ optimize_defaults.capacity_feet }}">
-              <input type="hidden" name="max_detour_pct" value="{{ optimize_defaults.max_detour_pct }}">
-              <input type="hidden" name="geo_radius" value="{{ optimize_defaults.geo_radius }}">
-              <input type="hidden" name="enforce_time_window" value="1">
-              <input type="hidden" name="batch_horizon_enabled" value="{% if optimize_defaults.batch_horizon_enabled %}1{% endif %}" id="optimize-batch-toggle">
-
-              {% if optimize_errors and optimize_errors | length %}
-                <div class="form-error optimize-error">
-                  {{ optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
-                </div>
-              {% endif %}
-
-              <div class="optimize-filter-row">
-                <label class="optimize-field">
-                  Origin Plant
-                  <select class="select-field" name="origin_plant" required>
-                    <option value="">Select a plant</option>
-                    {% for plant in plants %}
-                      <option value="{{ plant }}" {% if optimize_defaults.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
-                    {% endfor %}
-                  </select>
-                </label>
-                <div class="optimize-field">
-                  <span class="meta-label">States</span>
-                  <button class="dropdown-trigger" type="button" data-dropdown-toggle="states">
-                    <span data-state-label>All States</span>
-                    <span class="material-symbols-outlined">expand_more</span>
-                  </button>
-                  <div class="dropdown-panel hidden" data-dropdown-panel="states">
-                    <div class="dropdown-actions">
-                      <span class="meta-label">Select States</span>
-                      <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
-                      <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
-                    </div>
-                    {% if states %}
-                      <div class="dropdown-scroll" data-filter-list="states">
-                        {% for state in states %}
-                          <label class="checkbox-pill">
-                            <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
-                            <span>{{ state }}</span>
-                          </label>
-                        {% endfor %}
-                      </div>
-                    {% else %}
-                      <div class="empty-state">No states available.</div>
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
-
-              <div class="optimize-filter-block">
-                {% set ns = namespace(lowes=None, tractor=None) %}
-                {% for group in strategic_customer_groups or [] %}
-                  {% set label = group.label | lower %}
-                  {% if ns.lowes is none and 'lowe' in label %}
-                    {% set ns.lowes = group %}
-                  {% elif ns.tractor is none and 'tractor' in label %}
-                    {% set ns.tractor = group %}
-                  {% endif %}
-                {% endfor %}
-                <div class="optimize-filter-actions">
-                  <span class="meta-label">Customers</span>
-                  <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
-                </div>
-                <div class="customer-chip-row" data-customer-chips>
-                  <label class="checkbox-pill">
-                    <input type="checkbox" data-customer-all>
-                    <span>All Customers</span>
-                  </label>
-                  {% if ns.lowes %}
-                    <label class="checkbox-pill">
-                      <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
-                      <span>{{ ns.lowes.label }}</span>
-                    </label>
-                  {% endif %}
-                  {% if ns.tractor %}
-                    <label class="checkbox-pill">
-                      <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
-                      <span>{{ ns.tractor.label }}</span>
-                    </label>
-                  {% endif %}
-                  <div class="customer-selected" data-selected-chips>
-                    {% for cust in selected_customers %}
-                      <button class="chip-chip" type="button" data-selected-chip="{{ cust }}">
-                        <span>{{ cust }}</span>
-                        <span class="material-symbols-outlined">close</span>
-                      </button>
-                    {% endfor %}
-                  </div>
-                </div>
-                <div class="optimize-dropdown">
-                  <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
-                    Add Customers
-                    <span class="material-symbols-outlined">expand_more</span>
-                  </button>
-                  <div class="dropdown-panel hidden" data-dropdown-panel="customers">
-                    <div class="dropdown-search">
-                      <span class="material-symbols-outlined">search</span>
-                      <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
-                    </div>
-                    {% if customers %}
-                      <div class="dropdown-scroll" data-customer-list>
-                        {% for cust in customers %}
-                          <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
-                            <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
-                            <span>{{ cust }}</span>
-                          </label>
-                        {% endfor %}
-                      </div>
-                    {% else %}
-                      <div class="empty-state">No customers available.</div>
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-grid optimize-form-grid">
-                <label>
-                  Due Date Flexibility (days)
-                  <input class="select-field" type="number" name="time_window_days" min="1" step="1"
-                         value="{{ optimize_defaults.time_window_days }}"
-                         id="optimize-flex-days"
-                         required>
-                </label>
-                <label>
-                  Batch Orders Up Until (optional)
-                  <div class="optimize-inline-row">
-                    <input class="select-field" type="date" name="batch_end_date"
-                           value="{{ optimize_defaults.batch_end_date }}"
-                           id="optimize-batch-end">
-                    <button class="btn-success optimize-inline-run" type="submit" aria-label="Run Optimizer">
-                      <span class="material-symbols-outlined">rocket_launch</span>
-                    </button>
-                  </div>
-                </label>
-              </div>
-            </form>
-          </div>
-
           </div>
         </div>
       </div>
