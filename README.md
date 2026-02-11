@@ -31,3 +31,15 @@ python app.py
 ```
 
 Open `http://127.0.0.1:5000` in your browser. You should land on the home page and be able to navigate between sections using the app's navigation links or menu.
+
+## Deploy on Render (Docker)
+
+1. Create a new **Web Service** on Render and connect this repo.
+2. Choose **Docker** as the environment (Render will use `Dockerfile`).
+3. Set environment variables:
+   - `FLASK_SECRET_KEY`: a long random string.
+   - `APP_DB_PATH`: set to `/var/data/app.db` if you attach a Render disk.
+4. (Recommended) Add a persistent disk:
+   - Mount path: `/var/data`
+   - Size: 1 GB (or more if needed)
+5. Deploy. Render sets `PORT` automatically; the container binds to it.

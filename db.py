@@ -1,9 +1,10 @@
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "data" / "db" / "app.db"
+DB_PATH = Path(os.environ.get("APP_DB_PATH", str(ROOT / "data" / "db" / "app.db")))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_PLANTS = {
