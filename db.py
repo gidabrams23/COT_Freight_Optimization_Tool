@@ -1,3 +1,4 @@
+import csv
 import os
 import sqlite3
 from datetime import datetime
@@ -6,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("APP_DB_PATH", str(ROOT / "data" / "db" / "app.db")))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+SEED_DIR = Path(os.environ.get("APP_SEED_DIR", str(ROOT / "data" / "seed")))
 
 DEFAULT_PLANTS = {
     "GA": {"name": "Lavonia", "lat": 34.43611, "lng": -83.10639},
@@ -458,6 +460,109 @@ def _rebuild_app_feedback_if_needed(connection):
     connection.execute("DROP TABLE app_feedback_old")
 
 
+def _coerce_seed_value(value):
+    if value is None:
+        return None
+    text = str(value)
+    if text == "":
+        return None
+    return value
+
+
+def _seed_table_from_csv(connection, table_name, filename, columns):
+    path = SEED_DIR / filename
+    if not path.exists():
+        return False
+    existing = connection.execute(
+        f"SELECT COUNT(*) FROM {table_name}"
+    ).fetchone()
+    if existing and existing[0]:
+        return False
+
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = []
+        for row in reader:
+            rows.append([_coerce_seed_value(row.get(col)) for col in columns])
+
+    if not rows:
+        return False
+
+    placeholders = ", ".join("?" for _ in columns)
+    column_list = ", ".join(columns)
+    connection.executemany(
+        f"INSERT INTO {table_name} ({column_list}) VALUES ({placeholders})",
+        rows,
+    )
+    return True
+
+
+def _seed_reference_data(connection):
+    seeds = [
+        (
+            "plants",
+            "plants.csv",
+            ["plant_code", "name", "lat", "lng", "address", "created_at"],
+        ),
+        (
+            "sku_specifications",
+            "sku_specifications.csv",
+            [
+                "sku",
+                "category",
+                "length_with_tongue_ft",
+                "max_stack_step_deck",
+                "max_stack_flat_bed",
+                "notes",
+                "created_at",
+            ],
+        ),
+        (
+            "item_sku_lookup",
+            "item_sku_lookup.csv",
+            ["plant", "bin", "item_pattern", "sku", "created_at"],
+        ),
+        (
+            "rate_matrix",
+            "rate_matrix.csv",
+            [
+                "origin_plant",
+                "destination_state",
+                "rate_per_mile",
+                "effective_year",
+                "notes",
+                "created_at",
+            ],
+        ),
+        (
+            "planning_settings",
+            "planning_settings.csv",
+            ["key", "value_text", "updated_at"],
+        ),
+        (
+            "optimizer_settings",
+            "optimizer_settings.csv",
+            [
+                "plant_code",
+                "capacity_feet",
+                "trailer_type",
+                "max_detour_pct",
+                "time_window_days",
+                "geo_radius",
+                "baseline_cost",
+                "baseline_set_at",
+                "updated_at",
+            ],
+        ),
+    ]
+
+    for table_name, filename, columns in seeds:
+        try:
+            _seed_table_from_csv(connection, table_name, filename, columns)
+        except sqlite3.Error:
+            continue
+
+
 def init_db():
     with get_connection() as connection:
         connection.execute(
@@ -877,6 +982,7 @@ def init_db():
         )
         connection.commit()
         _seed_plants(connection)
+        _seed_reference_data(connection)
 
 
 def list_customers():
