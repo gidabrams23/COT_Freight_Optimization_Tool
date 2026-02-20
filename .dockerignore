@@ -9,3 +9,6 @@ venv/
 logs/
 data/db/*.db
 data/exports/
+exports/
+tmp_doc_extract/
+tmp_doc_extract.zip

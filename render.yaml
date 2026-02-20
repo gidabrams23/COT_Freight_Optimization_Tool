@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: appdev-v2
+    env: docker
+    plan: starter
+    healthCheckPath: /login
+    envVars:
+      - key: APP_DB_PATH
+        value: /var/data/app.db
+      - key: WEB_CONCURRENCY
+        value: "4"
+      - key: GUNICORN_THREADS
+        value: "2"
+      - key: GUNICORN_TIMEOUT
+        value: "180"
+      - key: FLASK_SECRET_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: app-data
+      mountPath: /var/data
+      sizeGB: 1
