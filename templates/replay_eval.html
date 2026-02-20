@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="session-history-page replay-dashboard-page">
+    {% if error %}
+      <div class="session-alert danger">{{ error }}</div>
+    {% endif %}
+    {% if replay_success %}
+      <div class="session-alert success">
+        {{ replay_success }}
+        {% if source_run_id %}
+          <a class="btn-ghost btn-xs" href="{{ url_for('planning_sessions_replay', run_id=source_run_id|int) }}">Open Source Run</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <header class="card-widget replay-hero-card">
+      <div class="replay-hero-grid">
+        <div class="replay-hero-main">
+          <span class="replay-kicker">Replay Center</span>
+          <h1>Optimization Replay &amp; Savings Analysis</h1>
+          <p class="replay-subtitle">
+            Benchmark reported production loads against tool-optimized replay scenarios using tool-native cost, miles, and utilization.
+          </p>
+          <div class="replay-run-meta">
+            {% if active_run %}
+              <span class="meta-chip">Run #{{ active_run.id }}</span>
+              <span class="meta-chip">{{ active_run.filename or 'Uploaded file' }}</span>
+              <span class="meta-chip">Status {{ active_run.status }}</span>
+              <span class="meta-chip">{{ active_run.created_at }}</span>
+              <span class="meta-chip">Ops Parity {% if active_ops_parity_enabled %}ON{% else %}OFF{% endif %}</span>
+              {% if active_summary.ops_parity_enabled %}
+                <span class="meta-chip">
+                  Applied {{ active_summary.ops_parity_buckets_applied or 0 }}/{{ active_summary.ops_parity_buckets_total or 0 }} buckets
+                </span>
+              {% endif %}
+            {% else %}
+              <span class="meta-chip">No replay run yet</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="replay-upload-hub">
+          <div class="replay-upload-title">Upload Daily Load Report</div>
+          <form method="post" enctype="multipart/form-data" class="replay-upload-form">
+            <label class="replay-upload-field">
+              <span class="meta-label">File (.xlsx or .csv)</span>
+              <input class="select-field" type="file" name="report_file" accept=".xlsx,.csv" required>
+            </label>
+            <label class="replay-upload-field">
+              <span class="meta-label">Evaluation Scope</span>
+              <select class="select-field" name="evaluation_scope">
+                <option value="DAILY_SHIPPED" {% if upload_scope == 'DAILY_SHIPPED' %}selected{% endif %}>
+                  Daily by Shipped Day
+                </option>
+                <option value="WEEKLY_POOLED" {% if upload_scope == 'WEEKLY_POOLED' %}selected{% endif %}>
+                  Whole Week Pooled (by plant)
+                </option>
+              </select>
+            </label>
+            <label class="replay-upload-field replay-upload-toggle">
+              <span class="meta-label">Benchmark Guardrail</span>
+              <span class="toggle-line">
+                <input type="checkbox" name="ops_parity_enabled" value="1" {% if upload_ops_parity_enabled %}checked{% endif %}>
+                <span>Allow baseline-matched overfill envelope (benchmark only)</span>
+              </span>
+            </label>
+            <button class="btn-primary replay-upload-submit" type="submit">Run Replay Evaluation</button>
+          </form>
+          <div class="replay-upload-meta">
+            <span><strong>Columns:</strong> Load Number, Name, Shipped Date Date/Date Created Date</span>
+            <span><strong>Preset:</strong> {{ preset.algorithm_variant or 'v2' }} | {{ preset.trailer_type or 'STEP_DECK' }} | {{ preset.geo_radius_miles or 0 }}mi</span>
+            <span><strong>Date Basis:</strong> {% if date_basis == 'shipped_date' %}Shipped Date{% else %}Date Created (fallback){% endif %}</span>
+            <span><strong>Overfill Guardrail:</strong> {% if upload_ops_parity_enabled %}ON (observed baseline envelope){% else %}OFF (strict optimizer){% endif %}</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    {% if not active_run %}
+      <div class="session-alert">Upload a shipping-team report to generate the first replay dashboard.</div>
+    {% elif active_run.status != 'COMPLETED' %}
+      <div class="session-alert">
+        This run is not completed. {{ (active_run.summary or {}).get('error') or 'Check run status and retry with a valid report file.' }}
+      </div>
+    {% else %}
+      <div class="card-widget replay-controls-card">
+        <form method="get" class="session-filters replay-controls-form">
+          <input type="hidden" name="run_id" value="{{ active_run.id }}">
+          <input type="hidden" name="evaluation_scope" value="{{ evaluation_scope or 'DAILY_SHIPPED' }}">
+          <label class="inline-select replay-day-select">
+            <span class="meta-label">Current {{ day_label or 'Shipped Day' }}</span>
+            <select name="day" class="select-field">
+              {% for value in day_values %}
+                <option value="{{ value }}" {% if value == selected_day %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="btn-secondary btn-xs" type="submit">Refresh Day</button>
+        </form>
+        <div class="replay-controls-actions">
+          <a class="btn-secondary btn-xs" href="{{ url_for('planning_sessions_replay_export', run_id=active_run.id) }}">Export Workbook</a>
+          <a class="btn-ghost btn-xs" href="{{ url_for('planning_sessions_replay_issues_csv', run_id=active_run.id) }}">Issues CSV</a>
+          {% if selected_day %}
+            <a
+              class="btn-secondary btn-xs"
+              href="{{ url_for('loads', replay_run_id=active_run.id, replay_scenario='OPTIMIZED', replay_date_created=selected_day) }}"
+            >
+              View Optimized Loads
+            </a>
+            <a
+              class="btn-ghost btn-xs"
+              href="{{ url_for('loads', replay_run_id=active_run.id, replay_scenario='ACTUAL', replay_date_created=selected_day) }}"
+            >
+              View Baseline Loads
+            </a>
+          {% endif %}
+        </div>
+      </div>
+
+      {% set load_reduction_pct = (kpis.load_reduction_pct if kpis.load_reduction_pct is not none else 0) | float %}
+      {% set util_gain_pts = (kpis.util_gain_pts if kpis.util_gain_pts is not none else 0) | float %}
+      {% set cost_savings = (kpis.cost_savings if kpis.cost_savings is not none else 0) | float %}
+      {% set miles_savings = (kpis.miles_savings if kpis.miles_savings is not none else 0) | float %}
+      {% set cost_savings_pct = (kpis.cost_savings_pct if kpis.cost_savings_pct is not none else 0) | float %}
+
+      <div class="replay-kpi-grid">
+        <article class="replay-kpi-card replay-kpi-loads">
+          <div class="kpi-label">Actual vs Optimized Loads</div>
+          <div class="kpi-value">{{ kpis.actual_loads or 0 }} -> {{ kpis.optimized_loads or 0 }}</div>
+          <div class="kpi-sub {% if load_reduction_pct >= 0 %}good{% else %}bad{% endif %}">
+            {% if load_reduction_pct >= 0 %}-{% else %}+{% endif %}{{ load_reduction_pct | abs | round(1) }}% loads
+          </div>
+        </article>
+
+        <article class="replay-kpi-card replay-kpi-util">
+          <div class="kpi-label">Utilization Gain</div>
+          <div class="kpi-value {% if util_gain_pts >= 0 %}good{% else %}bad{% endif %}">
+            {% if util_gain_pts >= 0 %}+{% endif %}{{ util_gain_pts | round(1) }} pts
+          </div>
+          <div class="kpi-sub">{{ (kpis.actual_util or 0) | round(1) }}% -> {{ (kpis.optimized_util or 0) | round(1) }}%</div>
+        </article>
+
+        <article class="replay-kpi-card replay-kpi-cost">
+          <div class="kpi-label">Cost Delta</div>
+          <div class="kpi-value {% if cost_savings >= 0 %}good{% else %}bad{% endif %}">
+            {% if cost_savings >= 0 %}-{% else %}+{% endif %}${{ "{:,.0f}".format(cost_savings | abs) }}
+          </div>
+          <div class="kpi-sub {% if cost_savings >= 0 %}good{% else %}bad{% endif %}">
+            {% if cost_savings_pct >= 0 %}-{% else %}+{% endif %}{{ cost_savings_pct | abs | round(1) }}%
+          </div>
+        </article>
+
+        <article class="replay-kpi-card replay-kpi-miles">
+          <div class="kpi-label">Miles Delta</div>
+          <div class="kpi-value {% if miles_savings >= 0 %}good{% else %}bad{% endif %}">
+            {% if miles_savings >= 0 %}-{% else %}+{% endif %}{{ miles_savings | abs | round(0) }}
+          </div>
+          <div class="kpi-sub">Matched {{ kpis.matched_orders or 0 }} -> Missing {{ kpis.missing_orders or 0 }}</div>
+        </article>
+      </div>
+
+      <div class="replay-scenario-grid">
+        <article class="card-widget replay-scenario-card replay-scenario-actual">
+          <div class="replay-scenario-head">
+            <h3>Manual Planning (Baseline)</h3>
+            <span class="meta-chip">Tool-Scored on Reported Loads</span>
+          </div>
+          <div class="replay-scenario-list">
+            <div><span>Total Cost</span><strong>${{ "{:,.0f}".format((kpis.actual_cost or 0) | float) }}</strong></div>
+            <div><span>Total Miles</span><strong>{{ (kpis.actual_miles or 0) | round(1) }}</strong></div>
+            <div><span>Total Loads</span><strong>{{ kpis.actual_loads or 0 }}</strong></div>
+            <div><span>Avg Utilization</span><strong>{{ (kpis.actual_util or 0) | round(1) }}%</strong></div>
+          </div>
+          {% if selected_day %}
+            <a
+              class="btn-ghost btn-xs"
+              href="{{ url_for('loads', replay_run_id=active_run.id, replay_scenario='ACTUAL', replay_date_created=selected_day) }}"
+            >
+              View Baseline Load Details
+            </a>
+          {% endif %}
+        </article>
+
+        <article class="card-widget replay-scenario-card replay-scenario-optimized">
+          <div class="replay-scenario-head">
+            <h3>Optimized Replay</h3>
+            <span class="meta-chip">Algorithm Output</span>
+          </div>
+          <div class="replay-scenario-list">
+            <div><span>Total Cost</span><strong>${{ "{:,.0f}".format((kpis.optimized_cost or 0) | float) }}</strong></div>
+            <div><span>Total Miles</span><strong>{{ (kpis.optimized_miles or 0) | round(1) }}</strong></div>
+            <div><span>Total Loads</span><strong>{{ kpis.optimized_loads or 0 }}</strong></div>
+            <div><span>Avg Utilization</span><strong>{{ (kpis.optimized_util or 0) | round(1) }}%</strong></div>
+          </div>
+          {% if selected_day %}
+            <a
+              class="btn-secondary btn-xs"
+              href="{{ url_for('loads', replay_run_id=active_run.id, replay_scenario='OPTIMIZED', replay_date_created=selected_day) }}"
+            >
+              View Optimized Load Details
+            </a>
+          {% endif %}
+        </article>
+      </div>
+
+      <div class="replay-main-grid">
+        <div class="card-widget replay-plant-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Plant-Level Performance Delta</h3>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="table-container">
+              <table class="replay-plant-table">
+                <thead>
+                  <tr>
+                    <th>Plant</th>
+                    <th>Actual Cost</th>
+                    <th>Optimized Cost</th>
+                    <th>Variance ($)</th>
+                    <th>Variance (%)</th>
+                    <th>Actual Loads</th>
+                    <th>Optimized Loads</th>
+                    <th>View Loads</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in selected_day_plants %}
+                    {% set delta = (row.delta_total_cost or 0) | float %}
+                    <tr class="replay-plant-row {% if delta <= 0 %}is-saving{% else %}is-loss{% endif %}">
+                      <td><strong>{{ row.plant_code }}</strong></td>
+                      <td>${{ "{:,.0f}".format((row.actual_total_cost or 0) | float) }}</td>
+                      <td>${{ "{:,.0f}".format((row.optimized_total_cost or 0) | float) }}</td>
+                      <td class="{% if delta <= 0 %}good{% else %}bad{% endif %}">
+                        {% if delta > 0 %}+{% endif %}${{ "{:,.0f}".format(delta) }}
+                      </td>
+                      <td class="{% if delta <= 0 %}good{% else %}bad{% endif %}">
+                        {% if (row.delta_cost_pct or 0) > 0 %}+{% endif %}{{ (row.delta_cost_pct or 0) | round(1) }}%
+                      </td>
+                      <td>{{ row.actual_loads or 0 }} ({{ (row.actual_avg_utilization or 0) | round(1) }}%)</td>
+                      <td>{{ row.optimized_loads or 0 }} ({{ (row.optimized_avg_utilization or 0) | round(1) }}%)</td>
+                      <td>
+                        <div class="session-actions">
+                          <a
+                            class="btn-secondary btn-xs"
+                            href="{{ url_for('loads', replay_run_id=active_run.id, replay_scenario='OPTIMIZED', replay_date_created=selected_day, replay_plant_code=row.plant_code) }}"
+                          >
+                            Optimized
+                          </a>
+                          <a
+                            class="btn-ghost btn-xs"
+                            href="{{ url_for('loads', replay_run_id=active_run.id, replay_scenario='ACTUAL', replay_date_created=selected_day, replay_plant_code=row.plant_code) }}"
+                          >
+                            Baseline
+                          </a>
+                          <form method="post" action="{{ url_for('planning_sessions_replay_reproduce', run_id=active_run.id) }}">
+                            <input type="hidden" name="date_created" value="{{ selected_day }}">
+                            <input type="hidden" name="plant_code" value="{{ row.plant_code }}">
+                            <input type="hidden" name="evaluation_scope" value="{{ evaluation_scope or 'DAILY_SHIPPED' }}">
+                            <button type="submit" class="btn-ghost btn-xs">Reproduce</button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr>
+                      <td colspan="8">No plant rows available for {{ selected_day or 'the selected day' }}.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside class="card-widget replay-issues-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Issues &amp; Data Quality</h3>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="replay-issue-chips">
+              {% for issue_type, count in issues_by_type.items() %}
+                <span class="meta-chip">{{ issue_type }}: {{ count }}</span>
+              {% else %}
+                <span class="meta-chip">No issues on selected day</span>
+              {% endfor %}
+            </div>
+            <div class="table-container replay-issues-table-wrap">
+              <table class="session-subtable replay-issues-table">
+                <thead>
+                  <tr>
+                    <th>Plant</th>
+                    <th>Order</th>
+                    <th>Type</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for issue in selected_day_issues[:12] %}
+                    <tr>
+                      <td>{{ issue.plant_code or '--' }}</td>
+                      <td>{{ issue.order_number or '--' }}</td>
+                      <td>{{ issue.issue_type or '--' }}</td>
+                      <td>{{ issue.message or '--' }}</td>
+                    </tr>
+                  {% else %}
+                    <tr>
+                      <td colspan="4">No issues logged for this day.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </aside>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

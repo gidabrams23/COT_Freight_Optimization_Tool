@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="session-history-page">
+    <header class="settings-header">
+      <div class="settings-title">
+        <h1>Session {{ planning_session.session_code }}</h1>
+        <p class="muted">Planner {{ planning_session.created_by or 'Planner' }} &middot; {{ planning_session.created_at }}</p>
+      </div>
+      <div class="panel-actions">
+        <a class="btn-secondary btn-xs" href="{{ url_for('loads', session_id=planning_session.id) }}">View Loads</a>
+        {% if report_available %}
+          <a class="btn-secondary btn-xs" href="{{ url_for('load_report', session_id=planning_session.id) }}">Load Report</a>
+          <a class="btn-ghost btn-xs" href="{{ url_for('load_report_export', session_id=planning_session.id) }}">Export Excel</a>
+        {% endif %}
+        <a class="btn-primary btn-xs" href="{{ url_for('planning_session_revise', session_id=planning_session.id) }}">Revise</a>
+        {% if (planning_session.status or '') | upper == 'DRAFT' %}
+          <a class="btn-success btn-xs" href="{{ url_for('planning_session_resume', session_id=planning_session.id) }}">Resume</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('planning_session_delete', session_id=planning_session.id) }}" onsubmit="return confirm('Delete this session and all of its loads? This will reintroduce those orders into the draft pool.');">
+          <button class="btn-danger btn-xs" type="submit">Delete Session</button>
+        </form>
+      </div>
+    </header>
+
+    <div class="session-kpis">
+      <div class="session-kpi-card">
+        <div class="label">Loads Generated</div>
+        <div class="value">{{ load_count }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Orders Covered</div>
+        <div class="value">{{ order_count }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Avg Utilization</div>
+        <div class="value">{{ avg_utilization }}%</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Status</div>
+        <div class="value">{{ (planning_session.status or 'DRAFT') | upper }}</div>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Optimizer Parameters</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="session-detail">
+          <div>Plant: <strong>{{ planning_session.plant_code }}</strong></div>
+          <div>Trailer: <strong>{{ session_config.trailer_type or 'STEP_DECK' }}</strong></div>
+          <div>Capacity: <strong>{{ session_config.capacity_feet or 53 }} ft</strong></div>
+          <div>Flex Days: <strong>{{ session_config.time_window_days or 0 }}</strong></div>
+          <div>Geo Radius: <strong>{{ session_config.geo_radius or 0 }}</strong></div>
+          {% if session_config.batch_end_date %}
+            <div>Batch End: <strong>{{ session_config.batch_end_date }}</strong></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Session Loads</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-container">
+          <table class="session-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Load</th>
+                <th>Status</th>
+                <th>Trailer</th>
+                <th>Utilization</th>
+                <th>Orders</th>
+                <th>Stops</th>
+                <th>Miles</th>
+                <th>Est Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for load in loads %}
+                <tr class="session-row" data-session-load-row="{{ load.id }}">
+                  <td>
+                    <button type="button" class="btn-ghost btn-xs session-expand-toggle" data-load-toggle="{{ load.id }}" aria-expanded="false" aria-controls="session-load-orders-{{ load.id }}">
+                      <span class="material-symbols-outlined" data-load-toggle-icon="{{ load.id }}">expand_more</span>
+                    </button>
+                  </td>
+                  <td>{{ load.load_number or ('Load #' ~ load.id) }}</td>
+                  <td>{{ load.status or 'PROPOSED' }}</td>
+                  <td>{{ load.trailer_type or 'STEP_DECK' }}</td>
+                  <td>{{ (load.utilization_pct or 0) | round(1) }}%</td>
+                  <td>{{ load.order_count or 0 }}</td>
+                  <td>{{ load.stop_count or 0 }}</td>
+                  <td>{{ (load.estimated_miles or 0) | round(1) }}</td>
+                  <td>${{ "{:,.0f}".format((load.estimated_cost or 0) | float) }}</td>
+                </tr>
+                <tr class="session-expand-row hidden" data-session-load-orders="{{ load.id }}" id="session-load-orders-{{ load.id }}">
+                  <td colspan="9">
+                    <div class="session-expand-panel">
+                      <div class="session-expand-section">
+                        <h4>Orders In {{ load.load_number or ('Load #' ~ load.id) }}</h4>
+                        <div class="table-container">
+                          <table class="session-subtable">
+                            <thead>
+                              <tr>
+                                <th>Order #</th>
+                                <th>Customer</th>
+                                <th>Due</th>
+                                <th>Destination</th>
+                                <th>Lines</th>
+                                <th>Total Ft</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for order in load.orders %}
+                                <tr>
+                                  <td>{{ order.so_num }}</td>
+                                  <td>{{ order.cust_name }}</td>
+                                  <td>{{ order.due_date or '--' }}</td>
+                                  <td>{% if order.city %}{{ order.city }}, {% endif %}{{ order.state }} {{ order.zip }}</td>
+                                  <td>{{ order.line_count }}</td>
+                                  <td>{{ (order.total_length_ft or 0) | round(1) }}</td>
+                                </tr>
+                              {% else %}
+                                <tr>
+                                  <td colspan="6">No orders on this load.</td>
+                                </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="9">No loads found for this session.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Orders In Session</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-container">
+          <table class="session-subtable">
+            <thead>
+              <tr>
+                <th>Order #</th>
+                <th>Customer</th>
+                <th>Due</th>
+                <th>Destination</th>
+                <th>Lines</th>
+                <th>Total Ft</th>
+                <th>Loads</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for order in session_orders %}
+                <tr>
+                  <td>{{ order.so_num }}</td>
+                  <td>{{ order.cust_name }}</td>
+                  <td>{{ order.due_date or '--' }}</td>
+                  <td>{% if order.city %}{{ order.city }}, {% endif %}{{ order.state }} {{ order.zip }}</td>
+                  <td>{{ order.line_count }}</td>
+                  <td>{{ (order.total_length_ft or 0) | round(1) }}</td>
+                  <td>{{ (order.loads or []) | join(', ') }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="7">No orders found for this session.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function setLoadRowExpanded(loadId, expanded) {
+      const row = document.querySelector(`[data-session-load-orders="${loadId}"]`);
+      const btn = document.querySelector(`[data-load-toggle="${loadId}"]`);
+      const icon = document.querySelector(`[data-load-toggle-icon="${loadId}"]`);
+      if (!row || !btn) return;
+      row.classList.toggle('hidden', !expanded);
+      btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (icon) icon.textContent = expanded ? 'expand_less' : 'expand_more';
+    }
+
+    document.querySelectorAll('[data-load-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const loadId = btn.dataset.loadToggle;
+        const row = document.querySelector(`[data-session-load-orders="${loadId}"]`);
+        if (!row) return;
+        const expanded = row.classList.contains('hidden');
+        setLoadRowExpanded(loadId, expanded);
+      });
+    });
+  </script>
+{% endblock %}

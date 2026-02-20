@@ -2,13 +2,57 @@
 
 {% block content %}
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  {% set is_replay = replay_mode | default(false) %}
+  {% set replay = replay_context or {} %}
   <section class="loads-page" data-loads-tab="{{ tab }}">
     <header class="orders-header loads-header">
       <div class="loads-hero-row">
         <div class="loads-hero-title">
             <div class="loads-title-row">
-              <div class="orders-title loads-title">
-                <h1>Load Review Center</h1>
+              <div class="loads-title-group">
+                <div class="orders-title loads-title">
+                  <h1>Load Review Center</h1>
+                </div>
+                {% if active_session %}
+                  <div class="active-session-pill" aria-label="Active session">
+                    <span class="material-symbols-outlined">task_alt</span>
+                    Active Session {{ active_session.session_code }}
+                    <span class="session-status-badge session-status-{{ (active_session.status or 'DRAFT') | lower }}">
+                      {{ (active_session.status or 'DRAFT') | upper }}
+                    </span>
+                    <div class="session-tooltip" data-session-tooltip data-start-ts="{{ active_session.created_at }}" data-archived-ts="{{ active_session.archived_at or '' }}">
+                      <div class="tooltip-title">{{ active_session.session_code }}</div>
+                      <div class="tooltip-row"><span>Planner</span><strong>{{ active_session.created_by or 'Planner' }}</strong></div>
+                      <div class="tooltip-row"><span>Plant</span><strong>{{ active_session.plant_code }}</strong></div>
+                      <div class="tooltip-row"><span>Created</span><strong>{{ active_session.created_at }}</strong></div>
+                      <div class="tooltip-row"><span>Status</span><strong>{{ (active_session.status or 'DRAFT') | upper }}</strong></div>
+                      <div class="tooltip-row"><span>Trailer</span><strong>{{ active_session_config.trailer_type or 'STEP_DECK' }}</strong></div>
+                      <div class="tooltip-row"><span>Algorithm</span><strong>{{ (active_session_config.algorithm_version or 'v2') | upper }}</strong></div>
+                      <div class="tooltip-row"><span>Flex Days</span><strong>{{ active_session_config.time_window_days or 0 }}</strong></div>
+                      <div class="tooltip-row"><span>Geo Radius</span><strong>{{ active_session_config.geo_radius or 0 }}</strong></div>
+                      {% if active_session_config.batch_end_date %}
+                        <div class="tooltip-row"><span>Batch End</span><strong>{{ active_session_config.batch_end_date }}</strong></div>
+                      {% endif %}
+                      {% if active_session_config.state_filters %}
+                        <div class="tooltip-row"><span>States</span><strong>{{ active_session_config.state_filters | join(', ') }}</strong></div>
+                      {% endif %}
+                      {% if active_session_config.customer_filters %}
+                        <div class="tooltip-row"><span>Customers</span><strong>{{ active_session_config.customer_filters | join(', ') }}</strong></div>
+                      {% endif %}
+                      <div class="session-stopwatch">
+                        <span>Session Time</span>
+                        <strong data-session-stopwatch>00:00:00</strong>
+                      </div>
+                    </div>
+                  </div>
+                {% endif %}
+                {% if is_replay %}
+                  <div class="active-session-pill" aria-label="Replay simulation mode">
+                    <span class="material-symbols-outlined">science</span>
+                    Replay Simulation Run #{{ replay.run_id }}
+                    <span class="session-status-badge session-status-draft">READ ONLY</span>
+                  </div>
+                {% endif %}
               </div>
             </div>
             <div class="loads-optimization-inline" aria-label="Optimization output">
@@ -34,10 +78,37 @@
                   <span class="metric-value metric-value-muted metric-value-sub" data-opt-spend-unit>${{ "{:,.2f}".format((optimization_summary.spend_per_unit or 0) | float) }}</span>
                 </div>
               </div>
+              {% if algorithm_comparison %}
+                <div class="loads-optimization-metrics">
+                  <div class="loads-optimization-metric">
+                    <span class="metric-label">Compare</span>
+                    <span class="metric-value metric-value-muted">v1 vs v2</span>
+                  </div>
+                  <div class="loads-optimization-metric">
+                    <span class="metric-label">v1</span>
+                    <span class="metric-value metric-value-muted">
+                      {{ algorithm_comparison.v1.loads }} loads | {{ algorithm_comparison.v1.avg_util | round(1) }}% | ${{ "{:,.0f}".format((algorithm_comparison.v1.cost or 0) | float) }}
+                    </span>
+                  </div>
+                  <div class="loads-optimization-metric">
+                    <span class="metric-label">v2</span>
+                    <span class="metric-value {% if algorithm_comparison.selected == 'v2' %}metric-value-success{% else %}metric-value-muted{% endif %}">
+                      {{ algorithm_comparison.v2.loads }} loads | {{ algorithm_comparison.v2.avg_util | round(1) }}% | ${{ "{:,.0f}".format((algorithm_comparison.v2.cost or 0) | float) }}
+                    </span>
+                  </div>
+                  <div class="loads-optimization-metric">
+                    <span class="metric-label">v2 Cost Delta</span>
+                    <span class="metric-value {% if algorithm_comparison.delta.cost < 0 %}metric-value-success{% elif algorithm_comparison.delta.cost > 0 %}metric-value-warning{% else %}metric-value-muted{% endif %}">
+                      {% if algorithm_comparison.delta.cost > 0 %}+{% endif %}${{ "{:,.0f}".format((algorithm_comparison.delta.cost or 0) | float) }}
+                    </span>
+                  </div>
+                </div>
+              {% endif %}
             </div>
           </div>
 
         <div class="loads-hero-side">
+          {% if not is_replay %}
           <div class="approval-tracker approval-tracker-compact" aria-label="Daily goal progress" data-approval-tracker>
             {% set progress_display = (progress_pct or 0) | round(0) %}
             {% set progress_width = progress_display %}
@@ -95,6 +166,20 @@
               </div>
             </div>
           </div>
+          {% else %}
+          <div class="approval-tracker approval-tracker-compact" aria-label="Replay validation guidance">
+            <div class="approval-tracker-head">
+              <span class="tracker-label">Validation Flow</span>
+              <span class="tracker-label tracker-label-right">{{ replay.scenario or 'OPTIMIZED' }}</span>
+            </div>
+            <div class="subtext">
+              Use this view to inspect simulated load composition and freight math. No loads are written to Draft/Final pools.
+            </div>
+            <div class="form-actions" style="margin-top:8px;">
+              <a class="btn-ghost btn-xs" href="{{ url_for('planning_sessions_replay', run_id=replay.run_id, day=replay.date_created or None) }}">Back To Replay</a>
+            </div>
+          </div>
+          {% endif %}
         </div>
       </div>
     </header>
@@ -107,6 +192,68 @@
       {% if manual_error %}
         <div class="alert alert-error">{{ manual_error }}</div>
       {% endif %}
+      {% if is_replay %}
+        <div class="replay-filter-panel">
+          <div class="replay-filter-group">
+            <div class="replay-filter-label">Scenario</div>
+            <div class="replay-filter-track">
+              {% set active_scenario = (replay.scenario or 'OPTIMIZED') %}
+              <a
+                class="replay-filter-pill{% if active_scenario == 'OPTIMIZED' %} active{% endif %}"
+                href="{{ url_for('loads', tab=tab, sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id, replay_scenario='OPTIMIZED', replay_date_created=replay.date_created or None, replay_plant_code=replay.plant_code or None) }}"
+              >
+                Optimized
+              </a>
+              <a
+                class="replay-filter-pill{% if active_scenario == 'ACTUAL' %} active{% endif %}"
+                href="{{ url_for('loads', tab=tab, sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id, replay_scenario='ACTUAL', replay_date_created=replay.date_created or None, replay_plant_code=replay.plant_code or None) }}"
+              >
+                Baseline
+              </a>
+            </div>
+          </div>
+
+          <div class="replay-filter-group">
+            <div class="replay-filter-label">Date Bucket</div>
+            <div class="replay-filter-track">
+              <a
+                class="replay-filter-pill{% if not replay.date_created %} active{% endif %}"
+                href="{{ url_for('loads', tab=tab, sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id, replay_scenario=active_scenario, replay_date_created=None, replay_plant_code=replay.plant_code or None) }}"
+              >
+                All Dates
+              </a>
+              {% for day_value in replay.day_values or [] %}
+                <a
+                  class="replay-filter-pill{% if (replay.date_created or '') == day_value %} active{% endif %}"
+                  href="{{ url_for('loads', tab=tab, sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id, replay_scenario=active_scenario, replay_date_created=day_value, replay_plant_code=replay.plant_code or None) }}"
+                >
+                  {{ day_value }}
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="replay-filter-group">
+            <div class="replay-filter-label">Plant Bucket</div>
+            <div class="replay-filter-track">
+              <a
+                class="replay-filter-pill{% if not replay.plant_code %} active{% endif %}"
+                href="{{ url_for('loads', tab=tab, sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id, replay_scenario=active_scenario, replay_date_created=replay.date_created or None, replay_plant_code=None) }}"
+              >
+                All Plants
+              </a>
+              {% for plant_value in replay.plant_values or [] %}
+                <a
+                  class="replay-filter-pill{% if (replay.plant_code or '') == plant_value %} active{% endif %}"
+                  href="{{ url_for('loads', tab=tab, sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id, replay_scenario=active_scenario, replay_date_created=replay.date_created or None, replay_plant_code=plant_value) }}"
+                >
+                  {{ plant_value }}
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
 
         {% set has_loads = loads and loads | length %}
           <div class="loads-review-layout" data-load-review-layout>
@@ -115,14 +262,14 @@
                   <div class="load-tabs">
                     <div class="load-tabs-left">
                       {% if plant_filter_param %}
-                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='draft', sort=sort_mode, today=today_override_value or None) }}">
+                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param, tab='draft', sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
                           <span class="material-symbols-outlined">edit_document</span>
                           Draft Loads
                           <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
                         </a>
                         <a
                           class="load-tab{% if tab == 'final' %} active{% endif %}{% if final_tab_count == 0 %} disabled{% endif %}"
-                          href="{{ url_for('loads', plants=plant_filter_param, tab='final', sort=sort_mode, today=today_override_value or None) }}"
+                          href="{{ url_for('loads', plants=plant_filter_param, tab='final', sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}"
                           {% if final_tab_count == 0 %}aria-disabled="true" tabindex="-1"{% endif %}
                         >
                           <span class="material-symbols-outlined">verified</span>
@@ -130,14 +277,14 @@
                           <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
                         </a>
                       {% else %}
-                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft', sort=sort_mode, today=today_override_value or None) }}">
+                        <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft', sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
                           <span class="material-symbols-outlined">edit_document</span>
                           Draft Loads
                           <span class="tab-count warning" data-tab-count="draft">{{ draft_tab_count }}</span>
                         </a>
                         <a
                           class="load-tab{% if tab == 'final' %} active{% endif %}{% if final_tab_count == 0 %} disabled{% endif %}"
-                          href="{{ url_for('loads', tab='final', sort=sort_mode, today=today_override_value or None) }}"
+                          href="{{ url_for('loads', tab='final', sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}"
                           {% if final_tab_count == 0 %}aria-disabled="true" tabindex="-1"{% endif %}
                         >
                           <span class="material-symbols-outlined">verified</span>
@@ -147,6 +294,16 @@
                       {% endif %}
                     </div>
                     <div class="load-tabs-actions" aria-label="Bulk load actions">
+                      {% if active_session and ((active_session.status or '') | upper) == 'COMPLETED' %}
+                        <a class="btn-secondary btn-xs" href="{{ url_for('load_report', session_id=active_session.id) }}">
+                          <span class="material-symbols-outlined">article</span>
+                          Load Report
+                        </a>
+                        <a class="btn-ghost btn-xs" href="{{ url_for('load_report_export', session_id=active_session.id) }}">
+                          <span class="material-symbols-outlined">download</span>
+                          Export Excel
+                        </a>
+                      {% endif %}
                       <div class="loads-sort-wrap">
                         <button class="btn-secondary loads-sort-toggle" type="button" data-sort-toggle aria-expanded="false" aria-controls="loads-sort-panel">
                           <span class="material-symbols-outlined">sort</span>
@@ -154,20 +311,23 @@
                         </button>
                         <div class="loads-sort-panel hidden" id="loads-sort-panel" data-sort-panel>
                           <div class="loads-sort-options">
-                            <a class="loads-sort-option{% if sort_mode == 'flow' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='flow', today=today_override_value or None) }}">
+                            <a class="loads-sort-option{% if sort_mode == 'flow' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='flow', today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
                               Flow
                             </a>
-                            <a class="loads-sort-option{% if sort_mode == 'util' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='util', today=today_override_value or None) }}">
+                            <a class="loads-sort-option{% if sort_mode == 'util' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='util', today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
                               Util
                             </a>
                           </div>
                         </div>
                       </div>
-                      {% if tab != 'final' %}
+                      {% if tab != 'final' and not is_replay %}
                         <form method="post" action="{{ url_for('approve_all_loads') }}">
                           <input type="hidden" name="plants" value="{{ plant_filter_param }}">
                           <input type="hidden" name="tab" value="{{ tab }}">
                           <input type="hidden" name="sort" value="{{ sort_mode }}">
+                          {% if active_session_id %}
+                            <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                          {% endif %}
                           {% if today_override_value %}
                             <input type="hidden" name="today" value="{{ today_override_value }}">
                           {% endif %}
@@ -178,30 +338,35 @@
                         </form>
                       {% endif %}
                     </div>
-	                  </div>
-	                </div>
-	              <div class="loads-list-shell">
-	                <div class="loads-shell-header loads-shell-header-left">
-	                  <div class="loads-list-bar">
+                  </div>
+                </div>
+              <div class="loads-list-shell">
+                <div class="loads-shell-header loads-shell-header-left">
+                  <div class="loads-list-bar">
                     <div class="loads-list-actions">
-                      {% if tab != 'final' %}
+                      {% if tab != 'final' and not is_replay %}
                         <button class="btn-secondary btn-xs" type="button" data-manual-load-open>
                           <span class="material-symbols-outlined">add_box</span>
                           Manual Load
                         </button>
                       {% endif %}
-                      <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Clear all loads for the current plant scope?');">
-                        <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-                        <input type="hidden" name="tab" value="{{ tab }}">
-                        <input type="hidden" name="sort" value="{{ sort_mode }}">
-                        {% if today_override_value %}
-                          <input type="hidden" name="today" value="{{ today_override_value }}">
-                        {% endif %}
-                        <button class="btn-danger btn-xs" type="submit">
-                          <span class="material-symbols-outlined">delete_forever</span>
-                          Clear Loads
-                        </button>
-                      </form>
+                      {% if not is_replay %}
+                        <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Clear all loads for the current plant scope?');">
+                          <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                          <input type="hidden" name="tab" value="{{ tab }}">
+                          <input type="hidden" name="sort" value="{{ sort_mode }}">
+                          {% if active_session_id %}
+                            <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                          {% endif %}
+                          {% if today_override_value %}
+                            <input type="hidden" name="today" value="{{ today_override_value }}">
+                          {% endif %}
+                          <button class="btn-danger btn-xs" type="submit">
+                            <span class="material-symbols-outlined">delete_forever</span>
+                            Clear Loads
+                          </button>
+                        </form>
+                      {% endif %}
                     </div>
                     <div class="search-field loads-search-field">
                       <span class="material-symbols-outlined">search</span>
@@ -223,11 +388,14 @@
                         <div class="load-section" data-section="{{ section.kind }}">
                         <div class="load-section-title load-section-title-row">
                           <span>{{ section.title }}</span>
-                          {% if tab == 'draft' and section.kind == 'full' %}
+                          {% if tab == 'draft' and section.kind == 'full' and not is_replay %}
                             <form method="post" action="{{ url_for('approve_full_truckloads') }}">
                               <input type="hidden" name="plants" value="{{ plant_filter_param }}">
                               <input type="hidden" name="tab" value="{{ tab }}">
                               <input type="hidden" name="sort" value="{{ sort_mode }}">
+                              {% if active_session_id %}
+                                <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                              {% endif %}
                               {% if today_override_value %}
                                 <input type="hidden" name="today" value="{{ today_override_value }}">
                               {% endif %}
@@ -241,17 +409,24 @@
                           <div class="loads-list">
                             {% for load in section.loads %}
                       {% set status = load.status or 'PROPOSED' %}
-                      {% set panel_open = feedback_target.startswith('load-' ~ load.id) or feedback_target.startswith('order-' ~ load.id ~ '-') %}
-                      {% set display_label = load.load_number if status == 'APPROVED' and load.load_number else 'Load #' ~ (load.draft_sequence if load.draft_sequence else load.id) %}
-                      {% set util_value = (load.utilization_pct or 0) | round(0) %}
-                      {% set util_width = 100 if util_value > 100 else util_value %}
+                      {% set panel_open = feedback_target.startswith('load-return-' ~ load.id) or feedback_target.startswith('order-' ~ load.id ~ '-') %}
+                      {% set display_label = load.load_number if ((is_replay and load.load_number) or (status == 'APPROVED' and load.load_number)) else 'Load #' ~ (load.draft_sequence if load.draft_sequence else load.id) %}
+                      {% set util_source = load.display_utilization_pct if load.display_utilization_pct is not none else load.utilization_pct %}
+                      {% set util_raw = (util_source or 0) | float %}
+                      {% set util_value = util_raw | round(0) | int %}
+                      {% set util_width = 100 if util_raw > 100 else util_raw %}
                       {% set util_grade = (load.schematic.utilization_grade if load.schematic else 'F') %}
-                      {% if util_value >= 80 %}
-                        {% set util_class = 'success' %}
-                      {% elif util_value >= 70 %}
-                        {% set util_class = 'warning' %}
+                      {% set util_grade_key = (util_grade or 'F') | upper %}
+                      {% if util_grade_key == 'A' %}
+                        {% set util_class = 'util-a' %}
+                      {% elif util_grade_key == 'B' %}
+                        {% set util_class = 'util-b' %}
+                      {% elif util_grade_key == 'C' %}
+                        {% set util_class = 'util-c' %}
+                      {% elif util_grade_key == 'D' %}
+                        {% set util_class = 'util-d' %}
                       {% else %}
-                        {% set util_class = 'danger' %}
+                        {% set util_class = 'util-f' %}
                       {% endif %}
                       {% set miles = (load.route_distance if load.route_distance is not none else (load.estimated_miles or 0)) | round(0) %}
                       <div
@@ -281,11 +456,7 @@
                                 {% endif %}
                               </div>
                               <div class="subtext">
-                                {{ load.origin_plant }}
-                                <span class="route-arrow" aria-hidden="true">&rarr;</span>
-                                {{ load.destination_state }}
                                 <span class="route-meta" aria-label="Stops and miles">
-                                  &middot;
                                   {% if load.stop_count == 1 %}
                                     1 stop
                                   {% else %}
@@ -294,6 +465,10 @@
                                   &middot;
                                   {{ miles }} mi
                                 </span>
+                                <span class="route-sep" aria-hidden="true">&middot;</span>
+                                {{ load.origin_plant }}
+                                <span class="route-arrow" aria-hidden="true">&rarr;</span>
+                                {{ load.destination_state }}
                               </div>
                             </div>
                           </div>
@@ -317,26 +492,49 @@
                           <div class="load-summary-metric util summary-cell" data-load-id="{{ load.id }}">
                             <div class="util-meta">
                               <span class="metric-value util-pct {{ util_class }}" data-util-value>{{ util_value }}%</span>
-                              <span class="util-grade {{ util_class }}" data-util-grade>GRADE {{ util_grade }}</span>
+                              <span class="util-grade {{ util_class }}" data-util-grade>GRADE {{ util_grade_key }}</span>
                             </div>
                             <div class="util-progress">
                               <span class="util-fill {{ util_class }}" data-util-fill style="width: {{ util_width }}%;"></span>
                             </div>
+                            {% if load.utilization_display_note %}
+                              <div class="subtext">{{ load.utilization_display_note }}</div>
+                            {% endif %}
                           </div>
 
+                          {% set freight = load.freight_breakdown or {} %}
                           <div class="load-summary-metric cost summary-cell">
-                            <div class="fin-line fin-freight">
-                              Freight: <span class="fin-freight-value">${{ "{:,.0f}".format((load.estimated_cost or 0) | float) }}</span>
-                            </div>
                             <div class="fin-line fin-sales">
                               Sales Value: <span class="fin-sales-value">${{ "{:,.0f}".format((load.total_sales or 0) | float) }}</span>
+                            </div>
+                            <div class="fin-line fin-freight">
+                              Freight:
+                              <span
+                                class="fin-freight-value"
+                                data-freight-estimate
+                                data-load-id="{{ load.id }}"
+                                data-load-label="{{ display_label }}"
+                                data-stop-count="{{ freight.stop_count or 0 }}"
+                                data-stop-fee="{{ freight.stop_fee or 0 }}"
+                                data-stop-cost="{{ freight.stop_cost or 0 }}"
+                                data-estimated-miles="{{ freight.estimated_miles or 0 }}"
+                                data-linehaul-rate="{{ freight.linehaul_rate_per_mile or 0 }}"
+                                data-linehaul-cost="{{ freight.linehaul_cost or 0 }}"
+                                data-fuel-rate="{{ freight.fuel_surcharge_per_mile or 0 }}"
+                                data-fuel-cost="{{ freight.fuel_cost or 0 }}"
+                                data-adjustment-cost="{{ freight.adjustment_cost or 0 }}"
+                                data-adjustment-label="{{ freight.adjustment_label or 'Adjustment' }}"
+                                data-subtotal-before-floor="{{ freight.subtotal_before_floor or 0 }}"
+                                data-min-load-cost="{{ freight.min_load_cost or 0 }}"
+                                data-total-cost="{{ freight.total_cost or 0 }}"
+                              >${{ "{:,.0f}".format((load.estimated_cost or 0) | float) }}</span>
                             </div>
                           </div>
                         </div>
                       </div>
 
                       <div class="load-detail-panel hidden" id="load-detail-{{ load.id }}" data-load-id="{{ load.id }}">
-                    {% set reject_target = 'load-' ~ load.id %}
+                    {% set reject_target = 'load-return-' ~ load.id %}
                     {% set order_error_id = '' %}
                     {% if feedback_target.startswith('order-' ~ load.id ~ '-') %}
                       {% set order_error_id = feedback_target | replace('order-' ~ load.id ~ '-', '') %}
@@ -344,18 +542,28 @@
                     <div class="load-approval-stash hidden" data-approval-stash>
                       <div class="load-approval-actions-slot" data-approval-actions-slot>
                         <div class="load-approval-actions">
-                          {% if status == 'APPROVED' %}
-                            <span class="approval-status approved">Approved</span>
+                          {% if is_replay %}
+                            <span class="approval-status">Simulation Only</span>
                           {% else %}
-                            <span class="approval-status">Pending Approval</span>
-                          {% endif %}
-                          {% if tab != 'final' %}
-                            <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
-                              <input type="hidden" name="action" value="approve_lock">
-                              <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-                              <button class="btn-success approval-btn" type="submit" {% if status == 'APPROVED' %}disabled{% endif %}>Approve</button>
-                            </form>
-                            <button class="btn-danger approval-btn feedback-toggle" type="button" data-feedback-target="load-reject-{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>Reject</button>
+                            {% if status == 'APPROVED' %}
+                              <span class="approval-status approved">Approved</span>
+                            {% else %}
+                              <span class="approval-status">Pending Approval</span>
+                            {% endif %}
+                            {% if tab != 'final' %}
+                              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
+                                <input type="hidden" name="action" value="approve_lock">
+                                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                                <button class="btn-success approval-btn" type="submit" {% if status == 'APPROVED' %}disabled{% endif %}>Approve</button>
+                              </form>
+                              <button class="btn-danger approval-btn feedback-toggle" type="button" data-feedback-target="load-return-{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>Return Orders</button>
+                            {% else %}
+                              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
+                                <input type="hidden" name="action" value="unapprove">
+                                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                                <button class="btn-secondary approval-btn" type="submit">Unapprove Load</button>
+                              </form>
+                            {% endif %}
                           {% endif %}
                         </div>
                       </div>
@@ -363,69 +571,82 @@
                         <div class="alert-message warning{% if not load.over_capacity %} hidden{% endif %}" id="over-capacity-{{ load.id }}">
                           <strong>Over Capacity:</strong> This is a single-order load that exceeds trailer capacity. Review before dispatch.
                         </div>
+                        <div class="alert-message warning{% if not load.schematic_warning_count %} hidden{% endif %}" id="schematic-warning-{{ load.id }}">
+                          <strong>Schematic Warning:</strong>
+                          <span data-schematic-warning-message>
+                            {% if load.schematic_warning_count %}
+                              {{ (load.schematic_warnings[0].message if load.schematic_warnings and load.schematic_warnings[0].message else 'Review schematic warnings before approval.') }}
+                              {% if load.schematic_warning_count > 1 %} (+{{ load.schematic_warning_count - 1 }} more){% endif %}
+                            {% else %}
+                              Review schematic warnings before approval.
+                            {% endif %}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    <div class="inline-feedback-panel load-feedback-panel{% if feedback_target != reject_target %} hidden{% endif %}" id="load-reject-{{ load.id }}">
-                      <form class="feedback-form-inline" method="post" action="{{ url_for('reject_load', load_id=load.id) }}">
-                        <div class="feedback-fields">
-                          <label>
-                            Rejection reason (required)
-                            <select class="select-field" name="reason_category" required>
-                              <option value="">Select reason</option>
-                              {% for reason in load_rejection_reasons %}
-                                <option value="{{ reason }}">{{ reason }}</option>
-                              {% endfor %}
-                            </select>
-                          </label>
-                          <label>
-                            Additional details (minimum 10 characters)
-                            <textarea name="details" rows="3" minlength="10" required placeholder="Add context for the rejection."></textarea>
-                          </label>
-                        </div>
-                        {% if feedback_target == reject_target and feedback_error %}
-                          <div class="form-error">{{ feedback_error }}</div>
-                        {% endif %}
-                        <div class="feedback-actions">
-                          <button class="btn-danger" type="submit">Submit Rejection</button>
-                          <button class="btn-ghost feedback-cancel" type="button" data-feedback-cancel>Cancel</button>
-                        </div>
-                      </form>
-                    </div>
+                    {% if not is_replay %}
+                      <div class="inline-feedback-panel load-feedback-panel{% if feedback_target != reject_target %} hidden{% endif %}" id="load-return-{{ load.id }}">
+                        <form class="feedback-form-inline" method="post" action="{{ url_for('reject_load', load_id=load.id) }}">
+                          <div class="feedback-fields">
+                            <label>
+                              Return reason (required)
+                              <select class="select-field" name="reason_category" required>
+                                <option value="">Select reason</option>
+                                {% for reason in load_rejection_reasons %}
+                                  <option value="{{ reason }}">{{ reason }}</option>
+                                {% endfor %}
+                              </select>
+                            </label>
+                            <label>
+                              Additional details (minimum 10 characters)
+                              <textarea name="details" rows="3" minlength="10" required placeholder="Explain why these orders should leave this optimization run."></textarea>
+                            </label>
+                          </div>
+                          {% if feedback_target == reject_target and feedback_error %}
+                            <div class="form-error">{{ feedback_error }}</div>
+                          {% endif %}
+                          <div class="feedback-actions">
+                            <button class="btn-danger" type="submit">Return Orders To Pool</button>
+                            <button class="btn-ghost feedback-cancel" type="button" data-feedback-cancel>Cancel</button>
+                          </div>
+                        </form>
+                      </div>
 
-                    <div class="inline-feedback-panel order-feedback-panel{% if not order_error_id %} hidden{% endif %}" id="order-remove-{{ load.id }}" data-load-id="{{ load.id }}">
-                      <form class="feedback-form-inline" method="post" action="{{ url_for('remove_order_from_load', load_id=load.id) }}">
-                        <input type="hidden" name="order_id" value="{{ order_error_id }}">
-                        <div class="order-feedback-header">
-                          <span class="metric-label">Remove Order</span>
-                          <span class="metric-value" data-order-label>
-                            {% if order_error_id %}#{{ order_error_id }}{% else %}Select an order in the schematic{% endif %}
-                          </span>
-                        </div>
-                        <div class="feedback-fields">
-                          <label>
-                            Removal reason (required)
-                            <select class="select-field" name="reason_category" required>
-                              <option value="">Select reason</option>
-                              {% for reason in order_removal_reasons %}
-                                <option value="{{ reason }}">{{ reason }}</option>
-                              {% endfor %}
-                            </select>
-                          </label>
-                          <label>
-                            Additional details (minimum 10 characters)
-                            <textarea name="details" rows="3" minlength="10" required placeholder="Add context for removing this order."></textarea>
-                          </label>
-                        </div>
-                        {% if order_error_id and feedback_error %}
-                          <div class="form-error">{{ feedback_error }}</div>
-                        {% endif %}
-                        <div class="feedback-actions">
-                          <button class="btn-danger btn-xs" type="submit">Submit Removal</button>
-                          <button class="btn-ghost btn-xs feedback-cancel" type="button" data-feedback-cancel>Cancel</button>
-                        </div>
-                      </form>
-                    </div>
+                      <div class="inline-feedback-panel order-feedback-panel{% if not order_error_id %} hidden{% endif %}" id="order-remove-{{ load.id }}" data-load-id="{{ load.id }}">
+                        <form class="feedback-form-inline" method="post" action="{{ url_for('remove_order_from_load', load_id=load.id) }}">
+                          <input type="hidden" name="order_id" value="{{ order_error_id }}">
+                          <div class="order-feedback-header">
+                            <span class="metric-label">Remove Order</span>
+                            <span class="metric-value" data-order-label>
+                              {% if order_error_id %}#{{ order_error_id }}{% else %}Select an order in the schematic{% endif %}
+                            </span>
+                          </div>
+                          <div class="feedback-fields">
+                            <label>
+                              Removal reason (required)
+                              <select class="select-field" name="reason_category" required>
+                                <option value="">Select reason</option>
+                                {% for reason in order_removal_reasons %}
+                                  <option value="{{ reason }}">{{ reason }}</option>
+                                {% endfor %}
+                              </select>
+                            </label>
+                            <label>
+                              Additional details (minimum 10 characters)
+                              <textarea name="details" rows="3" minlength="10" required placeholder="Add context for removing this order."></textarea>
+                            </label>
+                          </div>
+                          {% if order_error_id and feedback_error %}
+                            <div class="form-error">{{ feedback_error }}</div>
+                          {% endif %}
+                          <div class="feedback-actions">
+                            <button class="btn-danger btn-xs" type="submit">Submit Removal</button>
+                            <button class="btn-ghost btn-xs feedback-cancel" type="button" data-feedback-cancel>Cancel</button>
+                          </div>
+                        </form>
+                      </div>
+                    {% endif %}
 
                     <div class="load-detail-grid load-approval-grid">
                       {% include 'partials/load_schematic_card.html' %}
@@ -483,7 +704,7 @@
                                     <table class="manifest-subtable">
                                       <thead>
                                         <tr>
-                                          <th>SKU</th>
+                                          <th>Item</th>
                                           <th>Description</th>
                                           <th>Qty</th>
                                           <th>Length</th>
@@ -492,8 +713,8 @@
                                       <tbody>
                                         {% for line in group.lines %}
                                           <tr>
-                                            <td>{{ line.sku }}</td>
-                                            <td>{{ line.item }}</td>
+                                            <td>{{ line.item or line.sku }}</td>
+                                            <td>{{ line.item_desc or line.sku }}</td>
                                             <td>{{ line.qty }}</td>
                                             <td>{{ (line.unit_length_ft or 0) | round(1) }} ft</td>
                                           </tr>
@@ -509,7 +730,7 @@
                       </div>
 
                       <div class="map-card">
-                        <div class="load-map" id="load-map-{{ load.id }}" data-stops='{{ load.map_stops | tojson }}'></div>
+                        <div class="load-map" id="load-map-{{ load.id }}" data-load-id="{{ load.id }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}'></div>
                       </div>
                     </div>
                   </div>
@@ -553,7 +774,50 @@
     </div>
   </section>
 
-  {% if tab != 'final' %}
+  <div class="modal-backdrop hidden" id="freight-breakdown-modal" data-freight-breakdown-modal aria-hidden="true">
+    <div class="modal-card freight-breakdown-modal-card" role="dialog" aria-modal="true" aria-labelledby="freight-breakdown-title">
+      <div class="modal-header">
+        <div class="modal-title">
+          <h3 id="freight-breakdown-title">Freight Estimate Breakdown</h3>
+          <p id="freight-breakdown-subtitle">Hover over a freight value to view how the estimate was built.</p>
+        </div>
+        <button class="btn-icon" type="button" data-freight-breakdown-close aria-label="Close freight estimate breakdown">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body freight-breakdown-body">
+        <div class="freight-breakdown-line">
+          <span class="metric-label">Stop Charges</span>
+          <span class="subtext" id="freight-breakdown-stops-formula"></span>
+          <strong id="freight-breakdown-stops-total"></strong>
+        </div>
+        <div class="freight-breakdown-line">
+          <span class="metric-label">Linehaul</span>
+          <span class="subtext" id="freight-breakdown-linehaul-formula"></span>
+          <strong id="freight-breakdown-linehaul-total"></strong>
+        </div>
+        <div class="freight-breakdown-line">
+          <span class="metric-label">Fuel Surcharge</span>
+          <span class="subtext" id="freight-breakdown-fuel-formula"></span>
+          <strong id="freight-breakdown-fuel-total"></strong>
+        </div>
+        <div class="freight-breakdown-line hidden" id="freight-breakdown-adjustment-row">
+          <span class="metric-label" id="freight-breakdown-adjustment-label">Adjustment</span>
+          <span class="subtext" id="freight-breakdown-adjustment-formula"></span>
+          <strong id="freight-breakdown-adjustment-total"></strong>
+        </div>
+        <div class="freight-breakdown-total">
+          <span class="metric-label">Estimated Freight Total</span>
+          <strong id="freight-breakdown-total"></strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" type="button" data-freight-breakdown-close>Close</button>
+      </div>
+    </div>
+  </div>
+
+  {% if tab != 'final' and not is_replay %}
     <div class="modal-backdrop hidden" id="manual-load-modal" data-manual-load-modal>
       <div class="modal-card">
         <div class="modal-header">
@@ -568,6 +832,9 @@
         <form id="manual-load-form" method="post" action="{{ url_for('manual_load_create') }}" onsubmit="return confirm('Create this manual load and re-optimize the remaining orders?');">
           <div class="modal-body">
             <input type="hidden" name="plant" id="manual-load-plant" value="{% if plant_filters|length == 1 %}{{ plant_filters[0] }}{% elif plants|length %}{{ plants[0] }}{% endif %}">
+            {% if active_session_id %}
+              <input type="hidden" name="session_id" value="{{ active_session_id }}">
+            {% endif %}
             <input type="hidden" name="trailer_type" value="STEP_DECK">
 
             <div class="manual-builder-layout">
@@ -643,11 +910,11 @@
     </div>
     <div class="modal-backdrop hidden" id="manual-add-modal" data-manual-add-modal>
       <div class="modal-card">
-        <div class="modal-header">
-          <div class="modal-title">
-            <h3>Manually Add Orders</h3>
-            <p>Add nearby draft-scope orders that fit in the remaining trailer space. This converts the load to MANUAL and re-optimizes the remaining orders.</p>
-          </div>
+          <div class="modal-header">
+            <div class="modal-title">
+              <h3>Manually Add Orders</h3>
+            <p>Browse and search draft-scope orders, then add any selection. Manual loads can exceed trailer capacity.</p>
+            </div>
           <button class="btn-icon" type="button" data-manual-add-close aria-label="Close manual add orders">
             <span class="material-symbols-outlined">close</span>
           </button>
@@ -664,6 +931,10 @@
               </div>
             </div>
             <div class="subtext" id="manual-add-meta"></div>
+            <div class="manual-base-search manual-add-search">
+              <span class="material-symbols-outlined">search</span>
+              <input class="select-field" type="text" id="manual-add-search" placeholder="Search by order #, customer, city, state, or due date..." autocomplete="off" aria-label="Search available orders">
+            </div>
             <div class="manual-order-list" id="manual-add-list">
               <div class="subtext">Select a load’s “Manually Add Orders” button to see suggestions.</div>
             </div>
@@ -674,6 +945,39 @@
             <button class="btn-primary" type="submit" id="manual-add-submit" disabled>Add Selected Orders</button>
           </div>
         </form>
+      </div>
+    </div>
+    <div class="modal-backdrop hidden" id="schematic-edit-modal" data-schematic-edit-modal>
+      <div class="modal-card schematic-edit-modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>Edit Schematic</h3>
+            <p id="schematic-edit-subtitle">Drag units between stacks and decks, then save.</p>
+          </div>
+          <button class="btn-icon" type="button" data-schematic-edit-close aria-label="Close schematic editor">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-body schematic-edit-body">
+          <div class="schematic-edit-summary">
+            <div class="schematic-edit-metrics" id="schematic-edit-metrics"></div>
+            <div class="subtext hidden" id="schematic-edit-error"></div>
+          </div>
+          <div class="schematic-edit-canvas" id="schematic-edit-canvas">
+            <div class="subtext">Loading schematic editor...</div>
+          </div>
+          <div class="schematic-edit-warnings">
+            <div class="metric-label">Warnings</div>
+            <div class="schematic-edit-warning-list" id="schematic-edit-warning-list">
+              <div class="subtext">No warnings.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" type="button" data-schematic-edit-reset>Reset</button>
+          <button class="btn-ghost" type="button" data-schematic-edit-cancel>Cancel</button>
+          <button class="btn-primary" type="button" id="schematic-edit-save">Save Schematic</button>
+        </div>
       </div>
     </div>
   {% endif %}
@@ -828,12 +1132,34 @@
       });
     }
 
+    function fitMapToStops(map, stops) {
+      if (!map || !Array.isArray(stops) || !stops.length) return;
+      const coords = stops
+        .map((stop) => [Number(stop.lat), Number(stop.lng)])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      if (!coords.length) return;
+      if (coords.length === 1) {
+        map.setView(coords[0], 9, { animate: false });
+        return;
+      }
+      map.fitBounds(L.latLngBounds(coords), {
+        padding: [28, 28],
+        animate: false,
+      });
+    }
+
     function initLoadMap(container) {
       if (!container || mapInstances.has(container.id)) {
         return;
       }
       const stops = JSON.parse(container.dataset.stops || '[]');
-      const validStops = stops.filter((stop) => stop.lat !== null && stop.lng !== null);
+      const validStops = stops
+        .map((stop) => ({
+          ...stop,
+          lat: Number(stop.lat),
+          lng: Number(stop.lng),
+        }))
+        .filter((stop) => Number.isFinite(stop.lat) && Number.isFinite(stop.lng));
       if (!validStops.length) {
         container.innerHTML = '<div class="empty">No map coordinates available for stops.</div>';
         return;
@@ -848,20 +1174,38 @@
         maxZoom: 18,
       }).addTo(map);
 
-      const bounds = [];
-      const lineCoords = validStops.map((stop) => {
-        const coords = [stop.lat, stop.lng];
-        bounds.push(coords);
-        return coords;
-      });
+      const storedRoute = JSON.parse(container.dataset.route || '[]');
+      const routeCoords = (Array.isArray(storedRoute) ? storedRoute : [])
+        .map((point) => [Number(point[0]), Number(point[1])])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
 
-      if (lineCoords.length > 1) {
-        L.polyline(lineCoords, {
+      const lineCoords = validStops.map((stop) => {
+        return [stop.lat, stop.lng];
+      });
+      let routeLineLayer = null;
+      const hasDetailedRoadGeometry = routeCoords.length > lineCoords.length;
+
+      const drawRoutePolyline = (coords, addArrows = false) => {
+        const normalized = (Array.isArray(coords) ? coords : [])
+          .map((point) => [Number(point[0]), Number(point[1])])
+          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+        if (normalized.length <= 1) return false;
+        if (routeLineLayer) {
+          try { map.removeLayer(routeLineLayer); } catch (_) {}
+        }
+        routeLineLayer = L.polyline(normalized, {
           color: '#38bdf8',
           weight: 3,
           opacity: 0.85,
         }).addTo(map);
-        addRouteArrows(map, lineCoords);
+        if (addArrows && lineCoords.length > 1) {
+          addRouteArrows(map, lineCoords);
+        }
+        return true;
+      };
+
+      if (hasDetailedRoadGeometry) {
+        drawRoutePolyline(routeCoords);
       }
 
       validStops.forEach((stop) => {
@@ -872,12 +1216,38 @@
         marker.bindPopup(label);
       });
 
-      if (bounds.length === 1) {
-        map.setView(bounds[0], 9);
-      } else {
-        map.fitBounds(bounds, { padding: [20, 20] });
-      }
+      map.__routeStops = validStops;
+      fitMapToStops(map, validStops);
       mapInstances.set(container.id, map);
+
+      if (!hasDetailedRoadGeometry) {
+        const loadId = container.dataset.loadId;
+        if (loadId) {
+          fetch(`/api/loads/${encodeURIComponent(loadId)}/route-geometry`)
+            .then((response) => response.ok ? response.json() : null)
+            .then((payload) => {
+              if (!payload) {
+                drawRoutePolyline(lineCoords, true);
+                return;
+              }
+              const fetched = (Array.isArray(payload.route_geometry) ? payload.route_geometry : [])
+                .map((point) => [Number(point[0]), Number(point[1])])
+                .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+              if (fetched.length > 1) {
+                container.dataset.route = JSON.stringify(payload.route_geometry || []);
+                drawRoutePolyline(fetched);
+                return;
+              }
+              drawRoutePolyline(lineCoords, true);
+            })
+            .catch(() => {
+              // Fallback: keep map functional with straight-line geometry.
+              drawRoutePolyline(lineCoords, true);
+            });
+          return;
+        }
+        drawRoutePolyline(lineCoords, true);
+      }
     }
 
     function closeOrderFeedbackPanels() {
@@ -955,67 +1325,167 @@
     function updateUtilSummary(loadId, payload) {
       const container = document.querySelector(`.load-summary-metric.util[data-load-id="${loadId}"]`);
       if (!container) return;
-      const pct = Math.round(payload.utilization_pct || 0);
+      const pctRaw = Number(payload.utilization_pct || 0);
+      const pct = Math.round(pctRaw);
       const grade = payload.utilization_grade || 'F';
+      const gradeKey = String(grade).toUpperCase();
+      const gradeClassMap = {
+        A: 'util-a',
+        B: 'util-b',
+        C: 'util-c',
+        D: 'util-d',
+        F: 'util-f',
+      };
+      const utilClass = gradeClassMap[gradeKey] || 'util-f';
+      const utilClassList = ['util-a', 'util-b', 'util-c', 'util-d', 'util-f', 'success', 'warning', 'danger'];
       const utilValue = container.querySelector('[data-util-value]');
       const utilGrade = container.querySelector('[data-util-grade]');
       const utilFill = container.querySelector('[data-util-fill]');
       if (utilValue) utilValue.textContent = `${pct}%`;
-      if (utilGrade) utilGrade.textContent = `Grade ${grade}`;
+      if (utilGrade) utilGrade.textContent = `GRADE ${gradeKey}`;
+      [utilValue, utilGrade, utilFill].forEach((node) => {
+        if (!node) return;
+        node.classList.remove(...utilClassList);
+        node.classList.add(utilClass);
+      });
       if (utilFill) {
-        utilFill.style.width = `${Math.min(100, pct)}%`;
-        utilFill.classList.remove('success', 'warning', 'danger');
-        if (pct >= 80) {
-          utilFill.classList.add('success');
-        } else if (pct >= 70) {
-          utilFill.classList.add('warning');
-        } else {
-          utilFill.classList.add('danger');
+        utilFill.style.width = `${Math.min(100, pctRaw)}%`;
+      }
+    }
+
+    function applySchematicPayload(loadId, payload) {
+      if (payload && payload.schematic_html) {
+        const existing = document.getElementById(`schematic-card-${loadId}`);
+        if (existing) {
+          existing.outerHTML = payload.schematic_html;
+          const replacement = document.getElementById(`schematic-card-${loadId}`);
+          bindSchematicRemove(replacement || document);
+          bindTrailerSelect(replacement || document);
+          bindManualAddButtons(replacement || document);
+          bindSchematicEditButtons(replacement || document);
         }
       }
+      updateUtilSummary(loadId, payload || {});
+      const alert = document.getElementById(`over-capacity-${loadId}`);
+      if (alert) {
+        alert.classList.toggle('hidden', !(payload && payload.over_capacity));
+      }
+      const schematicAlert = document.getElementById(`schematic-warning-${loadId}`);
+      if (schematicAlert) {
+        const warnings = (payload && Array.isArray(payload.warnings)) ? payload.warnings : [];
+        const firstMessage = warnings.length && warnings[0] && warnings[0].message
+          ? String(warnings[0].message)
+          : 'Review schematic warnings before approval.';
+        const messageNode = schematicAlert.querySelector('[data-schematic-warning-message]');
+        if (messageNode) {
+          messageNode.textContent = warnings.length > 1
+            ? `${firstMessage} (+${warnings.length - 1} more)`
+            : firstMessage;
+        }
+        schematicAlert.classList.toggle('hidden', warnings.length === 0);
+      }
+      const panel = document.getElementById(`load-detail-${loadId}`);
+      if (panel) {
+        panel.dataset.schematicSynced = 'true';
+      }
+    }
+
+    function fetchSchematic(loadId, { force = false } = {}) {
+      const panel = document.getElementById(`load-detail-${loadId}`);
+      if (!force && panel && panel.dataset.schematicSynced === 'true') {
+        return Promise.resolve(null);
+      }
+      const tabParam = loadsTab ? `?tab=${encodeURIComponent(loadsTab)}` : '';
+      return fetch(`/loads/${loadId}/schematic${tabParam}`)
+        .then((response) => {
+          if (!response.ok) throw new Error('Schematic refresh failed');
+          return response.json();
+        })
+        .then((payload) => {
+          applySchematicPayload(loadId, payload);
+          return payload;
+        });
     }
 
     function bindTrailerSelect(root = document) {
       root.querySelectorAll('.load-trailer-select').forEach((select) => {
         if (select.dataset.bound === 'true') return;
         select.dataset.bound = 'true';
+        if (!select.dataset.previousValue) {
+          select.dataset.previousValue = select.value;
+        }
         select.addEventListener('change', () => {
           const loadId = select.dataset.loadId;
           if (!loadId) return;
+          const previous = select.dataset.previousValue || '';
           select.disabled = true;
-          const formData = new FormData();
-          formData.append('trailer_type', select.value);
-          fetch(`/loads/${loadId}/trailer`, {
-            method: 'POST',
-            body: formData,
-          })
+          const nextValue = select.value;
+
+          const submitTrailerUpdate = (confirmViolation = false) => {
+            const formData = new FormData();
+            formData.append('trailer_type', nextValue);
+            if (confirmViolation) formData.append('confirm_violation', '1');
+            return fetch(`/loads/${loadId}/trailer`, {
+              method: 'POST',
+              body: formData,
+            });
+          };
+
+          submitTrailerUpdate(false)
             .then((response) => {
+              if (response.status === 409) {
+                return response.json().then((payload) => ({ response, payload }));
+              }
               if (!response.ok) {
-                throw new Error('Trailer update failed');
+                return response.json()
+                  .then((payload) => {
+                    throw new Error((payload && payload.error) || 'Trailer update failed');
+                  })
+                  .catch(() => {
+                    throw new Error('Trailer update failed');
+                  });
               }
-              const tabParam = loadsTab ? `?tab=${encodeURIComponent(loadsTab)}` : '';
-              return fetch(`/loads/${loadId}/schematic${tabParam}`);
+              return { response, payload: null };
             })
-            .then((response) => response.json())
-            .then((payload) => {
-              if (payload && payload.schematic_html) {
-                const existing = document.getElementById(`schematic-card-${loadId}`);
-                  if (existing) {
-                    existing.outerHTML = payload.schematic_html;
-                    const replacement = document.getElementById(`schematic-card-${loadId}`);
-                    bindSchematicRemove(replacement || document);
-                    bindTrailerSelect(replacement || document);
-                    bindManualAddButtons(replacement || document);
-                  }
+            .then(({ response, payload }) => {
+              if (response.status === 409 && payload && payload.requires_confirmation) {
+                const messages = (payload.warnings || [])
+                  .slice(0, 5)
+                  .map((w) => `- ${w.message}`)
+                  .join('\n');
+                const confirmMsg = [
+                  'This trailer change creates schematic warnings.',
+                  messages || '- Warnings detected.',
+                  'Confirm to keep the remapped layout anyway?',
+                ].join('\n');
+                if (!window.confirm(confirmMsg)) {
+                  throw new Error('Trailer update canceled');
                 }
-              updateUtilSummary(loadId, payload || {});
-              const alert = document.getElementById(`over-capacity-${loadId}`);
-              if (alert) {
-                alert.classList.toggle('hidden', !(payload && payload.over_capacity));
+                return submitTrailerUpdate(true).then((second) => {
+                  if (!second.ok) {
+                    return second.json()
+                      .then((errPayload) => {
+                        throw new Error((errPayload && errPayload.error) || 'Trailer remap save failed');
+                      })
+                      .catch(() => {
+                        throw new Error('Trailer remap save failed');
+                      });
+                  }
+                  return null;
+                });
               }
+              return null;
             })
-            .catch(() => {
-              window.alert('Unable to update trailer type. Please try again.');
+            .then(() => fetchSchematic(loadId, { force: true }))
+            .then(() => {
+              select.dataset.previousValue = nextValue;
+            })
+            .catch((error) => {
+              select.value = previous;
+              if (error && error.message === 'Trailer update canceled') {
+                return;
+              }
+              window.alert((error && error.message) || 'Unable to update trailer type. Please try again.');
             })
             .finally(() => {
               select.disabled = false;
@@ -1109,7 +1579,7 @@
       if (!layout) return;
       const top = layout.getBoundingClientRect().top;
       const available = window.innerHeight - top - 16;
-      const clamped = Math.max(520, Math.floor(available));
+      const clamped = Math.max(0, Math.floor(available));
       layout.style.setProperty('--loads-review-height', `${clamped}px`);
     }
 
@@ -1243,6 +1713,7 @@
       panel.classList.remove('hidden');
       panel.classList.add('single-screen');
       pane.appendChild(panel);
+      fetchSchematic(loadId).catch(() => {});
       clearSelectedPreviewHeader();
       moveSelectedHeaderElements(loadId);
 
@@ -1250,7 +1721,12 @@
       initLoadMap(mapContainer);
       const mapInstance = mapInstances.get(mapContainer?.id);
       if (mapInstance) {
-        setTimeout(() => mapInstance.invalidateSize(), 50);
+        const refit = () => {
+          mapInstance.invalidateSize();
+          fitMapToStops(mapInstance, mapInstance.__routeStops || []);
+        };
+        requestAnimationFrame(refit);
+        setTimeout(refit, 140);
       }
 
       if (scrollIntoView) {
@@ -1305,7 +1781,7 @@
           // Always read from the attribute to avoid posting to `/[object HTMLInputElement]`.
           const postUrl = form.getAttribute('action') || '';
           if (!postUrl) {
-            window.alert('Unable to approve load: missing form action URL.');
+            window.alert('Unable to update load status: missing form action URL.');
             return;
           }
           form.querySelector('button')?.setAttribute('disabled', 'true');
@@ -1346,8 +1822,8 @@
             })
             .catch((error) => {
               form.querySelector('button')?.removeAttribute('disabled');
-              console.error('Async approve failed', error);
-              window.alert(error?.message || 'Unable to approve load. Please try again.');
+              console.error('Async load status update failed', error);
+              window.alert(error?.message || 'Unable to update load status. Please try again.');
             });
         });
       });
@@ -1415,6 +1891,7 @@
 
     bindSchematicRemove();
     bindTrailerSelect();
+    bindSchematicEditButtons();
     bindAsyncApprove();
     stashAllDetailPanels();
 
@@ -1453,6 +1930,161 @@
         clearTimeout(handle);
         handle = setTimeout(() => fn(...args), delayMs);
       };
+    }
+
+    function initFreightBreakdownModal() {
+      const modal = document.getElementById('freight-breakdown-modal');
+      if (!modal) return;
+      const card = modal.querySelector('.freight-breakdown-modal-card');
+
+      const subtitle = document.getElementById('freight-breakdown-subtitle');
+      const stopsFormula = document.getElementById('freight-breakdown-stops-formula');
+      const stopsTotal = document.getElementById('freight-breakdown-stops-total');
+      const linehaulFormula = document.getElementById('freight-breakdown-linehaul-formula');
+      const linehaulTotal = document.getElementById('freight-breakdown-linehaul-total');
+      const fuelFormula = document.getElementById('freight-breakdown-fuel-formula');
+      const fuelTotal = document.getElementById('freight-breakdown-fuel-total');
+      const adjustmentRow = document.getElementById('freight-breakdown-adjustment-row');
+      const adjustmentLabel = document.getElementById('freight-breakdown-adjustment-label');
+      const adjustmentFormula = document.getElementById('freight-breakdown-adjustment-formula');
+      const adjustmentTotal = document.getElementById('freight-breakdown-adjustment-total');
+      const totalEl = document.getElementById('freight-breakdown-total');
+      const closeButtons = modal.querySelectorAll('[data-freight-breakdown-close]');
+      const freightTargets = document.querySelectorAll('[data-freight-estimate]');
+      let activeTarget = null;
+
+      const toNumber = (value, fallback = 0) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+      const moneyFmt = new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      const formatMoney = (value) => moneyFmt.format(toNumber(value, 0));
+      const formatMiles = (value) => `${toNumber(value, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mi`;
+      const formatRate = (value) => `${formatMoney(value)}/mi`;
+
+      const closeModal = () => {
+        modal.classList.add('hidden');
+        modal.setAttribute('aria-hidden', 'true');
+        activeTarget = null;
+      };
+
+      const renderModal = (target) => {
+        const loadLabel = (target.dataset.loadLabel || '').trim();
+        const loadId = target.dataset.loadId || '';
+        const stopCount = Math.max(0, Math.round(toNumber(target.dataset.stopCount, 0)));
+        const stopFee = toNumber(target.dataset.stopFee, 0);
+        const stopCost = toNumber(target.dataset.stopCost, 0);
+        const estimatedMiles = toNumber(target.dataset.estimatedMiles, 0);
+        const linehaulRate = toNumber(target.dataset.linehaulRate, 0);
+        const linehaulCostValue = toNumber(target.dataset.linehaulCost, 0);
+        const fuelRate = toNumber(target.dataset.fuelRate, 0);
+        const fuelCostValue = toNumber(target.dataset.fuelCost, 0);
+        const adjustmentCostValue = toNumber(target.dataset.adjustmentCost, 0);
+        const adjustmentLabelValue = (target.dataset.adjustmentLabel || 'Adjustment').trim() || 'Adjustment';
+        const subtotalBeforeFloor = toNumber(target.dataset.subtotalBeforeFloor, 0);
+        const minLoadCost = toNumber(target.dataset.minLoadCost, 0);
+        const totalCost = toNumber(target.dataset.totalCost, 0);
+
+        if (subtitle) {
+          const idLabel = loadLabel || (loadId ? `Load ${loadId}` : 'Selected load');
+          subtitle.textContent = `${idLabel} freight estimate formula`;
+        }
+        if (stopsFormula) stopsFormula.textContent = `${stopCount} stops x ${formatMoney(stopFee)} each`;
+        if (stopsTotal) stopsTotal.textContent = formatMoney(stopCost);
+        if (linehaulFormula) linehaulFormula.textContent = `${formatMiles(estimatedMiles)} x ${formatRate(linehaulRate)}`;
+        if (linehaulTotal) linehaulTotal.textContent = formatMoney(linehaulCostValue);
+        if (fuelFormula) fuelFormula.textContent = `${formatMiles(estimatedMiles)} x ${formatRate(fuelRate)}`;
+        if (fuelTotal) fuelTotal.textContent = formatMoney(fuelCostValue);
+        if (totalEl) totalEl.textContent = formatMoney(totalCost);
+
+        const showAdjustment = Math.abs(adjustmentCostValue) >= 0.01;
+        if (adjustmentRow) adjustmentRow.classList.toggle('hidden', !showAdjustment);
+        if (showAdjustment) {
+          if (adjustmentLabel) adjustmentLabel.textContent = adjustmentLabelValue;
+          if (adjustmentFormula) {
+            adjustmentFormula.textContent = `Subtotal ${formatMoney(subtotalBeforeFloor)} vs floor ${formatMoney(minLoadCost)}`;
+          }
+          if (adjustmentTotal) adjustmentTotal.textContent = formatMoney(adjustmentCostValue);
+        }
+      };
+
+      const positionModal = (target) => {
+        if (!card || !target) return;
+        const margin = 8;
+        const gap = 10;
+        const targetRect = target.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+
+        let top = targetRect.bottom + gap;
+        if (top + cardRect.height > window.innerHeight - margin) {
+          top = targetRect.top - cardRect.height - gap;
+        }
+        if (top < margin) top = margin;
+
+        let left = targetRect.left;
+        if (left + cardRect.width > window.innerWidth - margin) {
+          left = window.innerWidth - cardRect.width - margin;
+        }
+        if (left < margin) left = margin;
+
+        card.style.top = `${Math.round(top)}px`;
+        card.style.left = `${Math.round(left)}px`;
+      };
+
+      const openModal = (target) => {
+        activeTarget = target;
+        renderModal(target);
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        positionModal(target);
+      };
+
+      closeButtons.forEach((button) => {
+        button.addEventListener('click', closeModal);
+      });
+
+      freightTargets.forEach((target) => {
+        target.addEventListener('mouseenter', () => {
+          openModal(target);
+        });
+        target.addEventListener('mousemove', () => {
+          if (!modal.classList.contains('hidden') && activeTarget === target) {
+            positionModal(target);
+          }
+        });
+        target.addEventListener('mouseleave', () => {
+          closeModal();
+        });
+      });
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+
+      window.addEventListener('scroll', () => {
+        if (!modal.classList.contains('hidden') && activeTarget) {
+          positionModal(activeTarget);
+        }
+      }, true);
+
+      window.addEventListener('resize', () => {
+        if (!modal.classList.contains('hidden') && activeTarget) {
+          positionModal(activeTarget);
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (modal.classList.contains('hidden')) return;
+        closeModal();
+      });
+
+      closeModal();
     }
 
     function initManualLoadModal() {
@@ -1927,6 +2559,7 @@
     }
 
     let manualAddApi = null;
+    let schematicEditApi = null;
 
     function bindManualAddButtons(root = document) {
       root.querySelectorAll('.js-manual-add-open').forEach((btn) => {
@@ -1952,6 +2585,7 @@
       const form = document.getElementById('manual-add-form');
       const meta = document.getElementById('manual-add-meta');
       const list = document.getElementById('manual-add-list');
+      const searchInput = document.getElementById('manual-add-search');
       const error = document.getElementById('manual-add-error');
       const submitBtn = document.getElementById('manual-add-submit');
       const utilMeta = document.getElementById('manual-add-util-meta');
@@ -1961,8 +2595,8 @@
       let activeController = null;
       let cachedSuggestions = [];
       let cachedSpace = {};
-      let cachedParams = {};
       let selectedOrders = new Map();
+      let searchTerm = '';
 
       const setError = (message) => {
         if (!error) return;
@@ -1981,8 +2615,9 @@
         activeLoadId = null;
         cachedSuggestions = [];
         cachedSpace = {};
-        cachedParams = {};
         selectedOrders = new Map();
+        searchTerm = '';
+        if (searchInput) searchInput.value = '';
         if (utilMeta) utilMeta.textContent = '';
         if (utilFill) utilFill.style.width = '0%';
         modal.classList.add('hidden');
@@ -2028,16 +2663,24 @@
         const selected = getSelectedTotalFt();
         const used = baseUsed + selected;
         const remaining = capacity ? Math.max(capacity - used, 0) : 0;
-        const pct = capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
+        const overBy = capacity ? Math.max(used - capacity, 0) : 0;
+        const pctRaw = capacity ? Math.round((used / capacity) * 100) : 0;
+        const pct = Math.max(0, Math.min(100, pctRaw));
         if (!capacity) {
           utilMeta.textContent = 'No capacity data available.';
           utilFill.style.width = '0%';
           return;
         }
-        utilMeta.textContent = `${used.toFixed(1)} ft used / ${capacity} ft capacity | ${remaining.toFixed(1)} ft remaining`;
+        if (overBy > 0.05) {
+          utilMeta.textContent = `${used.toFixed(1)} ft used / ${capacity} ft capacity | ${overBy.toFixed(1)} ft over`;
+        } else {
+          utilMeta.textContent = `${used.toFixed(1)} ft used / ${capacity} ft capacity | ${remaining.toFixed(1)} ft remaining`;
+        }
         utilFill.style.width = `${pct}%`;
         utilFill.classList.remove('success', 'warning', 'danger');
-        if (pct >= 85) {
+        if (pctRaw >= 100) {
+          utilFill.classList.add('danger');
+        } else if (pct >= 85) {
           utilFill.classList.add('success');
         } else if (pct >= 70) {
           utilFill.classList.add('warning');
@@ -2050,27 +2693,31 @@
         if (!list) return;
         list.innerHTML = '';
 
-        const capacity = Number(cachedSpace.capacity_ft || 0);
-        const baseUsed = Number(cachedSpace.used_ft || 0);
-        const selected = getSelectedTotalFt();
-        const remaining = capacity ? Math.max(capacity - (baseUsed + selected), 0) : 0;
-
-        const metaBits = [];
-        if (capacity) metaBits.push(`Remaining ${remaining.toFixed(1)} ft`);
-        if (cachedParams.geo_radius) metaBits.push(`Radius ${Math.round(cachedParams.geo_radius)} mi`);
-        if (cachedParams.time_window_days) metaBits.push(`Window +/-${cachedParams.time_window_days}d`);
-        if (meta) meta.textContent = metaBits.join(' | ');
-
+        const query = (searchTerm || '').trim().toLowerCase();
         const visible = cachedSuggestions.filter((item) => {
           const soNum = (item.so_num || '').toString().trim();
           if (!soNum) return false;
-          const length = Number(item.total_length_ft || 0);
-          if (selectedOrders.has(soNum)) return true;
-          return length <= remaining;
+          if (!query) return true;
+          const haystack = [
+            soNum,
+            item.cust_name || '',
+            item.due_date || '',
+            item.city || '',
+            item.state || '',
+            item.zip || '',
+          ]
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(query);
         });
 
+        if (meta) {
+          const selectedCount = selectedOrders.size;
+          meta.textContent = `${visible.length} shown of ${cachedSuggestions.length} available | ${selectedCount} selected`;
+        }
+
         if (!visible.length) {
-          renderEmpty('No nearby draft-scope orders fit in the remaining trailer space.');
+          renderEmpty(query ? 'No orders match your search.' : 'No draft-scope orders are available to add.');
           updateSubmitState();
           updateUtilizationUI();
           return;
@@ -2091,11 +2738,6 @@
           checkbox.addEventListener('change', () => {
             const normalized = normalizeOrder(item);
             if (checkbox.checked) {
-              const remainingNow = capacity ? Math.max(capacity - (baseUsed + getSelectedTotalFt()), 0) : 0;
-              if (Number(normalized.total_length_ft || 0) > remainingNow) {
-                checkbox.checked = false;
-                return;
-              }
               selectedOrders.set(soNum, normalized);
             } else {
               selectedOrders.delete(soNum);
@@ -2144,7 +2786,6 @@
       const renderSuggestions = (payload) => {
         cachedSuggestions = Array.isArray(payload.suggestions) ? payload.suggestions : [];
         cachedSpace = payload.space || {};
-        cachedParams = payload.params || {};
         selectedOrders = new Map();
         updateSubmitState();
         updateUtilizationUI();
@@ -2180,6 +2821,10 @@
       const openModal = (loadId) => {
         activeLoadId = loadId;
         modal.classList.remove('hidden');
+        searchTerm = '';
+        if (searchInput) {
+          searchInput.value = '';
+        }
         loadSuggestions(loadId);
       };
 
@@ -2229,6 +2874,13 @@
               setError((err && err.message) || 'Unable to add orders. Try again.');
               updateSubmitState();
             });
+        });
+      }
+
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          searchTerm = searchInput.value || '';
+          renderSuggestionList();
         });
       }
     }
@@ -2291,10 +2943,728 @@
       });
     }
 
+    function bindSchematicEditButtons(root = document) {
+      root.querySelectorAll('.js-schematic-edit-open').forEach((btn) => {
+        if (btn.dataset.bound === 'true') return;
+        btn.dataset.bound = 'true';
+        btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const loadId = btn.dataset.loadId;
+          if (!loadId) return;
+          if (!schematicEditApi || typeof schematicEditApi.open !== 'function') return;
+          schematicEditApi.open(loadId);
+        });
+      });
+    }
+
+    function initSchematicEditModal() {
+      const modal = document.getElementById('schematic-edit-modal');
+      if (!modal) return;
+
+      const closeButton = modal.querySelector('[data-schematic-edit-close]');
+      const cancelButton = modal.querySelector('[data-schematic-edit-cancel]');
+      const resetButton = modal.querySelector('[data-schematic-edit-reset]');
+      const saveButton = document.getElementById('schematic-edit-save');
+      const subtitle = document.getElementById('schematic-edit-subtitle');
+      const metricsHost = document.getElementById('schematic-edit-metrics');
+      const canvas = document.getElementById('schematic-edit-canvas');
+      const warningHost = document.getElementById('schematic-edit-warning-list');
+      const errorHost = document.getElementById('schematic-edit-error');
+
+      const state = {
+        loadId: null,
+        trailerType: 'STEP_DECK',
+        units: [],
+        unitsById: {},
+        layout: { positions: [] },
+        originalLayout: { positions: [] },
+        warnings: [],
+        metrics: {},
+        assumptions: {
+          stack_overflow_max_height: 5,
+          max_back_overhang_ft: 4,
+        },
+        draggingUnitId: null,
+      };
+
+      const cloneLayout = (layout) => JSON.parse(JSON.stringify(layout || { positions: [] }));
+
+      const setError = (message) => {
+        if (!errorHost) return;
+        if (!message) {
+          errorHost.classList.add('hidden');
+          errorHost.textContent = '';
+          return;
+        }
+        errorHost.textContent = message;
+        errorHost.classList.remove('hidden');
+      };
+
+      const trailerConfig = (trailerType) => {
+        const key = String(trailerType || 'STEP_DECK').trim().toUpperCase();
+        if (key === 'STEP_DECK') return { lower: 43, upper: 10, capacity: 53 };
+        if (key === 'WEDGE') return { lower: 51, upper: 0, capacity: 51 };
+        return { lower: 53, upper: 0, capacity: 53 };
+      };
+
+      const findPosition = (positionId) => (
+        (state.layout.positions || []).find((pos) => (pos.position_id || '') === (positionId || ''))
+      );
+
+      const removeUnitFromLayout = (unitId) => {
+        let removed = false;
+        state.layout.positions = (state.layout.positions || [])
+          .map((pos) => {
+            const nextIds = (pos.unit_ids || []).filter((id) => id !== unitId);
+            if (nextIds.length !== (pos.unit_ids || []).length) {
+              removed = true;
+            }
+            return { ...pos, unit_ids: nextIds };
+          })
+          .filter((pos) => (pos.unit_ids || []).length > 0 || !!pos.allow_empty);
+        return removed;
+      };
+
+      const ensurePositionIds = () => {
+        state.layout.positions = (state.layout.positions || []).map((pos, idx) => ({
+          ...pos,
+          position_id: pos.position_id || `p${idx + 1}`,
+        }));
+      };
+
+      const insertUnitInPosition = (unitId, positionId, index) => {
+        const pos = findPosition(positionId);
+        if (!pos) return;
+        const list = pos.unit_ids || [];
+        const targetIndex = Math.max(0, Math.min(Number(index || 0), list.length));
+        list.splice(targetIndex, 0, unitId);
+        pos.unit_ids = list;
+        if (pos.allow_empty) pos.allow_empty = false;
+      };
+
+      const moveUnitToPosition = (unitId, positionId, index) => {
+        if (!unitId || !positionId) return;
+        removeUnitFromLayout(unitId);
+        insertUnitInPosition(unitId, positionId, index);
+        ensurePositionIds();
+        computeClientPreview();
+        render();
+      };
+
+      const moveUnitToNewStack = (unitId, deck, insertIndex) => {
+        if (!unitId) return;
+        removeUnitFromLayout(unitId);
+        const targetDeck = (deck || 'lower') === 'upper' ? 'upper' : 'lower';
+        const newPos = { position_id: `p${Date.now()}`, deck: targetDeck, unit_ids: [unitId] };
+        const positions = state.layout.positions || [];
+        const deckPositions = positions.filter((pos) => (pos.deck || 'lower') === targetDeck);
+        if (!deckPositions.length) {
+          state.layout.positions.push(newPos);
+        } else {
+          const deckIndices = positions
+            .map((pos, idx) => ({ pos, idx }))
+            .filter((entry) => (entry.pos.deck || 'lower') === targetDeck)
+            .map((entry) => entry.idx);
+          const boundedInsert = Math.max(0, Math.min(Number(insertIndex || 0), deckIndices.length));
+          const insertAt =
+            boundedInsert >= deckIndices.length
+              ? (deckIndices[deckIndices.length - 1] + 1)
+              : deckIndices[boundedInsert];
+          positions.splice(insertAt, 0, newPos);
+          state.layout.positions = positions;
+        }
+        ensurePositionIds();
+        computeClientPreview();
+        render();
+      };
+
+      const createEmptyStack = (deck, insertIndex) => {
+        const targetDeck = (deck || 'lower') === 'upper' ? 'upper' : 'lower';
+        const newPos = {
+          position_id: `p${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          deck: targetDeck,
+          unit_ids: [],
+          allow_empty: true,
+        };
+        const positions = state.layout.positions || [];
+        const deckPositions = positions.filter((pos) => (pos.deck || 'lower') === targetDeck);
+        if (!deckPositions.length) {
+          positions.push(newPos);
+          state.layout.positions = positions;
+        } else {
+          const deckIndices = positions
+            .map((pos, idx) => ({ pos, idx }))
+            .filter((entry) => (entry.pos.deck || 'lower') === targetDeck)
+            .map((entry) => entry.idx);
+          const boundedInsert = Math.max(0, Math.min(Number(insertIndex || 0), deckIndices.length));
+          const insertAt =
+            boundedInsert >= deckIndices.length
+              ? (deckIndices[deckIndices.length - 1] + 1)
+              : deckIndices[boundedInsert];
+          positions.splice(insertAt, 0, newPos);
+          state.layout.positions = positions;
+        }
+        ensurePositionIds();
+        computeClientPreview();
+        render();
+      };
+
+      const renderWarnings = () => {
+        if (!warningHost) return;
+        warningHost.innerHTML = '';
+        const warnings = state.warnings || [];
+        if (!warnings.length) {
+          const empty = document.createElement('div');
+          empty.className = 'subtext';
+          empty.textContent = 'No warnings.';
+          warningHost.appendChild(empty);
+          return;
+        }
+        warnings.forEach((warning) => {
+          const row = document.createElement('div');
+          row.className = 'schematic-edit-warning-item';
+          row.textContent = warning.message || warning.code || 'Warning';
+          warningHost.appendChild(row);
+        });
+      };
+
+      const renderMetrics = () => {
+        if (!metricsHost) return;
+        const metrics = state.metrics || {};
+        const util = Number(metrics.utilization_pct || 0);
+        const grade = metrics.utilization_grade || 'F';
+        const linear = Number(metrics.total_linear_feet || 0).toFixed(1);
+        metricsHost.innerHTML = [
+          `<span><strong>Utilization:</strong> ${util.toFixed(1)}%</span>`,
+          `<span><strong>Grade:</strong> ${grade}</span>`,
+          `<span><strong>Length:</strong> ${linear} ft</span>`,
+          `<span><strong>Warnings:</strong> ${(state.warnings || []).length}</span>`,
+        ].join('');
+      };
+
+      const computeClientPreview = () => {
+        const cfg = trailerConfig(state.trailerType);
+        const assumptions = state.assumptions || {};
+        const stackOverflowMaxHeight = Math.max(
+          Number(assumptions.stack_overflow_max_height || 0),
+          0,
+        );
+        const maxBackOverhangFt = Math.max(
+          Number(assumptions.max_back_overhang_ft || 0),
+          0,
+        );
+        const maxStackUtilizationMultiplier = stackOverflowMaxHeight > 0
+          ? (1 + (1 / stackOverflowMaxHeight))
+          : 1;
+        const warnings = [];
+        let lowerTotal = 0;
+        let upperTotal = 0;
+        let totalLinear = 0;
+        let credit = 0;
+        const unitFraction = (maxStack) => 1 / Math.max(Number(maxStack || 1), 1);
+        const allowsSingleOverflow = (units, capUsed) => {
+          if (!(capUsed > 1.000001)) return false;
+          if (!(stackOverflowMaxHeight > 0)) return false;
+          if (capUsed > (maxStackUtilizationMultiplier + 0.000001)) return false;
+          return (units || []).some((unit, unitIdx) => {
+            const maxStack = Math.max(Number(unit.max_stack || 1), 1);
+            if (maxStack < stackOverflowMaxHeight) return false;
+            if ((capUsed - unitFraction(maxStack)) > 1.000001) return false;
+            const baseHeights = new Set(
+              (units || [])
+                .filter((_, baseIdx) => baseIdx !== unitIdx)
+                .map((baseUnit) => Math.max(Number(baseUnit.max_stack || 1), 1))
+            );
+            return baseHeights.size >= 2;
+          });
+        };
+
+        (state.layout.positions || []).forEach((pos, idx) => {
+          const ids = pos.unit_ids || [];
+          const units = ids.map((id) => state.unitsById[id]).filter(Boolean);
+          if (!units.length) return;
+          const length = Math.max(...units.map((unit) => Number(unit.unit_length_ft || 0)));
+          const capUsed = units.reduce((sum, unit) => {
+            const maxStack = Math.max(Number(unit.max_stack || 1), 1);
+            return sum + (1 / maxStack);
+          }, 0);
+          const overflowApplied = allowsSingleOverflow(units, capUsed);
+          const deck = (pos.deck || 'lower') === 'upper' ? 'upper' : 'lower';
+          let overflowNote = '';
+
+          totalLinear += length;
+          credit += length * (overflowApplied
+            ? Math.min(capUsed, maxStackUtilizationMultiplier)
+            : Math.min(capUsed, 1));
+          if (deck === 'upper') {
+            upperTotal += length;
+            if (cfg.upper > 0) {
+              const tooLong = units.some((unit) => Number(unit.unit_length_ft || 0) > cfg.upper);
+              if (tooLong) {
+                warnings.push({
+                  code: 'ITEM_TOO_BIG_FOR_UPPER_DECK',
+                  message: `Position ${idx + 1}: one or more items exceed upper deck limit.`,
+                });
+              }
+            }
+          } else {
+            lowerTotal += length;
+          }
+
+          if (capUsed > (maxStackUtilizationMultiplier + 0.000001)) {
+            warnings.push({
+              code: 'STACK_TOO_HIGH',
+              message: `Position ${idx + 1}: stack fill is ${capUsed.toFixed(2)}x, above allowed ${maxStackUtilizationMultiplier.toFixed(2)}x.`,
+            });
+          } else if (capUsed > 1.000001) {
+            if (overflowApplied) {
+              overflowNote = `Stack ${idx + 1} was overutilized to allow for additional space (${capUsed.toFixed(2)}x, allowed up to ${maxStackUtilizationMultiplier.toFixed(2)}x).`;
+              warnings.push({
+                code: 'STACK_OVERFLOW_ALLOWANCE_USED',
+                message: overflowNote,
+              });
+            } else {
+              warnings.push({
+                code: 'STACK_TOO_HIGH',
+                message: `Position ${idx + 1}: stack fill is ${capUsed.toFixed(2)}x and is not eligible for overflow allowance.`,
+              });
+            }
+          }
+          pos.overflow_applied = !!overflowApplied;
+          pos.overflow_note = overflowNote;
+
+          const lengths = units.map((unit) => Number(unit.unit_length_ft || 0));
+          for (let i = 1; i < lengths.length; i += 1) {
+            if (lengths[i] > lengths[i - 1] + 0.0001) {
+              warnings.push({
+                code: 'COMPATIBILITY_ISSUE',
+                message: `Position ${idx + 1}: invalid stack (longer item above shorter item).`,
+              });
+              break;
+            }
+          }
+
+          const categories = units.map((unit) => String(unit.category || '').toUpperCase()).filter(Boolean);
+          if (categories.includes('DUMP') && new Set(categories).size > 1) {
+            warnings.push({
+              code: 'COMPATIBILITY_ISSUE',
+              message: `Position ${idx + 1}: DUMP items cannot mix with other categories.`,
+            });
+          }
+        });
+
+        const lowerOverhang = Math.max(lowerTotal - cfg.lower, 0);
+        if (lowerOverhang > 0.05) {
+          warnings.push({
+            code: lowerOverhang <= (maxBackOverhangFt + 0.000001)
+              ? 'BACK_OVERHANG_IN_ALLOWANCE'
+              : 'ITEM_HANGS_OVER_DECK',
+            message: lowerOverhang <= (maxBackOverhangFt + 0.000001)
+              ? `Lower deck back overhang is ${lowerOverhang.toFixed(1)} ft (allowance ${maxBackOverhangFt.toFixed(1)} ft).`
+              : `Lower deck back overhang is ${lowerOverhang.toFixed(1)} ft, exceeding allowance by ${(lowerOverhang - maxBackOverhangFt).toFixed(1)} ft.`,
+          });
+        }
+        const upperOverhang = Math.max(upperTotal - cfg.upper, 0);
+        if (cfg.upper > 0 && upperOverhang > 0.05) {
+          warnings.push({
+            code: upperOverhang <= (maxBackOverhangFt + 0.000001)
+              ? 'BACK_OVERHANG_IN_ALLOWANCE'
+              : 'ITEM_HANGS_OVER_DECK',
+            message: upperOverhang <= (maxBackOverhangFt + 0.000001)
+              ? `Upper deck back overhang is ${upperOverhang.toFixed(1)} ft (allowance ${maxBackOverhangFt.toFixed(1)} ft).`
+              : `Upper deck back overhang is ${upperOverhang.toFixed(1)} ft, exceeding allowance by ${(upperOverhang - maxBackOverhangFt).toFixed(1)} ft.`,
+          });
+        }
+
+        const utilizationPct = cfg.capacity > 0 ? ((credit / cfg.capacity) * 100) : 0;
+        const grade = utilizationPct >= 85
+          ? 'A'
+          : utilizationPct >= 70
+            ? 'B'
+            : utilizationPct >= 55
+              ? 'C'
+              : utilizationPct >= 40
+                ? 'D'
+                : 'F';
+
+        state.warnings = warnings;
+        state.metrics = {
+          utilization_pct: utilizationPct,
+          utilization_grade: grade,
+          total_linear_feet: totalLinear,
+          utilization_credit_ft: credit,
+          exceeds_capacity: cfg.upper > 0
+            ? (
+              lowerTotal > (cfg.lower + maxBackOverhangFt)
+              || upperTotal > (cfg.upper + maxBackOverhangFt)
+            )
+            : (totalLinear > (cfg.lower + maxBackOverhangFt)),
+        };
+      };
+
+      const getPositionLengthFt = (position) => {
+        const ids = (position && position.unit_ids) || [];
+        const lengths = ids
+          .map((id) => state.unitsById[id])
+          .filter(Boolean)
+          .map((unit) => Number(unit.unit_length_ft || 0));
+        return lengths.length ? Math.max(...lengths) : 0;
+      };
+
+      const renderDeck = (deckKey, options = {}) => {
+        const showUpperVoid = !!options.showUpperVoid;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'schematic-edit-deck';
+        wrapper.dataset.deck = deckKey;
+        wrapper.classList.add(deckKey === 'upper' ? 'is-upper' : 'is-lower');
+
+        const cfg = trailerConfig(state.trailerType);
+        const deckCap = deckKey === 'upper' ? cfg.upper : cfg.lower;
+        const title = document.createElement('div');
+        title.className = 'schematic-edit-deck-title';
+        title.textContent = `${deckKey === 'upper' ? 'Upper' : 'Lower'} Deck (${deckCap.toFixed(1)} ft)`;
+        wrapper.appendChild(title);
+
+        const stage = document.createElement('div');
+        stage.className = 'schematic-edit-deck-stage';
+        wrapper.appendChild(stage);
+
+        const track = document.createElement('div');
+        track.className = 'schematic-edit-deck-track';
+        if (showUpperVoid) {
+          track.classList.add('has-unavailable-zone');
+        }
+        stage.appendChild(track);
+
+        if (showUpperVoid) {
+          const unavailable = document.createElement('div');
+          unavailable.className = 'schematic-edit-upper-void';
+          unavailable.innerHTML = '<span class="schematic-edit-upper-void-label">Unavailable</span>';
+          stage.appendChild(unavailable);
+        }
+
+        const positions = (state.layout.positions || [])
+          .filter((pos) => (pos.deck || 'lower') === deckKey);
+
+        const createStackSlot = (insertIdx) => {
+          const slot = document.createElement('div');
+          slot.className = 'schematic-edit-stack-slot';
+          slot.dataset.deck = deckKey;
+          slot.dataset.insertIndex = String(insertIdx);
+          slot.textContent = '+ New Stack';
+          slot.title = 'Click to create an empty stack or drag a unit here.';
+          slot.addEventListener('click', () => {
+            createEmptyStack(deckKey, insertIdx);
+          });
+          slot.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            slot.classList.add('dragover');
+          });
+          slot.addEventListener('dragleave', () => {
+            slot.classList.remove('dragover');
+          });
+          slot.addEventListener('drop', (event) => {
+            event.preventDefault();
+            slot.classList.remove('dragover');
+            const unitId = state.draggingUnitId || event.dataTransfer.getData('text/plain');
+            if (!unitId) return;
+            moveUnitToNewStack(unitId, deckKey, insertIdx);
+          });
+          return slot;
+        };
+
+        if (!positions.length) {
+          track.appendChild(createStackSlot(0));
+          return wrapper;
+        }
+
+        positions.forEach((pos, posIdx) => {
+          track.appendChild(createStackSlot(posIdx));
+
+          const stackCol = document.createElement('div');
+          stackCol.className = 'schematic-edit-stack';
+          stackCol.dataset.positionId = pos.position_id;
+
+          const positionLengthFt = getPositionLengthFt(pos);
+          stackCol.style.setProperty('--position-length-ft', String(positionLengthFt || 0));
+
+          const stackHeader = document.createElement('div');
+          stackHeader.className = 'schematic-edit-stack-header';
+          stackHeader.innerHTML = `
+            <span>Stack ${posIdx + 1}</span>
+            <span class="schematic-edit-stack-length">${Number(positionLengthFt || 0).toFixed(1)} ft</span>
+          `;
+          stackCol.appendChild(stackHeader);
+
+          const stackBody = document.createElement('div');
+          stackBody.className = 'schematic-edit-stack-body';
+          stackCol.appendChild(stackBody);
+
+          const ids = pos.unit_ids || [];
+          const createDropSlot = (targetIndex) => {
+            const drop = document.createElement('div');
+            drop.className = 'schematic-edit-drop-slot';
+            drop.dataset.positionId = pos.position_id;
+            drop.dataset.index = String(targetIndex);
+            drop.addEventListener('dragover', (event) => {
+              event.preventDefault();
+              drop.classList.add('dragover');
+            });
+            drop.addEventListener('dragleave', () => {
+              drop.classList.remove('dragover');
+            });
+            drop.addEventListener('drop', (event) => {
+              event.preventDefault();
+              drop.classList.remove('dragover');
+              const unitId = state.draggingUnitId || event.dataTransfer.getData('text/plain');
+              if (!unitId) return;
+              moveUnitToPosition(unitId, pos.position_id, targetIndex);
+            });
+            return drop;
+          };
+
+          stackBody.appendChild(createDropSlot(0));
+          ids.forEach((unitId, idx) => {
+            const unit = state.unitsById[unitId];
+            if (!unit) return;
+            const unitEl = document.createElement('div');
+            unitEl.className = 'schematic-edit-unit';
+            unitEl.draggable = true;
+            unitEl.dataset.unitId = unitId;
+            unitEl.style.setProperty('--unit-accent', unit.color || '#137fec');
+            const unitLengthFt = Number(unit.unit_length_ft || 0);
+            const ratioRaw = positionLengthFt > 0 ? (unitLengthFt / positionLengthFt) : 1;
+            const ratio = Math.max(0.24, Math.min(1, ratioRaw || 1));
+            unitEl.style.setProperty('--unit-length-ratio', String(ratio));
+            unitEl.innerHTML = `
+              <div class="schematic-edit-unit-main">${unit.item || unit.sku || 'UNIT'}</div>
+              <div class="schematic-edit-unit-meta">${Number(unitLengthFt || 0).toFixed(1)} ft</div>
+            `;
+            unitEl.addEventListener('dragstart', (event) => {
+              state.draggingUnitId = unitId;
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', unitId);
+              unitEl.classList.add('dragging');
+            });
+            unitEl.addEventListener('dragend', () => {
+              state.draggingUnitId = null;
+              unitEl.classList.remove('dragging');
+            });
+            stackBody.appendChild(unitEl);
+            stackBody.appendChild(createDropSlot(idx + 1));
+          });
+
+          track.appendChild(stackCol);
+        });
+
+        track.appendChild(createStackSlot(positions.length));
+        return wrapper;
+      };
+
+      const render = () => {
+        if (subtitle) {
+          subtitle.textContent = state.loadId
+            ? `Load ${state.loadId} | ${String(state.trailerType || '').replace('_', ' ')}`
+            : 'Drag units between stacks and decks, then save.';
+        }
+        renderWarnings();
+        renderMetrics();
+        if (!canvas) return;
+        canvas.innerHTML = '';
+        const cfg = trailerConfig(state.trailerType);
+        const lowerDeck = renderDeck('lower');
+        if (cfg.upper > 0) {
+          const stepDeckRow = document.createElement('div');
+          stepDeckRow.className = 'schematic-edit-stepdeck-row';
+          lowerDeck.style.flex = `${Math.max(Number(cfg.lower || 1), 1)} 1 0`;
+          const upperDeck = renderDeck('upper', { showUpperVoid: true });
+          upperDeck.style.flex = `${Math.max(Number(cfg.upper || 1), 1)} 1 0`;
+          stepDeckRow.appendChild(lowerDeck);
+          stepDeckRow.appendChild(upperDeck);
+          canvas.appendChild(stepDeckRow);
+          return;
+        }
+        canvas.appendChild(lowerDeck);
+      };
+
+      const closeModal = () => {
+        state.loadId = null;
+        state.units = [];
+        state.unitsById = {};
+        state.layout = { positions: [] };
+        state.originalLayout = { positions: [] };
+        state.warnings = [];
+        state.metrics = {};
+        state.assumptions = {
+          stack_overflow_max_height: 5,
+          max_back_overhang_ft: 4,
+        };
+        state.draggingUnitId = null;
+        setError('');
+        if (canvas) canvas.innerHTML = '<div class="subtext">Loading schematic editor...</div>';
+        if (warningHost) warningHost.innerHTML = '<div class="subtext">No warnings.</div>';
+        if (metricsHost) metricsHost.innerHTML = '';
+        modal.classList.add('hidden');
+      };
+
+      const openModal = (loadId) => {
+        setError('');
+        state.loadId = String(loadId);
+        modal.classList.remove('hidden');
+        if (canvas) canvas.innerHTML = '<div class="subtext">Loading schematic editor...</div>';
+        fetch(`/loads/${encodeURIComponent(loadId)}/schematic/edit`)
+          .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+          .then(({ ok, payload }) => {
+            if (!ok) {
+              throw new Error((payload && payload.error) || 'Unable to open schematic editor.');
+            }
+            if (!payload.can_edit) {
+              throw new Error('Approved loads are read-only.');
+            }
+            state.trailerType = payload.trailer_type || 'STEP_DECK';
+            state.units = Array.isArray(payload.units) ? payload.units : [];
+            state.unitsById = {};
+            state.units.forEach((unit) => {
+              if (unit && unit.unit_id) state.unitsById[unit.unit_id] = unit;
+            });
+            state.layout = cloneLayout(payload.layout);
+            state.originalLayout = cloneLayout(payload.layout);
+            state.assumptions = payload.assumptions || {
+              stack_overflow_max_height: 5,
+              max_back_overhang_ft: 4,
+            };
+            computeClientPreview();
+            render();
+          })
+          .catch((error) => {
+            setError((error && error.message) || 'Unable to open schematic editor.');
+            if (canvas) canvas.innerHTML = '<div class="subtext">Unable to load editor.</div>';
+          });
+      };
+
+      const saveLayout = (confirmViolation = false) => {
+        if (!state.loadId) return Promise.reject(new Error('No load selected.'));
+        return fetch(`/loads/${encodeURIComponent(state.loadId)}/schematic/edit/save?tab=${encodeURIComponent(loadsTab || '')}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            trailer_type: state.trailerType,
+            layout: state.layout,
+            confirm_violation: confirmViolation,
+            tab: loadsTab || '',
+          }),
+        }).then((response) => response.json().then((payload) => ({ response, payload })));
+      };
+
+      if (saveButton) {
+        saveButton.addEventListener('click', () => {
+          setError('');
+          saveButton.disabled = true;
+          saveLayout(false)
+            .then(({ response, payload }) => {
+              if (response.status === 409 && payload && payload.requires_confirmation) {
+                const warningLines = (payload.warnings || [])
+                  .slice(0, 6)
+                  .map((warning) => `- ${warning.message}`)
+                  .join('\n');
+                const confirmed = window.confirm(
+                  `Saving will keep warnings on this schematic.\n${warningLines || '- Warnings detected.'}\n\nContinue?`
+                );
+                if (!confirmed) {
+                  throw new Error('Save canceled');
+                }
+                return saveLayout(true);
+              }
+              if (!response.ok) {
+                throw new Error((payload && payload.error) || 'Unable to save schematic.');
+              }
+              return { response, payload };
+            })
+            .then(({ response, payload }) => {
+              if (!response.ok) {
+                throw new Error((payload && payload.error) || 'Unable to save schematic.');
+              }
+              if (!state.loadId) return null;
+              return fetchSchematic(state.loadId, { force: true });
+            })
+            .then(() => {
+              closeModal();
+            })
+            .catch((error) => {
+              if (error && error.message === 'Save canceled') return;
+              setError((error && error.message) || 'Unable to save schematic.');
+            })
+            .finally(() => {
+              saveButton.disabled = false;
+            });
+        });
+      }
+
+      if (resetButton) {
+        resetButton.addEventListener('click', () => {
+          state.layout = cloneLayout(state.originalLayout);
+          computeClientPreview();
+          render();
+        });
+      }
+      if (closeButton) closeButton.addEventListener('click', closeModal);
+      if (cancelButton) cancelButton.addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (modal.classList.contains('hidden')) return;
+        closeModal();
+      });
+
+      schematicEditApi = { open: openModal, close: closeModal };
+    }
+
+    function initSessionStopwatch() {
+      const tooltips = document.querySelectorAll('[data-session-tooltip]');
+      if (!tooltips.length) return;
+
+      const formatDuration = (ms) => {
+        const totalSeconds = Math.max(Math.floor(ms / 1000), 0);
+        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+      };
+
+      tooltips.forEach((tooltip) => {
+        const startRaw = tooltip.dataset.startTs || '';
+        const archivedRaw = tooltip.dataset.archivedTs || '';
+        const display = tooltip.querySelector('[data-session-stopwatch]');
+        if (!display || !startRaw) return;
+
+        const startTime = new Date(startRaw);
+        if (archivedRaw) {
+          const endTime = new Date(archivedRaw);
+          display.textContent = formatDuration(endTime - startTime);
+          return;
+        }
+
+        const tick = () => {
+          display.textContent = formatDuration(Date.now() - startTime.getTime());
+        };
+        tick();
+        setInterval(tick, 1000);
+      });
+    }
+
+    initFreightBreakdownModal();
     initManualLoadModal();
     initManualAddModal();
+    initSchematicEditModal();
     initLoadsPlantCards();
     bindManualAddButtons();
+    bindSchematicEditButtons();
+    initSessionStopwatch();
 
   </script>
 {% endblock %}

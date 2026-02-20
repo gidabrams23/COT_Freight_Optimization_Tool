@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="session-history-page">
+    <header class="settings-header">
+      <div class="settings-title">
+        <h1>Replay Run #{{ run.id }}</h1>
+        <p class="muted">
+          {{ run.filename or 'Uploaded file' }} &middot; {{ run.created_at }} &middot; Status {{ run.status }}
+        </p>
+      </div>
+      <div class="panel-actions">
+        <a class="btn-secondary btn-xs" href="{{ url_for('planning_sessions_replay') }}">Back</a>
+        {% if run.status == 'COMPLETED' %}
+          <a class="btn-secondary btn-xs" href="{{ url_for('loads', replay_run_id=run.id, replay_scenario='OPTIMIZED') }}">Open Optimized In Loads UI</a>
+          <a class="btn-secondary btn-xs" href="{{ url_for('planning_sessions_replay_export', run_id=run.id) }}">Export XLSX</a>
+          <a class="btn-ghost btn-xs" href="{{ url_for('planning_sessions_replay_issues_csv', run_id=run.id) }}">Issues CSV</a>
+        {% endif %}
+      </div>
+    </header>
+
+    {% if run.status != 'COMPLETED' %}
+      <div class="session-alert">
+        This run is not completed. {{ (run.summary or {}).get('error') or 'Check run status and retry with a valid report file.' }}
+      </div>
+    {% endif %}
+    {% if replay_error %}
+      <div class="session-alert">{{ replay_error }}</div>
+    {% endif %}
+    {% if replay_success %}
+      <div class="session-alert">
+        {{ replay_success }}
+        {% if source_run_id %}
+          <a class="btn-ghost btn-xs" href="{{ url_for('planning_sessions_replay_detail', run_id=source_run_id|int) }}">Open Source Run</a>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if (run.summary or {}).get('reproduced_from_run_id') %}
+      <div class="session-alert">
+        This run reproduces bucket
+        {{ ((run.summary or {}).get('reproduced_bucket') or {}).get('date_created') or '--' }}
+        /
+        {{ ((run.summary or {}).get('reproduced_bucket') or {}).get('plant_code') or '--' }}
+        from run #{{ (run.summary or {}).get('reproduced_from_run_id') }}.
+      </div>
+    {% endif %}
+
+    <div class="session-kpis">
+      <div class="session-kpi-card">
+        <div class="label">Days</div>
+        <div class="value">{{ totals.days }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Matched Orders</div>
+        <div class="value">{{ totals.matched_orders }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Missing Orders</div>
+        <div class="value">{{ totals.missing_orders }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Delta Cost</div>
+        <div class="value">
+          {% if totals.delta_total_cost > 0 %}+{% endif %}${{ "{:,.0f}".format((totals.delta_total_cost or 0) | float) }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Network Daily Rollup</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="form-hint">
+          Official delta math uses tool-computed cost/miles/utilization for both Baseline and Optimized scenarios.
+          Optimized scenario is strict v2 output (including step deck vs flatbed trailer candidate selection, no manual cost-safe fallback). Source-report freight and truck-use values are reference-only.
+        </p>
+        <p class="form-hint">
+          Validation flow: open a day/plant bucket in the Loads UI for Baseline and Optimized, compare load composition, then inspect freight breakdown on any load row.
+        </p>
+        <p class="form-hint">Click a day row to view plant-level breakdown.</p>
+        <div class="table-container">
+          <table class="session-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Date</th>
+                <th>Plants</th>
+                <th>Matched</th>
+                <th>Missing</th>
+                <th>Actual (Loads/Util/Cost)</th>
+                <th>Optimized (Loads/Util/Cost)</th>
+                <th>Delta Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in network_rows %}
+                {% set day_key = row.date_created %}
+                <tr>
+                  <td>
+                    <button type="button" class="btn-ghost btn-xs" data-day-toggle="{{ day_key }}" aria-expanded="false" aria-controls="day-plants-{{ day_key }}">
+                      <span class="material-symbols-outlined" data-day-icon="{{ day_key }}">expand_more</span>
+                    </button>
+                  </td>
+                  <td>{{ day_key }}</td>
+                  <td>{{ row.plants }}</td>
+                  <td>{{ row.matched_orders }}</td>
+                  <td>{{ row.missing_orders }}</td>
+                  <td>{{ row.actual_loads }} / {{ (row.actual_avg_utilization or 0) | round(1) }}% / ${{ "{:,.0f}".format((row.actual_total_cost or 0) | float) }}</td>
+                  <td>{{ row.optimized_loads }} / {{ (row.optimized_avg_utilization or 0) | round(1) }}% / ${{ "{:,.0f}".format((row.optimized_total_cost or 0) | float) }}</td>
+                  <td>
+                    {% if row.delta_total_cost > 0 %}+{% endif %}${{ "{:,.0f}".format((row.delta_total_cost or 0) | float) }}
+                    {% if row.delta_cost_pct is not none %}
+                      ({{ row.delta_cost_pct | round(1) }}%)
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr class="session-expand-row hidden" id="day-plants-{{ day_key }}" data-day-plants="{{ day_key }}">
+                  <td colspan="8">
+                    <div class="table-container">
+                      <table class="session-subtable">
+                        <thead>
+                          <tr>
+                            <th>Plant</th>
+                            <th>Report Loads</th>
+                            <th>Report Orders</th>
+                            <th>Matched</th>
+                            <th>Missing</th>
+                            <th>Actual Loads</th>
+                            <th>Actual Util</th>
+                            <th>Actual Cost</th>
+                            <th>Optimized Loads</th>
+                            <th>Strategy</th>
+                             <th>Optimized Util</th>
+                             <th>Optimized Cost</th>
+                             <th>Delta Cost</th>
+                             <th>Actions</th>
+                             <th>Load Details</th>
+                           </tr>
+                         </thead>
+                        <tbody>
+                          {% for plant_row in day_plants.get(day_key, []) %}
+                            {% set metric_bundle = load_metrics_by_day_plant.get((day_key, plant_row.plant_code), {}) %}
+                            {% set baseline_metrics = metric_bundle.get('ACTUAL', []) %}
+                            {% set optimized_metrics = metric_bundle.get('OPTIMIZED', []) %}
+                            <tr>
+                              <td>{{ plant_row.plant_code }}</td>
+                              <td>{{ plant_row.report_loads }}</td>
+                              <td>{{ plant_row.report_orders }}</td>
+                              <td>{{ plant_row.matched_orders }}</td>
+                              <td>{{ plant_row.missing_orders }}</td>
+                              <td>{{ plant_row.actual_loads }}</td>
+                              <td>{{ (plant_row.actual_avg_utilization or 0) | round(1) }}%</td>
+                              <td>${{ "{:,.0f}".format((plant_row.actual_total_cost or 0) | float) }}</td>
+                              <td>{{ plant_row.optimized_loads }}</td>
+                              <td>{{ plant_row.optimized_strategy or 'v2' }}</td>
+                              <td>{{ (plant_row.optimized_avg_utilization or 0) | round(1) }}%</td>
+                              <td>${{ "{:,.0f}".format((plant_row.optimized_total_cost or 0) | float) }}</td>
+                               <td>
+                                 {% if plant_row.delta_total_cost > 0 %}+{% endif %}${{ "{:,.0f}".format((plant_row.delta_total_cost or 0) | float) }}
+                                 {% if plant_row.delta_cost_pct is not none %}
+                                   ({{ plant_row.delta_cost_pct | round(1) }}%)
+                                 {% endif %}
+                               </td>
+                               <td>
+                                 <div class="session-actions">
+                                   <a
+                                     class="btn-secondary btn-xs"
+                                     href="{{ url_for('loads', replay_run_id=run.id, replay_scenario='OPTIMIZED', replay_date_created=day_key, replay_plant_code=plant_row.plant_code) }}"
+                                   >
+                                     Optimized
+                                   </a>
+                                   <a
+                                     class="btn-ghost btn-xs"
+                                     href="{{ url_for('loads', replay_run_id=run.id, replay_scenario='ACTUAL', replay_date_created=day_key, replay_plant_code=plant_row.plant_code) }}"
+                                   >
+                                     Baseline
+                                   </a>
+                                   <form method="post" action="{{ url_for('planning_sessions_replay_reproduce', run_id=run.id) }}">
+                                     <input type="hidden" name="date_created" value="{{ day_key }}">
+                                     <input type="hidden" name="plant_code" value="{{ plant_row.plant_code }}">
+                                     <button type="submit" class="btn-ghost btn-xs">Reproduce</button>
+                                   </form>
+                                 </div>
+                               </td>
+                               <td>
+                                 <details>
+                                   <summary>View</summary>
+                                  <div class="table-container" style="margin-top:8px;">
+                                    <table class="session-subtable">
+                                      <thead>
+                                        <tr>
+                                          <th colspan="5">Baseline Loads</th>
+                                        </tr>
+                                        <tr>
+                                          <th>Load</th>
+                                          <th>Orders</th>
+                                          <th>Util</th>
+                                          <th>Miles</th>
+                                          <th>Cost</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {% for metric in baseline_metrics %}
+                                          <tr>
+                                            <td>{{ metric.load_key }}</td>
+                                            <td title="{{ (metric.order_numbers or []) | join(', ') }}">{{ metric.order_count }}</td>
+                                            <td>{{ (metric.utilization_pct or 0) | round(1) }}%</td>
+                                            <td>{{ (metric.estimated_miles or 0) | round(1) }}</td>
+                                            <td>${{ "{:,.0f}".format((metric.estimated_cost or 0) | float) }}</td>
+                                          </tr>
+                                        {% else %}
+                                          <tr>
+                                            <td colspan="5">No baseline load metrics.</td>
+                                          </tr>
+                                        {% endfor %}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                  <div class="table-container" style="margin-top:8px;">
+                                    <table class="session-subtable">
+                                      <thead>
+                                        <tr>
+                                          <th colspan="5">Optimized Loads</th>
+                                        </tr>
+                                        <tr>
+                                          <th>Load</th>
+                                          <th>Orders</th>
+                                          <th>Util</th>
+                                          <th>Miles</th>
+                                          <th>Cost</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {% for metric in optimized_metrics %}
+                                          <tr>
+                                            <td>{{ metric.load_key }}</td>
+                                            <td title="{{ (metric.order_numbers or []) | join(', ') }}">{{ metric.order_count }}</td>
+                                            <td>{{ (metric.utilization_pct or 0) | round(1) }}%</td>
+                                            <td>{{ (metric.estimated_miles or 0) | round(1) }}</td>
+                                            <td>${{ "{:,.0f}".format((metric.estimated_cost or 0) | float) }}</td>
+                                          </tr>
+                                        {% else %}
+                                          <tr>
+                                            <td colspan="5">No optimized load metrics.</td>
+                                          </tr>
+                                        {% endfor %}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </details>
+                              </td>
+                            </tr>
+                           {% else %}
+                             <tr>
+                               <td colspan="15">No plant rows for this day.</td>
+                             </tr>
+                           {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="8">No rollup rows available.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Issues</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="session-expand-metrics">
+          {% for issue_type, count in issues_by_type.items() %}
+            <span class="meta-chip">{{ issue_type }}: {{ count }}</span>
+          {% endfor %}
+          {% if not issues_by_type %}
+            <span class="meta-chip">No issues</span>
+          {% endif %}
+        </div>
+        <div class="table-container">
+          <table class="session-subtable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Plant</th>
+                <th>Load</th>
+                <th>Order</th>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for issue in issues %}
+                <tr>
+                  <td>{{ issue.date_created or '--' }}</td>
+                  <td>{{ issue.plant_code or '--' }}</td>
+                  <td>{{ issue.load_number or '--' }}</td>
+                  <td>{{ issue.order_number or '--' }}</td>
+                  <td>{{ issue.issue_type }}</td>
+                  <td>{{ issue.severity }}</td>
+                  <td>{{ issue.message }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="7">No issues found.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function setDayExpanded(dayKey, expanded) {
+      const row = document.querySelector(`[data-day-plants="${dayKey}"]`);
+      const icon = document.querySelector(`[data-day-icon="${dayKey}"]`);
+      const toggle = document.querySelector(`[data-day-toggle="${dayKey}"]`);
+      if (!row || !toggle) return;
+      row.classList.toggle('hidden', !expanded);
+      toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (icon) icon.textContent = expanded ? 'expand_less' : 'expand_more';
+    }
+
+    document.querySelectorAll('[data-day-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const dayKey = btn.dataset.dayToggle;
+        const row = document.querySelector(`[data-day-plants="${dayKey}"]`);
+        if (!row) return;
+        const expanded = row.classList.contains('hidden');
+        setDayExpanded(dayKey, expanded);
+      });
+    });
+  </script>
+{% endblock %}

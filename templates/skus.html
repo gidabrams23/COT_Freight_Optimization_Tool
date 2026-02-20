@@ -15,6 +15,10 @@
           <input name="sku" type="text" required>
         </label>
         <label>
+          Description
+          <input name="description" type="text">
+        </label>
+        <label>
           Category
           <input name="category" type="text" required>
         </label>
@@ -48,11 +52,13 @@
             <thead>
               <tr>
                 <th>SKU</th>
+                <th>Description</th>
                 <th>Category</th>
                 <th>Length (ft)</th>
                 <th>Step Deck</th>
                 <th>Flat Bed</th>
                 <th>Notes</th>
+                <th>Added</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -60,11 +66,13 @@
               {% for spec in specs %}
                 <tr>
                   <td>{{ spec.sku }}</td>
+                  <td>{{ spec.description or '-' }}</td>
                   <td>{{ spec.category }}</td>
                   <td>{{ spec.length_with_tongue_ft }}</td>
                   <td>{{ spec.max_stack_step_deck }}</td>
                   <td>{{ spec.max_stack_flat_bed }}</td>
                   <td>{{ spec.notes or '-' }}</td>
+                  <td>{{ spec.added_at or spec.created_at or '-' }}</td>
                   <td>
                     <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
                       <button class="btn btn-danger" type="submit">Delete</button>

@@ -8,8 +8,7 @@ import db
 from services import geo_utils, stack_calculator
 
 REQUIRED_COLUMNS = [
-    "duedate",
-    "customer",
+    "shipvia",
     "plant",
     "item",
     "qty",
@@ -18,6 +17,43 @@ REQUIRED_COLUMNS = [
     "bin",
 ]
 
+OPTIONAL_COLUMNS = [
+    "plant2",
+    "sales",
+    "sonum",
+    "customer",
+    "custname",
+    "cname",
+    "cpo",
+    "salesman",
+    "custnum",
+    "load #",
+    "address1",
+    "address2",
+    "city",
+    "createdate",
+    "shipdate",
+    "duedate",
+    "desc",
+]
+
+COLUMN_ALIASES = {
+    "salesorder": "sonum",
+    "itemnum": "item",
+    "ordqty": "qty",
+    "zip_code": "zip",
+    "cust_name": "custname",
+    "cname": "cname",
+    "cnum3": "custnum",
+    "saddr1": "address1",
+    "saddr2": "address2",
+    "createdate": "createdate",
+    "shipdate": "shipdate",
+    "ship via": "shipvia",
+    "linenum": "linenum",
+    "desc": "desc",
+}
+
 
 class OrderImporter:
     def __init__(self):
@@ -25,23 +61,23 @@ class OrderImporter:
         self.sku_specs = self._load_sku_specs()
 
     def parse_csv(self, file_stream):
-        df = pd.read_csv(file_stream)
+        df = pd.read_csv(file_stream, dtype=str, keep_default_na=False)
         column_map = self._normalize_columns(df.columns)
 
         available = set(column_map.values())
         missing = [col for col in REQUIRED_COLUMNS if col not in available]
-        if "customer" in missing and "custname" in available:
-            missing.remove("customer")
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
 
         df = df.rename(columns=column_map)
+        allowed_columns = set(REQUIRED_COLUMNS + OPTIONAL_COLUMNS)
+        df = df[[col for col in df.columns if col in allowed_columns]]
 
         orders = []
         order_lines = []
         unmapped_items = []
 
-        for _, row in df.iterrows():
+        for row in df.to_dict(orient="records"):
             line, reason, context = self.parse_order_line(row, return_reason=True)
             if line:
                 order_lines.append(line)
@@ -49,6 +85,7 @@ class OrderImporter:
                 unmapped_items.append(
                     {
                         "item": context.get("item", ""),
+                        "desc": context.get("desc", ""),
                         "plant": context.get("plant", ""),
                         "bin": context.get("bin_code", ""),
                         "sku": context.get("sku") or "",
@@ -74,6 +111,7 @@ class OrderImporter:
 
     def parse_order_line(self, row, return_reason=False):
         context = self._resolve_row_fields(row)
+        context["desc"] = self._clean_value(row.get("desc"))
         plant = context["plant"]
         bin_code = context["bin_code"]
         item = context["item"]
@@ -108,13 +146,18 @@ class OrderImporter:
         total_length = effective_units * unit_length
         utilization_pct = (total_length / 53.0) * 100 if unit_length else 0
 
-        due_date = self._parse_date(row.get("duedate"))
+        due_date = self._resolve_due_date(row)
         zip_code = geo_utils.normalize_zip(row.get("zip"))
 
-        customer = self._clean_value(row.get("customer"))
-        cust_name = self._clean_value(row.get("custname"))
-        if not cust_name:
-            cust_name = customer
+        customer_label = (
+            self._clean_value(row.get("cname"))
+            or self._clean_value(row.get("custname"))
+            or self._clean_value(row.get("customer"))
+        )
+
+        created_date = self._parse_date(row.get("createdate"))
+        ship_date = self._parse_date(row.get("shipdate"))
+        item_desc = self._clean_value(row.get("desc"))
 
         line = {
             "due_date": due_date,
@@ -122,11 +165,12 @@ class OrderImporter:
             "plant_full": context["plant_full"],
             "plant2": context["plant2"],
             "item": item,
+            "item_desc": item_desc,
             "qty": qty,
             "sales": self._to_float(row.get("sales")),
             "so_num": self._clean_value(row.get("sonum")),
-            "customer": customer,
-            "cust_name": cust_name,
+            "customer": customer_label,
+            "cust_name": customer_label,
             "cpo": self._clean_value(row.get("cpo")),
             "salesman": self._clean_value(row.get("salesman")),
             "cust_num": self._clean_value(row.get("custnum")),
@@ -137,6 +181,8 @@ class OrderImporter:
             "city": self._clean_value(row.get("city")),
             "state": self._clean_value(row.get("state")),
             "zip": zip_code,
+            "created_date": created_date,
+            "ship_date": ship_date,
             "sku": sku,
             "unit_length_ft": unit_length,
             "total_length_ft": total_length,
@@ -168,20 +214,32 @@ class OrderImporter:
 
             due_dates = [line.get("due_date") for line in lines if line.get("due_date")]
             due_date = min(due_dates) if due_dates else ""
+            created_dates = [line.get("created_date") for line in lines if line.get("created_date")]
+            created_date = min(created_dates) if created_dates else ""
+            ship_dates = [line.get("ship_date") for line in lines if line.get("ship_date")]
+            ship_date = min(ship_dates) if ship_dates else ""
 
             plant = self._most_common(lines, "plant")
             customer = self._most_common(lines, "customer")
             cust_name = self._most_common(lines, "cust_name")
             state = self._most_common(lines, "state")
             zip_code = self._most_common(lines, "zip")
+            address1 = self._most_common(lines, "address1")
+            address2 = self._most_common(lines, "address2")
+            city = self._most_common(lines, "city")
 
             orders.append(
                 {
                     "so_num": so_num,
                     "due_date": due_date,
+                    "created_date": created_date,
+                    "ship_date": ship_date,
                     "plant": plant,
                     "customer": customer,
                     "cust_name": cust_name,
+                    "address1": address1,
+                    "address2": address2,
+                    "city": city,
                     "state": state,
                     "zip": zip_code,
                     "total_qty": total_qty,
@@ -201,11 +259,12 @@ class OrderImporter:
     def lookup_sku(self, item):
         if not item:
             return None
-        normalized = item.upper()
+        normalized = str(item).strip().upper()
+        if normalized in self.sku_specs:
+            return normalized
         exact = self.sku_lookup.get("exact", {})
         if normalized in exact:
             return exact[normalized]
-
         for prefix, sku in self.sku_lookup.get("patterns", []):
             if normalized.startswith(prefix):
                 return sku
@@ -236,6 +295,7 @@ class OrderImporter:
         mapping = {}
         for col in columns:
             normalized = col.strip().lower()
+            normalized = COLUMN_ALIASES.get(normalized, normalized)
             mapping[col] = normalized
         return mapping
 
@@ -280,6 +340,12 @@ class OrderImporter:
             return parsed.strftime("%Y-%m-%d")
         except Exception:
             return str(value)
+
+    def _resolve_due_date(self, row):
+        ship_candidate = self._parse_date(row.get("shipvia"))
+        if ship_candidate and not ship_candidate.startswith("1960-01-01"):
+            return ship_candidate
+        return ""
 
     def _clean_value(self, value):
         if value is None:

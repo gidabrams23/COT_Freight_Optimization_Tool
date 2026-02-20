@@ -1,4 +1,7 @@
 <div class="schematic-card" id="schematic-card-{{ load.id }}" data-load-id="{{ load.id }}">
+  {% set report_mode = report_mode | default(false) %}
+  {% set replay_mode = replay_mode | default(false) %}
+  {% set read_only_mode = report_mode or replay_mode %}
   {% set trailer = load.trailer_type or 'STEP_DECK' %}
   {% set has_upper = load.schematic.upper_deck_length and load.schematic.upper_deck_length > 0 %}
   {% set capacity_ft = load.schematic.capacity_feet | float %}
@@ -13,39 +16,65 @@
   {% set display_capacity = ([capacity_ft, lower_display_ft + upper_display_ft] | max) if (trailer == 'STEP_DECK' and has_upper) else ([capacity_ft, lower_display_ft] | max) %}
   {% set lower_width = ((lower_display_ft / display_capacity) * 100) | round(1) if display_capacity else 100 %}
   {% set upper_width = ((upper_display_ft / display_capacity) * 100) | round(1) if (has_upper and display_capacity) else 0 %}
-  {% set util_pct = load.schematic.utilization_pct or 0 %}
+  {% set util_pct_raw = load.schematic.utilization_pct or 0 %}
+  {% set util_pct = load.display_utilization_pct if load.display_utilization_pct is not none else util_pct_raw %}
   {% set util_width = 100 if util_pct > 100 else util_pct %}
-  {% set util_pct_display = util_pct | round(1) %}
+  {% set util_pct_display = util_pct | round(0) | int %}
   {% set util_grade = load.schematic.utilization_grade or 'F' %}
   <div class="card-header-row schematic-header compact">
     <div class="schematic-header-left">
       <div class="schematic-title-row">
         <h3>Stacking Schematic</h3>
         <div class="schematic-stats">
-          <span class="metric-label">Linear Ft Used</span>
+          <span class="metric-label">Utilization</span>
           <span class="metric-value">{{ util_pct_display }}%</span>
+          <span class="metric-label">Linear Ft</span>
+          <span class="metric-value">{{ (load.schematic.total_linear_feet or 0) | round(0) | int }} / {{ capacity_ft | round(0) | int }}</span>
+          <span class="metric-label">Credit Ft</span>
+          <span class="metric-value">{{ (load.schematic.utilization_credit_ft or 0) | round(0) | int }}</span>
           <span class="metric-label">Grade</span>
           <span class="metric-value grade">Grade {{ util_grade }}</span>
         </div>
         {% if load.auto_trailer_label %}
           <span class="badge badge-warning" title="{{ load.auto_trailer_reason or '' }}">{{ load.auto_trailer_label }}</span>
         {% endif %}
+        {% if load.has_custom_schematic %}
+          <span class="badge badge-info">Custom Layout</span>
+        {% endif %}
+        {% if load.schematic_warning_count %}
+          <span class="badge badge-warning" title="Schematic has {{ load.schematic_warning_count }} warning(s).">
+            {{ load.schematic_warning_count }} warning{% if load.schematic_warning_count != 1 %}s{% endif %}
+          </span>
+        {% endif %}
       </div>
     </div>
     <div class="schematic-header-right">
-      {% if status != 'APPROVED' and tab != 'final' %}
+      {% if not read_only_mode and status != 'APPROVED' and tab != 'final' %}
+        <button class="btn-secondary btn-xs js-schematic-edit-open" type="button" data-load-id="{{ load.id }}">
+          <span class="material-symbols-outlined">edit</span>
+          Edit Schematic
+        </button>
         <button class="btn-secondary btn-xs js-manual-add-open" type="button" data-load-id="{{ load.id }}">
           <span class="material-symbols-outlined">add_box</span>
           Manually Add Orders
         </button>
       {% endif %}
-      <select class="select-field select-compact load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
-        <option value="STEP_DECK" {% if trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
-        <option value="WEDGE" {% if trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
-        <option value="FLATBED" {% if trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
-      </select>
+      {% if not read_only_mode %}
+        <select class="select-field select-compact load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
+          <option value="STEP_DECK" {% if trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
+          <option value="WEDGE" {% if trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
+          <option value="FLATBED" {% if trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
+        </select>
+      {% endif %}
     </div>
   </div>
+  {% if load.schematic_warnings and load.schematic_warnings | length %}
+    <div class="alert-message warning" style="margin: 8px 0 10px;">
+      <strong>Planner Warning:</strong>
+      {{ (load.schematic_warnings[0].message if load.schematic_warnings[0].message else 'Review schematic warnings before approval.') }}
+      {% if (load.schematic_warnings | length) > 1 %} (+{{ (load.schematic_warnings | length) - 1 }} more){% endif %}
+    </div>
+  {% endif %}
   <div class="trailer-schematic trailer-{{ load.schematic.trailer_type | lower }}">
     <div class="trailer-body">
       {% if trailer == 'STEP_DECK' and has_upper %}
@@ -69,6 +98,10 @@
               {% for pos in lower_positions %}
                 {% set pos_width = ((pos.length_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 0 %}
                 <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+                  {% if pos.overflow_applied %}
+                    {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                    <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
+                  {% endif %}
                   {% set order_ids = namespace(items=[]) %}
                   {% for item in pos["items"] %}
                     {% if item.order_id and item.order_id not in order_ids.items %}
@@ -82,50 +115,65 @@
                       {% set item_length = item.unit_length_ft or pos.length_ft %}
                       {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
                       {% set block_width = 100 if width_raw > 100 else width_raw %}
-                      {% for _ in range(item.units) %}
+                      {% set item_label = item.item or item.sku or 'ITEM' %}
+                      {% set desc_label = item.item_desc or '' %}
+                      {% set tooltip = item_label %}
+                      {% if item.sku %}
+                        {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                      {% endif %}
+                      {% if desc_label and desc_label != item_label %}
+                        {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                      {% endif %}
+                      {% if item_length %}
+                        {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                      {% endif %}
+                      {% if item.max_stack %}
+                        {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                      {% endif %}
+                      {% for _ in range((item.units or 0) | int) %}
                         <div class="unit-block glass-block"
                              data-order-id="{{ item.order_id }}"
+                             title="{{ tooltip }}"
                              style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
-                          <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                          <span class="unit-label">{{ item_label }}</span>
                         </div>
                       {% endfor %}
                     {% endfor %}
                   </div>
-                  {% if order_ids.items %}
+                  {% if order_ids.items and not read_only_mode %}
                     <div class="position-actions">
                       {% for order_id in order_ids.items %}
-                        <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
-                          Remove #{{ order_id }}
+                          <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
+                          Remove
                         </button>
                       {% endfor %}
                     </div>
                   {% endif %}
-                  <div class="position-label">{{ pos.length_ft }} ft</div>
+                  <div class="position-label">{{ pos.length_ft | round(0) | int }} ft</div>
                 </div>
               {% endfor %}
 
-              {% if lower_rem_ft > 0.05 %}
+              {% if lower_rem_ft > 0.05 and not read_only_mode %}
                 <div class="position-column vacant" style="flex: 0 0 {{ lower_rem_pct }}%;">
                   <div class="position-stack vacant-stack">
                     <div class="vacant-block">
-                      <div class="vacant-watermark">VACANT</div>
-                      <div class="vacant-meta">{{ lower_rem_ft | round(1) }} ft remaining</div>
+                      <div class="vacant-meta">{{ lower_rem_ft | round(0) | int }} ft remaining</div>
                       <div class="vacant-submeta">MAX HEIGHT: 13'6&quot;</div>
                     </div>
                   </div>
-                  <div class="position-label">{{ lower_rem_ft | round(1) }} ft</div>
+                  <div class="position-label">{{ lower_rem_ft | round(0) | int }} ft</div>
                 </div>
               {% endif %}
             </div>
             <div class="deck-footer" style="--line-span: {{ lower_line_span }}%;">
-              <div class="deck-line">
-                <span class="deck-length">{{ lower_deck_ft | round(1) }} FT</span>
-              </div>
               {% if lower_overhang %}
                 <div class="deck-overhang-line">
-                  <span class="deck-overhang">OVERHANG: {{ lower_overhang_ft | round(1) }} FT</span>
+                  <span class="deck-overhang">OVERHANG: {{ lower_overhang_ft | round(0) | int }} FT</span>
                 </div>
               {% endif %}
+              <div class="deck-line">
+                <span class="deck-length">{{ lower_deck_ft | round(0) | int }} FT</span>
+              </div>
             </div>
           </div>
 
@@ -138,6 +186,10 @@
                 {% for pos in upper_positions %}
                   {% set pos_width = ((pos.length_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 0 %}
                   <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+                    {% if pos.overflow_applied %}
+                      {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                      <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
+                    {% endif %}
                     {% set order_ids = namespace(items=[]) %}
                     {% for item in pos["items"] %}
                       {% if item.order_id and item.order_id not in order_ids.items %}
@@ -151,33 +203,49 @@
                         {% set item_length = item.unit_length_ft or pos.length_ft %}
                         {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
                         {% set block_width = 100 if width_raw > 100 else width_raw %}
-                        {% for _ in range(item.units) %}
+                        {% set item_label = item.item or item.sku or 'ITEM' %}
+                        {% set desc_label = item.item_desc or '' %}
+                        {% set tooltip = item_label %}
+                        {% if item.sku %}
+                          {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                        {% endif %}
+                        {% if desc_label and desc_label != item_label %}
+                          {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                        {% endif %}
+                        {% if item_length %}
+                          {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                        {% endif %}
+                        {% if item.max_stack %}
+                          {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                        {% endif %}
+                        {% for _ in range((item.units or 0) | int) %}
                           <div class="unit-block glass-block"
                                data-order-id="{{ item.order_id }}"
+                               title="{{ tooltip }}"
                                style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
-                            <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                            <span class="unit-label">{{ item_label }}</span>
                           </div>
                         {% endfor %}
                       {% endfor %}
                     </div>
-                    {% if order_ids.items %}
+                    {% if order_ids.items and not read_only_mode %}
                       <div class="position-actions">
                         {% for order_id in order_ids.items %}
-                          <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
-                            Remove #{{ order_id }}
+                            <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
+                            Remove
                           </button>
                         {% endfor %}
                       </div>
                     {% endif %}
-                    <div class="position-label">{{ pos.length_ft }} ft</div>
+                    <div class="position-label">{{ pos.length_ft | round(0) | int }} ft</div>
                   </div>
                 {% endfor %}
 
-                {% if upper_rem_ft > 0.05 and upper_used_ft <= 0.05 %}
+                {% if upper_rem_ft > 0.05 and upper_used_ft <= 0.05 and not read_only_mode %}
                   <div class="position-column vacant" style="flex: 0 0 {{ upper_rem_pct }}%;">
                     <div class="position-stack vacant-stack">
                       <div class="vacant-block">
-                        <div class="vacant-watermark">VACANT</div>
+                        <div class="vacant-meta">{{ upper_rem_ft | round(0) | int }} ft remaining</div>
                       </div>
                     </div>
                   </div>
@@ -186,28 +254,34 @@
               <div class="deck-void"></div>
             </div>
             <div class="deck-footer" style="--line-span: {{ upper_line_span }}%;">
-              <div class="deck-line">
-                <span class="deck-length">{{ upper_deck_ft | round(1) }} FT</span>
-              </div>
               {% if upper_overhang %}
                 <div class="deck-overhang-line">
-                  <span class="deck-overhang">OVERHANG: {{ upper_overhang_ft | round(1) }} FT</span>
+                  <span class="deck-overhang">OVERHANG: {{ upper_overhang_ft | round(0) | int }} FT</span>
                 </div>
               {% endif %}
+              <div class="deck-line">
+                <span class="deck-length">{{ upper_deck_ft | round(0) | int }} FT</span>
+              </div>
             </div>
           </div>
         </div>
       {% else %}
         <div class="trailer-deck lower" style="flex: 1 1 auto;">
+          {% set lower_rem_ft = lower_deck_ft - lower_used_ft %}
+          {% set lower_rem_pct = ((lower_rem_ft / lower_display_ft) * 100) if lower_display_ft else 0 %}
           {% if trailer == 'FLATBED' %}
             <div class="deck-label">Main Deck</div>
           {% else %}
-            <div class="deck-label">Lower Deck - {{ load.schematic.lower_deck_length }} ft</div>
+            <div class="deck-label">Lower Deck - {{ load.schematic.lower_deck_length | round(0) | int }} ft</div>
           {% endif %}
           <div class="deck-positions">
             {% for pos in load.schematic.positions if pos.deck == 'lower' %}
               {% set pos_width = ((pos.length_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 0 %}
               <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+                {% if pos.overflow_applied %}
+                  {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                  <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
+                {% endif %}
                 {% set order_ids = namespace(items=[]) %}
                 {% for item in pos["items"] %}
                   {% if item.order_id and item.order_id not in order_ids.items %}
@@ -221,50 +295,81 @@
                     {% set item_length = item.unit_length_ft or pos.length_ft %}
                     {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
                     {% set block_width = 100 if width_raw > 100 else width_raw %}
-                    {% for _ in range(item.units) %}
+                    {% set item_label = item.item or item.sku or 'ITEM' %}
+                    {% set desc_label = item.item_desc or '' %}
+                    {% set tooltip = item_label %}
+                    {% if item.sku %}
+                      {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                    {% endif %}
+                    {% if desc_label and desc_label != item_label %}
+                      {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                    {% endif %}
+                    {% if item_length %}
+                      {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                    {% endif %}
+                    {% if item.max_stack %}
+                      {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                    {% endif %}
+                    {% for _ in range((item.units or 0) | int) %}
                       <div class="unit-block glass-block"
                            data-order-id="{{ item.order_id }}"
+                           title="{{ tooltip }}"
                            style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
-                        <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                        <span class="unit-label">{{ item_label }}</span>
                       </div>
                     {% endfor %}
                   {% endfor %}
                 </div>
-                {% if order_ids.items %}
+                {% if order_ids.items and not read_only_mode %}
                   <div class="position-actions">
                     {% for order_id in order_ids.items %}
-                      <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
-                        Remove #{{ order_id }}
+                      <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
+                        Remove
                       </button>
                     {% endfor %}
                   </div>
                 {% endif %}
-                <div class="position-label">{{ pos.length_ft }} ft</div>
+                <div class="position-label">{{ pos.length_ft | round(0) | int }} ft</div>
               </div>
             {% endfor %}
+            {% if lower_rem_ft > 0.05 and not read_only_mode %}
+              <div class="position-column vacant" style="flex: 0 0 {{ lower_rem_pct }}%;">
+                <div class="position-stack vacant-stack">
+                  <div class="vacant-block">
+                    <div class="vacant-meta">{{ lower_rem_ft | round(0) | int }} ft remaining</div>
+                    <div class="vacant-submeta">MAX HEIGHT: 13'6&quot;</div>
+                  </div>
+                </div>
+                <div class="position-label">{{ lower_rem_ft | round(0) | int }} ft</div>
+              </div>
+            {% endif %}
           </div>
           {% set lower_overhang_ft = (lower_used_ft - lower_deck_ft) if (lower_used_ft - lower_deck_ft) > 0.05 else 0 %}
           {% set lower_overhang = lower_overhang_ft > 0 %}
           {% set lower_line_span = ((lower_deck_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 100 %}
           <div class="deck-footer" style="--line-span: {{ lower_line_span }}%;">
-            <div class="deck-line">
-              <span class="deck-length">{{ lower_deck_ft | round(1) }} FT</span>
-            </div>
             {% if lower_overhang %}
               <div class="deck-overhang-line">
-                <span class="deck-overhang">OVERHANG: {{ lower_overhang_ft | round(1) }} FT</span>
+                <span class="deck-overhang">OVERHANG: {{ lower_overhang_ft | round(0) | int }} FT</span>
               </div>
             {% endif %}
+            <div class="deck-line">
+              <span class="deck-length">{{ lower_deck_ft | round(0) | int }} FT</span>
+            </div>
           </div>
         </div>
         {% if has_upper %}
           {% set upper_offset = ((lower_display_ft / display_capacity) * 100) | round(1) if display_capacity else 0 %}
           <div class="trailer-deck upper" style="width: {{ upper_width }}%; left: {{ upper_offset }}%;">
-            <div class="deck-label">Upper Deck - {{ load.schematic.upper_deck_length }} ft</div>
+            <div class="deck-label">Upper Deck - {{ load.schematic.upper_deck_length | round(0) | int }} ft</div>
             <div class="deck-positions">
               {% for pos in load.schematic.positions if pos.deck == 'upper' %}
                 {% set pos_width = ((pos.length_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 0 %}
                 <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+                  {% if pos.overflow_applied %}
+                    {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                    <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
+                  {% endif %}
                   {% set order_ids = namespace(items=[]) %}
                   {% for item in pos["items"] %}
                     {% if item.order_id and item.order_id not in order_ids.items %}
@@ -278,25 +383,41 @@
                       {% set item_length = item.unit_length_ft or pos.length_ft %}
                       {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
                       {% set block_width = 100 if width_raw > 100 else width_raw %}
-                      {% for _ in range(item.units) %}
+                      {% set item_label = item.item or item.sku or 'ITEM' %}
+                      {% set desc_label = item.item_desc or '' %}
+                      {% set tooltip = item_label %}
+                      {% if item.sku %}
+                        {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                      {% endif %}
+                      {% if desc_label and desc_label != item_label %}
+                        {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                      {% endif %}
+                      {% if item_length %}
+                        {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                      {% endif %}
+                      {% if item.max_stack %}
+                        {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                      {% endif %}
+                      {% for _ in range((item.units or 0) | int) %}
                         <div class="unit-block glass-block"
                              data-order-id="{{ item.order_id }}"
+                             title="{{ tooltip }}"
                              style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
-                          <span class="unit-label">{{ item.sku or 'SKU' }}</span>
+                          <span class="unit-label">{{ item_label }}</span>
                         </div>
                       {% endfor %}
                     {% endfor %}
                   </div>
-                  {% if order_ids.items %}
+                  {% if order_ids.items and not read_only_mode %}
                     <div class="position-actions">
                       {% for order_id in order_ids.items %}
-                        <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}">
-                          Remove #{{ order_id }}
+                        <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
+                          Remove
                         </button>
                       {% endfor %}
                     </div>
                   {% endif %}
-                  <div class="position-label">{{ pos.length_ft }} ft</div>
+                  <div class="position-label">{{ pos.length_ft | round(0) | int }} ft</div>
                 </div>
               {% endfor %}
             </div>
@@ -304,14 +425,14 @@
             {% set upper_overhang = upper_overhang_ft > 0 %}
             {% set upper_line_span = ((upper_deck_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 100 %}
             <div class="deck-footer" style="--line-span: {{ upper_line_span }}%;">
-              <div class="deck-line">
-                <span class="deck-length">{{ upper_deck_ft | round(1) }} FT</span>
-              </div>
               {% if upper_overhang %}
                 <div class="deck-overhang-line">
-                  <span class="deck-overhang">OVERHANG: {{ upper_overhang_ft | round(1) }} FT</span>
+                  <span class="deck-overhang">OVERHANG: {{ upper_overhang_ft | round(0) | int }} FT</span>
                 </div>
               {% endif %}
+              <div class="deck-line">
+                <span class="deck-length">{{ upper_deck_ft | round(0) | int }} FT</span>
+              </div>
             </div>
           </div>
         {% endif %}

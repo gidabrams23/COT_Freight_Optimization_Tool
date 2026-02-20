@@ -49,7 +49,7 @@
           </div>
 
           <div class="map-card">
-            <div class="load-map" id="load-detail-map" data-stops='{{ load.map_stops | tojson }}'></div>
+            <div class="load-map" id="load-detail-map" data-load-id="{{ load.id }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}'></div>
           </div>
         </div>
 
@@ -66,8 +66,8 @@
                   <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
                     <div class="position-stack">
                       {% for item in pos["items"] %}
-                        {% set sku = item.sku or '' %}
-                        {% set color = sku_colors.get(sku, '#64748b') %}
+                        {% set sku = item.item or item.sku or '' %}
+                        {% set color = sku_colors.get(item.sku or '', '#64748b') %}
                         {% for _ in range(item.units) %}
                           <div class="unit-block" style="background: {{ color }};">{{ sku }}</div>
                         {% endfor %}
@@ -87,8 +87,8 @@
                     <div class="position-column" style="flex: 0 0 {{ pos.width_pct }}%;">
                       <div class="position-stack">
                         {% for item in pos["items"] %}
-                          {% set sku = item.sku or '' %}
-                          {% set color = sku_colors.get(sku, '#64748b') %}
+                          {% set sku = item.item or item.sku or '' %}
+                          {% set color = sku_colors.get(item.sku or '', '#64748b') %}
                           {% for _ in range(item.units) %}
                             <div class="unit-block" style="background: {{ color }};">{{ sku }}</div>
                           {% endfor %}
@@ -221,7 +221,10 @@
                 <button class="btn-primary" type="submit">Approve & Lock</button>
               </form>
             {% else %}
-              <span class="muted">Locked - enter in Sugar.</span>
+              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                <input type="hidden" name="action" value="unapprove">
+                <button class="btn-secondary" type="submit">Unapprove to Draft</button>
+              </form>
             {% endif %}
           </div>
         </div>
@@ -245,6 +248,7 @@
       const container = document.getElementById('load-detail-map');
       if (!container) return;
       const stops = JSON.parse(container.dataset.stops || '[]');
+      const storedRoute = JSON.parse(container.dataset.route || '[]');
       const validStops = stops.filter((stop) => stop.lat !== null && stop.lng !== null);
       if (!validStops.length) {
         container.innerHTML = '<div class="empty">No map coordinates available for stops.</div>';
@@ -259,6 +263,33 @@
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 18,
       }).addTo(map);
+
+      const routeCoords = (Array.isArray(storedRoute) ? storedRoute : [])
+        .map((point) => [Number(point[0]), Number(point[1])])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      let routeLineLayer = null;
+      const lineCoords = validStops.map((stop) => [Number(stop.lat), Number(stop.lng)]);
+      const hasDetailedRoadGeometry = routeCoords.length > lineCoords.length;
+
+      const drawRoutePolyline = (coords) => {
+        const normalized = (Array.isArray(coords) ? coords : [])
+          .map((point) => [Number(point[0]), Number(point[1])])
+          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+        if (normalized.length <= 1) return false;
+        if (routeLineLayer) {
+          try { map.removeLayer(routeLineLayer); } catch (_) {}
+        }
+        routeLineLayer = L.polyline(normalized, {
+          color: '#38bdf8',
+          weight: 3,
+          opacity: 0.85,
+        }).addTo(map);
+        return true;
+      };
+
+      if (hasDetailedRoadGeometry) {
+        drawRoutePolyline(routeCoords);
+      }
 
       const bounds = [];
       validStops.forEach((stop, idx) => {
@@ -281,6 +312,35 @@
         map.setView(bounds[0], 8);
       } else {
         map.fitBounds(bounds, { padding: [20, 20] });
+      }
+
+      if (!hasDetailedRoadGeometry) {
+        const loadId = container.dataset.loadId;
+        if (loadId) {
+          fetch(`/api/loads/${encodeURIComponent(loadId)}/route-geometry`)
+            .then((response) => response.ok ? response.json() : null)
+            .then((payload) => {
+              if (!payload) {
+                drawRoutePolyline(lineCoords);
+                return;
+              }
+              const fetched = (Array.isArray(payload.route_geometry) ? payload.route_geometry : [])
+                .map((point) => [Number(point[0]), Number(point[1])])
+                .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+              if (fetched.length > 1) {
+                container.dataset.route = JSON.stringify(payload.route_geometry || []);
+                drawRoutePolyline(fetched);
+                return;
+              }
+              drawRoutePolyline(lineCoords);
+            })
+            .catch(() => {
+              // Fallback: keep map functional with straight-line geometry.
+              drawRoutePolyline(lineCoords);
+            });
+          return;
+        }
+        drawRoutePolyline(lineCoords);
       }
     })();
 

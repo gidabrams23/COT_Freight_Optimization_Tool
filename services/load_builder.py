@@ -1,4 +1,5 @@
 import db
+import re
 from datetime import date, datetime, timedelta
 
 from services import stack_calculator, validation
@@ -11,6 +12,13 @@ DEFAULT_BUILD_PARAMS = {
     "max_detour_pct": "15",
     "time_window_days": "7",
     "geo_radius": "100",
+    "stack_overflow_max_height": "5",
+    "max_back_overhang_ft": "4",
+    "orders_start_date": "",
+    "algorithm_version": "v2",
+    "compare_algorithms": False,
+    "optimize_mode": "auto",
+    "manual_order_input": "",
 }
 
 
@@ -58,13 +66,96 @@ def _clean_list(values, upper=False):
     return cleaned
 
 
-def list_loads(origin_plant=None):
-    loads = db.list_loads(origin_plant)
-    sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
+def _parse_manual_so_nums(raw_text):
+    text = str(raw_text or "").strip()
+    if not text:
+        return []
+    tokens = re.split(r"[\s,;]+", text)
+    cleaned = []
+    seen = set()
+    for token in tokens:
+        value = token.strip().strip("\"'")
+        if not value:
+            continue
+        normalized = value.upper()
+        if normalized in {"SO_NUM", "ORDER", "ORDERS", "ORDER#", "SO#"}:
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        cleaned.append(value)
+    return cleaned
+
+
+def _format_date_for_message(value):
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
+    parsed = _parse_date(value)
+    if parsed:
+        return parsed.strftime("%Y-%m-%d")
+    return str(value or "").strip()
+
+
+def _build_no_eligible_orders_message(params, diagnostics):
+    message = "No eligible orders found for this plant."
+    if not diagnostics:
+        return message
+
+    if (
+        diagnostics.get("open_orders_total", 0) > 0
+        and diagnostics.get("eligible_order_lines", 0) == 0
+    ):
+        return (
+            "No eligible order lines are currently available. Matching lines are already tied "
+            "to approved or active draft sessions."
+        )
+
+    if (
+        params.get("batch_horizon_enabled")
+        and diagnostics.get("groups_after_all_filters", 0) == 0
+        and diagnostics.get("groups_after_all_filters_no_batch", 0) > 0
+    ):
+        horizon_label = _format_date_for_message(params.get("batch_max_due_date"))
+        earliest_label = _format_date_for_message(diagnostics.get("first_due_no_batch"))
+        if horizon_label and earliest_label:
+            return (
+                f"No matching orders are due by {horizon_label}. "
+                f"Earliest matching due date is {earliest_label}. "
+                "Clear or extend Batch Orders Up Until."
+            )
+        return "No matching orders are due within the selected batch horizon."
+
+    if (
+        params.get("customer_filters")
+        and diagnostics.get("groups_after_all_filters", 0) == 0
+        and diagnostics.get("groups_without_customer_filter", 0) > 0
+    ):
+        return "No eligible orders match the selected customers within the current filters."
+
+    if (
+        params.get("state_filters")
+        and diagnostics.get("groups_after_all_filters", 0) == 0
+        and diagnostics.get("groups_without_state_filter", 0) > 0
+    ):
+        return "No eligible orders match the selected states within the current filters."
+
+    return message
+
+
+def list_loads(origin_plant=None, session_id=None, include_stack_metrics=True):
+    loads = db.list_loads(origin_plant, session_id=session_id)
+    if not loads:
+        return loads
+
+    load_ids = [load.get("id") for load in loads if load.get("id") is not None]
+    lines_by_load_id = db.list_load_lines_for_load_ids(load_ids)
+    sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()} if include_stack_metrics else {}
     for load in loads:
         trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
-        lines = db.list_load_lines(load["id"])
+        lines = lines_by_load_id.get(load.get("id"), [])
         load["lines"] = lines
+        if not include_stack_metrics:
+            continue
         order_numbers = {line.get("so_num") for line in lines if line.get("so_num")}
         line_items = []
         for line in lines:
@@ -77,6 +168,7 @@ def list_loads(origin_plant=None):
             line_items.append(
                 {
                     "item": line.get("item"),
+                    "item_desc": line.get("item_desc"),
                     "sku": sku,
                     "qty": line.get("qty") or 0,
                     "unit_length_ft": line.get("unit_length_ft") or 0,
@@ -94,7 +186,7 @@ def list_loads(origin_plant=None):
             load["utilization_pct"] = utilization_pct
             exceeds_capacity = config.get("exceeds_capacity", False)
             load["over_capacity"] = (
-                exceeds_capacity or utilization_pct > 100
+                exceeds_capacity
             ) and len(order_numbers) <= 1
             load["trailer_type"] = trailer_type
         else:
@@ -102,12 +194,25 @@ def list_loads(origin_plant=None):
     return loads
 
 
-def build_loads(form, reset_proposed=True, store_settings=True):
+def build_loads(form, reset_proposed=True, store_settings=True, session_id=None, session_factory=None, created_by=None):
     ui_toggles = "opt_toggles" in form
     enforce_time_window = _truthy(form.get("enforce_time_window")) if ui_toggles else True
     batch_horizon_enabled = _truthy(form.get("batch_horizon_enabled")) if ui_toggles else False
     state_filters = _clean_list(_get_list(form, "opt_states"), upper=True)
     customer_filters = _clean_list(_get_list(form, "opt_customers"))
+    algorithm_version = "v2"
+    compare_algorithms = False
+    optimize_mode = _clean_value(form.get("optimize_mode", "auto")).lower() if form else "auto"
+    if optimize_mode not in {"auto", "manual"}:
+        optimize_mode = "auto"
+    manual_order_input = _clean_value(form.get("manual_order_input", "")) if form else ""
+    selected_so_nums = _parse_manual_so_nums(manual_order_input) if optimize_mode == "manual" else []
+    reference_date = _parse_date(form.get("today")) if form else None
+    if not reference_date:
+        reference_date = date.today()
+    orders_start_date = _clean_value(form.get("orders_start_date", "")) if form else ""
+    if not orders_start_date:
+        orders_start_date = reference_date.strftime("%Y-%m-%d")
 
     form_data = {
         "origin_plant": _clean_value(form.get("origin_plant", "")),
@@ -116,11 +221,22 @@ def build_loads(form, reset_proposed=True, store_settings=True):
         "max_detour_pct": _clean_value(form.get("max_detour_pct", "")),
         "time_window_days": _clean_value(form.get("time_window_days", "")),
         "geo_radius": _clean_value(form.get("geo_radius", "")),
+        "stack_overflow_max_height": _clean_value(
+            form.get("stack_overflow_max_height", DEFAULT_BUILD_PARAMS.get("stack_overflow_max_height", "5"))
+        ),
+        "max_back_overhang_ft": _clean_value(
+            form.get("max_back_overhang_ft", DEFAULT_BUILD_PARAMS.get("max_back_overhang_ft", "4"))
+        ),
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": _clean_value(form.get("batch_end_date", "")),
         "state_filters": state_filters,
         "customer_filters": customer_filters,
+        "orders_start_date": orders_start_date,
+        "algorithm_version": algorithm_version,
+        "compare_algorithms": compare_algorithms,
+        "optimize_mode": optimize_mode,
+        "manual_order_input": manual_order_input,
     }
 
     errors = {}
@@ -135,6 +251,9 @@ def build_loads(form, reset_proposed=True, store_settings=True):
         if not form_data["time_window_days"]:
             form_data["time_window_days"] = "0"
     validation.validate_positive_float(form_data["geo_radius"], "geo_radius", errors)
+    parsed_orders_start_date = _parse_date(form_data["orders_start_date"])
+    if not parsed_orders_start_date:
+        errors["orders_start_date"] = "Enter a valid orders start date (YYYY-MM-DD)."
 
     batch_end_date = None
     if batch_horizon_enabled:
@@ -145,6 +264,8 @@ def build_loads(form, reset_proposed=True, store_settings=True):
 
     if form_data["trailer_type"] and form_data["trailer_type"] not in {"STEP_DECK", "FLATBED", "WEDGE"}:
         errors["trailer_type"] = "Select a valid trailer type."
+    if optimize_mode == "manual" and not selected_so_nums:
+        errors["manual_order_input"] = "Paste at least one order number to run manual selection."
 
     if errors:
         return {
@@ -154,6 +275,18 @@ def build_loads(form, reset_proposed=True, store_settings=True):
             "summary": None,
         }
 
+    try:
+        stack_overflow_max_height = int(form_data["stack_overflow_max_height"] or 0)
+    except (TypeError, ValueError):
+        stack_overflow_max_height = int(DEFAULT_BUILD_PARAMS.get("stack_overflow_max_height", 5) or 5)
+    stack_overflow_max_height = max(stack_overflow_max_height, 0)
+
+    try:
+        max_back_overhang_ft = float(form_data["max_back_overhang_ft"] or 0)
+    except (TypeError, ValueError):
+        max_back_overhang_ft = float(DEFAULT_BUILD_PARAMS.get("max_back_overhang_ft", 4) or 4)
+    max_back_overhang_ft = max(max_back_overhang_ft, 0.0)
+
     params = {
         "origin_plant": form_data["origin_plant"],
         "capacity_feet": float(form_data["capacity_feet"]),
@@ -161,16 +294,54 @@ def build_loads(form, reset_proposed=True, store_settings=True):
         "max_detour_pct": float(form_data["max_detour_pct"]),
         "time_window_days": int(form_data["time_window_days"] or 0),
         "geo_radius": float(form_data["geo_radius"]),
+        "stack_overflow_max_height": stack_overflow_max_height,
+        "max_back_overhang_ft": round(max_back_overhang_ft, 2),
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": batch_end_date,
-        "state_filters": state_filters,
-        "customer_filters": customer_filters,
+        "state_filters": [] if optimize_mode == "manual" else state_filters,
+        "customer_filters": [] if optimize_mode == "manual" else customer_filters,
+        "selected_so_nums": selected_so_nums,
+        "orders_start_date": parsed_orders_start_date,
+        # Backward compatibility for logic that still checks this flag.
+        "ignore_past_due": bool(parsed_orders_start_date),
+        "reference_date": reference_date,
+        "algorithm_version": algorithm_version,
+        "compare_algorithms": compare_algorithms,
+        # v2 objective tuning defaults.
+        "v2_low_util_threshold": 70.0,
+        "v2_lambda_low_util_count": 560.0,
+        "v2_lambda_low_util_depth": 24.0,
+        "v2_rescue_passes": 4,
+        "v2_grade_rescue_passes": 5,
+        "v2_grade_rescue_min_savings": -90.0,
+        "v2_grade_rescue_min_gain": 0.0,
+        "v2_grade_repair_limit": 12,
+        "v2_grade_repair_min_savings": -350.0,
+        "v2_fd_rebalance_passes": 3,
+        "v2_fd_target_util": 55.0,
+        "v2_fd_absorb_max_cost_increase_f": 5000.0,
+        "v2_fd_absorb_max_cost_increase_d": 2200.0,
+        "v2_fd_absorb_detour_cap": 999.0,
+        "v2_fd_candidate_limit": 120,
+        "v2_allow_order_interleave": True,
+        "v2_pair_neighbors": 18,
+        "v2_pair_neighbors_low_util": 56,
+        "v2_incremental_neighbors": 20,
+        "v2_geo_escape_threshold": 40.0,
+        "v2_on_way_bearing_deg": 35.0,
+        "v2_on_way_radial_gap_miles": 500.0,
+        "v2_home_length_priority_enabled": True,
+        "v2_home_length_priority_radius_miles": 250.0,
+        "v2_home_length_priority_threshold_ft": 12.0,
+        "v2_home_length_priority_weight": 1.0,
+        "v2_home_length_priority_max_bonus": 12.0,
     }
 
     flex_days = params["time_window_days"] if enforce_time_window else 0
     if batch_horizon_enabled and batch_end_date:
-        params["batch_max_due_date"] = batch_end_date + timedelta(days=flex_days)
+        # Respect the explicit batch horizon without extending by flex days.
+        params["batch_max_due_date"] = batch_end_date
     else:
         params["batch_max_due_date"] = None
 
@@ -178,8 +349,24 @@ def build_loads(form, reset_proposed=True, store_settings=True):
         db.upsert_optimizer_settings(params)
 
     optimizer = Optimizer()
-    optimized_loads = optimizer.build_optimized_loads(params)
+    if algorithm_version == "v2":
+        optimized_loads = optimizer.build_optimized_loads_v2(params)
+    else:
+        optimized_loads = optimizer.build_optimized_loads(params)
     baseline_loads = optimizer.build_baseline_loads(params)
+    algorithm_comparison = None
+    if compare_algorithms:
+        if algorithm_version == "v2":
+            v1_loads = optimizer.build_optimized_loads(params)
+            v2_loads = optimized_loads
+        else:
+            v1_loads = optimized_loads
+            v2_loads = optimizer.build_optimized_loads_v2(params)
+        algorithm_comparison = {
+            "selected": algorithm_version,
+            "v1": _summarize_loads(v1_loads),
+            "v2": _summarize_loads(v2_loads),
+        }
 
     if batch_horizon_enabled and batch_end_date:
         optimized_loads = [
@@ -193,13 +380,49 @@ def build_loads(form, reset_proposed=True, store_settings=True):
             if not load.get("due_date_min") or load.get("due_date_min") <= batch_end_date
         ]
 
+    filtered_multi_order_capacity = 0
+    filtered_optimized_loads = []
+    for load in optimized_loads:
+        if optimizer._load_is_multi_order_capacity_violation(load):
+            filtered_multi_order_capacity += 1
+            continue
+        filtered_optimized_loads.append(load)
+    optimized_loads = filtered_optimized_loads
+    baseline_loads = [
+        load for load in baseline_loads
+        if not optimizer._load_is_multi_order_capacity_violation(load)
+    ]
+
     if not optimized_loads:
+        if filtered_multi_order_capacity:
+            return {
+                "errors": {
+                    "order_lines": (
+                        "Selected orders only fit as over-capacity multi-order combinations. "
+                        "Over-capacity is only allowed for single-order loads."
+                    )
+                },
+                "form_data": form_data,
+                "success_message": "",
+                "summary": None,
+            }
+        if optimize_mode == "manual":
+            return {
+                "errors": {"order_lines": "No eligible draft orders were found for the pasted order numbers."},
+                "form_data": form_data,
+                "success_message": "",
+                "summary": None,
+            }
+        diagnostics = optimizer.describe_order_group_eligibility(params)
         return {
-            "errors": {"order_lines": "No eligible orders found for this plant."},
+            "errors": {"order_lines": _build_no_eligible_orders_message(params, diagnostics)},
             "form_data": form_data,
             "success_message": "",
             "summary": None,
         }
+
+    if session_id is None and session_factory:
+        session_id = session_factory(form_data, params)
 
     def approval_sort_key(load):
         utilization = load.get("utilization_pct") or 0
@@ -224,12 +447,26 @@ def build_loads(form, reset_proposed=True, store_settings=True):
     sorted_loads = sorted(optimized_loads, key=approval_sort_key)
 
     if reset_proposed:
-        db.clear_draft_loads(params["origin_plant"])
-    for idx, load in enumerate(sorted_loads, start=1):
-        load["draft_sequence"] = idx
-        load_id = db.create_load(load)
-        for line in load["lines"]:
-            db.create_load_line(load_id, line["id"], line.get("total_length_ft") or 0)
+        if session_id:
+            db.clear_draft_loads(session_id=session_id)
+        else:
+            db.clear_draft_loads(params["origin_plant"])
+    with db.get_connection() as connection:
+        for idx, load in enumerate(sorted_loads, start=1):
+            load["draft_sequence"] = idx
+            if created_by:
+                load["created_by"] = created_by
+            if session_id:
+                load["planning_session_id"] = session_id
+            load_id = db.create_load(load, connection=connection)
+            for line in load["lines"]:
+                db.create_load_line(
+                    load_id,
+                    line["id"],
+                    line.get("total_length_ft") or 0,
+                    connection=connection,
+                )
+        connection.commit()
 
     summary = build_summary(baseline_loads, optimized_loads)
 
@@ -238,6 +475,8 @@ def build_loads(form, reset_proposed=True, store_settings=True):
         "form_data": form_data,
         "success_message": f"Built {len(optimized_loads)} proposed load(s).",
         "summary": summary,
+        "session_id": session_id,
+        "algorithm_comparison": algorithm_comparison,
     }
 
 
@@ -245,7 +484,7 @@ def clear_draft_loads(origin_plant=None):
     db.clear_draft_loads(origin_plant)
 
 
-def create_manual_load(origin_plant, so_nums, trailer_type=None, created_by=None):
+def create_manual_load(origin_plant, so_nums, trailer_type=None, created_by=None, session_id=None):
     if not origin_plant:
         return {"errors": {"origin_plant": "Missing plant code."}, "load_id": None}
     if not so_nums:
@@ -297,9 +536,21 @@ def create_manual_load(origin_plant, so_nums, trailer_type=None, created_by=None
         "geo_radius": 0,
     }
     manual_load = optimizer._build_load(groups, params)
+    if optimizer._load_is_multi_order_capacity_violation(manual_load):
+        return {
+            "errors": {
+                "so_nums": (
+                    "Selected orders exceed deck capacity when combined. "
+                    "Only single-order loads may exceed deck capacity."
+                )
+            },
+            "load_id": None,
+        }
     manual_load["status"] = "PROPOSED"
     manual_load["build_source"] = "MANUAL"
     manual_load["created_by"] = created_by
+    if session_id:
+        manual_load["planning_session_id"] = session_id
 
     load_id = db.create_load(manual_load)
     for line in manual_load.get("lines", []):

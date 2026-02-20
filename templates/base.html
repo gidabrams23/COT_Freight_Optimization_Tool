@@ -39,6 +39,16 @@
                 <span class="material-symbols-outlined nav-icon">local_shipping</span>
                 <span class="nav-text">Loads</span>
               </a>
+              {% if is_admin %}
+                <a class="nav-item{% if request.path.startswith('/planning-sessions') and not request.path.startswith('/planning-sessions/replay') %} active{% endif %}" href="{{ url_for('planning_sessions') }}">
+                  <span class="material-symbols-outlined nav-icon">history</span>
+                  <span class="nav-text">Session History</span>
+                </a>
+                <a class="nav-item{% if request.path.startswith('/planning-sessions/replay') %} active{% endif %}" href="{{ url_for('planning_sessions_replay') }}">
+                  <span class="material-symbols-outlined nav-icon">query_stats</span>
+                  <span class="nav-text">Replay Eval</span>
+                </a>
+              {% endif %}
               <a class="nav-item{% if request.path.startswith('/feedback') %} active{% endif %}" href="{{ url_for('feedback_log') }}">
                 <span class="material-symbols-outlined nav-icon">comment</span>
                 <span class="nav-text">Feedback Log</span>
@@ -89,15 +99,16 @@
                   {% if is_admin %}
                     <a class="profile-menu-link" href="{{ url_for('access_manage') }}">Manage Profiles</a>
                   {% endif %}
+                  <a class="profile-menu-link" href="{{ url_for('login') }}">Switch Account</a>
                   <form method="get" action="{{ url_for('session_reset') }}">
                     <button class="profile-menu-link" type="submit">Reset Session</button>
                   </form>
                 </div>
               </details>
             {% else %}
-              <a class="nav-item" href="{{ url_for('session_setup') }}">
+              <a class="nav-item" href="{{ url_for('login') }}">
                 <span class="material-symbols-outlined nav-icon">person</span>
-                <span class="nav-text">Set Session</span>
+                <span class="nav-text">Sign In</span>
               </a>
             {% endif %}
             <div class="sidebar-brand secondary">
@@ -109,7 +120,7 @@
         </aside>
       {% endif %}
       <div class="app-main">
-        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') or request.path.startswith('/dashboard') or request.path == '/' or request.path.startswith('/settings') %} page-full{% endif %}">
+        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') or request.path.startswith('/dashboard') or request.path == '/' or request.path.startswith('/settings') %} page-full{% endif %}{% if request.path == '/loads' %} page-loads-index{% endif %}">
           {% block content %}{% endblock %}
         </main>
       </div>

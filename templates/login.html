@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% set show_nav = false %}
+
+{% block content %}
+  <section class="login-page">
+    <div class="login-hero">
+      <div class="login-logo">
+        <span class="material-symbols-outlined">hub</span>
+      </div>
+      <div class="login-title">LOGISTICS PORTAL</div>
+      <div class="login-subtitle">Strategic Management Hub</div>
+    </div>
+
+    {% if error %}
+      <div class="login-alert">{{ error }}</div>
+    {% endif %}
+
+    <div class="login-card">
+      <div class="login-column login-admin">
+        <div class="login-section-label">System Access</div>
+        {% if admin_profile %}
+          <form method="post" class="login-admin-form">
+            <input type="hidden" name="profile_id" value="{{ admin_profile.id }}">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <div class="login-account-card active">
+              <div class="login-account-icon">
+                <span class="material-symbols-outlined">shield</span>
+              </div>
+              <div>
+                <div class="login-account-title">Administrator</div>
+                <div class="login-account-subtitle">Global system & user management</div>
+              </div>
+            </div>
+
+            <div class="login-field">
+              <label>Password Required</label>
+              <div class="login-input-row">
+                <input type="password" name="password" placeholder="Enter admin password" required>
+                <button class="btn-primary" type="submit">
+                  <span class="material-symbols-outlined">login</span>
+                </button>
+              </div>
+              <div class="login-note">
+                <span class="material-symbols-outlined">verified_user</span>
+                Standard security protocols active
+              </div>
+            </div>
+          </form>
+        {% else %}
+          <div class="empty-state">No admin profile configured.</div>
+        {% endif %}
+      </div>
+
+      <div class="login-column login-planners">
+        <div class="login-section-label">Select Planner Account</div>
+        <div class="login-planner-list">
+          {% if planner_profiles %}
+            {% for profile in planner_profiles %}
+              <form method="post" class="login-planner-item">
+                <input type="hidden" name="profile_id" value="{{ profile.id }}">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <button class="login-planner-button" type="submit">
+                  <div class="login-planner-badge">{{ (profile.name or 'P')[:2] | upper }}</div>
+                  <div class="login-planner-info">
+                    <div class="login-planner-title">{{ profile.name }}</div>
+                    <div class="login-planner-subtitle">Planner Account</div>
+                  </div>
+                  <span class="material-symbols-outlined">chevron_right</span>
+                </button>
+              </form>
+            {% endfor %}
+          {% else %}
+            <div class="empty-state">No planner profiles configured.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="login-footer">
+      <div class="login-status">
+        <span class="status-dot"></span>
+        System Online
+      </div>
+      <div class="login-version">v4.2.0 - Production</div>
+      <div class="login-links">
+        <span>Privacy Policy</span>
+        <span>Support</span>
+      </div>
+    </div>
+  </section>
+{% endblock %}

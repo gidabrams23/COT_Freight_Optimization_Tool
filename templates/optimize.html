@@ -75,6 +75,8 @@
               <span class="form-error">{{ errors.geo_radius }}</span>
             {% endif %}
           </label>
+          <input type="hidden" name="stack_overflow_max_height" value="{{ form_data.stack_overflow_max_height or 5 }}">
+          <input type="hidden" name="max_back_overhang_ft" value="{{ form_data.max_back_overhang_ft or 4 }}">
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">
               <span class="material-symbols-outlined">tune</span>

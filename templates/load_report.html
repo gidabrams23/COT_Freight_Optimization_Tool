@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="lsr-page">
+    <div class="card-widget lsr-hero">
+      <header class="lsr-header">
+        <div class="lsr-head-main">
+          <div class="lsr-title-row">
+            <h1>Load Session Report</h1>
+            <span class="lsr-code-pill">#{{ planning_session.session_code }}</span>
+          </div>
+          <p class="lsr-subtitle">
+            Optimization completed {{ completion_label or planning_session.created_at }}
+          </p>
+        </div>
+        <div class="lsr-actions">
+          <a class="btn-success btn-xs" href="{{ url_for('load_report_export', session_id=planning_session.id) }}">
+            <span class="material-symbols-outlined">download</span>
+            Download Excel
+          </a>
+          <button class="btn-ghost btn-xs" type="button" onclick="window.print()">
+            <span class="material-symbols-outlined">print</span>
+            Print PDF
+          </button>
+          <a class="btn-secondary btn-xs" href="{{ url_for('loads', session_id=planning_session.id, tab='final') }}">
+            Back to Loads
+          </a>
+        </div>
+      </header>
+
+      <div class="lsr-kpi-strip">
+        <div class="lsr-kpi-item">
+          <span class="label">Loads</span>
+          <strong>{{ load_count }}</strong>
+        </div>
+        <div class="lsr-kpi-item">
+          <span class="label">Orders</span>
+          <strong>{{ total_orders }}</strong>
+        </div>
+        <div class="lsr-kpi-item">
+          <span class="label">Miles</span>
+          <strong>{{ "{:,.0f}".format((total_miles or 0) | float) }}</strong>
+        </div>
+        <div class="lsr-kpi-item">
+          <span class="label">Avg Util</span>
+          <strong class="good">{{ avg_utilization | round(1) }}%</strong>
+        </div>
+        <div class="lsr-kpi-item">
+          <span class="label">Est Freight</span>
+          <strong>${{ "{:,.0f}".format((total_cost or 0) | float) }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="lsr-cards">
+      {% for load in report_rows %}
+        <article class="lsr-card">
+          <div class="lsr-card-left">
+            <div class="lsr-card-top">
+              <div class="lsr-card-title">
+                <div class="lsr-load-pill">{{ load.load_number or ('Load #' ~ load.id) }}</div>
+                <div class="lsr-route">{{ load.route_label }}</div>
+              </div>
+              <div class="lsr-load-metrics">
+                <div class="lsr-load-metric">
+                  <span>Ship</span>
+                  <strong>{{ (load.ship_date | short_date) if load.ship_date else '--' }}</strong>
+                </div>
+                <div class="lsr-load-metric">
+                  <span>Stops</span>
+                  <strong>{{ load.stop_count }}</strong>
+                </div>
+                <div class="lsr-load-metric">
+                  <span>Miles</span>
+                  <strong>{{ load.estimated_miles | round(0) }}</strong>
+                </div>
+                <div class="lsr-load-metric">
+                  <span>Util</span>
+                  <strong>{{ load.utilization_pct | round(1) }}%</strong>
+                </div>
+                <div class="lsr-load-metric lsr-load-metric-freight">
+                  <span>Freight</span>
+                  <strong>${{ "{:,.0f}".format((load.estimated_cost or 0) | float) }}</strong>
+                </div>
+              </div>
+            </div>
+            <div class="table-container">
+              <table class="lsr-table">
+                <thead>
+                  <tr>
+                    <th>Stop #</th>
+                    <th>SO #</th>
+                    <th>Due Date</th>
+                    <th>Customer</th>
+                    <th>Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for order in load.orders %}
+                    <tr>
+                      <td>{{ order.stop_order_display }}</td>
+                      <td>
+                        <span class="lsr-so-cell">
+                          <span class="lsr-so-dot" style="--so-color: {{ load.order_colors.get(order.so_num, '#94A3B8') }};"></span>
+                          <span>{{ order.so_num }}</span>
+                        </span>
+                      </td>
+                      <td class="lsr-due-cell">
+                        <span class="lsr-due-date">{{ (order.due_date | short_date) if order.due_date else '--' }}</span>
+                        {% if order.is_early_delivery %}
+                          <span class="lsr-early-detail">
+                            Early delivery ({{ order.early_days }} day{% if order.early_days != 1 %}s{% endif %} early)
+                          </span>
+                        {% endif %}
+                      </td>
+                      <td>{{ order.cust_name or '--' }}</td>
+                      <td>{{ order.total_qty }}</td>
+                    </tr>
+                  {% endfor %}
+                  <tr class="lsr-total-row">
+                    <td colspan="4">Total Load Metrics</td>
+                    <td>{{ load.total_units }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="lsr-card-right">
+            <div class="lsr-schematic-host">
+              {% set status = 'APPROVED' %}
+              {% set tab = 'final' %}
+              {% set report_mode = true %}
+              {% include "partials/load_schematic_card.html" %}
+            </div>
+          </div>
+        </article>
+      {% else %}
+        <div class="card-widget">No loads found for this completed session.</div>
+      {% endfor %}
+    </div>
+
+    <div class="lsr-export-preview card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Structured Excel Export Preview</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-container">
+          <table class="lsr-preview-table">
+            <thead>
+              <tr>
+                <th>Load ID</th>
+                <th>Stop Seq</th>
+                <th>SO Number</th>
+                <th>Customer Name</th>
+                <th>Destination City</th>
+                <th>State</th>
+                <th>Ship Date</th>
+                <th>Due Date</th>
+                <th>Total Units</th>
+                <th>Early Delivery</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in export_preview_rows %}
+                <tr>
+                  <td class="{% if not row.is_group_start %}muted{% endif %}">{{ row.load_id }}</td>
+                  <td>{{ row.stop_order }}</td>
+                  <td>{{ row.so_number }}</td>
+                  <td>{{ row.customer_name or '--' }}</td>
+                  <td>{{ row.destination_city or '--' }}</td>
+                  <td>{{ row.state or '--' }}</td>
+                  <td>{{ (row.ship_date | short_date) if row.ship_date else '--' }}</td>
+                  <td>{{ (row.due_date | short_date) if row.due_date else '--' }}</td>
+                  <td>{{ row.total_units }}</td>
+                  <td>
+                    {% if row.early_flag == 'YES' %}
+                      <span class="lsr-early-chip">YES</span>
+                    {% else %}
+                      <span class="muted">NO</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="10">No rows available.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">Note: Ship date, due date, and early delivery flags are included in the final export workbook.</p>
+      </div>
+    </div>
+
+    <footer class="lsr-footer">Report generated by Load Optimization Engine</footer>
+  </section>
+{% endblock %}

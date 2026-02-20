@@ -2,16 +2,13 @@
 
 {% block content %}
   <section class="settings-page">
-    <header class="orders-header loads-header settings-header">
-      <div class="loads-hero-row settings-hero-row">
-        <div class="loads-hero-title settings-hero-title">
-          <div class="loads-title-row">
-            <div class="orders-title loads-title">
-              <h1>Settings</h1>
-            </div>
-          </div>
-          <p class="settings-subtitle">Manage rates, SKUs, lookups, and plant locations.</p>
+    <header class="settings-command-hero">
+      <div class="settings-command-title-wrap">
+        <div class="settings-command-title-row">
+          <span class="material-symbols-outlined">tune</span>
+          <h1>Settings</h1>
         </div>
+        <p class="settings-command-subtitle">Unified Admin Command Center for rates, customers, optimizer defaults, SKUs, and plant locations.</p>
       </div>
     </header>
     {% if not is_admin %}
@@ -19,6 +16,10 @@
     {% endif %}
 
     <div class="settings-tabs">
+      <a class="settings-tab{% if tab == 'overview' %} active{% endif %}" href="{{ url_for('settings', tab='overview') }}">
+        <span class="material-symbols-outlined">dashboard</span>
+        Command Center
+      </a>
       <a class="settings-tab{% if tab == 'rates' %} active{% endif %}" href="{{ url_for('settings', tab='rates') }}">
         <span class="material-symbols-outlined">payments</span>
         Rates
@@ -27,46 +28,463 @@
         <span class="material-symbols-outlined">barcode</span>
         SKUs
       </a>
-      <a class="settings-tab{% if tab == 'lookups' %} active{% endif %}" href="{{ url_for('settings', tab='lookups') }}">
-        <span class="material-symbols-outlined">schema</span>
-        Lookups
-      </a>
-      <a class="settings-tab{% if tab == 'plants' %} active{% endif %}" href="{{ url_for('settings', tab='plants') }}">
-        <span class="material-symbols-outlined">factory</span>
-        Plants
-      </a>
-      <a class="settings-tab{% if tab == 'planning_tools' %} active{% endif %}" href="{{ url_for('settings', tab='planning_tools') }}">
-        <span class="material-symbols-outlined">build</span>
-        Planning Tools
-      </a>
     </div>
 
     <div class="settings-content">
-      {% if tab == 'rates' %}
-        <div class="content-block">
-          <div class="content-header">
+      {% if tab == 'overview' %}
+        <div class="settings-command-grid">
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-rates">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">payments</span>
+                <div>
+                  <h2>Rates Overview</h2>
+                  <p class="muted">Global freight assumptions used in optimization and costing.</p>
+                </div>
+              </div>
+              <div class="settings-card-actions">
+                <a class="settings-card-btn settings-card-btn-secondary" href="{{ url_for('settings', tab='rates') }}">Edit Matrix</a>
+                {% if is_admin %}
+                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="rates-overview-form">Save Metrics</button>
+                {% endif %}
+              </div>
+            </div>
+            <form class="settings-mini-form" id="rates-overview-form" method="post" action="{{ url_for('save_global_metrics') }}">
+              <input type="hidden" name="tab" value="overview">
+              <div class="settings-rate-grid">
+                <label class="settings-rate-tile">
+                  <span class="settings-rate-label">Stop Fee</span>
+                  <div class="settings-rate-input-wrap">
+                    <span class="settings-rate-prefix">$</span>
+                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="stop_fee" value="{{ '%.2f' | format(global_rate_metrics.stop_fee or 0) }}" {% if not is_admin %}disabled{% endif %}>
+                  </div>
+                  <small>Applied per additional stop</small>
+                </label>
+                <label class="settings-rate-tile">
+                  <span class="settings-rate-label">Load Minimum</span>
+                  <div class="settings-rate-input-wrap">
+                    <span class="settings-rate-prefix">$</span>
+                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="load_minimum" value="{{ '%.2f' | format(global_rate_metrics.load_minimum or 0) }}" {% if not is_admin %}disabled{% endif %}>
+                  </div>
+                  <small>Global floor per load</small>
+                </label>
+                <label class="settings-rate-tile">
+                  <span class="settings-rate-label">Fuel Surcharge</span>
+                  <div class="settings-rate-input-wrap">
+                    <span class="settings-rate-prefix">$</span>
+                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="fuel_surcharge" value="{{ '%.2f' | format(global_rate_metrics.fuel_surcharge or 0) }}" {% if not is_admin %}disabled{% endif %}>
+                    <span class="settings-rate-suffix">/mi</span>
+                  </div>
+                  <small>Added to state rate per mile</small>
+                </label>
+              </div>
+            </form>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-plants">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">factory</span>
+                <div>
+                  <h2>Plant Locations</h2>
+                  <p class="muted">Editable plant registry.</p>
+                </div>
+              </div>
+            </div>
+            <div class="table-container table-container-compact settings-table-shell">
+              <table class="settings-table inline-edit-table" id="overview-plants-table" data-save="/plants/save">
+                <thead>
+                  <tr>
+                    <th>Plant</th>
+                    <th>Name</th>
+                    <th>Lat</th>
+                    <th>Lng</th>
+                    <th>Address</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for plant in plants_data %}
+                    <tr data-id="{{ plant.id }}">
+                      <td><input class="table-input" data-field="plant_code" value="{{ plant.plant_code }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="table-input" data-field="name" value="{{ plant.name }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ plant.lat }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ plant.lng }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not is_admin %}disabled{% endif %}></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-defaults">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">tune</span>
+                <div>
+                  <h2>Optimizer Defaults</h2>
+                  <p class="muted">Primary defaults used to pre-fill optimization on Orders.</p>
+                </div>
+              </div>
+              {% if is_admin %}
+                <div class="settings-card-actions">
+                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="optimizer-defaults-form">Save Defaults</button>
+                </div>
+              {% endif %}
+            </div>
+            <form class="settings-defaults-form" id="optimizer-defaults-form" method="post" action="{{ url_for('save_optimizer_defaults') }}">
+              <input type="hidden" name="tab" value="overview">
+              <div class="table-container table-container-compact settings-table-shell">
+                <table class="settings-table settings-defaults-table">
+                  <thead>
+                    <tr>
+                      <th>Parameter</th>
+                      <th>Default Value</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Trailer Type</td>
+                      <td>
+                        <select class="select-field settings-default-input" name="trailer_type" {% if not is_admin %}disabled{% endif %}>
+                          <option value="STEP_DECK" {% if optimizer_defaults.trailer_type == 'STEP_DECK' %}selected{% endif %}>STEP_DECK</option>
+                          <option value="FLATBED" {% if optimizer_defaults.trailer_type == 'FLATBED' %}selected{% endif %}>FLATBED</option>
+                          <option value="WEDGE" {% if optimizer_defaults.trailer_type == 'WEDGE' %}selected{% endif %}>WEDGE</option>
+                        </select>
+                      </td>
+                      <td class="settings-default-note">Primary profile for capacity planning</td>
+                    </tr>
+                    <tr>
+                      <td>Capacity (ft)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="1" step="0.1" name="capacity_feet" value="{{ optimizer_defaults.capacity_feet }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Target trailer length capacity.</td>
+                    </tr>
+                    <tr>
+                      <td>Time Window (days)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="time_window_days" value="{{ optimizer_defaults.time_window_days }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">How early orders can be consolidated.</td>
+                    </tr>
+                    <tr>
+                      <td>Geo Search Radius</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="geo_radius" value="{{ optimizer_defaults.geo_radius }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Maximum distance for order consolidation.</td>
+                    </tr>
+                    <tr>
+                      <td>Max Detour (%)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="max_detour_pct" value="{{ optimizer_defaults.max_detour_pct }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Route compatibility tolerance.</td>
+                    </tr>
+                    <tr>
+                      <td>Stack Overflow Max Height</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="stack_overflow_max_height" value="{{ optimizer_defaults.stack_overflow_max_height or 5 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Allows one overflow unit on a full stack when item max-stack is at least this value (0 disables).</td>
+                    </tr>
+                    <tr>
+                      <td>Back Overhang Allowance (ft)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="max_back_overhang_ft" value="{{ optimizer_defaults.max_back_overhang_ft or 4 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Allowed overhang off trailer back (left side in schematic) before hard capacity violation.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </form>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-grades">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">speed</span>
+                <div>
+                <h2>Utilization Grades</h2>
+                <p class="muted">Editable grade thresholds.</p>
+                </div>
+              </div>
+              {% if is_admin %}
+                <div class="settings-card-actions">
+                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="util-grades-form">Save Grades</button>
+                </div>
+              {% endif %}
+            </div>
+            <form id="util-grades-form" method="post" action="{{ url_for('save_utilization_grades') }}">
+              <input type="hidden" name="tab" value="overview">
+              <div class="util-grade-list">
+                {% for row in util_grade_thresholds %}
+                  {% set grade_name = 'Excellent' if row.grade == 'A' else ('Good' if row.grade == 'B' else ('Average' if row.grade == 'C' else ('Warning' if row.grade == 'D' else 'Critical')) ) %}
+                  {% if row.grade in ['A', 'B', 'C'] %}
+                    <label class="util-grade-row util-{{ row.grade | lower }}">
+                      <span class="util-grade-main">
+                        <span class="grade-pill">{{ row.grade }}</span>
+                        <span class="util-grade-name">{{ grade_name }}</span>
+                      </span>
+                      <span class="util-grade-threshold">
+                        <input class="select-field util-grade-input" type="number" min="0" max="100" step="1" name="grade_{{ row.grade | lower }}_min" value="{{ row.min_pct }}" {% if not is_admin %}disabled{% endif %}>
+                        <span>%+</span>
+                      </span>
+                    </label>
+                  {% elif row.grade == 'D' %}
+                    <label class="util-grade-row util-{{ row.grade | lower }}">
+                      <span class="util-grade-main">
+                        <span class="grade-pill">{{ row.grade }}</span>
+                        <span class="util-grade-name">{{ grade_name }}</span>
+                      </span>
+                      <span class="util-grade-threshold">
+                        {% if is_admin %}
+                          <input class="select-field util-grade-input" type="number" min="0" max="100" step="1" name="grade_d_min" data-grade-d-input value="{{ row.min_pct }}">
+                        {% else %}
+                          <span>{{ row.min_pct }}</span>
+                        {% endif %}
+                        <span>%+</span>
+                      </span>
+                    </label>
+                  {% else %}
+                    <div class="util-grade-row util-f">
+                      <span class="util-grade-main">
+                        <span class="grade-pill">{{ row.grade }}</span>
+                        <span class="util-grade-name">{{ grade_name }}</span>
+                      </span>
+                      <span class="util-grade-threshold">
+                        {% if is_admin %}
+                          <input class="select-field util-grade-input" type="number" min="0" max="99" step="1" name="grade_f_max" data-grade-f-input value="{{ row.f_max if row.f_max is not none else 0 }}">
+                        {% else %}
+                          <span>{{ row.f_max if row.f_max is not none else 0 }}</span>
+                        {% endif %}
+                        <span>% max</span>
+                      </span>
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </form>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-wide settings-card-strategic">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">star</span>
+                <div>
+                  <h2>Strategic Customers</h2>
+                  <p class="muted">Customer-level default rules for optimization and load shaping.</p>
+                </div>
+              </div>
+              {% if is_admin %}
+                <div class="settings-card-actions">
+                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="strategic-customers-form">Save Definitions</button>
+                </div>
+              {% endif %}
+            </div>
+            <form class="form-grid settings-strategic-form" id="strategic-customers-form" method="post" action="{{ url_for('save_planning_tools') }}">
+              <input type="hidden" name="tab" value="overview">
+              <textarea class="settings-textarea-hidden" name="strategic_customers" data-strategic-hidden hidden>{{ strategic_customers_raw or '' }}</textarea>
+              <div class="strategic-editor">
+                <div class="strategic-editor-head">
+                  <span class="muted">Pattern matching is case-insensitive substring logic. Customer Flex Days overrides global optimizer flex for that customer (leave blank to use global). Return Trip means carrier route is planned back to origin plant.</span>
+                  {% if is_admin %}
+                    <button class="settings-card-btn settings-card-btn-secondary settings-inline-btn" type="button" data-strategic-add>
+                      <span class="material-symbols-outlined">add</span>
+                      Add Row
+                    </button>
+                  {% endif %}
+                </div>
+                <div class="table-container table-container-compact settings-table-shell">
+                  <table class="settings-table settings-strategic-table">
+                    <thead>
+                      <tr>
+                        <th>Customer Label</th>
+                        <th>Match Patterns</th>
+                        <th>Customer Flex Days</th>
+                        <th>No Mix</th>
+                        <th>Default 51' Wedge</th>
+                        <th>Requires Return Trip</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody data-strategic-rows>
+                      {% if strategic_customers and strategic_customers | length %}
+                        {% for entry in strategic_customers %}
+                          <tr class="strategic-row" data-strategic-row>
+                            <td>
+                              <input class="table-input" type="text" data-strategic-label placeholder="Customer label" value="{{ entry.label }}" {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td>
+                              <input class="table-input strategic-pattern-input" type="text" data-strategic-patterns placeholder="Pattern1, Pattern2" value="{{ entry.patterns | join(', ') }}" {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td>
+                              <input class="table-input strategic-flex-input" type="number" min="0" step="1" data-strategic-flex placeholder="Use Global" value="{{ entry.default_due_date_flex_days if entry.default_due_date_flex_days is not none else '' }}" {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td class="strategic-check-cell">
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-no-mix {% if entry.no_mix %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td class="strategic-check-cell">
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-wedge {% if entry.default_wedge_51 %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td class="strategic-check-cell">
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if entry.requires_return_to_origin %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td class="strategic-remove-cell">
+                              {% if is_admin %}
+                                <button class="btn-ghost btn-icon" type="button" data-strategic-remove title="Remove row">
+                                  <span class="material-symbols-outlined">close</span>
+                                </button>
+                              {% else %}
+                                <span class="muted">-</span>
+                              {% endif %}
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      {% else %}
+                        <tr class="strategic-row" data-strategic-row>
+                          <td>
+                            <input class="table-input" type="text" data-strategic-label placeholder="Customer label" {% if not is_admin %}disabled{% endif %}>
+                          </td>
+                          <td>
+                            <input class="table-input strategic-pattern-input" type="text" data-strategic-patterns placeholder="Pattern1, Pattern2" {% if not is_admin %}disabled{% endif %}>
+                          </td>
+                          <td>
+                            <input class="table-input strategic-flex-input" type="number" min="0" step="1" data-strategic-flex placeholder="Use Global" value="" {% if not is_admin %}disabled{% endif %}>
+                          </td>
+                          <td class="strategic-check-cell">
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-no-mix {% if not is_admin %}disabled{% endif %}>
+                          </td>
+                          <td class="strategic-check-cell">
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-wedge {% if not is_admin %}disabled{% endif %}>
+                          </td>
+                          <td class="strategic-check-cell">
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if not is_admin %}disabled{% endif %}>
+                          </td>
+                          <td class="strategic-remove-cell">
+                            {% if is_admin %}
+                              <button class="btn-ghost btn-icon" type="button" data-strategic-remove title="Remove row">
+                                <span class="material-symbols-outlined">close</span>
+                              </button>
+                            {% else %}
+                              <span class="muted">-</span>
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </form>
+            <div class="settings-chip-list strategic-chip-list" data-strategic-chip-list>
+              {% if strategic_customers and strategic_customers | length %}
+                {% for entry in strategic_customers %}
+                  <span class="meta-chip strategic-chip">
+                    <strong>{{ entry.label }}</strong>
+                    - {{ entry.patterns | join(', ') }}
+                    {% if entry.default_due_date_flex_days is not none %}
+                      - Flex {{ entry.default_due_date_flex_days }}d
+                    {% endif %}
+                    {% if entry.no_mix %}- No Mix{% endif %}
+                    {% if entry.default_wedge_51 %}- 51' Wedge{% endif %}
+                    {% if entry.requires_return_to_origin %}- Return Trip{% endif %}
+                  </span>
+                {% endfor %}
+              {% endif %}
+            </div>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-span-7 settings-card-registry">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">inventory_2</span>
+                <div>
+                  <h2>Master SKU List (Recent)</h2>
+                  <p class="muted">Top 3 most recently added SKUs.</p>
+                </div>
+              </div>
+              <div class="settings-card-actions">
+                <a class="settings-card-btn settings-card-btn-secondary" href="{{ url_for('settings', tab='skus') }}">Full SKU List</a>
+              </div>
+            </div>
+            {% if recent_specs %}
+              <div class="table-container table-container-compact settings-table-shell">
+                <table class="settings-table inline-edit-table" id="overview-sku-table" data-save="/skus/save">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Description</th>
+                      <th>Category</th>
+                      <th>Length</th>
+                      <th>Step</th>
+                      <th>Flat</th>
+                      <th>Added</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for spec in recent_specs[:3] %}
+                      <tr data-id="{{ spec.id }}">
+                        <td><input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not is_admin %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="category" value="{{ spec.category or '' }}" {% if not is_admin %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not is_admin %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not is_admin %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not is_admin %}disabled{% endif %}></td>
+                        <td><span class="muted">{{ spec.added_at or spec.created_at or '' }}</span></td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p>No SKU specs yet.</p>
+            {% endif %}
+          </article>
+        </div>
+      {% elif tab == 'rates' %}
+        <div class="content-block settings-rates-tab">
+          <div class="content-header settings-content-header">
             <div>
               <h2>Freight Rates</h2>
-              <p class="muted">Matrix view by origin plant and destination state.</p>
+              <p class="muted">Update base lane rates by destination state. Estimated freight applies stop fee, load minimum, and fuel surcharge automatically.</p>
             </div>
-            <div class="rates-toolbar">
-              <div class="search-field">
-                <span class="material-symbols-outlined">search</span>
-                <input id="rate-search" type="text" placeholder="Search by plant or destination..." />
-              </div>
-              <button class="btn-ghost" type="button">Filter</button>
+            <div class="settings-header-chips">
+              <span class="meta-chip">{{ rate_plants | length }} Plants</span>
+              <span class="meta-chip">{{ rate_states | length }} Destinations</span>
+              <span class="meta-chip">{{ rates | length }} Lanes</span>
             </div>
+          </div>
+          <div class="rates-toolbar">
+            <div class="search-field">
+              <span class="material-symbols-outlined">search</span>
+              <input id="rate-search" type="text" placeholder="Search destination row..." />
+            </div>
+            <div class="muted">Tip: edit a cell and click outside to save.</div>
           </div>
           <div class="rate-assumptions">
             <div class="assumption-card">
               <span class="meta-label">Stop Fee</span>
-              <span class="assumption-value">$55</span>
+              <span class="assumption-value">${{ '%.2f' | format(global_rate_metrics.stop_fee or 0) }}</span>
               <span class="assumption-note">Applied per stop</span>
             </div>
             <div class="assumption-card">
               <span class="meta-label">Load Minimum</span>
-              <span class="assumption-value">$800</span>
+              <span class="assumption-value">${{ '%.2f' | format(global_rate_metrics.load_minimum or 0) }}</span>
               <span class="assumption-note">Applied per load</span>
+            </div>
+            <div class="assumption-card assumption-card-editable">
+              <span class="meta-label">Fuel Surcharge</span>
+              {% if is_admin %}
+                <label class="rate-input-wrap assumption-input-wrap" for="fuel-surcharge-input">
+                  <span class="currency-prefix">$</span>
+                  <input
+                    id="fuel-surcharge-input"
+                    class="table-input"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value="{{ '%.2f' | format(fuel_surcharge_per_mile or 0) }}"
+                    aria-label="Fuel surcharge per mile"
+                  />
+                </label>
+              {% else %}
+                <span class="assumption-value">${{ '%.2f' | format(fuel_surcharge_per_mile or 0) }}</span>
+              {% endif %}
+              <span class="assumption-note" id="fuel-surcharge-note">
+                Applied per mile. Example: base $3.25 -> effective ${{ '%.2f' | format((3.25 + (fuel_surcharge_per_mile or 0)) | float) }}
+              </span>
             </div>
           </div>
           {% if not is_admin %}
@@ -123,13 +541,47 @@
           <div class="form-status" id="rates-status"></div>
         </div>
       {% elif tab == 'skus' %}
-        <div class="content-block">
+        <div class="content-block settings-skus-tab">
           <div class="content-header">
             <h2>SKU Specifications</h2>
           </div>
+          <div class="sku-filter-shell">
+            <div class="sku-filter-bar" id="sku-filter-panel">
+              <label class="sku-filter-field">
+                <span>Category</span>
+                <select class="select-field" data-sku-category-filter>
+                  <option value="">All Categories</option>
+                  {% for category in sku_categories %}
+                    <option value="{{ category }}">{{ category }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="sku-filter-field">
+                <span>Added After</span>
+                <input class="select-field" type="date" data-sku-date-from>
+              </label>
+              <label class="sku-filter-field">
+                <span>Added Before</span>
+                <input class="select-field" type="date" data-sku-date-to>
+              </label>
+              <button class="btn-ghost btn-xs" type="button" data-sku-filter-reset>Reset</button>
+              {% if is_admin %}
+                <button
+                  class="btn-primary btn-xs sku-add-toggle"
+                  type="button"
+                  data-sku-add-toggle
+                  aria-expanded="false"
+                  aria-controls="sku-add-form-panel"
+                >
+                  Add SKU
+                </button>
+              {% endif %}
+            </div>
+          </div>
           {% if is_admin %}
-            <form class="form-grid" method="post" action="{{ url_for('add_sku') }}">
+            <form class="form-grid sku-add-form" id="sku-add-form-panel" method="post" action="{{ url_for('add_sku') }}" hidden>
               <label>SKU<input name="sku" type="text" required></label>
+              <label>Description<input name="description" type="text"></label>
               <label>Category<input name="category" type="text" required></label>
               <label>Length w/ Tongue (ft)<input name="length_with_tongue_ft" type="number" step="0.1" required></label>
               <label>Max Stack Step Deck<input name="max_stack_step_deck" type="number" min="1" value="1" required></label>
@@ -144,24 +596,43 @@
           {% endif %}
 
           {% if specs %}
+            {% set planner_specs = specs | selectattr('added_at') | list %}
+            {% set system_specs = specs | rejectattr('added_at') | list %}
             <div class="table-container">
               <table class="settings-table inline-edit-table" id="sku-table" data-save="/skus/save">
                 <thead>
                   <tr>
                     <th>SKU</th>
+                    <th>Description</th>
                     <th>Category</th>
                     <th>Length (ft)</th>
                     <th>Step Deck</th>
                     <th>Flat Bed</th>
                     <th>Notes</th>
+                    <th>Added</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for spec in specs %}
-                    <tr data-id="{{ spec.id }}">
+                  {% if planner_specs %}
+                    <tr class="sku-group-row" data-sku-group="planner">
+                      <td colspan="9">
+                        <span class="sku-group-label">Planner Input SKUs</span>
+                        <span class="sku-group-meta">{{ planner_specs | length }} added</span>
+                      </td>
+                    </tr>
+                  {% endif %}
+                  {% for spec in planner_specs %}
+                    <tr data-id="{{ spec.id }}"
+                        data-sku-row
+                        data-origin="planner"
+                        data-category="{{ (spec.category or '') | upper }}"
+                        data-added-date="{{ spec.added_at or spec.created_at or '' }}">
                       <td>
                         <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not is_admin %}disabled{% endif %}>
                       </td>
                       <td>
                         <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not is_admin %}disabled{% endif %}>
@@ -177,6 +648,58 @@
                       </td>
                       <td>
                         <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <span class="muted">{{ spec.added_at or spec.created_at or '' }}</span>
+                      </td>
+                      <td>
+                        {% if is_admin %}
+                          <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
+                            <button class="btn-danger" type="submit">Delete</button>
+                          </form>
+                        {% else %}
+                          <span class="muted">Read-only</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                  {% if system_specs %}
+                    <tr class="sku-group-row sku-group-divider" data-sku-group="system">
+                      <td colspan="9">
+                        <span class="sku-group-label">Preloaded Cheat Sheet</span>
+                        <span class="sku-group-meta">{{ system_specs | length }} items</span>
+                      </td>
+                    </tr>
+                  {% endif %}
+                  {% for spec in system_specs %}
+                    <tr data-id="{{ spec.id }}"
+                        data-sku-row
+                        data-origin="system"
+                        data-category="{{ (spec.category or '') | upper }}"
+                        data-added-date="{{ spec.added_at or spec.created_at or '' }}">
+                      <td>
+                        <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not is_admin %}disabled{% endif %}>
+                      </td>
+                      <td>
+                        <span class="muted">{{ spec.added_at or spec.created_at or '' }}</span>
                       </td>
                       <td>
                         {% if is_admin %}
@@ -403,6 +926,16 @@
                       <td>{{ optimizer_defaults.max_detour_pct or 15 }}</td>
                       <td>Limit used when evaluating route compatibility.</td>
                     </tr>
+                    <tr>
+                      <td>Stack Overflow Max Height</td>
+                      <td>{{ optimizer_defaults.stack_overflow_max_height or 5 }}</td>
+                      <td>Enables one overflow unit on full stacks (0 disables).</td>
+                    </tr>
+                    <tr>
+                      <td>Back Overhang Allowance (ft)</td>
+                      <td>{{ optimizer_defaults.max_back_overhang_ft or 4 }}</td>
+                      <td>Allowed trailer-back overhang before capacity is treated as exceeded.</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -463,51 +996,84 @@
           if (!table) return;
           const saveUrl = table.dataset.save;
           const inputs = table.querySelectorAll('[data-field]');
+          const saveTimers = new WeakMap();
+
+          async function persistRow(triggerInput, revertOnFailure = true) {
+            const row = triggerInput.closest('tr');
+            if (!row) return;
+            const fields = row.querySelectorAll('[data-field]');
+            const hasChange = Array.from(fields).some((field) => field.value !== field.dataset.current);
+            if (!hasChange) return;
+
+            const payload = { id: row.dataset.id };
+            fields.forEach((field) => {
+              payload[field.dataset.field] = parseValue(field.value, field.dataset.type);
+            });
+
+            try {
+              const response = await fetch(saveUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              if (!response.ok) throw new Error(`Save failed: ${response.status}`);
+              fields.forEach((field) => {
+                field.dataset.current = field.value;
+              });
+            } catch (error) {
+              if (revertOnFailure) {
+                fields.forEach((field) => {
+                  field.value = field.dataset.current;
+                });
+              }
+            }
+          }
 
           inputs.forEach((input) => {
             input.dataset.current = input.value;
-            const eventName = input.tagName === 'SELECT' ? 'change' : 'blur';
-            input.addEventListener(eventName, async () => {
-              if (input.value === input.dataset.current) return;
-              const row = input.closest('tr');
-              if (!row) return;
-              const payload = { id: row.dataset.id };
-              row.querySelectorAll('[data-field]').forEach((field) => {
-                payload[field.dataset.field] = parseValue(field.value, field.dataset.type);
+            if (input.tagName === 'SELECT') {
+              input.addEventListener('change', async () => {
+                await persistRow(input);
               });
+              return;
+            }
 
-              try {
-                await fetch(saveUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload),
-                });
-                row.querySelectorAll('[data-field]').forEach((field) => {
-                  field.dataset.current = field.value;
-                });
-              } catch (error) {
-                input.value = input.dataset.current;
-              }
+            input.addEventListener('blur', async () => {
+              await persistRow(input);
             });
 
-            if (input.tagName !== 'SELECT') {
-              input.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  input.blur();
-                }
-              });
-            }
+            input.addEventListener('input', () => {
+              const existingTimer = saveTimers.get(input);
+              if (existingTimer) clearTimeout(existingTimer);
+              const timer = setTimeout(() => {
+                persistRow(input, false);
+              }, 700);
+              saveTimers.set(input, timer);
+            });
+
+            input.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                input.blur();
+              }
+            });
           });
         }
 
         function setupRatesMatrix() {
           const table = document.getElementById('rates-matrix');
-          if (!table) return;
           const statusEl = document.getElementById('rates-status');
           const searchInput = document.getElementById('rate-search');
+          const surchargeInput = document.getElementById('fuel-surcharge-input');
+          const surchargeNote = document.getElementById('fuel-surcharge-note');
 
-          if (searchInput) {
+          function updateSurchargeNote(value) {
+            if (!surchargeNote) return;
+            const base = 3.25;
+            surchargeNote.textContent = `Applied per mile. Example: base $${base.toFixed(2)} -> effective $${(base + value).toFixed(2)}`;
+          }
+
+          if (searchInput && table) {
             searchInput.addEventListener('input', () => {
               const term = searchInput.value.toLowerCase().trim();
               table.querySelectorAll('tbody tr').forEach((row) => {
@@ -517,68 +1083,386 @@
             });
           }
 
-          table.querySelectorAll('.rate-input').forEach((input) => {
-            input.dataset.current = input.value;
+          if (table) {
+            table.querySelectorAll('.rate-input').forEach((input) => {
+              input.dataset.current = input.value;
 
-            input.addEventListener('keydown', (event) => {
+              input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  input.blur();
+                }
+              });
+
+              input.addEventListener('blur', async () => {
+                if (input.value === input.dataset.current) return;
+                const cell = input.closest('.rate-cell');
+                if (!cell) return;
+                const rateId = cell.dataset.rateId || undefined;
+                const origin = cell.dataset.originPlant || '';
+                const destination = cell.dataset.destinationState || '';
+                const year = cell.dataset.effectiveYear || 2026;
+                const parsed = parseFloat(input.value);
+
+                if (Number.isNaN(parsed)) {
+                  input.value = input.dataset.current || '';
+                  return;
+                }
+
+                if (statusEl) statusEl.textContent = 'Saving...';
+
+                try {
+                  const response = await fetch('/rates/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id: rateId,
+                      origin_plant: origin,
+                      destination_state: destination,
+                      rate_per_mile: parsed,
+                      effective_year: year,
+                    }),
+                  });
+                  const data = await response.json();
+                  if (data && data.rate) {
+                    cell.dataset.rateId = data.rate.id || '';
+                    cell.dataset.effectiveYear = data.rate.effective_year || year;
+                    input.value = Number(data.rate.rate_per_mile || parsed).toFixed(2);
+                  } else {
+                    input.value = parsed.toFixed(2);
+                  }
+                  input.dataset.current = input.value;
+                  if (statusEl) statusEl.textContent = 'Saved.';
+                } catch (error) {
+                  input.value = input.dataset.current || '';
+                  if (statusEl) statusEl.textContent = 'Unable to save.';
+                }
+              });
+            });
+          }
+
+          if (surchargeInput) {
+            surchargeInput.dataset.current = surchargeInput.value;
+            updateSurchargeNote(parseFloat(surchargeInput.value || '0') || 0);
+
+            surchargeInput.addEventListener('keydown', (event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
-                input.blur();
+                surchargeInput.blur();
               }
             });
 
-            input.addEventListener('blur', async () => {
-              if (input.value === input.dataset.current) return;
-              const cell = input.closest('.rate-cell');
-              if (!cell) return;
-              const rateId = cell.dataset.rateId || undefined;
-              const origin = cell.dataset.originPlant || '';
-              const destination = cell.dataset.destinationState || '';
-              const year = cell.dataset.effectiveYear || 2026;
-              const parsed = parseFloat(input.value);
-
-              if (Number.isNaN(parsed)) {
-                input.value = input.dataset.current || '';
+            surchargeInput.addEventListener('blur', async () => {
+              if (surchargeInput.value === surchargeInput.dataset.current) return;
+              const parsed = parseFloat(surchargeInput.value);
+              if (Number.isNaN(parsed) || parsed < 0) {
+                surchargeInput.value = surchargeInput.dataset.current || '0.40';
                 return;
               }
-
               if (statusEl) statusEl.textContent = 'Saving...';
-
               try {
-                const response = await fetch('/rates/save', {
+                const response = await fetch('/rates/fuel-surcharge/save', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    id: rateId,
-                    origin_plant: origin,
-                    destination_state: destination,
-                    rate_per_mile: parsed,
-                    effective_year: year,
-                  }),
+                  body: JSON.stringify({ fuel_surcharge_per_mile: parsed }),
                 });
                 const data = await response.json();
-                if (data && data.rate) {
-                  cell.dataset.rateId = data.rate.id || '';
-                  cell.dataset.effectiveYear = data.rate.effective_year || year;
-                  input.value = Number(data.rate.rate_per_mile || parsed).toFixed(2);
-                } else {
-                  input.value = parsed.toFixed(2);
-                }
-                input.dataset.current = input.value;
+                const saved = Number(data.fuel_surcharge_per_mile || parsed);
+                surchargeInput.value = saved.toFixed(2);
+                surchargeInput.dataset.current = surchargeInput.value;
+                updateSurchargeNote(saved);
                 if (statusEl) statusEl.textContent = 'Saved.';
               } catch (error) {
-                input.value = input.dataset.current || '';
+                surchargeInput.value = surchargeInput.dataset.current || '0.40';
                 if (statusEl) statusEl.textContent = 'Unable to save.';
               }
             });
+          }
+        }
+
+        function setupStrategicEditor() {
+          const form = document.getElementById('strategic-customers-form');
+          if (!form) return;
+          const rowsHost = form.querySelector('[data-strategic-rows]');
+          const hiddenField = form.querySelector('[data-strategic-hidden]');
+          const addButton = form.querySelector('[data-strategic-add]');
+          const chipList = document.querySelector('[data-strategic-chip-list]');
+
+          if (!rowsHost || !hiddenField) return;
+
+          function createRow({
+            label = '',
+            patterns = '',
+            defaultDueDateFlexDays = null,
+            noMix = false,
+            defaultWedge = false,
+            requiresReturnTrip = false,
+          } = {}) {
+            const row = document.createElement('tr');
+            row.className = 'strategic-row';
+            row.setAttribute('data-strategic-row', '');
+            row.innerHTML = `
+              <td>
+                <input class="table-input" type="text" data-strategic-label placeholder="Customer label" value="${label}">
+              </td>
+              <td>
+                <input class="table-input strategic-pattern-input" type="text" data-strategic-patterns placeholder="Pattern1, Pattern2" value="${patterns}">
+              </td>
+              <td>
+                <input class="table-input strategic-flex-input" type="number" min="0" step="1" data-strategic-flex placeholder="Use Global" value="${defaultDueDateFlexDays === null || defaultDueDateFlexDays === undefined || defaultDueDateFlexDays === '' ? '' : Math.max(parseInt(defaultDueDateFlexDays, 10) || 0, 0)}">
+              </td>
+              <td class="strategic-check-cell">
+                <input class="strategic-checkbox" type="checkbox" data-strategic-no-mix ${noMix ? 'checked' : ''}>
+              </td>
+              <td class="strategic-check-cell">
+                <input class="strategic-checkbox" type="checkbox" data-strategic-wedge ${defaultWedge ? 'checked' : ''}>
+              </td>
+              <td class="strategic-check-cell">
+                <input class="strategic-checkbox" type="checkbox" data-strategic-return ${requiresReturnTrip ? 'checked' : ''}>
+              </td>
+              <td class="strategic-remove-cell">
+                <button class="btn-ghost btn-icon" type="button" data-strategic-remove title="Remove row">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </td>
+            `;
+            return row;
+          }
+
+          function collectRows() {
+            return Array.from(rowsHost.querySelectorAll('[data-strategic-row]'))
+              .map((row) => {
+                const label = (row.querySelector('[data-strategic-label]')?.value || '').trim();
+                const patternsRaw = (row.querySelector('[data-strategic-patterns]')?.value || '').trim();
+                const patterns = patternsRaw
+                  .split(',')
+                  .map((item) => item.trim())
+                  .filter(Boolean);
+                const rawFlex = (row.querySelector('[data-strategic-flex]')?.value || '').trim();
+                const parsedFlex = parseInt(rawFlex, 10);
+                const default_due_date_flex_days = rawFlex === '' || Number.isNaN(parsedFlex)
+                  ? null
+                  : Math.max(parsedFlex, 0);
+                const no_mix = !!row.querySelector('[data-strategic-no-mix]')?.checked;
+                const default_wedge_51 = !!row.querySelector('[data-strategic-wedge]')?.checked;
+                const requires_return_to_origin = !!row.querySelector('[data-strategic-return]')?.checked;
+                return {
+                  label,
+                  patterns,
+                  default_due_date_flex_days,
+                  no_mix,
+                  default_wedge_51,
+                  requires_return_to_origin,
+                };
+              })
+              .filter((entry) => entry.label && entry.patterns.length);
+          }
+
+          function renderChips(entries) {
+            if (!chipList) return;
+            chipList.innerHTML = '';
+            entries.forEach((entry) => {
+              const chip = document.createElement('span');
+              chip.className = 'meta-chip strategic-chip';
+              const strong = document.createElement('strong');
+              strong.textContent = entry.label;
+              chip.appendChild(strong);
+              const tags = [];
+              if (entry.default_due_date_flex_days !== null && entry.default_due_date_flex_days !== undefined) {
+                tags.push(`Flex ${entry.default_due_date_flex_days}d`);
+              }
+              if (entry.no_mix) tags.push('No Mix');
+              if (entry.default_wedge_51) tags.push("51' Wedge");
+              if (entry.requires_return_to_origin) tags.push('Return Trip');
+              const tagText = tags.length ? ` - ${tags.join(' | ')}` : '';
+              chip.append(` - ${entry.patterns.join(', ')}${tagText}`);
+              chipList.appendChild(chip);
+            });
+          }
+
+          function syncHiddenField() {
+            const entries = collectRows();
+            hiddenField.value = JSON.stringify(entries);
+            renderChips(entries);
+          }
+
+          if (addButton) {
+            addButton.addEventListener('click', () => {
+              rowsHost.appendChild(createRow());
+            });
+          }
+
+          rowsHost.addEventListener('click', (event) => {
+            const removeButton = event.target.closest('[data-strategic-remove]');
+            if (!removeButton) return;
+            const row = removeButton.closest('[data-strategic-row]');
+            if (!row) return;
+            row.remove();
+            if (!rowsHost.querySelector('[data-strategic-row]')) {
+              rowsHost.appendChild(createRow());
+            }
+            syncHiddenField();
+          });
+
+          rowsHost.addEventListener('input', (event) => {
+            if (event.target.matches('[data-strategic-label], [data-strategic-patterns], [data-strategic-flex], [data-strategic-no-mix], [data-strategic-wedge], [data-strategic-return]')) {
+              syncHiddenField();
+            }
+          });
+
+          rowsHost.addEventListener('change', (event) => {
+            if (event.target.matches('[data-strategic-no-mix], [data-strategic-wedge], [data-strategic-return]')) {
+              syncHiddenField();
+            }
+          });
+
+          form.addEventListener('submit', () => {
+            syncHiddenField();
+          });
+
+          syncHiddenField();
+        }
+
+        function setupUtilGradeSync() {
+          const dInput = document.querySelector('[data-grade-d-input]');
+          const fInput = document.querySelector('[data-grade-f-input]');
+          if (!dInput || !fInput) return;
+
+          let mute = false;
+          const clamp = (value, min, max) => {
+            const parsed = parseInt(value, 10);
+            if (Number.isNaN(parsed)) return min;
+            return Math.min(max, Math.max(min, parsed));
+          };
+
+          dInput.addEventListener('input', () => {
+            if (mute) return;
+            mute = true;
+            const d = clamp(dInput.value, 0, 100);
+            dInput.value = d;
+            fInput.value = Math.max(d - 1, 0);
+            mute = false;
+          });
+
+          fInput.addEventListener('input', () => {
+            if (mute) return;
+            mute = true;
+            const f = clamp(fInput.value, 0, 99);
+            fInput.value = f;
+            dInput.value = Math.min(f + 1, 100);
+            mute = false;
           });
         }
 
+
         if (tab === 'rates') setupRatesMatrix();
+        if (tab === 'overview') {
+          setupStrategicEditor();
+          setupUtilGradeSync();
+          attachInlineSaver('overview-sku-table');
+          attachInlineSaver('overview-plants-table');
+        }
         if (tab === 'skus') attachInlineSaver('sku-table');
         if (tab === 'lookups') attachInlineSaver('lookup-table');
         if (tab === 'plants') attachInlineSaver('plants-table');
       })();
     </script>
   {% endif %}
+  <script>
+    (function () {
+      const tab = "{{ tab }}";
+      if (tab !== 'skus') return;
+      const addSkuToggle = document.querySelector('[data-sku-add-toggle]');
+      const addSkuPanel = document.getElementById('sku-add-form-panel');
+      const syncAddSkuToggle = () => {
+        if (!addSkuToggle || !addSkuPanel) return;
+        const expanded = !addSkuPanel.hidden;
+        addSkuToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        addSkuToggle.textContent = expanded ? 'Hide Add SKU' : 'Add SKU';
+      };
+
+      if (addSkuToggle && addSkuPanel) {
+        syncAddSkuToggle();
+        addSkuToggle.addEventListener('click', () => {
+          addSkuPanel.hidden = !addSkuPanel.hidden;
+          syncAddSkuToggle();
+        });
+      }
+
+      const table = document.getElementById('sku-table');
+      if (!table) return;
+      const categorySelect = document.querySelector('[data-sku-category-filter]');
+      const dateFrom = document.querySelector('[data-sku-date-from]');
+      const dateTo = document.querySelector('[data-sku-date-to]');
+      const resetButton = document.querySelector('[data-sku-filter-reset]');
+      const rows = Array.from(table.querySelectorAll('tbody tr[data-sku-row]'));
+      const groupRows = Array.from(table.querySelectorAll('tbody tr[data-sku-group]'));
+
+      const normalize = (value) => (value || '').trim().toUpperCase();
+      const parseDate = (value) => {
+        if (!value) return null;
+        const normalized = String(value).split('T')[0];
+        const parsed = new Date(normalized);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return parsed;
+      };
+
+      const applyFilters = () => {
+        const category = normalize(categorySelect ? categorySelect.value : '');
+        const fromDate = parseDate(dateFrom ? dateFrom.value : '');
+        const toDate = parseDate(dateTo ? dateTo.value : '');
+        const toDateEnd = toDate ? new Date(toDate.getTime()) : null;
+        if (toDateEnd) {
+          toDateEnd.setHours(23, 59, 59, 999);
+        }
+
+        rows.forEach((row) => {
+          let visible = true;
+          const rowCategory = normalize(row.dataset.category || '');
+          if (category && rowCategory !== category) {
+            visible = false;
+          }
+
+          if (visible && (fromDate || toDateEnd)) {
+            const rowDate = parseDate(row.dataset.addedDate || '');
+            if (!rowDate) {
+              visible = false;
+            } else {
+              if (fromDate && rowDate < fromDate) visible = false;
+              if (toDateEnd && rowDate > toDateEnd) visible = false;
+            }
+          }
+
+          row.style.display = visible ? '' : 'none';
+        });
+
+        groupRows.forEach((groupRow) => {
+          const group = groupRow.dataset.skuGroup || '';
+          const hasVisible = rows.some(
+            (row) =>
+              row.dataset.origin === group && row.style.display !== 'none'
+          );
+          groupRow.style.display = hasVisible ? '' : 'none';
+        });
+      };
+
+      [categorySelect, dateFrom, dateTo].forEach((input) => {
+        if (!input) return;
+        input.addEventListener('change', applyFilters);
+        input.addEventListener('input', applyFilters);
+      });
+
+      if (resetButton) {
+        resetButton.addEventListener('click', () => {
+          if (categorySelect) categorySelect.value = '';
+          if (dateFrom) dateFrom.value = '';
+          if (dateTo) dateTo.value = '';
+          applyFilters();
+        });
+      }
+
+      applyFilters();
+    })();
+  </script>
 {% endblock %}
+

@@ -1,0 +1,420 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="session-history-page">
+    <header class="settings-header">
+      <div class="settings-title">
+        <h1>Session Audit</h1>
+        <p class="muted">Review optimizer sessions, expand each run, and inspect loads plus covered orders.</p>
+      </div>
+      <div class="panel-actions">
+        <a class="btn-secondary btn-xs" href="{{ url_for('planning_sessions_replay') }}">Replay Evaluation</a>
+      </div>
+    </header>
+
+    {% if deleted_session_id %}
+      <div class="session-alert">
+        Session #{{ deleted_session_id }} deleted. Related loads were removed and those orders are now eligible for new draft optimization unless assigned elsewhere.
+      </div>
+    {% endif %}
+    {% if archived_session_id %}
+      <div class="session-alert">
+        Session #{{ archived_session_id }} archived. Its loads were released and those orders are now eligible for new draft optimization unless assigned elsewhere.
+      </div>
+    {% endif %}
+    {% if archived_all_count is not none %}
+      <div class="session-alert">
+        Archived {{ archived_all_count }} session{% if archived_all_count != 1 %}s{% endif %} in the current filter set. Their loads were released back to the order pool.
+      </div>
+    {% endif %}
+
+    <div class="session-kpis">
+      <div class="session-kpi-card">
+        <div class="label">Total Sessions</div>
+        <div class="value">{{ total_sessions }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Avg Efficiency</div>
+        <div class="value">{{ avg_efficiency }}%</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Loads Optimized</div>
+        <div class="value">{{ loads_optimized }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Active Analysis</div>
+        <div class="value">{{ active_session_label or '&mdash;' }}</div>
+      </div>
+    </div>
+
+    <form class="session-filters" method="get">
+      <label class="inline-select">
+        <span class="meta-label">Plant</span>
+        <select name="plant">
+          <option value="">All</option>
+          {% for plant in plant_options %}
+            <option value="{{ plant }}" {% if filters.plant == plant %}selected{% endif %}>{{ plant }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="inline-select">
+        <span class="meta-label">Planner</span>
+        <select name="planner">
+          <option value="">All</option>
+          {% for planner in planner_options %}
+            <option value="{{ planner }}" {% if filters.planner == planner %}selected{% endif %}>{{ planner }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="inline-select">
+        <span class="meta-label">Start</span>
+        <input class="select-field" type="date" name="start" value="{{ filters.start }}">
+      </label>
+      <label class="inline-select">
+        <span class="meta-label">End</span>
+        <input class="select-field" type="date" name="end" value="{{ filters.end }}">
+      </label>
+      <button class="btn-secondary btn-xs" type="submit">Apply</button>
+    </form>
+
+    <div class="session-toolbar">
+      <div class="session-search">
+        <span class="material-symbols-outlined">search</span>
+        <input type="text" id="session-search-input" placeholder="Search sessions, planners, plants...">
+      </div>
+      <div class="session-toolbar-actions">
+        {% if active_session_label %}
+          <div class="session-toolbar-meta">Active: {{ active_session_label }}</div>
+        {% endif %}
+        <form
+          method="post"
+          action="{{ url_for('planning_sessions_archive_all') }}"
+          onsubmit="return confirm('Archive all sessions in this filtered view and release their loads back to the order pool?');"
+        >
+          <input type="hidden" name="plant" value="{{ filters.plant }}">
+          <input type="hidden" name="planner" value="{{ filters.planner }}">
+          <input type="hidden" name="start" value="{{ filters.start }}">
+          <input type="hidden" name="end" value="{{ filters.end }}">
+          <button class="btn-warning btn-xs" type="submit">Archive All Filtered</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Session History</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="form-hint">Click any row to expand load and order breakdown.</p>
+        <div class="table-container">
+          <table class="session-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Session Identifier</th>
+                <th>Status</th>
+                <th>Execution Date</th>
+                <th>Loads Gen</th>
+                <th>Avg Util</th>
+                <th>Orders</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for session in sessions %}
+                {% set status_label = (session.status or 'DRAFT') | upper %}
+                <tr class="session-row{% if active_session_id and session.id == active_session_id %} is-active{% endif %}" data-session-row="{{ session.id }}">
+                  <td>
+                    <button
+                      type="button"
+                      class="btn-ghost btn-xs session-expand-toggle"
+                      data-session-expand-toggle="{{ session.id }}"
+                      data-summary-url="{{ url_for('planning_session_summary', session_id=session.id) }}"
+                      aria-expanded="false"
+                      aria-controls="session-expand-{{ session.id }}"
+                    >
+                      <span class="material-symbols-outlined" data-expand-icon="{{ session.id }}">expand_more</span>
+                    </button>
+                  </td>
+                  <td>
+                    <strong>{{ session.session_code }}</strong>
+                    {% if active_session_id and session.id == active_session_id %}
+                      <span class="session-active-flag">Active</span>
+                    {% endif %}
+                    <div class="muted">{{ session.plant_code }}</div>
+                  </td>
+                  <td>
+                    <span class="session-status-badge session-status-{{ status_label | lower }}">{{ status_label }}</span>
+                  </td>
+                  <td>{{ session.created_at }}</td>
+                  <td>{{ session.load_count or 0 }}</td>
+                  <td>{{ (session.avg_utilization or 0) | round(1) }}%</td>
+                  <td>{{ session.order_count or 0 }}</td>
+                  <td>
+                    <div class="session-actions">
+                      <a class="btn-secondary btn-xs" href="{{ url_for('planning_session_detail', session_id=session.id) }}">Review</a>
+                      <a class="btn-primary btn-xs" href="{{ url_for('planning_session_revise', session_id=session.id) }}">Revise</a>
+                      {% if status_label == 'DRAFT' %}
+                        <a class="btn-success btn-xs" href="{{ url_for('planning_session_resume', session_id=session.id) }}">Resume</a>
+                      {% endif %}
+                      {% if status_label != 'ARCHIVED' %}
+                        <form method="post" action="{{ url_for('planning_session_archive', session_id=session.id) }}" onsubmit="return confirm('Archive this session and release its loads back into the order pool?');">
+                          <input type="hidden" name="plant" value="{{ filters.plant }}">
+                          <input type="hidden" name="planner" value="{{ filters.planner }}">
+                          <input type="hidden" name="start" value="{{ filters.start }}">
+                          <input type="hidden" name="end" value="{{ filters.end }}">
+                          <button class="btn-warning btn-xs" type="submit">Archive</button>
+                        </form>
+                      {% endif %}
+                      <form method="post" action="{{ url_for('planning_session_delete', session_id=session.id) }}" onsubmit="return confirm('Delete this session and all of its loads? This will reintroduce those orders into the draft pool.');">
+                        <button class="btn-danger btn-xs" type="submit">Delete</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="session-expand-row hidden" data-session-expand-row="{{ session.id }}" id="session-expand-{{ session.id }}">
+                  <td colspan="8">
+                    <div class="session-expand-panel">
+                      <div class="session-detail">
+                        <div>Planner: <strong>{{ session.created_by or 'Planner' }}</strong></div>
+                        <div>Status: <strong>{{ status_label }}</strong></div>
+                        {% if session.config %}
+                          <div>Trailer: <strong>{{ session.config.trailer_type or 'STEP_DECK' }}</strong></div>
+                          <div>Flex Days: <strong>{{ session.config.time_window_days or 0 }}</strong></div>
+                          <div>Geo Radius: <strong>{{ session.config.geo_radius or 0 }}</strong></div>
+                          {% if session.config.batch_end_date %}
+                            <div>Batch End: <strong>{{ session.config.batch_end_date }}</strong></div>
+                          {% endif %}
+                        {% endif %}
+                      </div>
+
+                      <div class="session-expand-loading hidden" data-expand-loading>Loading session details...</div>
+                      <div class="session-expand-error hidden" data-expand-error></div>
+
+                      <div class="session-expand-content hidden" data-expand-content>
+                        <div class="session-expand-metrics" data-expand-metrics></div>
+
+                        <div class="session-expand-sections">
+                          <div class="session-expand-section">
+                            <h4>Load Summary</h4>
+                            <div class="table-container">
+                              <table class="session-subtable">
+                                <thead>
+                                  <tr>
+                                    <th>Load #</th>
+                                    <th>Status</th>
+                                    <th>Trailer</th>
+                                    <th>Util</th>
+                                    <th>Orders</th>
+                                    <th>Stops</th>
+                                    <th>Miles</th>
+                                    <th>Est Cost</th>
+                                  </tr>
+                                </thead>
+                                <tbody data-load-summary-body></tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          <div class="session-expand-section">
+                            <h4>Orders In Session</h4>
+                            <div class="table-container">
+                              <table class="session-subtable">
+                                <thead>
+                                  <tr>
+                                    <th>Order #</th>
+                                    <th>Customer</th>
+                                    <th>Due</th>
+                                    <th>Destination</th>
+                                    <th>Lines</th>
+                                    <th>Total Ft</th>
+                                    <th>Loads</th>
+                                  </tr>
+                                </thead>
+                                <tbody data-order-summary-body></tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="8">No sessions found.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const sessionSearchInput = document.getElementById('session-search-input');
+    const sessionRows = Array.from(document.querySelectorAll('[data-session-row]'));
+    const sessionExpandRows = new Map();
+    document.querySelectorAll('[data-session-expand-row]').forEach((row) => {
+      sessionExpandRows.set(row.dataset.sessionExpandRow, row);
+    });
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatCurrency(value) {
+      const num = Number(value || 0);
+      return `$${num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    }
+
+    function formatFloat(value, decimals = 1) {
+      const num = Number(value || 0);
+      return num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function setExpanded(sessionId, expanded) {
+      const expandRow = sessionExpandRows.get(String(sessionId));
+      const icon = document.querySelector(`[data-expand-icon="${sessionId}"]`);
+      const toggle = document.querySelector(`[data-session-expand-toggle="${sessionId}"]`);
+      if (!expandRow || !toggle) return;
+      expandRow.classList.toggle('hidden', !expanded);
+      toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (icon) icon.textContent = expanded ? 'expand_less' : 'expand_more';
+    }
+
+    function renderLoadSummary(expandRow, loads) {
+      const body = expandRow.querySelector('[data-load-summary-body]');
+      if (!body) return;
+      if (!loads || !loads.length) {
+        body.innerHTML = '<tr><td colspan="8">No loads in this session.</td></tr>';
+        return;
+      }
+      body.innerHTML = loads.map((load) => {
+        const orderPreview = (load.orders || []).slice(0, 3).map((order) => order.so_num).join(', ');
+        const previewSuffix = (load.order_count || 0) > 3 ? ` +${(load.order_count || 0) - 3}` : '';
+        return `
+          <tr>
+            <td>${escapeHtml(load.load_number || '')}</td>
+            <td>${escapeHtml(load.status || '')}</td>
+            <td>${escapeHtml(load.trailer_type || '')}</td>
+            <td>${formatFloat(load.utilization_pct || 0)}%</td>
+            <td title="${escapeHtml((load.orders || []).map((entry) => entry.so_num).join(', '))}">${escapeHtml(orderPreview || '--')}${escapeHtml(previewSuffix)}</td>
+            <td>${escapeHtml(load.stop_count || 0)}</td>
+            <td>${formatFloat(load.estimated_miles || 0)}</td>
+            <td>${formatCurrency(load.estimated_cost || 0)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderOrderSummary(expandRow, orders) {
+      const body = expandRow.querySelector('[data-order-summary-body]');
+      if (!body) return;
+      if (!orders || !orders.length) {
+        body.innerHTML = '<tr><td colspan="7">No orders assigned to this session.</td></tr>';
+        return;
+      }
+      body.innerHTML = orders.map((order) => {
+        const destination = [order.city, order.state, order.zip].filter(Boolean).join(', ');
+        return `
+          <tr>
+            <td>${escapeHtml(order.so_num || '')}</td>
+            <td>${escapeHtml(order.cust_name || '')}</td>
+            <td>${escapeHtml(order.due_date || '--')}</td>
+            <td>${escapeHtml(destination || '--')}</td>
+            <td>${escapeHtml(order.line_count || 0)}</td>
+            <td>${formatFloat(order.total_length_ft || 0)}</td>
+            <td title="${escapeHtml((order.loads || []).join(', '))}">${escapeHtml((order.loads || []).slice(0, 2).join(', ') || '--')}${(order.load_count || 0) > 2 ? ` +${(order.load_count || 0) - 2}` : ''}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function loadSessionSummary(sessionId, summaryUrl) {
+      const expandRow = sessionExpandRows.get(String(sessionId));
+      if (!expandRow) return;
+
+      const loading = expandRow.querySelector('[data-expand-loading]');
+      const error = expandRow.querySelector('[data-expand-error]');
+      const content = expandRow.querySelector('[data-expand-content]');
+      const metrics = expandRow.querySelector('[data-expand-metrics]');
+      if (loading) loading.classList.remove('hidden');
+      if (error) {
+        error.classList.add('hidden');
+        error.textContent = '';
+      }
+      if (content) content.classList.add('hidden');
+
+      try {
+        const response = await fetch(summaryUrl, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error('Unable to load session details.');
+        const payload = await response.json();
+
+        renderLoadSummary(expandRow, payload.loads || []);
+        renderOrderSummary(expandRow, payload.orders || []);
+        if (metrics) {
+          metrics.innerHTML = `
+            <span class="meta-chip">Loads: ${escapeHtml(payload.load_count || 0)}</span>
+            <span class="meta-chip">Orders: ${escapeHtml(payload.order_count || 0)}</span>
+            <span class="meta-chip">Avg Util: ${formatFloat(payload.avg_utilization || 0)}%</span>
+            <span class="meta-chip">Total Cost: ${formatCurrency(payload.total_cost || 0)}</span>
+          `;
+        }
+        expandRow.dataset.loaded = '1';
+        if (content) content.classList.remove('hidden');
+      } catch (err) {
+        if (error) {
+          error.textContent = err.message || 'Unable to load details.';
+          error.classList.remove('hidden');
+        }
+      } finally {
+        if (loading) loading.classList.add('hidden');
+      }
+    }
+
+    document.querySelectorAll('[data-session-expand-toggle]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const sessionId = btn.dataset.sessionExpandToggle;
+        const summaryUrl = btn.dataset.summaryUrl || '';
+        const expandRow = sessionExpandRows.get(String(sessionId));
+        if (!expandRow) return;
+        const currentlyExpanded = !expandRow.classList.contains('hidden');
+        if (currentlyExpanded) {
+          setExpanded(sessionId, false);
+          return;
+        }
+        setExpanded(sessionId, true);
+        if (expandRow.dataset.loaded !== '1' && summaryUrl) {
+          await loadSessionSummary(sessionId, summaryUrl);
+        }
+      });
+    });
+
+    function applySessionFilter() {
+      const query = sessionSearchInput ? sessionSearchInput.value.trim().toLowerCase() : '';
+      sessionRows.forEach((row) => {
+        const text = row.textContent.toLowerCase();
+        const match = !query || text.includes(query);
+        row.style.display = match ? '' : 'none';
+        const expandRow = sessionExpandRows.get(row.dataset.sessionRow);
+        if (expandRow) {
+          expandRow.style.display = match ? '' : 'none';
+          if (!match) setExpanded(row.dataset.sessionRow, false);
+        }
+      });
+    }
+
+    if (sessionSearchInput) {
+      sessionSearchInput.addEventListener('input', applySessionFilter);
+    }
+  </script>
+{% endblock %}

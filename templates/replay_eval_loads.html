@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="session-history-page">
+    <header class="settings-header">
+      <div class="settings-title">
+        <h1>Replay Load Simulation</h1>
+        <p class="muted">
+          Run #{{ run.id }} &middot; {{ run.filename or 'Uploaded file' }} &middot; Scenario {{ scenario }}
+        </p>
+      </div>
+      <div class="panel-actions">
+        <a class="btn-secondary btn-xs" href="{{ url_for('planning_sessions_replay_detail', run_id=run.id) }}">Back To Replay</a>
+      </div>
+    </header>
+
+    <div class="session-alert">
+      Simulation only. These loads are replay snapshots and are not added to Draft/Approved load pools.
+    </div>
+    {% if missing_snapshots > 0 %}
+      <div class="session-alert">
+        {{ missing_snapshots }} load(s) in this filter were created before snapshot persistence and may have limited drill-down detail.
+      </div>
+    {% endif %}
+
+    <div class="card-widget">
+      <div class="panel-body">
+        <form method="get" class="session-filters">
+          <label class="inline-select">
+            <span class="meta-label">Scenario</span>
+            <select name="scenario" class="select-field">
+              <option value="OPTIMIZED" {% if scenario == 'OPTIMIZED' %}selected{% endif %}>Optimized</option>
+              <option value="ACTUAL" {% if scenario == 'ACTUAL' %}selected{% endif %}>Baseline (Actual)</option>
+            </select>
+          </label>
+          <label class="inline-select">
+            <span class="meta-label">Date Created</span>
+            <select name="date_created" class="select-field">
+              <option value="">All</option>
+              {% for value in day_values %}
+                <option value="{{ value }}" {% if date_created == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="inline-select">
+            <span class="meta-label">Plant</span>
+            <select name="plant_code" class="select-field">
+              <option value="">All</option>
+              {% for value in plant_values %}
+                <option value="{{ value }}" {% if plant_code == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="submit" class="btn-primary btn-xs">Apply</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="session-kpis">
+      <div class="session-kpi-card">
+        <div class="label">Loads</div>
+        <div class="value">{{ load_count }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Orders</div>
+        <div class="value">{{ order_count }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Avg Utilization</div>
+        <div class="value">{{ avg_utilization }}%</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Miles</div>
+        <div class="value">{{ total_miles }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Cost</div>
+        <div class="value">${{ "{:,.0f}".format((total_cost or 0) | float) }}</div>
+      </div>
+    </div>
+
+    <div class="card-widget">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Simulated Loads</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-container">
+          <table class="session-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Load</th>
+                <th>Status</th>
+                <th>Trailer</th>
+                <th>Utilization</th>
+                <th>Orders</th>
+                <th>Stops</th>
+                <th>Miles</th>
+                <th>Est Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for load in loads %}
+                <tr>
+                  <td>
+                    <button type="button" class="btn-ghost btn-xs" data-load-toggle="{{ load.id }}" aria-expanded="false" aria-controls="sim-load-{{ load.id }}">
+                      <span class="material-symbols-outlined" data-load-toggle-icon="{{ load.id }}">expand_more</span>
+                    </button>
+                  </td>
+                  <td>{{ load.load_number or ('Load #' ~ load.id) }}</td>
+                  <td>{{ load.status or 'SIMULATED' }}</td>
+                  <td>{{ load.trailer_type or 'STEP_DECK' }}</td>
+                  <td>{{ (load.utilization_pct or 0) | round(1) }}%</td>
+                  <td>{{ load.order_count or 0 }}</td>
+                  <td>{{ load.stop_count or 0 }}</td>
+                  <td>{{ (load.estimated_miles or 0) | round(1) }}</td>
+                  <td>${{ "{:,.0f}".format((load.estimated_cost or 0) | float) }}</td>
+                </tr>
+                <tr class="session-expand-row hidden" id="sim-load-{{ load.id }}">
+                  <td colspan="9">
+                    <div class="session-expand-panel">
+                      <div class="session-expand-section">
+                        <h4>Cost Trace</h4>
+                        {% set fb = load.freight_breakdown or {} %}
+                        <div class="session-expand-metrics">
+                          <span class="meta-chip">Linehaul: ${{ "{:,.0f}".format((fb.linehaul_cost or 0) | float) }}</span>
+                          <span class="meta-chip">Fuel: ${{ "{:,.0f}".format((fb.fuel_cost or 0) | float) }}</span>
+                          <span class="meta-chip">Stops: ${{ "{:,.0f}".format((fb.stop_cost or 0) | float) }}</span>
+                          {% if (fb.adjustment_cost or 0) != 0 %}
+                            <span class="meta-chip">{{ fb.adjustment_label or 'Adjustment' }}: ${{ "{:,.0f}".format((fb.adjustment_cost or 0) | float) }}</span>
+                          {% endif %}
+                          {% if load.return_to_origin %}
+                            <span class="meta-chip">Return Leg: {{ (load.return_miles or 0) | round(1) }} mi / ${{ "{:,.0f}".format((load.return_cost or 0) | float) }}</span>
+                          {% endif %}
+                          <span class="meta-chip">Total: ${{ "{:,.0f}".format((fb.total_cost or load.estimated_cost or 0) | float) }}</span>
+                        </div>
+                      </div>
+                      <div class="session-expand-section">
+                        <h4>Orders</h4>
+                        <div class="table-container">
+                          <table class="session-subtable">
+                            <thead>
+                              <tr>
+                                <th>Order #</th>
+                                <th>Customer</th>
+                                <th>Due</th>
+                                <th>Destination</th>
+                                <th>Lines</th>
+                                <th>Total Ft</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for order in load.orders %}
+                                <tr>
+                                  <td>{{ order.so_num }}</td>
+                                  <td>{{ order.cust_name or '--' }}</td>
+                                  <td>{{ order.due_date or '--' }}</td>
+                                  <td>{% if order.city %}{{ order.city }}, {% endif %}{{ order.state }} {{ order.zip }}</td>
+                                  <td>{{ order.line_count or 0 }}</td>
+                                  <td>{{ (order.total_length_ft or 0) | round(1) }}</td>
+                                </tr>
+                              {% else %}
+                                <tr>
+                                  <td colspan="6">No order detail available for this load snapshot.</td>
+                                </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="9">No loads for this filter.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function setReplayLoadExpanded(loadId, expanded) {
+      const row = document.getElementById(`sim-load-${loadId}`);
+      const btn = document.querySelector(`[data-load-toggle="${loadId}"]`);
+      const icon = document.querySelector(`[data-load-toggle-icon="${loadId}"]`);
+      if (!row || !btn) return;
+      row.classList.toggle("hidden", !expanded);
+      btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+      if (icon) icon.textContent = expanded ? "expand_less" : "expand_more";
+    }
+
+    document.querySelectorAll("[data-load-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const loadId = btn.dataset.loadToggle;
+        const row = document.getElementById(`sim-load-${loadId}`);
+        if (!row) return;
+        const expanded = row.classList.contains("hidden");
+        setReplayLoadExpanded(loadId, expanded);
+      });
+    });
+  </script>
+{% endblock %}

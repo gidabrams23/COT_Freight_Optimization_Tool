@@ -3,6 +3,11 @@
 {% block content %}
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <section class="orders-page">
+    {% if needs_session %}
+      <div class="session-alert">
+        Start or resume a planning session before viewing Loads.
+      </div>
+    {% endif %}
     <header class="orders-header loads-header orders-header-hero">
       <div class="loads-hero-row orders-hero-row">
         <div class="loads-hero-title orders-hero-title">
@@ -12,7 +17,7 @@
             </div>
             <div class="loads-title-actions orders-title-actions">
               <div class="orders-optimize-wrap">
-                <button class="btn-success orders-cta" type="button" data-optimize-toggle aria-expanded="{% if optimize_errors and optimize_errors | length %}true{% else %}false{% endif %}" aria-controls="orders-optimize-panel">
+                <button class="btn-success orders-cta" type="button" data-optimize-toggle aria-expanded="{% if (optimize_errors and optimize_errors | length) or needs_replace %}true{% else %}false{% endif %}" aria-controls="orders-optimize-panel">
                   <span class="material-symbols-outlined">rocket_launch</span>
                   Generate Draft Loads
                 </button>
@@ -22,11 +27,14 @@
                   class="orders-optimize-form optimize-inline-panel hidden"
                   id="orders-optimize-panel"
                   data-optimize-panel
-                  data-optimize-autoshow="{% if optimize_errors and optimize_errors | length %}true{% else %}false{% endif %}"
+                  data-optimize-autoshow="{% if (optimize_errors and optimize_errors | length) or needs_replace %}true{% else %}false{% endif %}"
+                  data-active-session-id="{{ active_session_id or '' }}"
+                  data-active-session-status="{{ active_session_status }}"
                 >
                   {% set selected_states = optimize_defaults.state_filters or [] %}
                   {% set selected_customers = optimize_defaults.customer_filters or [] %}
                   <input type="hidden" name="opt_toggles" value="1">
+                  <input type="hidden" name="replace_session" value="">
                   {% if today_override_value %}
                     <input type="hidden" name="today" value="{{ today_override_value }}">
                   {% endif %}
@@ -34,138 +42,212 @@
                   <input type="hidden" name="capacity_feet" value="{{ optimize_defaults.capacity_feet }}">
                   <input type="hidden" name="max_detour_pct" value="{{ optimize_defaults.max_detour_pct }}">
                   <input type="hidden" name="geo_radius" value="{{ optimize_defaults.geo_radius }}">
+                  <input type="hidden" name="stack_overflow_max_height" value="{{ optimize_defaults.stack_overflow_max_height or 5 }}">
+                  <input type="hidden" name="max_back_overhang_ft" value="{{ optimize_defaults.max_back_overhang_ft or 4 }}">
                   <input type="hidden" name="enforce_time_window" value="1">
                   <input type="hidden" name="batch_horizon_enabled" value="{% if optimize_defaults.batch_horizon_enabled %}1{% endif %}" id="optimize-batch-toggle">
+                  <input type="hidden" name="algorithm_version" value="v2">
+                  <input type="hidden" name="optimize_mode" value="{{ optimize_defaults.optimize_mode or 'auto' }}" id="optimize-mode-input">
 
-                  {% if optimize_errors and optimize_errors | length %}
-                    <div class="form-error optimize-error">
-                      {{ optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
+                  {% set optimize_mode = (optimize_defaults.optimize_mode or 'auto') | lower %}
+                  <div class="optimize-inline-header">
+                    <div class="optimize-inline-title">
+                      <h3>Session Config Workbench</h3>
+                      <p>Set origin, scope, and scheduling before generating draft loads.</p>
+                    </div>
+                    <button class="optimize-inline-close" type="button" aria-label="Close optimizer panel" data-optimize-close>
+                      <span class="material-symbols-outlined">close</span>
+                    </button>
+                  </div>
+
+                  {% if active_session and active_session_status == 'DRAFT' %}
+                    <div class="form-hint session-warning optimize-session-warning">
+                      Active session {{ active_session.session_code }} is in Draft. Running the optimizer will replace it.
+                    </div>
+                  {% elif needs_replace %}
+                    <div class="form-hint session-warning optimize-session-warning">
+                      Replace existing load planning session to continue.
                     </div>
                   {% endif %}
 
-                  <div class="optimize-filter-row">
-                    <label class="optimize-field">
-                      Origin Plant
-                      <select class="select-field" name="origin_plant" required>
-                        <option value="">Select a plant</option>
-                        {% for plant in plants %}
-                          <option value="{{ plant }}" {% if optimize_defaults.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
-                        {% endfor %}
-                      </select>
-                    </label>
-                    <div class="optimize-field">
-                      <span class="meta-label">States</span>
-                      <button class="dropdown-trigger" type="button" data-dropdown-toggle="states">
-                        <span data-state-label>All States</span>
-                        <span class="material-symbols-outlined">expand_more</span>
+                  {% if optimize_errors and optimize_errors | length %}
+                    <div class="form-error optimize-error">
+                      {{ optimize_errors.session or optimize_errors.manual_order_input or optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
+                    </div>
+                  {% endif %}
+
+                  <div class="optimize-mode-top-left">
+                    <span class="meta-label">Optimization Strategy</span>
+                    <div class="optimize-mode-tabs" role="tablist" aria-label="Draft load generation mode">
+                      <button class="optimize-mode-tab{% if optimize_mode != 'manual' %} is-active{% endif %}" type="button" role="tab" aria-selected="{% if optimize_mode != 'manual' %}true{% else %}false{% endif %}" data-optimize-tab="auto">
+                        Auto Optimize
                       </button>
-                      <div class="dropdown-panel hidden" data-dropdown-panel="states">
-                        <div class="dropdown-actions">
-                          <span class="meta-label">Select States</span>
-                          <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
-                          <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
-                        </div>
-                        {% if states %}
-                          <div class="dropdown-scroll" data-filter-list="states">
-                            {% for state in states %}
-                              <label class="checkbox-pill">
-                                <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
-                                <span>{{ state }}</span>
-                              </label>
-                            {% endfor %}
-                          </div>
-                        {% else %}
-                          <div class="empty-state">No states available.</div>
-                        {% endif %}
-                      </div>
+                      <button class="optimize-mode-tab{% if optimize_mode == 'manual' %} is-active{% endif %}" type="button" role="tab" aria-selected="{% if optimize_mode == 'manual' %}true{% else %}false{% endif %}" data-optimize-tab="manual">
+                        Paste Orders
+                      </button>
                     </div>
                   </div>
 
-                  <div class="optimize-filter-block">
-                    {% set ns = namespace(lowes=None, tractor=None) %}
-                    {% for group in strategic_customer_groups or [] %}
-                      {% set label = group.label | lower %}
-                      {% if ns.lowes is none and 'lowe' in label %}
-                        {% set ns.lowes = group %}
-                      {% elif ns.tractor is none and 'tractor' in label %}
-                        {% set ns.tractor = group %}
-                      {% endif %}
-                    {% endfor %}
-                    <div class="optimize-filter-actions">
-                      <span class="meta-label">Customers</span>
-                      <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
-                    </div>
-                    <div class="customer-chip-row" data-customer-chips>
-                      <label class="checkbox-pill">
-                        <input type="checkbox" data-customer-all>
-                        <span>All Customers</span>
+                  <div class="optimize-workbench-grid">
+                    <section class="optimize-section-card{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto">
+                      <div class="optimize-section-title optimize-section-title-origin">Origin & Scope</div>
+                      <label class="optimize-field optimize-origin-field">
+                        Origin Plant
+                        <select class="select-field" name="origin_plant" required>
+                          <option value="">Select a plant</option>
+                          {% for plant in plants %}
+                            <option value="{{ plant }}" {% if optimize_defaults.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
+                          {% endfor %}
+                        </select>
                       </label>
-                      {% if ns.lowes %}
-                        <label class="checkbox-pill">
-                          <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
-                          <span>{{ ns.lowes.label }}</span>
-                        </label>
-                      {% endif %}
-                      {% if ns.tractor %}
-                        <label class="checkbox-pill">
-                          <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
-                          <span>{{ ns.tractor.label }}</span>
-                        </label>
-                      {% endif %}
-                      <div class="customer-selected" data-selected-chips>
-                        {% for cust in selected_customers %}
-                          <button class="chip-chip" type="button" data-selected-chip="{{ cust }}">
-                            <span>{{ cust }}</span>
-                            <span class="material-symbols-outlined">close</span>
+
+                      <div class="optimize-filter-row optimize-filter-row-single">
+                        <div class="optimize-field">
+                          <span class="meta-label">State Filters</span>
+                          <button class="dropdown-trigger" type="button" data-dropdown-toggle="states">
+                            <span data-state-label>All States</span>
+                            <span class="material-symbols-outlined">expand_more</span>
                           </button>
-                        {% endfor %}
-                      </div>
-                    </div>
-                    <div class="optimize-dropdown">
-                      <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
-                        Add Customers
-                        <span class="material-symbols-outlined">expand_more</span>
-                      </button>
-                      <div class="dropdown-panel hidden" data-dropdown-panel="customers">
-                        <div class="dropdown-search">
-                          <span class="material-symbols-outlined">search</span>
-                          <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                          <div class="dropdown-panel hidden" data-dropdown-panel="states">
+                            <div class="dropdown-actions">
+                              <span class="meta-label">Select States</span>
+                              <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
+                              <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
+                            </div>
+                            {% if states %}
+                              <div class="dropdown-scroll" data-filter-list="states">
+                                {% for state in states %}
+                                  <label class="checkbox-pill">
+                                    <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
+                                    <span>{{ state }}</span>
+                                  </label>
+                                {% endfor %}
+                              </div>
+                            {% else %}
+                              <div class="empty-state">No states available.</div>
+                            {% endif %}
+                          </div>
                         </div>
-                        {% if customers %}
-                          <div class="dropdown-scroll" data-customer-list>
-                            {% for cust in customers %}
-                              <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
-                                <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
+                      </div>
+
+                      <div class="optimize-filter-block">
+                        {% set ns = namespace(lowes=None, tractor=None) %}
+                        {% for group in strategic_customer_groups or [] %}
+                          {% set label = group.label | lower %}
+                          {% if ns.lowes is none and 'lowe' in label %}
+                            {% set ns.lowes = group %}
+                          {% elif ns.tractor is none and 'tractor' in label %}
+                            {% set ns.tractor = group %}
+                          {% endif %}
+                        {% endfor %}
+                        <div class="optimize-filter-actions">
+                          <span class="meta-label">Customer Selection</span>
+                          <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
+                        </div>
+                        <div class="customer-chip-row" data-customer-chips>
+                          <label class="checkbox-pill">
+                            <input type="checkbox" data-customer-all>
+                            <span>All Customers</span>
+                          </label>
+                          {% if ns.lowes %}
+                            <label class="checkbox-pill">
+                              <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
+                              <span>{{ ns.lowes.label }}</span>
+                            </label>
+                          {% endif %}
+                          {% if ns.tractor %}
+                            <label class="checkbox-pill">
+                              <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
+                              <span>{{ ns.tractor.label }}</span>
+                            </label>
+                          {% endif %}
+                          <div class="customer-selected" data-selected-chips>
+                            {% for cust in selected_customers %}
+                              <button class="chip-chip" type="button" data-selected-chip="{{ cust }}">
                                 <span>{{ cust }}</span>
-                              </label>
+                                <span class="material-symbols-outlined">close</span>
+                              </button>
                             {% endfor %}
                           </div>
-                        {% else %}
-                          <div class="empty-state">No customers available.</div>
-                        {% endif %}
+                        </div>
+                        <div class="optimize-dropdown">
+                          <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
+                            Add Customers
+                            <span class="material-symbols-outlined">expand_more</span>
+                          </button>
+                          <div class="dropdown-panel hidden" data-dropdown-panel="customers">
+                            <div class="dropdown-search">
+                              <span class="material-symbols-outlined">search</span>
+                              <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                            </div>
+                            {% if customers %}
+                              <div class="dropdown-scroll" data-customer-list>
+                                {% for cust in customers %}
+                                  <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
+                                    <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
+                                    <span>{{ cust }}</span>
+                                  </label>
+                                {% endfor %}
+                              </div>
+                            {% else %}
+                              <div class="empty-state">No customers available.</div>
+                            {% endif %}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    </section>
+
+                    <section class="optimize-section-card{% if optimize_mode != 'manual' %} hidden{% endif %}" data-optimize-content="manual">
+                      <div class="optimize-section-title optimize-section-title-origin">Paste Orders</div>
+                      <div class="optimize-tab-content">
+                        <label class="optimize-manual-field">
+                          Paste Order Numbers
+                          <textarea
+                            class="select-field optimize-manual-input"
+                            name="manual_order_input"
+                            id="optimize-manual-input"
+                            placeholder="Paste from Excel: one order per row, or comma/tab/space separated."
+                            rows="7"
+                          >{{ optimize_defaults.manual_order_input or '' }}</textarea>
+                        </label>
+                        <p class="form-hint optimize-manual-hint">
+                          Paste orders directly from Excel. The optimizer will include matching open orders without state/customer/plant filters.
+                        </p>
+                      </div>
+                    </section>
+
+                    <section class="optimize-section-card optimize-scheduling-card">
+                      <div class="optimize-section-title optimize-section-title-scheduling">Scheduling Logic</div>
+                      <div class="form-grid optimize-form-grid{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto">
+                        <label>
+                          Orders Start Date
+                          <input class="select-field" type="date" name="orders_start_date"
+                                 value="{{ optimize_defaults.orders_start_date }}"
+                                 required>
+                        </label>
+                        <label>
+                          Batch Orders Up Until (optional)
+                          <input class="select-field" type="date" name="batch_end_date"
+                                 value="{{ optimize_defaults.batch_end_date }}"
+                                 id="optimize-batch-end">
+                        </label>
+                      </div>
+                      <label class="optimize-field optimize-flex-field">
+                        Due Date Flexibility (days)
+                        <input class="select-field" type="number" name="time_window_days" min="1" step="1"
+                               value="{{ optimize_defaults.time_window_days }}"
+                               id="optimize-flex-days"
+                               required>
+                      </label>
+                    </section>
                   </div>
 
-                  <div class="form-grid optimize-form-grid">
-                    <label>
-                      Due Date Flexibility (days)
-                      <input class="select-field" type="number" name="time_window_days" min="1" step="1"
-                             value="{{ optimize_defaults.time_window_days }}"
-                             id="optimize-flex-days"
-                             required>
-                    </label>
-                    <label>
-                      Batch Orders Up Until (optional)
-                      <div class="optimize-inline-row">
-                        <input class="select-field" type="date" name="batch_end_date"
-                               value="{{ optimize_defaults.batch_end_date }}"
-                               id="optimize-batch-end">
-                        <button class="btn-success optimize-inline-run" type="submit" aria-label="Run Optimizer">
-                          <span class="material-symbols-outlined">rocket_launch</span>
-                        </button>
-                      </div>
-                    </label>
+                  <div class="optimize-inline-actions">
+                    <button class="btn-ghost" type="button" data-optimize-close>Cancel</button>
+                    <button class="btn-success optimize-panel-submit" type="submit">
+                      <span class="material-symbols-outlined">rocket_launch</span>
+                      Run Optimization
+                    </button>
                   </div>
                 </form>
               </div>
@@ -174,10 +256,7 @@
                   <span class="material-symbols-outlined">event</span>
                   Today
                 </button>
-                {% set today_label = today_override_label or (today_override.strftime("%b %d, %Y") if today_override else "") %}
-                {% if today_label %}
-                  <div class="orders-today-meta">As of {{ today_label }}</div>
-                {% endif %}
+                <div class="orders-today-meta">As of {{ today_display_label }}</div>
                 <div class="orders-today-panel hidden" id="orders-today-panel" data-today-panel data-today-autoshow="false">
                   <div class="form-grid">
                     <label>
@@ -259,12 +338,78 @@
     </header>
 
     <div class="orders-top-grid">
+      <div class="card-widget orders-snapshot-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h3>Orders Snapshot</h3>
+          </div>
+          <div class="panel-actions">
+            {% if plant_filters %}
+              {% for plant in plant_filters %}
+                <span class="meta-chip">{{ plant }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="meta-chip">All Plants</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="panel-body orders-snapshot-body">
+          <div class="orders-snapshot-grid orders-metrics-grid">
+            <div class="snapshot-card">
+              <span class="material-symbols-outlined snapshot-icon">inventory</span>
+              <span class="snapshot-label">Total Active Orders</span>
+              <span class="snapshot-value">{{ orders_snapshot.total }}</span>
+              <span class="snapshot-meta">Active Backlog In System</span>
+            </div>
+            <div class="snapshot-card warning">
+              <span class="material-symbols-outlined snapshot-icon">assignment_late</span>
+              <span class="snapshot-label">Unassigned Orders</span>
+              <span class="snapshot-value">{{ orders_snapshot.unassigned }}</span>
+              <span class="snapshot-meta">Awaiting Load Planning</span>
+            </div>
+            {% set timeline_total = orders_snapshot.past_due + orders_snapshot.due_next_14 + orders_snapshot.due_14_plus %}
+            {% set past_pct = (orders_snapshot.past_due / timeline_total * 100) if timeline_total else 0 %}
+            {% set next_pct = (orders_snapshot.due_next_14 / timeline_total * 100) if timeline_total else 0 %}
+            {% set future_pct = (orders_snapshot.due_14_plus / timeline_total * 100) if timeline_total else 0 %}
+            <div class="snapshot-card orders-timeline-card">
+              <div class="orders-timeline-header">
+                <span class="orders-timeline-title">Delivery Timeline</span>
+                <span class="orders-timeline-total">{{ timeline_total }} Orders</span>
+              </div>
+              <div class="orders-timeline-bar" role="img" aria-label="Delivery timeline showing {{ orders_snapshot.past_due }} past due, {{ orders_snapshot.due_next_14 }} due in the next 14 days, and {{ orders_snapshot.due_14_plus }} due in 14 or more days.">
+                <div class="orders-timeline-segment past-due" style="width: {{ past_pct | round(1) }}%;">
+                  <span class="segment-value">{{ orders_snapshot.past_due }}</span>
+                  <span class="segment-label">Past Due</span>
+                </div>
+                <div class="orders-timeline-segment next-14" style="width: {{ next_pct | round(1) }}%;">
+                  <span class="segment-value">{{ orders_snapshot.due_next_14 }}</span>
+                  <span class="segment-label">&lt; 14 Days</span>
+                </div>
+                <div class="orders-timeline-segment future" style="width: {{ future_pct | round(1) }}%;">
+                  <span class="segment-value">{{ orders_snapshot.due_14_plus }}</span>
+                  <span class="segment-label">14+ Days</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="card-widget data-intake-card data-intake-hub">
         <div class="panel-header">
           <div class="panel-title">
             <h3>Data Intake Hub</h3>
           </div>
-          <div class="panel-actions">
+          <div class="panel-actions intake-actions">
+            <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_upload') }}" data-upload-form>
+              <label class="btn-primary btn-xs upload-inline-button">
+                <input type="file" name="file" accept=".csv" required data-upload-input>
+                Upload Orders
+              </label>
+              <noscript>
+                <button class="btn-primary btn-xs" type="submit">Upload</button>
+              </noscript>
+            </form>
             {% if last_upload %}
               <span class="meta-chip">Last import {{ last_upload.uploaded_at }}</span>
             {% endif %}
@@ -283,91 +428,177 @@
         </div>
         <div class="panel-body">
           <div class="data-intake-grid intake-hub-grid">
-            <div class="intake-pane intake-upload-pane">
+            <div class="intake-pane intake-integrity-pane">
               <div class="intake-pane-header">
                 <div class="intake-pane-title">
-                  <span class="metric-label">Upload Orders</span>
+                  <span class="metric-label">Recent Upload Results</span>
+                  {% if last_upload %}
+                    <span class="meta-chip">Last run {{ last_upload.uploaded_at }}</span>
+                  {% endif %}
                 </div>
               </div>
-              <form class="data-dropzone" method="post" enctype="multipart/form-data" action="{{ url_for('orders_upload') }}">
-                <label>
-                  <input type="file" name="file" accept=".csv" required onchange="this.form.submit()">
-                  <span class="material-symbols-outlined">upload_file</span>
-                  <span class="drop-title">Drop CSV file to stage orders</span>
-                  <span class="drop-meta">or click to browse local files</span>
-                </label>
-              </form>
+              <div class="integrity-card">
+                <div class="integrity-metrics">
+                  <div class="integrity-row">
+                    <span>Total Line Items</span>
+                    <strong>{{ last_upload.total_rows if last_upload else 0 }}</strong>
+                  </div>
+                  <div class="integrity-row">
+                    <span>New Orders</span>
+                    <strong class="success">{{ last_upload.new_orders if last_upload else 0 }}</strong>
+                  </div>
+                  <div class="integrity-row">
+                    <span>Closed Orders</span>
+                    <strong class="warning">{{ (last_upload.dropped_orders or 0) if last_upload else 0 }}</strong>
+                  </div>
+                  <div class="integrity-row">
+                    <span>Changed Orders</span>
+                    <strong class="danger">{{ (last_upload.changed_orders or 0) + (last_upload.reopened_orders or 0) if last_upload else 0 }}</strong>
+                  </div>
+                  <div class="integrity-row">
+                    <span>Reopened Orders</span>
+                    <strong class="info">{{ (last_upload.reopened_orders or 0) if last_upload else 0 }}</strong>
+                  </div>
+                  <div class="integrity-row">
+                    <span>Unchanged Orders</span>
+                    <strong>{{ (last_upload.unchanged_orders or 0) if last_upload else 0 }}</strong>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="intake-pane intake-recent-pane">
               <div class="intake-pane-header">
                 <div class="intake-pane-title">
                   <span class="metric-label">Recent Imports</span>
                   {% if upload_history %}
-                    <span class="meta-chip">{{ upload_history | length }} uploads</span>
+                    <span class="meta-chip">Latest {{ upload_history | length }} uploads</span>
                   {% endif %}
                 </div>
               </div>
               {% if upload_history %}
-                <div class="recent-imports-list">
-                  {% for upload in upload_history %}
-                    <div class="import-item">
-                      <div class="import-info">
-                        <span class="import-file">{{ upload.filename or "Untitled CSV" }}</span>
-                        <span class="import-meta">{{ upload.uploaded_at }}</span>
-                      </div>
-                      <div class="import-mapping">
-                        <div class="mapping-header">
-                          <span class="mapping-rate">{{ (upload.mapping_rate or 0) | round(1) }}% mapped</span>
-                          {% if upload.unmapped_count %}
-                            <span class="metric-badge danger">{{ upload.unmapped_count }} unmapped</span>
-                          {% endif %}
+                <div class="recent-imports">
+                  <div class="recent-imports-list">
+                    {% for upload in upload_history %}
+                      <div class="import-item{% if upload.deleted_at %} is-deleted{% endif %}">
+                        <div class="import-info">
+                          <span class="import-file">{{ upload.filename or "Untitled CSV" }}</span>
+                          <span class="import-meta">{{ upload.uploaded_at }}</span>
                         </div>
-                        <div class="import-progress{% if upload.unmapped_count %} warning{% endif %}">
-                          <span style="width: {{ (upload.mapping_rate or 0) }}%"></span>
+                        <div class="import-mapping">
+                          <div class="mapping-header">
+                            <span class="mapping-rate">{{ (upload.mapping_rate or 0) | round(1) }}% mapped</span>
+                            {% if upload.unmapped_count %}
+                              <span class="metric-badge danger">{{ upload.unmapped_count }} unmapped</span>
+                            {% endif %}
+                            {% if upload.deleted_at %}
+                              <span class="metric-badge danger">Deleted</span>
+                            {% endif %}
+                          </div>
+                          <div class="import-progress{% if upload.unmapped_count %} warning{% endif %}">
+                            <span style="width: {{ (upload.mapping_rate or 0) }}%"></span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  {% endfor %}
+                    {% endfor %}
+                  </div>
                 </div>
               {% else %}
-                <div class="empty-state">No uploads yet. Add a CSV to begin mapping.</div>
+                <div class="recent-imports">
+                  <div class="empty-state">No uploads yet. Add a CSV to begin mapping.</div>
+                </div>
               {% endif %}
             </div>
           </div>
         </div>
       </div>
+    </div>
 
+    <script>
+      (() => {
+        const snapshotCard = document.querySelector('.orders-snapshot-card');
+        const intakeHub = document.querySelector('.data-intake-hub');
+        if (!snapshotCard || !intakeHub) return;
+        if (window.matchMedia('(max-width: 1024px)').matches) return;
+        const applyHeight = () => {
+          const previousAlign = snapshotCard.style.alignSelf;
+          snapshotCard.style.alignSelf = 'start';
+          const height = snapshotCard.getBoundingClientRect().height;
+          snapshotCard.style.alignSelf = previousAlign || '';
+          if (height > 0) {
+            intakeHub.style.height = `${Math.round(height)}px`;
+            return true;
+          }
+          return false;
+        };
 
+        if (!applyHeight() && 'ResizeObserver' in window) {
+          const observer = new ResizeObserver(() => {
+            if (applyHeight()) observer.disconnect();
+          });
+          observer.observe(snapshotCard);
+        }
+      })();
+    </script>
 
-      <div class="orders-snapshot-grid">
-        <div class="snapshot-card">
-          <span class="material-symbols-outlined snapshot-icon">inventory</span>
-          <span class="snapshot-label">Total Orders</span>
-          <span class="snapshot-value">{{ orders_snapshot.total }}</span>
-          <span class="snapshot-meta">Active Demand</span>
+    <div class="section-divider"></div>
+
+    <div class="modal-backdrop hidden" id="order-upload-modal" data-upload-modal>
+      <div class="modal-card upload-modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>Uploading Orders</h3>
+            <p>We're processing your file now.</p>
+          </div>
+          <button class="btn-icon" type="button" data-upload-close aria-label="Close upload status">
+            <span class="material-symbols-outlined">close</span>
+          </button>
         </div>
-        <div class="snapshot-card danger">
-          <span class="material-symbols-outlined snapshot-icon">event_busy</span>
-          <span class="snapshot-label">Past Due</span>
-          <span class="snapshot-value">{{ orders_snapshot.past_due }}</span>
-          <span class="snapshot-meta">Needs Attention</span>
+        <div class="modal-body">
+          <div class="progress-header">
+            <span class="progress-label">Upload Progress</span>
+            <span class="progress-pct" data-upload-pct>0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" data-upload-fill style="width: 0%;"></div>
+          </div>
+          <div class="progress-meta" data-upload-status>Preparing upload...</div>
+          <div class="progress-meta">File: <strong data-upload-filename>--</strong></div>
+          <div class="upload-summary hidden" data-upload-summary>
+            <div class="upload-summary-title">Upload Summary</div>
+            <div class="upload-summary-grid">
+              <div class="upload-summary-item"><span>Total Rows</span><strong data-summary-total-rows>--</strong></div>
+              <div class="upload-summary-item"><span>Total Orders</span><strong data-summary-total-orders>--</strong></div>
+              <div class="upload-summary-item"><span>Mapped %</span><strong data-summary-mapping-rate>--</strong></div>
+              <div class="upload-summary-item"><span>Unmapped</span><strong data-summary-unmapped>--</strong></div>
+              <div class="upload-summary-item"><span>New</span><strong data-summary-new>--</strong></div>
+              <div class="upload-summary-item"><span>Changed</span><strong data-summary-changed>--</strong></div>
+              <div class="upload-summary-item"><span>Reopened</span><strong data-summary-reopened>--</strong></div>
+              <div class="upload-summary-item"><span>Closed</span><strong data-summary-closed>--</strong></div>
+              <div class="upload-summary-item"><span>Unchanged</span><strong data-summary-unchanged>--</strong></div>
+            </div>
+          </div>
+          <div class="upload-unmapped hidden" data-unmapped-panel>
+            <div class="upload-unmapped-header-row">
+              <div class="upload-unmapped-title-row">
+                <div class="upload-summary-title">Unmapped SKUs</div>
+                <span class="upload-unmapped-count" data-unmapped-count>0</span>
+              </div>
+              <div class="upload-unmapped-hint">Review suggested dimensions or enter manually</div>
+            </div>
+            <p class="upload-unmapped-note">Saved entries appear in Settings -> SKUs.</p>
+            <div class="upload-unmapped-list" data-unmapped-list></div>
+            <div class="upload-unmapped-actions">
+              <span class="upload-unmapped-status" data-unmapped-status></span>
+              <button class="btn-primary" type="button" data-unmapped-save>Save SKU Specs</button>
+            </div>
+          </div>
         </div>
-        <div class="snapshot-card warning">
-          <span class="material-symbols-outlined snapshot-icon">calendar_today</span>
-          <span class="snapshot-label">Due This Week</span>
-          <span class="snapshot-value">{{ orders_snapshot.this_week }}</span>
-          <span class="snapshot-meta">In Range</span>
-        </div>
-        <div class="snapshot-card">
-          <span class="material-symbols-outlined snapshot-icon">pending</span>
-          <span class="snapshot-label">Unassigned</span>
-          <span class="snapshot-value">{{ orders_snapshot.unassigned }}</span>
-          <span class="snapshot-meta">Awaiting Load</span>
+        <div class="modal-footer">
+          <button class="btn-ghost" type="button" data-upload-close>Close</button>
+          <button class="btn-primary hidden" type="button" data-upload-refresh>Refresh</button>
         </div>
       </div>
     </div>
-
-    <div class="section-divider"></div>
 
     <div class="card-widget orders-panel orders-review-panel">
       <div class="orders-review-layout" data-orders-review-layout>
@@ -468,21 +699,17 @@
                   <div class="orders-section-title">
                     <div class="orders-section-meta">
                       <span class="orders-section-label">{{ section.label }}</span>
-                      <span class="meta-chip">{{ section.orders | length }} orders</span>
-                      {% if section.limit %}
+                      <span class="meta-chip">{{ section.total_count }} orders</span>
+                      {% if section.hidden_count and section.hidden_count > 0 %}
                         <span class="muted">Showing first {{ section.limit }}</span>
+                      {% elif section.show_all %}
+                        <span class="muted">Showing all {{ section.total_count }}</span>
                       {% endif %}
                     </div>
-                    {% if section.hidden_count and section.hidden_count > 0 %}
-                      <button
-                        type="button"
-                        class="btn-ghost btn-xs"
-                        data-orders-group-toggle="{{ section.key }}"
-                        data-hidden-count="{{ section.hidden_count }}"
-                        data-expanded="false"
-                      >
-                        Show {{ section.hidden_count }} more
-                      </button>
+                    {% if section.hidden_count and section.hidden_count > 0 and section.show_url %}
+                      <a class="btn-ghost btn-xs" href="{{ section.show_url }}">Show {{ section.hidden_count }} more</a>
+                    {% elif section.show_all and section.collapse_url %}
+                      <a class="btn-ghost btn-xs" href="{{ section.collapse_url }}">Show less</a>
                     {% endif %}
                   </div>
 
@@ -643,16 +870,40 @@
     const dueStart = document.getElementById('due-start');
     const dueEnd = document.getElementById('due-end');
 
-    const optimizePanel = document.querySelector('[data-optimize-panel]');
-    const optimizeToggle = document.querySelector('[data-optimize-toggle]');
-    const optimizeFlexDays = document.getElementById('optimize-flex-days');
-    const optimizeBatchEnd = document.getElementById('optimize-batch-end');
-    const optimizeBatchToggle = document.getElementById('optimize-batch-toggle');
-    const todayToggle = document.querySelector('[data-today-toggle]');
-    const todayPanel = document.querySelector('[data-today-panel]');
-    const todayInput = document.getElementById('orders-today-input');
-    const todayApply = document.querySelector('[data-today-apply]');
-    const todayClear = document.querySelector('[data-today-clear]');
+      const optimizePanel = document.querySelector('[data-optimize-panel]');
+      const optimizeToggle = document.querySelector('[data-optimize-toggle]');
+      const optimizeCloseButtons = Array.from(document.querySelectorAll('[data-optimize-close]'));
+      const optimizeFlexDays = document.getElementById('optimize-flex-days');
+      const optimizeBatchEnd = document.getElementById('optimize-batch-end');
+      const optimizeBatchToggle = document.getElementById('optimize-batch-toggle');
+      const optimizeModeInput = document.getElementById('optimize-mode-input');
+      const optimizeManualInput = document.getElementById('optimize-manual-input');
+      const optimizeTabs = Array.from(document.querySelectorAll('[data-optimize-tab]'));
+      const optimizeTabContent = {
+        auto: Array.from(document.querySelectorAll('[data-optimize-content="auto"]')),
+        manual: Array.from(document.querySelectorAll('[data-optimize-content="manual"]')),
+      };
+      const replaceSessionInput = optimizePanel ? optimizePanel.querySelector('input[name="replace_session"]') : null;
+      const activeSessionId = optimizePanel ? optimizePanel.dataset.activeSessionId : '';
+      const activeSessionStatus = optimizePanel ? (optimizePanel.dataset.activeSessionStatus || '').toUpperCase() : '';
+      const todayToggle = document.querySelector('[data-today-toggle]');
+      const todayPanel = document.querySelector('[data-today-panel]');
+      const todayInput = document.getElementById('orders-today-input');
+      const todayApply = document.querySelector('[data-today-apply]');
+      const todayClear = document.querySelector('[data-today-clear]');
+
+      if (optimizePanel) {
+        optimizePanel.addEventListener('submit', (event) => {
+          if (!activeSessionId || activeSessionStatus !== 'DRAFT') return;
+          if (replaceSessionInput && replaceSessionInput.value === '1') return;
+          const ok = window.confirm('Replace existing load planning session?');
+          if (!ok) {
+            event.preventDefault();
+            return;
+          }
+          if (replaceSessionInput) replaceSessionInput.value = '1';
+        });
+      }
 
     function setBatchToggle() {
       if (!optimizeBatchToggle || !optimizeBatchEnd) return;
@@ -664,7 +915,10 @@
       optimizePanel.classList.remove('hidden');
       optimizePanel.classList.add('is-open');
       optimizeToggle.setAttribute('aria-expanded', 'true');
-      if (optimizeFlexDays) {
+      const mode = optimizeModeInput ? optimizeModeInput.value : 'auto';
+      if (mode === 'manual' && optimizeManualInput) {
+        optimizeManualInput.focus();
+      } else if (optimizeFlexDays) {
         optimizeFlexDays.focus();
       } else if (optimizeBatchEnd) {
         optimizeBatchEnd.focus();
@@ -676,6 +930,40 @@
       optimizePanel.classList.add('hidden');
       optimizePanel.classList.remove('is-open');
       optimizeToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function setOptimizeMode(mode) {
+      const normalized = mode === 'manual' ? 'manual' : 'auto';
+      if (optimizeModeInput) {
+        optimizeModeInput.value = normalized;
+      }
+      const setPanelEnabled = (panel, enabled) => {
+        if (!panel) return;
+        panel.querySelectorAll('input, select, textarea, button').forEach((field) => {
+          if (!field) return;
+          if (field.type === 'hidden') return;
+          field.disabled = !enabled;
+        });
+      };
+      optimizeTabs.forEach((tab) => {
+        const tabMode = tab.dataset.optimizeTab;
+        const isActive = tabMode === normalized;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      Object.entries(optimizeTabContent).forEach(([tabMode, panels]) => {
+        (panels || []).forEach((panel) => {
+          const isVisible = tabMode === normalized;
+          panel.classList.toggle('hidden', !isVisible);
+          setPanelEnabled(panel, isVisible);
+        });
+      });
+      if (normalized === 'manual') {
+        if (optimizeBatchToggle) optimizeBatchToggle.value = '';
+      } else {
+        setBatchToggle();
+      }
+      closeAllDropdowns();
     }
 
     if (optimizeToggle) {
@@ -742,6 +1030,19 @@
         }
       });
     }
+
+    optimizeCloseButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        closeOptimizePanel();
+      });
+    });
+
+    optimizeTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        setOptimizeMode(tab.dataset.optimizeTab || 'auto');
+      });
+    });
+    setOptimizeMode(optimizeModeInput ? optimizeModeInput.value : 'auto');
 
     if (todayApply) {
       todayApply.addEventListener('click', () => {
@@ -1011,7 +1312,15 @@
         const term = searchInput.value.trim().toLowerCase();
         document.querySelectorAll('.order-row').forEach((row) => {
           const matches = row.textContent.toLowerCase().includes(term);
-          row.classList.toggle('hidden', !matches);
+          const isSearching = Boolean(term);
+          row.classList.toggle('hidden', isSearching && !matches);
+          if (isSearching && matches) {
+            // Ensure matching overflow rows are visible while searching.
+            row.classList.remove('group-hidden');
+          } else if (!isSearching && row.dataset.overflow === '1') {
+            // Restore default collapsed state after clearing search.
+            row.classList.add('group-hidden');
+          }
         });
       });
     }
@@ -1040,60 +1349,15 @@
         const url = new URL(window.location.href);
         const params = url.searchParams;
 
-        const focusPlants = {{ (profile_default_plants or []) | tojson }};
-        const focusMode = focusPlants && focusPlants.length > 0;
         const storageKey = 'orders-last-plants';
-        const currentPlantsParam = (params.get('plants') || '').trim().toUpperCase();
-        const isAllMode = !currentPlantsParam || currentPlantsParam === 'ALL';
 
         if (!plant) return;
 
         if (plant === 'ALL') {
-          if (focusMode) {
-            // Toggle between explicit ALL (all plants) and focus plants (default scope).
-            if (isAllMode) {
-              params.set('plants', focusPlants.join(','));
-            } else {
-              params.set('plants', 'ALL');
-            }
-          } else {
-            // Admin: toggle between ALL and the last explicit selection (if any).
-            if (isAllMode) {
-              const last = (window.localStorage.getItem(storageKey) || '').trim().toUpperCase();
-              if (last && last !== 'ALL') {
-                params.set('plants', last);
-              } else {
-                params.set('plants', 'ALL');
-              }
-            } else {
-              window.localStorage.setItem(storageKey, currentPlantsParam);
-              params.set('plants', 'ALL');
-            }
-          }
+          params.set('plants', 'ALL');
         } else {
-          const selected = new Set(
-            (params.get('plants') || '')
-              .split(',')
-              .map((value) => value.trim().toUpperCase())
-              .filter(Boolean)
-          );
-
-          // If user was in ALL mode, start from empty and let them pick specifics.
-          if (isAllMode) selected.clear();
-
-          if (selected.has(plant)) {
-            selected.delete(plant);
-          } else {
-            selected.add(plant);
-          }
-
-          if (!selected.size) {
-            params.delete('plants');
-          } else {
-            const next = Array.from(selected).join(',');
-            params.set('plants', next);
-            window.localStorage.setItem(storageKey, next);
-          }
+          params.set('plants', plant);
+          window.localStorage.setItem(storageKey, plant);
         }
         url.search = params.toString();
         window.location.assign(url.toString());
@@ -1126,13 +1390,16 @@
       }
 
       let html = '<div class="table-container"><table class="manifest-table manifest-grouped orders-line-items-table"><thead><tr>' +
-        '<th>SKU</th><th>Description</th><th>Qty</th><th>Length</th><th>Max Stack</th>' +
+        '<th>Item</th><th>Description</th><th>Qty</th><th>Length</th><th>Max Stack</th>' +
         '</tr></thead><tbody>';
 
       items.forEach((item) => {
+        const itemLabel = escapeHtml(item.item || item.sku || '');
+        const descLabel = escapeHtml(item.item_desc || '');
+        const descFallback = descLabel || escapeHtml(item.sku || '');
         html += '<tr>' +
-          `<td>${item.sku || ''}</td>` +
-          `<td>${item.item || ''}</td>` +
+          `<td>${itemLabel}</td>` +
+          `<td>${descFallback}</td>` +
           `<td>${item.qty || 0}</td>` +
           `<td>${(item.unit_length_ft || 0).toFixed(1)} ft</td>` +
           `<td>${item.max_stack_height || 0}</td>` +
@@ -1216,7 +1483,7 @@
       function renderPositionStack(pos) {
         let html = '<div class="position-stack">';
         (pos.items || []).forEach((item) => {
-          const sku = item.sku || 'SKU';
+          const itemLabel = item.item || item.sku || 'ITEM';
           const units = Number(item.units || 0);
           const maxStack = Number(item.max_stack || 1) || 1;
           const blockHeight = 100 / maxStack;
@@ -1224,12 +1491,33 @@
           const posLength = Number(pos.length_ft || 0);
           const widthRaw = posLength ? (itemLength / posLength) * 100 : 100;
           const blockWidth = clampPct(widthRaw);
+          const tooltipParts = [
+            itemLabel,
+            item.item_desc || '',
+            itemLength ? `${itemLength.toFixed(1)} ft` : '',
+            maxStack ? `Max stack: ${maxStack}` : '',
+          ].filter((value) => value);
+          const tooltipText = tooltipParts.join(' | ');
+          const tooltipAttr = tooltipText ? ` title="${escapeHtml(tooltipText)}"` : '';
           for (let u = 0; u < units; u++) {
-            html += `<div class="unit-block glass-block" style="--accent: ${accent}; --accent-bg: ${accent}22; height: ${blockHeight}%; width: ${blockWidth}%;"><span class="unit-label">${escapeHtml(sku)}</span></div>`;
+            html += `<div class="unit-block glass-block"${tooltipAttr} style="--accent: ${accent}; --accent-bg: ${accent}22; height: ${blockHeight}%; width: ${blockWidth}%;"><span class="unit-label">${escapeHtml(itemLabel)}</span></div>`;
           }
         });
         html += '</div>';
         return html;
+      }
+
+      function stackNumberForPosition(pos, fallbackIndex) {
+        const parsed = Number(String((pos && pos.position_id) || '').replace(/[^0-9]/g, ''));
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+        return fallbackIndex;
+      }
+
+      function renderOverflowIndicator(pos, fallbackIndex) {
+        if (!pos || !pos.overflow_applied) return '';
+        const stackNum = stackNumberForPosition(pos, fallbackIndex);
+        const note = String(pos.overflow_note || `Stack ${stackNum} was overutilized to allow for additional space.`);
+        return `<span class="stack-overflow-indicator" title="${escapeHtml(note)}">!</span>`;
       }
 
       let schematic = `<div class="trailer-schematic trailer-${safeTrailerClass(config.trailer_type)}"><div class="trailer-body">`;
@@ -1245,11 +1533,12 @@
             <div class="deck-positions">
         `;
 
-        lowerPositions.forEach((pos) => {
+        lowerPositions.forEach((pos, posIdx) => {
           const widthPct = lowerDisplayFt
             ? clampPct(((Number(pos.length_ft) || 0) / lowerDisplayFt) * 100)
             : 0;
           schematic += `<div class="position-column" style="flex: 0 0 ${widthPct}%;">`;
+          schematic += renderOverflowIndicator(pos, posIdx + 1);
           schematic += renderPositionStack(pos);
           schematic += `<div class="position-label">${fmtFeet(pos.length_ft)} ft</div>`;
           schematic += `</div>`;
@@ -1273,10 +1562,10 @@
         schematic += `
           </div>
           <div class="deck-footer" style="--line-span: ${lowerLineSpan}%; ">
+            ${lowerOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(lowerOverhangFt)} FT</span></div>` : ''}
             <div class="deck-line">
               <span class="deck-length">${fmtFeetFixed(lowerDeck)} FT</span>
             </div>
-            ${lowerOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(lowerOverhangFt)} FT</span></div>` : ''}
           </div>
         </div>`;
 
@@ -1289,11 +1578,12 @@
               <div class="deck-positions">
         `;
 
-        upperPositions.forEach((pos) => {
+        upperPositions.forEach((pos, posIdx) => {
           const widthPct = upperDisplayFt
             ? clampPct(((Number(pos.length_ft) || 0) / upperDisplayFt) * 100)
             : 0;
           schematic += `<div class="position-column" style="flex: 0 0 ${widthPct}%;">`;
+          schematic += renderOverflowIndicator(pos, lowerPositions.length + posIdx + 1);
           schematic += renderPositionStack(pos);
           schematic += `<div class="position-label">${fmtFeet(pos.length_ft)} ft</div>`;
           schematic += `</div>`;
@@ -1312,10 +1602,10 @@
               <div class="deck-void"></div>
             </div>
             <div class="deck-footer" style="--line-span: ${upperLineSpan}%; ">
+              ${upperOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(upperOverhangFt)} FT</span></div>` : ''}
               <div class="deck-line">
                 <span class="deck-length">${fmtFeetFixed(upperDeck)} FT</span>
               </div>
-              ${upperOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(upperOverhangFt)} FT</span></div>` : ''}
             </div>
           </div>
         `;
@@ -1328,11 +1618,12 @@
             <div class="deck-positions">
         `;
 
-        lowerPositions.forEach((pos) => {
+        lowerPositions.forEach((pos, posIdx) => {
           const widthPct = lowerDisplayFt
             ? clampPct(((Number(pos.length_ft) || 0) / lowerDisplayFt) * 100)
             : 0;
           schematic += `<div class="position-column" style="flex: 0 0 ${widthPct}%;">`;
+          schematic += renderOverflowIndicator(pos, posIdx + 1);
           schematic += renderPositionStack(pos);
           schematic += `<div class="position-label">${fmtFeet(pos.length_ft)} ft</div>`;
           schematic += `</div>`;
@@ -1341,10 +1632,10 @@
         schematic += `
           </div>
           <div class="deck-footer" style="--line-span: ${lowerLineSpan}%; ">
+            ${lowerOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(lowerOverhangFt)} FT</span></div>` : ''}
             <div class="deck-line">
               <span class="deck-length">${fmtFeetFixed(lowerDeck)} FT</span>
             </div>
-            ${lowerOverhang ? `<div class="deck-overhang-line"><span class="deck-overhang">OVERHANG: ${fmtFeetFixed(lowerOverhangFt)} FT</span></div>` : ''}
           </div>
         </div>`;
       }
@@ -1652,10 +1943,520 @@
       layout.style.setProperty('--orders-review-height', `${clamped}px`);
     }
 
-    syncOrdersReviewLayoutHeight();
-    window.addEventListener('resize', syncOrdersReviewLayoutHeight);
+    function syncIntakeHubHeight() {
+      const snapshotCard = document.querySelector('.orders-snapshot-card');
+      const intakeHub = document.querySelector('.data-intake-hub');
+      if (!snapshotCard || !intakeHub) return;
+      if (window.matchMedia('(max-width: 1024px)').matches) {
+        intakeHub.style.height = '';
+        snapshotCard.style.height = '';
+        snapshotCard.style.alignSelf = '';
+        return;
+      }
+      intakeHub.style.height = 'auto';
+      snapshotCard.style.height = 'auto';
+      const previousAlign = snapshotCard.style.alignSelf;
+      snapshotCard.style.alignSelf = 'start';
+      const height = snapshotCard.getBoundingClientRect().height;
+      snapshotCard.style.alignSelf = previousAlign || '';
+      if (height > 0) {
+        intakeHub.style.height = `${Math.round(height)}px`;
+      }
+    }
 
+    function initOrderUploadModal() {
+      const form = document.querySelector('[data-upload-form]');
+      const input = document.querySelector('[data-upload-input]');
+      const modal = document.querySelector('[data-upload-modal]');
+      if (!form || !input || !modal) return;
+
+      const closeButtons = modal.querySelectorAll('[data-upload-close]');
+      const refreshButton = modal.querySelector('[data-upload-refresh]');
+      const pctEl = modal.querySelector('[data-upload-pct]');
+      const fillEl = modal.querySelector('[data-upload-fill]');
+      const statusEl = modal.querySelector('[data-upload-status]');
+      const filenameEl = modal.querySelector('[data-upload-filename]');
+      const summaryEl = modal.querySelector('[data-upload-summary]');
+      const unmappedPanel = modal.querySelector('[data-unmapped-panel]');
+      const unmappedList = modal.querySelector('[data-unmapped-list]');
+      const unmappedStatus = modal.querySelector('[data-unmapped-status]');
+      const unmappedSaveButton = modal.querySelector('[data-unmapped-save]');
+      const unmappedCount = modal.querySelector('[data-unmapped-count]');
+      const summaryFields = {
+        totalRows: modal.querySelector('[data-summary-total-rows]'),
+        totalOrders: modal.querySelector('[data-summary-total-orders]'),
+        mappingRate: modal.querySelector('[data-summary-mapping-rate]'),
+        unmapped: modal.querySelector('[data-summary-unmapped]'),
+        newOrders: modal.querySelector('[data-summary-new]'),
+        changedOrders: modal.querySelector('[data-summary-changed]'),
+        reopenedOrders: modal.querySelector('[data-summary-reopened]'),
+        closedOrders: modal.querySelector('[data-summary-closed]'),
+        unchangedOrders: modal.querySelector('[data-summary-unchanged]'),
+      };
+      let activeRequest = null;
+      let processingTimer = null;
+
+      const setProgress = (pct) => {
+        const safe = Math.max(0, Math.min(100, pct));
+        if (pctEl) pctEl.textContent = `${Math.round(safe)}%`;
+        if (fillEl) fillEl.style.width = `${safe}%`;
+      };
+
+      const setStatus = (message) => {
+        if (statusEl) statusEl.textContent = message || '';
+      };
+
+      const startProcessingSteps = () => {
+        const steps = [
+          { pct: 76, label: 'Parsing rows...' },
+          { pct: 82, label: 'Validating SKUs...' },
+          { pct: 88, label: 'Saving orders...' },
+          { pct: 94, label: 'Finalizing upload...' },
+        ];
+        let index = 0;
+        if (processingTimer) {
+          window.clearInterval(processingTimer);
+        }
+        processingTimer = window.setInterval(() => {
+          if (!activeRequest) return;
+          const step = steps[Math.min(index, steps.length - 1)];
+          setProgress(step.pct);
+          setStatus(step.label);
+          index += 1;
+        }, 1200);
+      };
+
+      const stopProcessingSteps = () => {
+        if (processingTimer) {
+          window.clearInterval(processingTimer);
+          processingTimer = null;
+        }
+      };
+
+      const hideSummary = () => {
+        if (summaryEl) summaryEl.classList.add('hidden');
+      };
+
+      const hideUnmapped = () => {
+        if (unmappedPanel) unmappedPanel.classList.add('hidden');
+        if (unmappedList) unmappedList.innerHTML = '';
+        if (unmappedStatus) unmappedStatus.textContent = '';
+        if (unmappedCount) unmappedCount.textContent = '0';
+      };
+
+      const renderUnmappedItems = (items) => {
+        if (!unmappedPanel || !unmappedList) return;
+        if (!items || !items.length) {
+          hideUnmapped();
+          return;
+        }
+
+        const isCargoCategory = (value) => {
+          const normalized = (value || '').toString().trim().toUpperCase();
+          return normalized.includes('CARGO');
+        };
+
+        const extractCargoLength = (value) => {
+          if (!value) return null;
+          const match = String(value).match(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/);
+          if (!match) return null;
+          const length = Number(match[2]);
+          if (!Number.isFinite(length)) return null;
+          return length + 4;
+        };
+
+        const applyCargoDefaults = (card) => {
+          if (!card) return;
+          const bin = card.dataset.bin || '';
+          const categoryInput = card.querySelector('[data-field="category"]');
+          const category = categoryInput ? categoryInput.value : '';
+          const isCargo = isCargoCategory(bin) || isCargoCategory(category);
+          const lengthInput = card.querySelector('[data-field="length"]');
+          const maxFlatInput = card.querySelector('[data-field="max_flat"]');
+          const maxStepInput = card.querySelector('[data-field="max_step"]');
+          if (!isCargo) return;
+
+          if (maxFlatInput) {
+            maxFlatInput.value = 1;
+            maxFlatInput.disabled = true;
+          }
+          if (maxStepInput) {
+            maxStepInput.value = 1;
+            maxStepInput.disabled = true;
+          }
+          if (lengthInput) {
+            const current = Number(lengthInput.value || 0);
+            if (!(current > 0)) {
+              const inferred =
+                extractCargoLength(card.dataset.item) ||
+                extractCargoLength(card.dataset.desc);
+              if (inferred) {
+                lengthInput.value = inferred;
+              }
+            }
+          }
+        };
+
+        const sortedItems = items.slice().sort((a, b) => (b.count || 0) - (a.count || 0));
+        unmappedList.innerHTML = '';
+        if (unmappedCount) unmappedCount.textContent = `${sortedItems.length}`;
+        sortedItems.forEach((entry) => {
+          const suggestion = entry.suggested || {};
+          const categorySeed = entry.category_hint || suggestion.category || '';
+          const card = document.createElement('div');
+          card.className = 'upload-unmapped-card';
+          card.dataset.item = entry.item || '';
+          card.dataset.desc = entry.desc || '';
+          card.dataset.bin = entry.bin || '';
+          card.dataset.count = entry.count || 0;
+          card.innerHTML = `
+            <div class="upload-unmapped-header">
+              <div>
+                <div class="upload-unmapped-title">${escapeHtml(entry.item || 'Unknown SKU')}</div>
+                <div class="upload-unmapped-desc">${escapeHtml(entry.desc || '')}</div>
+              </div>
+              <div class="upload-unmapped-meta">BIN: ${escapeHtml(entry.bin || '--')} | Unmapped lines: ${entry.count || 0}</div>
+            </div>
+            <div class="upload-unmapped-fields">
+              <div class="upload-unmapped-field">
+                <label>Category</label>
+                <input type="text" data-field="category" value="${escapeHtml(entry.bin || categorySeed)}" readonly>
+              </div>
+              <div class="upload-unmapped-field">
+                <label>Length (ft)</label>
+                <input type="number" step="0.1" min="0" data-field="length" value="${suggestion.length_with_tongue_ft || ''}">
+              </div>
+              <div class="upload-unmapped-field">
+                <label>Max Stack (Flatbed)</label>
+                <input type="number" step="1" min="1" data-field="max_flat" value="${suggestion.max_stack_flat_bed || ''}">
+              </div>
+              <div class="upload-unmapped-field">
+                <label>Max Stack (Step Deck)</label>
+                <input type="number" step="1" min="1" data-field="max_step" value="${suggestion.max_stack_step_deck || ''}">
+              </div>
+            </div>
+            <div class="upload-unmapped-suggestion">
+              Suggested from: ${escapeHtml(suggestion.sku || 'No close match found')}
+            </div>
+            <div class="upload-unmapped-card-actions">
+              <span class="upload-unmapped-card-status" data-unmapped-card-status></span>
+              <button class="btn-secondary btn-xs upload-unmapped-approve" type="button" data-unmapped-approve>Approve SKU</button>
+            </div>
+          `;
+          unmappedList.appendChild(card);
+          applyCargoDefaults(card);
+
+          const approveButton = card.querySelector('[data-unmapped-approve]');
+          const cardStatus = card.querySelector('[data-unmapped-card-status]');
+          if (approveButton) {
+            approveButton.addEventListener('click', async () => {
+              const sku = card.dataset.item || '';
+              const desc = card.dataset.desc || '';
+              const bin = card.dataset.bin || '';
+              const lengthInput = card.querySelector('[data-field="length"]');
+              const maxFlatInput = card.querySelector('[data-field="max_flat"]');
+              const maxStepInput = card.querySelector('[data-field="max_step"]');
+              const isCargo = isCargoCategory(bin);
+              let length = lengthInput?.value || '';
+              let maxFlat = maxFlatInput?.value || '';
+              let maxStep = maxStepInput?.value || '';
+              if (isCargo) {
+                const inferred = extractCargoLength(sku) || extractCargoLength(desc);
+                length = Number(length) > 0 ? length : (inferred || '');
+                maxFlat = 1;
+                maxStep = 1;
+                if (lengthInput && length) lengthInput.value = length;
+                if (maxFlatInput) maxFlatInput.value = 1;
+                if (maxStepInput) maxStepInput.value = 1;
+              }
+              if (!(Number(length) > 0)) {
+                if (cardStatus) cardStatus.textContent = 'Enter a length before approving.';
+                return;
+              }
+              approveButton.disabled = true;
+              if (cardStatus) cardStatus.textContent = 'Saving...';
+              try {
+                const response = await fetch('/api/skus/bulk-add', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    items: [
+                      {
+                        sku,
+                        description: desc,
+                        bin,
+                        length_with_tongue_ft: length,
+                        max_stack_flat_bed: maxFlat,
+                        max_stack_step_deck: maxStep,
+                      },
+                    ],
+                  }),
+                });
+                const payload = await response.json();
+                if (!response.ok) {
+                  throw new Error((payload && payload.error) || 'Failed to save SKU.');
+                }
+                card.dataset.approved = 'true';
+                card.classList.add('is-approved');
+                card.querySelectorAll('input').forEach((input) => {
+                  input.disabled = true;
+                });
+                approveButton.textContent = 'Approved';
+                if (cardStatus) cardStatus.textContent = 'Approved.';
+              } catch (err) {
+                approveButton.disabled = false;
+                if (cardStatus) cardStatus.textContent = err.message || 'Failed to save SKU.';
+              }
+            });
+          }
+        });
+
+        unmappedPanel.classList.remove('hidden');
+      };
+
+      const collectUnmappedSpecs = () => {
+        if (!unmappedList) return [];
+        const cards = Array.from(unmappedList.querySelectorAll('.upload-unmapped-card'));
+        const specs = [];
+        const isCargoCategory = (value) => {
+          const normalized = (value || '').toString().trim().toUpperCase();
+          return normalized.includes('CARGO');
+        };
+        const extractCargoLength = (value) => {
+          if (!value) return null;
+          const match = String(value).match(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/);
+          if (!match) return null;
+          const length = Number(match[2]);
+          if (!Number.isFinite(length)) return null;
+          return length + 4;
+        };
+        cards.forEach((card) => {
+          if (card.dataset.approved === 'true') return;
+          const sku = card.dataset.item || '';
+          const desc = card.dataset.desc || '';
+          const categoryInput = card.querySelector('[data-field="category"]')?.value || '';
+          const bin = card.dataset.bin || '';
+          const category = bin || categoryInput;
+          const lengthInput = card.querySelector('[data-field="length"]');
+          const maxFlatInput = card.querySelector('[data-field="max_flat"]');
+          const maxStepInput = card.querySelector('[data-field="max_step"]');
+          let length = lengthInput?.value || '';
+          let maxFlat = maxFlatInput?.value || '';
+          let maxStep = maxStepInput?.value || '';
+          if (isCargoCategory(category)) {
+            const inferred = extractCargoLength(sku) || extractCargoLength(desc);
+            length = Number(length) > 0 ? length : (inferred || '');
+            maxFlat = 1;
+            maxStep = 1;
+            if (lengthInput && length) lengthInput.value = length;
+            if (maxFlatInput) maxFlatInput.value = 1;
+            if (maxStepInput) maxStepInput.value = 1;
+          }
+          if (!sku) return;
+          specs.push({
+            sku,
+            description: desc,
+            category,
+            bin,
+            length_with_tongue_ft: length,
+            max_stack_flat_bed: maxFlat,
+            max_stack_step_deck: maxStep,
+          });
+        });
+        return specs;
+      };
+
+      const showSummary = (summary) => {
+        if (!summaryEl) return;
+        summaryEl.classList.remove('hidden');
+        const setValue = (node, value, suffix = '') => {
+          if (!node) return;
+          const safe = value == null || value === '' ? '0' : value;
+          node.textContent = `${safe}${suffix}`;
+        };
+        setValue(summaryFields.totalRows, summary.total_rows);
+        setValue(summaryFields.totalOrders, summary.total_orders);
+        setValue(summaryFields.mappingRate, summary.mapping_rate, '%');
+        setValue(summaryFields.unmapped, summary.unmapped_count);
+        setValue(summaryFields.newOrders, summary.new_orders);
+        setValue(summaryFields.changedOrders, summary.changed_orders);
+        setValue(summaryFields.reopenedOrders, summary.reopened_orders);
+        setValue(summaryFields.closedOrders, summary.dropped_orders);
+        setValue(summaryFields.unchangedOrders, summary.unchanged_orders);
+      };
+
+      const openModal = () => {
+        modal.classList.remove('hidden');
+      };
+
+      const closeModal = () => {
+        if (activeRequest) {
+          try {
+            activeRequest.abort();
+          } catch (err) {
+            // ignore abort failures
+          }
+          activeRequest = null;
+          stopProcessingSteps();
+          setStatus('Upload canceled.');
+          setProgress(0);
+          hideSummary();
+        }
+        modal.classList.add('hidden');
+      };
+
+      closeButtons.forEach((button) => {
+        button.addEventListener('click', closeModal);
+      });
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+          closeModal();
+        }
+      });
+
+      if (refreshButton) {
+        refreshButton.addEventListener('click', () => {
+          window.location.reload();
+        });
+      }
+
+      if (unmappedSaveButton) {
+        unmappedSaveButton.addEventListener('click', async () => {
+          const specs = collectUnmappedSpecs();
+          if (!specs.length) {
+            if (unmappedStatus) unmappedStatus.textContent = 'No unmapped SKUs to save.';
+            return;
+          }
+          const invalid = specs.filter((entry) => !(Number(entry.length_with_tongue_ft) > 0));
+          if (invalid.length) {
+            if (unmappedStatus) unmappedStatus.textContent = 'Please enter a length for each SKU before saving.';
+            return;
+          }
+          if (unmappedStatus) unmappedStatus.textContent = 'Saving SKU specs...';
+          try {
+            const response = await fetch('/api/skus/bulk-add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: specs }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              throw new Error((payload && payload.error) || 'Failed to save SKU specs.');
+            }
+            if (unmappedStatus) {
+              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Re-upload to apply mapping.`;
+            }
+          } catch (err) {
+            if (unmappedStatus) unmappedStatus.textContent = err.message || 'Failed to save SKU specs.';
+          }
+        });
+      }
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+      });
+
+      input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+
+        if (filenameEl) filenameEl.textContent = file.name || 'Selected file';
+        if (refreshButton) refreshButton.classList.add('hidden');
+        setProgress(0);
+        setStatus('Uploading file...');
+        hideSummary();
+        hideUnmapped();
+        openModal();
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+        activeRequest = xhr;
+        xhr.open('POST', '/api/orders/upload');
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const pct = (event.loaded / event.total) * 100;
+            const scaled = Math.min(70, Math.max(2, pct * 0.7));
+            setProgress(scaled);
+            setStatus('Uploading file...');
+          } else {
+            setStatus('Uploading file...');
+          }
+        });
+
+        xhr.upload.addEventListener('load', () => {
+          if (!activeRequest) return;
+          setProgress(72);
+          setStatus('Processing file...');
+          startProcessingSteps();
+        });
+
+        xhr.addEventListener('load', () => {
+          activeRequest = null;
+          stopProcessingSteps();
+          let payload = {};
+          try {
+            payload = JSON.parse(xhr.responseText || '{}');
+          } catch (err) {
+            payload = {};
+          }
+          const finalize = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setProgress(100);
+              setStatus(`${file.name} has been successfully uploaded.`);
+              if (payload && Object.keys(payload).length) {
+                showSummary(payload);
+                renderUnmappedItems(payload.unmapped_items || []);
+              }
+              if (refreshButton) refreshButton.classList.remove('hidden');
+            } else {
+              let errorMessage = 'Upload failed.';
+              if (payload && payload.error) {
+                errorMessage = payload.error;
+              } else if (xhr.responseText) {
+                errorMessage = xhr.responseText;
+              }
+              setProgress(100);
+              setStatus(errorMessage);
+              hideSummary();
+              hideUnmapped();
+            }
+          };
+          window.setTimeout(finalize, 350);
+        });
+
+        xhr.addEventListener('error', () => {
+          activeRequest = null;
+          stopProcessingSteps();
+          setStatus('Upload failed. Please try again.');
+          hideSummary();
+        });
+
+        xhr.send(formData);
+        input.value = '';
+      });
+    }
+
+    syncOrdersReviewLayoutHeight();
+    syncIntakeHubHeight();
+    window.addEventListener('resize', syncOrdersReviewLayoutHeight);
+    window.addEventListener('resize', syncIntakeHubHeight);
+    window.addEventListener('load', syncIntakeHubHeight);
+
+    initOrderUploadModal();
     bindOrderRows();
-    showExpandedEmpty('Select an order to view stack constraints, line items, and map.');
+    const initialOrderRow = document.querySelector('.order-row:not(.group-hidden)') || document.querySelector('.order-row');
+    if (initialOrderRow) {
+      selectOrder(initialOrderRow, { scrollIntoView: false });
+    } else {
+      showExpandedEmpty('Select an order to view stack constraints, line items, and map.');
+    }
   </script>
 {% endblock %}
