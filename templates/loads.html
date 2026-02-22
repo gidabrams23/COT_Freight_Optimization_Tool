@@ -3508,16 +3508,38 @@
         modal.classList.add('hidden');
       };
 
+      const parseJsonPayload = async (response) => {
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        if (contentType.includes('application/json')) {
+          try {
+            return await response.json();
+          } catch (_error) {
+            return null;
+          }
+        }
+        const text = await response.text();
+        if (!text) return null;
+        try {
+          return JSON.parse(text);
+        } catch (_error) {
+          return null;
+        }
+      };
+
       const openModal = (loadId) => {
         setError('');
         state.loadId = String(loadId);
         modal.classList.remove('hidden');
         if (canvas) canvas.innerHTML = '<div class="subtext">Loading schematic editor...</div>';
         fetch(`/loads/${encodeURIComponent(loadId)}/schematic/edit`)
-          .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+          .then(async (response) => ({ ok: response.ok, payload: await parseJsonPayload(response) }))
           .then(({ ok, payload }) => {
             if (!ok) {
-              throw new Error((payload && payload.error) || 'Unable to open schematic editor.');
+              throw new Error(
+                (payload && payload.error) ||
+                (payload && payload.redirect_url ? 'Session expired. Please sign in again.' : '') ||
+                'Unable to open schematic editor.'
+              );
             }
             if (!payload.can_edit) {
               throw new Error('Approved loads are read-only.');
@@ -3554,7 +3576,7 @@
             confirm_violation: confirmViolation,
             tab: loadsTab || '',
           }),
-        }).then((response) => response.json().then((payload) => ({ response, payload })));
+        }).then(async (response) => ({ response, payload: await parseJsonPayload(response) }));
       };
 
       if (saveButton) {

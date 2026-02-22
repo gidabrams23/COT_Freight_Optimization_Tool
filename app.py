@@ -207,6 +207,18 @@ db.ensure_default_access_profiles(
             "allowed_plants": "ALL",
             "default_plants": "GA,VA,NV",
         },
+        {
+            "name": "Kissaryn",
+            "is_admin": False,
+            "allowed_plants": "ALL",
+            "default_plants": "GA,VA,NV",
+        },
+        {
+            "name": "Judy",
+            "is_admin": False,
+            "allowed_plants": "ALL",
+            "default_plants": "GA,VA,NV",
+        },
     ]
 )
 db.ensure_default_planning_settings(
@@ -328,7 +340,7 @@ def login():
 
         if not error and profile:
             _apply_profile_to_session(profile, reset_filters=True)
-            return redirect(next_url or url_for("dashboard"))
+            return redirect(next_url or url_for("orders"))
 
     return render_template(
         "login.html",
@@ -346,6 +358,16 @@ def _safe_next_url(value):
     if value.startswith("/"):
         return value
     return None
+
+
+def _json_session_expired_response():
+    next_url = request.full_path if request else ""
+    return jsonify(
+        {
+            "error": "Session expired",
+            "redirect_url": url_for("login", next=next_url),
+        }
+    ), 401
 
 
 def _normalize_order_value(value):
@@ -7959,7 +7981,7 @@ def _build_load_schematic_payload(load_id):
 def load_schematic_fragment(load_id):
     session_redirect = _require_session()
     if session_redirect:
-        return session_redirect
+        return _json_session_expired_response()
 
     load_data = _build_load_schematic_payload(load_id)
     if not load_data:
@@ -7978,7 +8000,7 @@ def load_schematic_fragment(load_id):
 def load_schematic_edit(load_id):
     session_redirect = _require_session()
     if session_redirect:
-        return session_redirect
+        return _json_session_expired_response()
 
     payload = _build_load_schematic_edit_payload(load_id)
     if not payload:

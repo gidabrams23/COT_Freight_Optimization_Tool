@@ -39,6 +39,9 @@
                 <span class="material-symbols-outlined nav-icon">local_shipping</span>
                 <span class="nav-text">Loads</span>
               </a>
+            </div>
+            <div class="nav-section">
+              <div class="nav-section-label">ADMIN</div>
               {% if is_admin %}
                 <a class="nav-item{% if request.path.startswith('/planning-sessions') and not request.path.startswith('/planning-sessions/replay') %} active{% endif %}" href="{{ url_for('planning_sessions') }}">
                   <span class="material-symbols-outlined nav-icon">history</span>
@@ -53,9 +56,6 @@
                 <span class="material-symbols-outlined nav-icon">comment</span>
                 <span class="nav-text">Feedback Log</span>
               </a>
-            </div>
-            <div class="nav-section">
-              <div class="nav-section-label">Reporting</div>
               <a class="nav-item{% if request.path.startswith('/settings') %} active{% endif %}" href="{{ url_for('settings') }}">
                 <span class="material-symbols-outlined nav-icon">tune</span>
                 <span class="nav-text">Settings</span>
