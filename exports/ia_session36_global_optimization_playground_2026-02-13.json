@@ -1,0 +1,96 @@
+{
+  "baseline": {
+    "loads": 84,
+    "avg_util": 47.1,
+    "spend": 140276.25,
+    "lt50": 43,
+    "lt40": 38
+  },
+  "results": [
+    {
+      "name": "strict_cost_only",
+      "lam_count": 0,
+      "lam_depth": 0,
+      "geo": 100.0,
+      "detour": 15.0,
+      "rescue": false,
+      "metrics": {
+        "loads": 91,
+        "avg_util": 43.4,
+        "spend": 119985.75,
+        "lt50": 50,
+        "lt40": 43
+      },
+      "delta_spend": -20290.5,
+      "delta_lt50": 7
+    },
+    {
+      "name": "strict_balanced",
+      "lam_count": 300,
+      "lam_depth": 0,
+      "geo": 100.0,
+      "detour": 15.0,
+      "rescue": false,
+      "metrics": {
+        "loads": 90,
+        "avg_util": 44.3,
+        "spend": 120702.21,
+        "lt50": 43,
+        "lt40": 42
+      },
+      "delta_spend": -19574.04,
+      "delta_lt50": 0
+    },
+    {
+      "name": "global_relaxed_cost_only",
+      "lam_count": 0,
+      "lam_depth": 0,
+      "geo": null,
+      "detour": 35.0,
+      "rescue": false,
+      "metrics": {
+        "loads": 90,
+        "avg_util": 43.7,
+        "spend": 116921.81,
+        "lt50": 50,
+        "lt40": 41
+      },
+      "delta_spend": -23354.44,
+      "delta_lt50": 7
+    },
+    {
+      "name": "global_relaxed_balanced",
+      "lam_count": 300,
+      "lam_depth": 10,
+      "geo": null,
+      "detour": 35.0,
+      "rescue": false,
+      "metrics": {
+        "loads": 91,
+        "avg_util": 43.6,
+        "spend": 119276.37,
+        "lt50": 40,
+        "lt40": 38
+      },
+      "delta_spend": -20999.88,
+      "delta_lt50": -3
+    },
+    {
+      "name": "global_relaxed_with_rescue",
+      "lam_count": 300,
+      "lam_depth": 10,
+      "geo": null,
+      "detour": 35.0,
+      "rescue": true,
+      "metrics": {
+        "loads": 91,
+        "avg_util": 43.6,
+        "spend": 118508.92,
+        "lt50": 38,
+        "lt40": 36
+      },
+      "delta_spend": -21767.33,
+      "delta_lt50": -5
+    }
+  ]
+}

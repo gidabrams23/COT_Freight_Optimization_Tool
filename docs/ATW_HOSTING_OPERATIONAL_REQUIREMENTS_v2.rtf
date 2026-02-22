@@ -1,0 +1,57 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}}
+\fs22
+\b ATW Load Planning App\par
+Hosting Operational Requirements (Client IT Owned)\par
+\b0\par
+This document defines operational requirements for hosting the application.\par
+Platform, SKU, VM/container host selection, and firewall architecture decisions are intentionally owned by ATW IT.\par
+\par
+\b 1. Application Overview\par
+\b0 - Web application for freight/load planning workflows.\par
+- Primary purpose: support the load planning team in batching customer orders into practical truck loads, with faster review and fewer manual planning steps.\par
+- Workflow summary: import daily open-order data from CSV; standardize and evaluate order lines (SKU/stacking/utilization logic); run optimization to propose grouped loads using planning rules (capacity, timing, geography); let planners review draft loads, make manual adjustments, and approve/reject outcomes; export operational outputs (orders/load reports) for downstream dispatch and execution.\par
+- Core user actions: upload CSV order files, review/manage orders and sessions, run optimization calculations, approve/reject proposed loads, and export reports (CSV/XLSX).\par
+\par
+\b 2. Anticipated Usage\par
+\b0 - Concurrent users: 8-10.\par
+- Typical upload size: approximately 8,000 rows per CSV.\par
+- Daily uploads contain overlapping orders from prior day (not all rows are net-new).\par
+- Performance target: preferred user wait <= 30 seconds for common actions; maximum acceptable wait <= 90 seconds for heavy optimization/import actions.\par
+- Business criticality: non-critical system; occasional restart/recovery is acceptable.\par
+\par
+\b 3. App Technology Profile\par
+\b0 - Front end: server-rendered HTML templates with JavaScript/CSS.\par
+- Back end: Python Flask application served by Gunicorn.\par
+- Data layer: SQLite (file-based relational database).\par
+- Packaging/deployment unit: Docker container.\par
+- File operations: CSV ingest and XLSX report generation.\par
+\par
+\b 4. Minimum Operational Hosting Requirements\par
+\b0 - Must support OCI/Docker container deployment.\par
+- Must provide writable persistent storage for SQLite database and app-generated files.\par
+- Must support secure environment-variable configuration for application secrets.\par
+- Must terminate HTTPS/TLS and expose a stable URL for end users.\par
+- Must provide enough CPU/memory to process 8-10 concurrent users with periodic 8k-row imports.\par
+- Must support request processing behavior that can tolerate up to 90-second operations, or provide equivalent async/background execution controls.\par
+- Must provide application and platform logs with retention and basic alerting (availability, restart loops, high error rate).\par
+- Must include backup/restore capability for persistent app data (daily backup is sufficient for this workload).\par
+- Must support controlled deployments with rollback capability.\par
+\par
+\b 5. Architecture Constraints IT Should Plan Around\par
+\b0 - SQLite is file-based and can become a bottleneck under multi-instance write patterns.\par
+- If active-active multi-instance scaling is desired, ATW IT should plan single-writer controls or migration from SQLite to a managed multi-user database.\par
+- Optimization routines are CPU-intensive and may require capacity headroom during business-hour peaks.\par
+\par
+\b 6. Security and Access Requirements\par
+\b0 - HTTPS required in transit.\par
+- Secrets (admin password/session key) must be managed outside source code.\par
+- Public URL access is acceptable for this deployment, with optional IP allowlisting per ATW policy.\par
+- Standard host hardening, patching, and endpoint protection should follow ATW security baselines.\par
+\par
+\b 7. Handoff Acceptance Criteria\par
+\b0 - End users can access the app via HTTPS and complete core workflows.\par
+- System supports 8-10 concurrent users without instability.\par
+- 8k-row upload plus optimization workflows meet <= 90 second acceptable response target under normal conditions.\par
+- Daily backups are configured, and restore procedure is documented by ATW IT.\par
+}

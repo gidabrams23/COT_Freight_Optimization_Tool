@@ -1,0 +1,52 @@
+{
+  "baseline_session": 36,
+  "window": {
+    "start": "2026-02-13",
+    "end": "2026-02-27"
+  },
+  "assumptions": {
+    "capacity_feet": 53.0,
+    "trailer_type": "STEP_DECK",
+    "time_window_days": 7,
+    "geo_radius_miles": 100.0,
+    "max_detour_pct": 15.0
+  },
+  "baseline": {
+    "loads": 84,
+    "avg_util_pct": 47.1,
+    "spend_usd": 140276.25,
+    "lt50_loads": 43
+  },
+  "experiments": {
+    "cost_first_rebatch_soft_onway": {
+      "loads": 90,
+      "avg_util_pct": 44.3,
+      "spend_usd": 120702.21,
+      "lt50_loads": 43,
+      "delta_spend_usd": -19574.04,
+      "delta_lt50": 0
+    },
+    "balanced_local_search_existing_84_loads": {
+      "loads": 84,
+      "avg_util_pct": 46.8,
+      "spend_usd": 138914.4,
+      "lt50_loads": 41,
+      "delta_spend_usd": -1361.85,
+      "delta_lt50": -2
+    },
+    "cost_only_rebatch": {
+      "loads": 91,
+      "avg_util_pct": 43.4,
+      "spend_usd": 119985.75,
+      "lt50_loads": 50,
+      "delta_spend_usd": -20290.5,
+      "delta_lt50": 7
+    }
+  },
+  "diagnostics": {
+    "positive_pairwise_merges_left_in_current_plan": 0,
+    "orders_with_5plus_feasible_partners": 256,
+    "orders_with_1orless_feasible_partners": 5,
+    "max_stops_per_current_load": 5
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "baseline_session": 36,
+  "baseline": {
+    "loads": 84,
+    "avg_util_pct": 47.1,
+    "spend_usd": 140276.25,
+    "lt50_loads": 43,
+    "lt40_loads": 38
+  },
+  "global_experiments": [
+    {
+      "mode": "strict_100_15",
+      "loads": 94,
+      "avg_util_pct": 42.2,
+      "spend_usd": 122534.19,
+      "lt50_loads": 43,
+      "lt40_loads": 41,
+      "delta_spend_usd": -17742.06,
+      "delta_lt50": 0
+    },
+    {
+      "mode": "expanded_100_35",
+      "loads": 92,
+      "avg_util_pct": 43.4,
+      "spend_usd": 121072.41,
+      "lt50_loads": 41,
+      "lt40_loads": 38,
+      "delta_spend_usd": -19203.84,
+      "delta_lt50": -2
+    },
+    {
+      "mode": "unconstrained_global",
+      "loads": 91,
+      "avg_util_pct": 43.6,
+      "spend_usd": 118508.92,
+      "lt50_loads": 38,
+      "lt40_loads": 36,
+      "delta_spend_usd": -21767.33,
+      "delta_lt50": -5
+    }
+  ],
+  "notes": [
+    "All runs use same 265 IA orders from planning_session_id=36, 7-day flexibility, STEP_DECK 53 ft.",
+    "Global runs include low-util rescue pass that reassigns orders out of low-util loads when objective improves."
+  ]
+}

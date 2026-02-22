@@ -1,0 +1,39 @@
+{
+  "current": {
+    "loads": 84,
+    "avg_util": 47.1,
+    "spend": 140276.25,
+    "lt50": 43,
+    "lt40": 38
+  },
+  "improved": {
+    "loads": 91,
+    "avg_util": 43.4,
+    "spend": 119848.32,
+    "lt50": 50,
+    "lt40": 43
+  },
+  "params": {
+    "capacity_feet": 53.0,
+    "trailer_type": "STEP_DECK",
+    "time_window_days": 7,
+    "geo_radius": 100.0,
+    "max_detour_pct": 15.0,
+    "date_start": "2026-02-13",
+    "date_end": "2026-02-27"
+  },
+  "current_util_bins": {
+    "70-84": 11,
+    "50-69": 19,
+    "40-49": 5,
+    "<40": 38,
+    "85+": 11
+  },
+  "improved_util_bins": {
+    "<40": 43,
+    "40-49": 7,
+    "50-69": 30,
+    "70-84": 8,
+    "85+": 3
+  }
+}
