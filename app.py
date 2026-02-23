@@ -8315,6 +8315,8 @@ def _build_load_schematic_payload(load_id):
     load["order_colors"] = order_colors
     load["over_capacity"] = over_capacity
     load["utilization_pct"] = utilization_pct
+    # Schematic partial expects this key during async refresh/save responses.
+    load["display_utilization_pct"] = utilization_pct
     load["has_custom_schematic"] = has_custom_schematic
     load["schematic_warnings"] = schematic_warnings
     load["schematic_warning_count"] = len(schematic_warnings)
