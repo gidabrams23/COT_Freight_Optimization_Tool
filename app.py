@@ -8329,7 +8329,11 @@ def load_schematic_fragment(load_id):
     if session_redirect:
         return _json_session_expired_response()
 
-    load_data = _build_load_schematic_payload(load_id)
+    try:
+        load_data = _build_load_schematic_payload(load_id)
+    except Exception as exc:
+        logger.exception("Failed to build schematic fragment for load_id=%s", load_id)
+        return jsonify({"error": f"Unable to load schematic: {exc}"}), 500
     if not load_data:
         return jsonify({"error": "Load not found"}), 404
 
@@ -8348,7 +8352,11 @@ def load_schematic_edit(load_id):
     if session_redirect:
         return _json_session_expired_response()
 
-    payload = _build_load_schematic_edit_payload(load_id)
+    try:
+        payload = _build_load_schematic_edit_payload(load_id)
+    except Exception as exc:
+        logger.exception("Failed to build schematic edit payload for load_id=%s", load_id)
+        return jsonify({"error": f"Unable to load schematic editor: {exc}"}), 500
     if not payload:
         return jsonify({"error": "Load not found"}), 404
 
@@ -8378,7 +8386,11 @@ def save_schematic_edit(load_id):
     if session_redirect:
         return jsonify({"error": "Session expired"}), 401
 
-    payload = _build_load_schematic_edit_payload(load_id)
+    try:
+        payload = _build_load_schematic_edit_payload(load_id)
+    except Exception as exc:
+        logger.exception("Failed to prepare schematic save payload for load_id=%s", load_id)
+        return jsonify({"error": f"Unable to save schematic editor state: {exc}"}), 500
     if not payload:
         return jsonify({"error": "Load not found"}), 404
 

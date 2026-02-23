@@ -992,6 +992,14 @@
     const sortToggle = document.querySelector('[data-sort-toggle]');
     const sortPanel = document.querySelector('[data-sort-panel]');
 
+    function parseJsonResponseSafe(response) {
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      if (!contentType.includes('application/json')) {
+        return Promise.resolve(null);
+      }
+      return response.json().catch(() => null);
+    }
+
     function openTodayPanel() {
       if (!todayPanel || !todayToggle) return;
       todayPanel.classList.remove('hidden');
@@ -1394,9 +1402,15 @@
       }
       const tabParam = loadsTab ? `?tab=${encodeURIComponent(loadsTab)}` : '';
       return fetch(`/loads/${loadId}/schematic${tabParam}`)
-        .then((response) => {
-          if (!response.ok) throw new Error('Schematic refresh failed');
-          return response.json();
+        .then((response) => parseJsonResponseSafe(response).then((payload) => ({ response, payload })))
+        .then(({ response, payload }) => {
+          if (!response.ok) {
+            throw new Error(
+              (payload && payload.error)
+              || `Schematic refresh failed (${response.status})`
+            );
+          }
+          return payload || {};
         })
         .then((payload) => {
           applySchematicPayload(loadId, payload);
