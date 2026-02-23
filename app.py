@@ -172,6 +172,20 @@ REPLAY_EVAL_PRESET_SETTING_KEY = "replay_eval_preset"
 DEFAULT_UTILIZATION_GRADE_THRESHOLDS = {"A": 85, "B": 70, "C": 55, "D": 40}
 DEFAULT_STACK_OVERFLOW_MAX_HEIGHT = 5
 DEFAULT_MAX_BACK_OVERHANG_FT = 4.0
+TUTORIAL_MANIFEST_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "docs",
+    "tutorial",
+    "tutorial_manifest.json",
+)
+TUTORIAL_ALLOWED_MEDIA_TYPES = {"image", "video"}
+TUTORIAL_ALLOWED_AUDIENCE = {"all", ROLE_ADMIN, ROLE_PLANNER}
+TUTORIAL_NOTE_LABELS = {
+    "tip": "Tip",
+    "warning": "Warning",
+    "required": "Required",
+}
+TUTORIAL_NAV_ENABLED = _env_bool("TUTORIAL_NAV_ENABLED", default=False)
 
 
 db.init_db()
@@ -2635,6 +2649,43 @@ def _build_orders_snapshot(orders, today=None):
     return snapshot
 
 
+def _filter_out_past_due_orders(orders):
+    filtered = []
+    for order in orders or []:
+        due_status = (order.get("due_status") or "").upper()
+        if due_status == "PAST_DUE":
+            continue
+        filtered.append(order)
+    return filtered
+
+
+def _count_active_orders_by_plant_from_rows(orders, plants=None):
+    counts = {plant: 0 for plant in (plants or [])}
+    allowed = set(plants or [])
+    for order in orders or []:
+        if _coerce_bool_value(order.get("is_excluded")):
+            continue
+        plant_code = _normalize_plant_code(order.get("plant"))
+        if not plant_code:
+            continue
+        if allowed and plant_code not in allowed:
+            continue
+        counts[plant_code] = counts.get(plant_code, 0) + 1
+    return counts
+
+
+def _clean_query_params(values):
+    cleaned = {}
+    for key, value in (values or {}).items():
+        if value is None:
+            continue
+        normalized = str(value).strip()
+        if not normalized:
+            continue
+        cleaned[key] = normalized
+    return cleaned
+
+
 def _require_session():
     profile = _ensure_active_profile()
     if not profile or not _get_allowed_plants():
@@ -2666,6 +2717,177 @@ def _normalize_load_number(load_number):
     if len(parts) < 2:
         return trimmed, None
     return trimmed, parts[-1]
+
+
+def _normalize_tutorial_relpath(value):
+    if value is None:
+        return ""
+    normalized = str(value).strip().replace("\\", "/").lstrip("/")
+    if not normalized:
+        return ""
+    clean = os.path.normpath(normalized).replace("\\", "/")
+    if clean in {"..", "."} or clean.startswith("../"):
+        return ""
+    return clean
+
+
+def _tutorial_static_file_exists(static_relpath):
+    normalized = _normalize_tutorial_relpath(static_relpath)
+    if not normalized:
+        return False
+    static_root = os.path.abspath(app.static_folder or "static")
+    candidate = os.path.abspath(os.path.join(static_root, normalized))
+    try:
+        if os.path.commonpath([static_root, candidate]) != static_root:
+            return False
+    except ValueError:
+        return False
+    return os.path.isfile(candidate)
+
+
+def _coerce_tutorial_audience(value):
+    if not isinstance(value, list):
+        return ["all"]
+    audience = []
+    for entry in value:
+        token = str(entry).strip().lower()
+        if token in TUTORIAL_ALLOWED_AUDIENCE and token not in audience:
+            audience.append(token)
+    return audience or ["all"]
+
+
+def _parse_tutorial_step_note(raw_note):
+    if isinstance(raw_note, str):
+        note_text = raw_note.strip()
+        return ("tip", note_text) if note_text else ("", "")
+    if isinstance(raw_note, dict):
+        note_text = str(raw_note.get("text") or "").strip()
+        note_tone = str(raw_note.get("tone") or "tip").strip().lower()
+        if note_tone not in TUTORIAL_NOTE_LABELS:
+            note_tone = "tip"
+        return (note_tone, note_text) if note_text else ("", "")
+    return "", ""
+
+
+def _load_tutorial_manifest(manifest_path=None):
+    resolved_path = manifest_path or TUTORIAL_MANIFEST_PATH
+    manifest = {
+        "version": 1,
+        "modules": [],
+        "error": "",
+        "manifest_path": resolved_path,
+    }
+    if not os.path.isfile(resolved_path):
+        logger.warning("Tutorial manifest not found at %s", resolved_path)
+        manifest["error"] = "Tutorial content is unavailable right now."
+        return manifest
+
+    try:
+        with open(resolved_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to load tutorial manifest at %s: %s", resolved_path, exc)
+        manifest["error"] = "Tutorial content is unavailable right now."
+        return manifest
+
+    if not isinstance(payload, dict):
+        logger.warning("Tutorial manifest must be a JSON object: %s", resolved_path)
+        manifest["error"] = "Tutorial content is unavailable right now."
+        return manifest
+
+    version = payload.get("version")
+    if isinstance(version, int) and version > 0:
+        manifest["version"] = version
+
+    raw_modules = payload.get("modules")
+    if not isinstance(raw_modules, list):
+        logger.warning("Tutorial manifest is missing a valid modules list: %s", resolved_path)
+        manifest["error"] = "Tutorial content is unavailable right now."
+        return manifest
+
+    for module_idx, raw_module in enumerate(raw_modules, start=1):
+        if not isinstance(raw_module, dict):
+            logger.warning("Skipping tutorial module #%s: expected object.", module_idx)
+            continue
+        slug = str(raw_module.get("slug") or "").strip().lower()
+        title = str(raw_module.get("title") or "").strip()
+        route_hint = str(raw_module.get("route_hint") or "").strip()
+        summary = str(raw_module.get("summary") or "").strip()
+        raw_steps = raw_module.get("steps")
+        if not slug or not title or not summary:
+            logger.warning("Skipping tutorial module #%s: missing slug/title/summary.", module_idx)
+            continue
+        if not isinstance(raw_steps, list) or not raw_steps:
+            logger.warning("Skipping tutorial module '%s': steps must be a non-empty list.", slug)
+            continue
+
+        module = {
+            "slug": slug,
+            "title": title,
+            "route_hint": route_hint,
+            "summary": summary,
+            "audience": _coerce_tutorial_audience(raw_module.get("audience")),
+            "steps": [],
+        }
+
+        for step_idx, raw_step in enumerate(raw_steps, start=1):
+            if not isinstance(raw_step, dict):
+                logger.warning("Skipping tutorial step #%s in module '%s': expected object.", step_idx, slug)
+                continue
+            step_id = str(raw_step.get("id") or "").strip().lower()
+            step_title = str(raw_step.get("title") or "").strip()
+            instruction = str(raw_step.get("instruction") or "").strip()
+            media = raw_step.get("media") if isinstance(raw_step.get("media"), dict) else {}
+            media_type = str(media.get("type") or "").strip().lower()
+            media_src = _normalize_tutorial_relpath(media.get("src"))
+            if (
+                not step_id
+                or not step_title
+                or not instruction
+                or media_type not in TUTORIAL_ALLOWED_MEDIA_TYPES
+                or not media_src
+            ):
+                logger.warning(
+                    "Skipping tutorial step #%s in module '%s': invalid id/content/media.",
+                    step_idx,
+                    slug,
+                )
+                continue
+
+            poster_src = _normalize_tutorial_relpath(media.get("poster"))
+            media_alt = str(media.get("alt") or "").strip()
+            if media_type == "image" and not media_alt:
+                media_alt = f"{title} - {step_title}"
+            note_tone, note_text = _parse_tutorial_step_note(raw_step.get("note"))
+            module["steps"].append(
+                {
+                    "id": step_id,
+                    "title": step_title,
+                    "instruction": instruction,
+                    "note_tone": note_tone,
+                    "note_label": TUTORIAL_NOTE_LABELS.get(note_tone, ""),
+                    "note_text": note_text,
+                    "media": {
+                        "type": media_type,
+                        "src": media_src,
+                        "alt": media_alt,
+                        "caption": str(media.get("caption") or "").strip(),
+                        "poster": poster_src,
+                        "exists": _tutorial_static_file_exists(media_src),
+                        "poster_exists": bool(poster_src and _tutorial_static_file_exists(poster_src)),
+                    },
+                }
+            )
+
+        if not module["steps"]:
+            logger.warning("Skipping tutorial module '%s': no valid steps were found.", slug)
+            continue
+
+        manifest["modules"].append(module)
+
+    if not manifest["modules"] and not manifest["error"]:
+        manifest["error"] = "Tutorial content is unavailable right now."
+    return manifest
 
 
 def _coerce_filter_list(values):
@@ -2788,6 +3010,7 @@ def inject_session_context():
         "session_plant_filter_label": _format_plant_filter_label(selected_plants, allowed_plants),
         "plant_filter_cards": _build_plant_filter_cards(allowed_plants, selected_plants),
         "is_admin": role == ROLE_ADMIN,
+        "show_tutorial_nav": TUTORIAL_NAV_ENABLED,
     }
 
 
@@ -3384,6 +3607,37 @@ def dashboard():
     return render_template("dashboard.html", **context)
 
 
+@app.route("/tutorial")
+def tutorial():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    manifest = _load_tutorial_manifest()
+    role = (_get_session_role() or "").strip().lower()
+    modules = [
+        module
+        for module in manifest["modules"]
+        if "all" in module.get("audience", []) or role in module.get("audience", [])
+    ]
+    selected_slug = (request.args.get("module") or "").strip().lower()
+    selected_module = next((module for module in modules if module["slug"] == selected_slug), None)
+    if not selected_module and modules:
+        selected_module = modules[0]
+
+    tutorial_error = manifest.get("error", "")
+    if not tutorial_error and not modules:
+        tutorial_error = "No tutorial modules are available for your current access profile."
+
+    return render_template(
+        "tutorial.html",
+        tutorial_modules=modules,
+        tutorial_selected_module=selected_module,
+        tutorial_error=tutorial_error,
+        tutorial_manifest_version=manifest.get("version", 1),
+    )
+
+
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
     session_redirect = _require_session()
@@ -3553,6 +3807,7 @@ def orders():
     plant_scope = plant_filters or allowed_plants
     today_override = _resolve_today_override(request.args.get("today"))
     today = today_override or date.today()
+    hide_past_due = _coerce_bool_value(request.args.get("hide_past_due"))
 
     due_filter = (request.args.get("due") or "").upper()
     due_start = request.args.get("due_start", "")
@@ -3584,6 +3839,9 @@ def orders():
     data = order_service.list_orders(filters=filters, sort_key=sort_key)
     orders_list = data["orders"]
     _annotate_orders_due_status(orders_list, today=today)
+    if hide_past_due:
+        orders_list = _filter_out_past_due_orders(orders_list)
+        data["summary"] = order_service.summarize_orders(orders_list)
     orders_snapshot = _build_orders_snapshot(orders_list, today=today)
 
     plants = allowed_plants
@@ -3595,7 +3853,13 @@ def orders():
         "state": filters.get("state", ""),
         "cust_name": filters.get("cust_name", ""),
     }
-    orders_by_plant = db.count_orders_by_plant(card_filters)
+    if hide_past_due:
+        orders_by_plant = _count_active_orders_by_plant_from_rows(
+            orders_list,
+            plants=allowed_plants,
+        )
+    else:
+        orders_by_plant = db.count_orders_by_plant(card_filters)
     plant_cards = []
     for plant in plants:
         plant_cards.append(
@@ -3758,6 +4022,21 @@ def orders():
     today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
+    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
+    reset_args = {}
+    if plant_filter_param:
+        reset_args["plants"] = plant_filter_param
+    if today_override_value:
+        reset_args["today"] = today_override_value
+    if hide_past_due:
+        reset_args["hide_past_due"] = "1"
+    orders_reset_url = url_for("orders", **reset_args)
+    toggle_args = request.args.to_dict(flat=True)
+    if hide_past_due:
+        toggle_args.pop("hide_past_due", None)
+    else:
+        toggle_args["hide_past_due"] = "1"
+    past_due_toggle_url = url_for("orders", **_clean_query_params(toggle_args))
 
     return render_template(
         "orders.html",
@@ -3778,13 +4057,16 @@ def orders():
         rejected_orders=rejected_orders,
         ship_date_range=ship_date_range,
         plant_filters=plant_filters,
-        plant_filter_param=",".join(plant_filters) if plant_filters else "",
+        plant_filter_param=plant_filter_param,
         due_filter=due_filter,
         due_start=due_start,
         due_end=due_end,
         assignment_filter=assignment_filter,
         plant_cards=plant_cards,
         orders_snapshot=orders_snapshot,
+        hide_past_due=hide_past_due,
+        past_due_toggle_url=past_due_toggle_url,
+        orders_reset_url=orders_reset_url,
         today_override=today_override,
         today_override_value=today_override_value,
         today_override_label=today_override_label,
@@ -4057,6 +4339,7 @@ def orders_optimize():
     due_end = request.args.get("due_end", "")
     today_override = _resolve_today_override(request.values.get("today"))
     today = today_override or date.today()
+    hide_past_due = _coerce_bool_value(request.values.get("hide_past_due"))
     if due_filter == "PAST_DUE":
         due_start = ""
         due_end = (today - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -4083,6 +4366,9 @@ def orders_optimize():
     data = order_service.list_orders(filters=filters, sort_key="due_date")
     orders_list = data["orders"]
     _annotate_orders_due_status(orders_list, today=today)
+    if hide_past_due:
+        orders_list = _filter_out_past_due_orders(orders_list)
+        data["summary"] = order_service.summarize_orders(orders_list)
     orders_snapshot = _build_orders_snapshot(orders_list, today=today)
     plants = allowed_plants
     states = _distinct([order.get("state") for order in orders_list])
@@ -4095,7 +4381,13 @@ def orders_optimize():
         "state": filters.get("state", ""),
         "cust_name": filters.get("cust_name", ""),
     }
-    orders_by_plant = db.count_orders_by_plant(card_filters)
+    if hide_past_due:
+        orders_by_plant = _count_active_orders_by_plant_from_rows(
+            orders_list,
+            plants=allowed_plants,
+        )
+    else:
+        orders_by_plant = db.count_orders_by_plant(card_filters)
     plant_cards = [
         {
             "code": plant,
@@ -4205,6 +4497,21 @@ def orders_optimize():
     today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
+    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
+    reset_args = {}
+    if plant_filter_param:
+        reset_args["plants"] = plant_filter_param
+    if today_override_value:
+        reset_args["today"] = today_override_value
+    if hide_past_due:
+        reset_args["hide_past_due"] = "1"
+    orders_reset_url = url_for("orders", **reset_args)
+    toggle_args = request.args.to_dict(flat=True)
+    if hide_past_due:
+        toggle_args.pop("hide_past_due", None)
+    else:
+        toggle_args["hide_past_due"] = "1"
+    past_due_toggle_url = url_for("orders", **_clean_query_params(toggle_args))
 
     return render_template(
         "orders.html",
@@ -4225,13 +4532,16 @@ def orders_optimize():
         rejected_orders=rejected_orders,
         ship_date_range=ship_date_range,
         plant_filters=plant_filters,
-        plant_filter_param=",".join(plant_filters) if plant_filters else "",
+        plant_filter_param=plant_filter_param,
         due_filter=due_filter,
         due_start=due_start,
         due_end=due_end,
         assignment_filter=assignment_filter,
         plant_cards=plant_cards,
         orders_snapshot=orders_snapshot,
+        hide_past_due=hide_past_due,
+        past_due_toggle_url=past_due_toggle_url,
+        orders_reset_url=orders_reset_url,
         today_override=today_override,
         today_override_value=today_override_value,
         today_override_label=today_override_label,
@@ -4738,15 +5048,8 @@ def loads():
         load["utilization_pct"] = utilization_pct
         exceeds_capacity = schematic.get("exceeds_capacity", False)
         load["over_capacity"] = exceeds_capacity and len(order_numbers) <= 1
-        display_utilization_pct = utilization_pct
-        if exceeds_capacity and display_utilization_pct < 100:
-            display_utilization_pct = 100.0
-        load["display_utilization_pct"] = display_utilization_pct
-        load["utilization_display_note"] = (
-            "Over-capacity by deck fit. Utilization is capped at 100% for display."
-            if exceeds_capacity and utilization_pct < 100
-            else ""
-        )
+        load["display_utilization_pct"] = utilization_pct
+        load["utilization_display_note"] = ""
         load["raw_total_length_ft"] = round(
             sum(
                 float(line.get("total_length_ft") or line.get("line_total_feet") or 0.0)
@@ -6039,6 +6342,27 @@ def _build_load_report_rows(loads):
             trailer_type,
             stop_sequence_map=stop_sequence_map,
         )
+        trailer_config = _trailer_config_for_type(trailer_type)
+        schematic = dict(schematic or {})
+        schematic.setdefault("positions", [])
+        schematic.setdefault("warnings", [])
+        schematic.setdefault("trailer_type", trailer_config["type"])
+        schematic.setdefault("capacity_feet", trailer_config["capacity"])
+        schematic.setdefault("lower_deck_length", trailer_config["lower"])
+        schematic.setdefault("upper_deck_length", trailer_config["upper"])
+        schematic.setdefault(
+            "utilization_pct",
+            round(float(load.get("utilization_pct") or 0), 1),
+        )
+        schematic.setdefault(
+            "utilization_grade",
+            _utilization_grade(float(schematic.get("utilization_pct") or 0)),
+        )
+        schematic_warnings = list(schematic.get("warnings") or [])
+        display_utilization_pct = round(
+            float(schematic.get("utilization_pct") or load.get("utilization_pct") or 0),
+            1,
+        )
 
         order_map = {}
         customers = set()
@@ -6233,6 +6557,11 @@ def _build_load_report_rows(loads):
                 "schematic_blocks": deck_blocks,
                 "schematic_summary_text": " | ".join(schematic_segments),
                 "schematic": schematic,
+                "display_utilization_pct": display_utilization_pct,
+                "over_capacity": bool(schematic.get("exceeds_capacity")),
+                "schematic_warnings": schematic_warnings,
+                "schematic_warning_count": len(schematic_warnings),
+                "has_custom_schematic": False,
                 "order_colors": order_colors,
                 "auto_trailer_label": "",
                 "auto_trailer_reason": "",
@@ -9272,7 +9601,12 @@ def order_stack_config(so_num):
             }
         )
 
-    config = stack_calculator.calculate_stack_configuration(line_items)
+    # Orders page schematic should show strict stack capacity without singleton overflow allowance.
+    # Keep overflow logic enabled for optimization and Loads page workflows.
+    config = stack_calculator.calculate_stack_configuration(
+        line_items,
+        stack_overflow_max_height=0,
+    )
     config["order_id"] = so_num
     config["line_items"] = line_items
     config["positions_count"] = len(config["positions"])

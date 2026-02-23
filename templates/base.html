@@ -39,6 +39,12 @@
                 <span class="material-symbols-outlined nav-icon">local_shipping</span>
                 <span class="nav-text">Loads</span>
               </a>
+              {% if show_tutorial_nav %}
+                <a class="nav-item nav-item-tutorial{% if request.path.startswith('/tutorial') %} active{% endif %}" href="{{ url_for('tutorial') }}">
+                  <span class="material-symbols-outlined nav-icon">school</span>
+                  <span class="nav-text">Tutorial</span>
+                </a>
+              {% endif %}
             </div>
             <div class="nav-section">
               <div class="nav-section-label">ADMIN</div>
@@ -120,7 +126,7 @@
         </aside>
       {% endif %}
       <div class="app-main">
-        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') or request.path.startswith('/dashboard') or request.path == '/' or request.path.startswith('/settings') %} page-full{% endif %}{% if request.path == '/loads' %} page-loads-index{% endif %}">
+        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') or request.path.startswith('/dashboard') or request.path == '/' or request.path.startswith('/settings') or request.path.startswith('/tutorial') %} page-full{% endif %}{% if request.path == '/loads' %} page-loads-index{% endif %}">
           {% block content %}{% endblock %}
         </main>
       </div>

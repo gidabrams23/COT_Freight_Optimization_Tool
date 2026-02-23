@@ -4035,6 +4035,22 @@ button.plant-card {
   padding: 0;
 }
 
+.orders-page .panel-actions .orders-stealth-toggle {
+  opacity: 0.45;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  transition: opacity 0.2s ease;
+}
+
+.orders-page .panel-actions .orders-stealth-toggle:hover,
+.orders-page .panel-actions .orders-stealth-toggle.is-active {
+  opacity: 0.82;
+}
+
+.orders-page .panel-actions .meta-chip-button {
+  cursor: pointer;
+}
+
 .orders-page .panel-body {
   padding: var(--spacing-md);
   background: rgba(30, 41, 59, 0.35);
@@ -6909,6 +6925,10 @@ button.plant-card {
   position: relative;
 }
 
+.trailer-schematic .position-column[style*="--deck-span"] {
+  flex: var(--deck-span, 1) 1 0;
+}
+
 .trailer-schematic .stack-overflow-indicator {
   position: absolute;
   bottom: 20px;
@@ -7588,8 +7608,8 @@ button.plant-card {
 }
 
 .settings-card-defaults .settings-defaults-table tbody td {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .settings-defaults-table tbody tr:hover {
@@ -7693,24 +7713,41 @@ button.plant-card {
   border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
-.util-a .grade-pill {
-  background: #10b981;
+.settings-card-grades .grade-pill {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.45);
 }
 
-.util-b .grade-pill {
+.settings-card-grades .util-a .grade-pill {
   background: #10b981;
+  border-color: rgba(16, 185, 129, 0.65);
 }
 
-.util-c .grade-pill {
+.settings-card-grades .util-b .grade-pill {
+  background: #10b981;
+  border-color: rgba(16, 185, 129, 0.65);
+}
+
+.settings-card-grades .util-c .grade-pill {
   background: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.72);
 }
 
-.util-d .grade-pill {
+.settings-card-grades .util-d .grade-pill {
   background: #fb923c;
+  border-color: rgba(251, 146, 60, 0.72);
 }
 
-.util-f .grade-pill {
+.settings-card-grades .util-f .grade-pill {
   background: #ef4444;
+  border-color: rgba(239, 68, 68, 0.72);
 }
 
 .util-grade-name {
@@ -7993,15 +8030,32 @@ button.plant-card {
   table-layout: auto;
 }
 
+.settings-card-plants .settings-table-shell,
+.settings-card-defaults .settings-table-shell {
+  min-height: 318px;
+  max-height: 318px;
+  overflow: auto;
+}
+
+.settings-card-plants #overview-plants-table tbody td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.settings-card-plants #overview-plants-table .table-input {
+  min-height: 28px;
+}
+
 .settings-card-defaults .settings-default-input {
   max-width: 132px;
+  height: 26px;
 }
 
 .settings-card-defaults .settings-defaults-table select.settings-default-input[name="trailer_type"] {
   width: 148px;
   max-width: 148px;
   min-width: 148px;
-  height: 30px;
+  height: 28px;
   line-height: 1.15;
   padding: 3px 26px 2px 10px;
 }
@@ -11938,9 +11992,9 @@ button.plant-card {
   background: rgba(15, 23, 42, 0.65);
   border: 1px solid rgba(51, 65, 85, 0.6);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px 12px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   height: 100%;
 }
 
@@ -11953,14 +12007,28 @@ button.plant-card {
 
 .integrity-metrics {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .integrity-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.18;
   color: #e2e8f0;
+}
+
+.integrity-row > span {
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.integrity-row > strong {
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .integrity-row strong.success {
@@ -13493,4 +13561,272 @@ button.plant-card {
 
 .orders-page .orders-expanded-pane #order-map {
   height: 190px;
+}
+
+/* Tutorial module */
+.nav-item-tutorial {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  margin-top: 8px;
+}
+
+.tutorial-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tutorial-hero {
+  padding: 18px 20px;
+}
+
+.tutorial-hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tutorial-hero-title-row h1 {
+  margin: 0;
+}
+
+.tutorial-hero-subtitle {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+
+.tutorial-alert {
+  margin: 0;
+}
+
+.tutorial-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.tutorial-modules {
+  height: fit-content;
+  position: sticky;
+  top: 14px;
+}
+
+.tutorial-modules-header {
+  padding: 14px 16px 8px;
+}
+
+.tutorial-modules-header h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.tutorial-module-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 14px;
+}
+
+.tutorial-module-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: rgba(11, 22, 35, 0.4);
+  padding: 10px 12px;
+  transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+.tutorial-module-link:hover,
+.tutorial-module-link:focus-visible {
+  border-color: rgba(29, 142, 255, 0.65);
+  transform: translateY(-1px);
+}
+
+.tutorial-module-link.active {
+  border-color: rgba(16, 185, 129, 0.7);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.tutorial-module-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tutorial-module-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tutorial-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tutorial-module {
+  padding: 14px 16px;
+}
+
+.tutorial-module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tutorial-module-header h2 {
+  margin: 0;
+}
+
+.tutorial-module-summary {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+}
+
+.tutorial-step-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin: 14px 0 0;
+  padding-left: 18px;
+}
+
+.tutorial-step-index a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.tutorial-step-index a:hover,
+.tutorial-step-index a:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.tutorial-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tutorial-step {
+  padding: 14px 16px;
+}
+
+.tutorial-step:focus-visible {
+  outline: 2px solid rgba(29, 142, 255, 0.75);
+  outline-offset: 2px;
+}
+
+.tutorial-step-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.tutorial-step-head h3 {
+  margin: 0;
+}
+
+.tutorial-step-number {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.tutorial-step-instruction {
+  margin: 0 0 10px;
+  color: var(--text-secondary);
+}
+
+.tutorial-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.tutorial-note-label {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tutorial-note-tip {
+  background: rgba(20, 184, 166, 0.1);
+  border-color: rgba(20, 184, 166, 0.45);
+}
+
+.tutorial-note-warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.tutorial-note-required {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.tutorial-media {
+  margin: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(5, 11, 18, 0.7);
+}
+
+.tutorial-media img,
+.tutorial-media video {
+  width: 100%;
+  display: block;
+}
+
+.tutorial-media figcaption {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-default);
+  font-size: 12px;
+}
+
+.tutorial-media-missing {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.tutorial-empty-state {
+  padding: 20px;
+}
+
+.tutorial-empty-state h2 {
+  margin-top: 0;
+}
+
+@media (max-width: 1080px) {
+  .tutorial-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .tutorial-modules {
+    position: static;
+  }
+
+  .tutorial-step-index {
+    grid-template-columns: 1fr;
+  }
 }

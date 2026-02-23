@@ -497,9 +497,6 @@
                             <div class="util-progress">
                               <span class="util-fill {{ util_class }}" data-util-fill style="width: {{ util_width }}%;"></span>
                             </div>
-                            {% if load.utilization_display_note %}
-                              <div class="subtext">{{ load.utilization_display_note }}</div>
-                            {% endif %}
                           </div>
 
                           {% set freight = load.freight_breakdown or {} %}

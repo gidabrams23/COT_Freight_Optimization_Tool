@@ -28,10 +28,6 @@
         <div class="schematic-stats">
           <span class="metric-label">Utilization</span>
           <span class="metric-value">{{ util_pct_display }}%</span>
-          <span class="metric-label">Linear Ft</span>
-          <span class="metric-value">{{ (load.schematic.total_linear_feet or 0) | round(0) | int }} / {{ capacity_ft | round(0) | int }}</span>
-          <span class="metric-label">Credit Ft</span>
-          <span class="metric-value">{{ (load.schematic.utilization_credit_ft or 0) | round(0) | int }}</span>
           <span class="metric-label">Grade</span>
           <span class="metric-value grade">Grade {{ util_grade }}</span>
         </div>
@@ -80,8 +76,6 @@
       {% if trailer == 'STEP_DECK' and has_upper %}
         {% set lower_rem_ft = lower_deck_ft - lower_used_ft %}
         {% set upper_rem_ft = upper_deck_ft - upper_used_ft %}
-        {% set lower_rem_pct = ((lower_rem_ft / lower_display_ft) * 100) if lower_display_ft else 0 %}
-        {% set upper_rem_pct = ((upper_rem_ft / upper_display_ft) * 100) if upper_display_ft else 0 %}
         {% set lower_overhang_ft = (lower_used_ft - lower_deck_ft) if (lower_used_ft - lower_deck_ft) > 0.05 else 0 %}
         {% set upper_overhang_ft = (upper_used_ft - upper_deck_ft) if (upper_used_ft - upper_deck_ft) > 0.05 else 0 %}
         {% set lower_overhang = lower_overhang_ft > 0 %}
@@ -96,8 +90,7 @@
             </div>
             <div class="deck-positions">
               {% for pos in lower_positions %}
-                {% set pos_width = ((pos.length_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 0 %}
-                <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+                <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
                   {% if pos.overflow_applied %}
                     {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
                     <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
@@ -154,7 +147,7 @@
               {% endfor %}
 
               {% if lower_rem_ft > 0.05 and not read_only_mode %}
-                <div class="position-column vacant" style="flex: 0 0 {{ lower_rem_pct }}%;">
+                <div class="position-column vacant" style="--deck-span: {{ lower_rem_ft | float | round(3) }};">
                   <div class="position-stack vacant-stack">
                     <div class="vacant-block">
                       <div class="vacant-meta">{{ lower_rem_ft | round(0) | int }} ft remaining</div>
@@ -184,8 +177,7 @@
             <div class="deck-stage deck-stage-upper">
               <div class="deck-positions">
                 {% for pos in upper_positions %}
-                  {% set pos_width = ((pos.length_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 0 %}
-                  <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+                  <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
                     {% if pos.overflow_applied %}
                       {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
                       <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
@@ -242,7 +234,7 @@
                 {% endfor %}
 
                 {% if upper_rem_ft > 0.05 and upper_used_ft <= 0.05 and not read_only_mode %}
-                  <div class="position-column vacant" style="flex: 0 0 {{ upper_rem_pct }}%;">
+                  <div class="position-column vacant" style="--deck-span: {{ upper_rem_ft | float | round(3) }};">
                     <div class="position-stack vacant-stack">
                       <div class="vacant-block">
                         <div class="vacant-meta">{{ upper_rem_ft | round(0) | int }} ft remaining</div>
@@ -268,7 +260,6 @@
       {% else %}
         <div class="trailer-deck lower" style="flex: 1 1 auto;">
           {% set lower_rem_ft = lower_deck_ft - lower_used_ft %}
-          {% set lower_rem_pct = ((lower_rem_ft / lower_display_ft) * 100) if lower_display_ft else 0 %}
           {% if trailer == 'FLATBED' %}
             <div class="deck-label">Main Deck</div>
           {% else %}
@@ -276,8 +267,7 @@
           {% endif %}
           <div class="deck-positions">
             {% for pos in load.schematic.positions if pos.deck == 'lower' %}
-              {% set pos_width = ((pos.length_ft / lower_display_ft) * 100) | round(1) if lower_display_ft else 0 %}
-              <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+              <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
                 {% if pos.overflow_applied %}
                   {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
                   <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
@@ -333,7 +323,7 @@
               </div>
             {% endfor %}
             {% if lower_rem_ft > 0.05 and not read_only_mode %}
-              <div class="position-column vacant" style="flex: 0 0 {{ lower_rem_pct }}%;">
+              <div class="position-column vacant" style="--deck-span: {{ lower_rem_ft | float | round(3) }};">
                 <div class="position-stack vacant-stack">
                   <div class="vacant-block">
                     <div class="vacant-meta">{{ lower_rem_ft | round(0) | int }} ft remaining</div>
@@ -364,8 +354,7 @@
             <div class="deck-label">Upper Deck - {{ load.schematic.upper_deck_length | round(0) | int }} ft</div>
             <div class="deck-positions">
               {% for pos in load.schematic.positions if pos.deck == 'upper' %}
-                {% set pos_width = ((pos.length_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 0 %}
-                <div class="position-column" style="flex: 0 0 {{ pos_width }}%;">
+                <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
                   {% if pos.overflow_applied %}
                     {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
                     <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>

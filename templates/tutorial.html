@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="tutorial-page">
+    <header class="tutorial-hero card-widget">
+      <div class="tutorial-hero-main">
+        <div class="tutorial-hero-title-row">
+          <h1>Tutorial Center</h1>
+          <span class="meta-chip">v{{ tutorial_manifest_version }}</span>
+        </div>
+        <p class="tutorial-hero-subtitle">Step-by-step visual walkthroughs for core planning workflows. Media uses sanitized demo data only.</p>
+      </div>
+    </header>
+
+    {% if tutorial_error %}
+      <div class="alert alert-warning tutorial-alert">{{ tutorial_error }}</div>
+    {% endif %}
+
+    {% if tutorial_modules %}
+      <div class="tutorial-layout">
+        <aside class="tutorial-modules card-widget" aria-label="Tutorial modules">
+          <div class="tutorial-modules-header">
+            <h2>Modules</h2>
+          </div>
+          <nav class="tutorial-module-nav">
+            {% for module in tutorial_modules %}
+              <a
+                class="tutorial-module-link{% if tutorial_selected_module and tutorial_selected_module.slug == module.slug %} active{% endif %}"
+                href="{{ url_for('tutorial', module=module.slug) }}"
+              >
+                <span class="tutorial-module-title">{{ module.title }}</span>
+                <span class="tutorial-module-meta">{{ module.steps | length }} steps</span>
+              </a>
+            {% endfor %}
+          </nav>
+        </aside>
+
+        <div class="tutorial-content">
+          {% if tutorial_selected_module %}
+            <section class="tutorial-module card-widget">
+              <div class="tutorial-module-header">
+                <div>
+                  <h2>{{ tutorial_selected_module.title }}</h2>
+                  <p class="tutorial-module-summary">{{ tutorial_selected_module.summary }}</p>
+                </div>
+                {% if tutorial_selected_module.route_hint %}
+                  <span class="meta-chip">Route: {{ tutorial_selected_module.route_hint }}</span>
+                {% endif %}
+              </div>
+
+              <ol class="tutorial-step-index" aria-label="Step index">
+                {% for step in tutorial_selected_module.steps %}
+                  <li>
+                    <a href="#tutorial-step-{{ step.id }}">{{ loop.index }}. {{ step.title }}</a>
+                  </li>
+                {% endfor %}
+              </ol>
+            </section>
+
+            <div class="tutorial-steps">
+              {% for step in tutorial_selected_module.steps %}
+                <article class="tutorial-step card-widget" id="tutorial-step-{{ step.id }}" tabindex="-1">
+                  <div class="tutorial-step-head">
+                    <div class="tutorial-step-number">Step {{ loop.index }}</div>
+                    <h3>{{ step.title }}</h3>
+                  </div>
+                  <p class="tutorial-step-instruction">{{ step.instruction }}</p>
+
+                  {% if step.note_text %}
+                    <div class="tutorial-note tutorial-note-{{ step.note_tone }}">
+                      <span class="tutorial-note-label">{{ step.note_label or "Note" }}</span>
+                      <span>{{ step.note_text }}</span>
+                    </div>
+                  {% endif %}
+
+                  <figure class="tutorial-media">
+                    {% if step.media.exists %}
+                      {% if step.media.type == 'video' %}
+                        <video
+                          controls
+                          playsinline
+                          preload="none"
+                          {% if step.media.poster and step.media.poster_exists %}poster="{{ url_for('static', filename=step.media.poster) }}"{% endif %}
+                        >
+                          <source src="{{ url_for('static', filename=step.media.src) }}" type="video/mp4">
+                          Your browser does not support embedded videos.
+                        </video>
+                      {% else %}
+                        <img src="{{ url_for('static', filename=step.media.src) }}" alt="{{ step.media.alt }}">
+                      {% endif %}
+                    {% else %}
+                      <div class="tutorial-media-missing" role="status" aria-live="polite">
+                        <span class="material-symbols-outlined">hide_image</span>
+                        <span>Media placeholder pending capture: {{ step.media.src }}</span>
+                      </div>
+                    {% endif %}
+
+                    {% if step.media.caption %}
+                      <figcaption>{{ step.media.caption }}</figcaption>
+                    {% endif %}
+                  </figure>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="card-widget tutorial-empty-state">
+              <h2>No Tutorial Module Selected</h2>
+              <p>Select a module from the left panel to view instructions.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

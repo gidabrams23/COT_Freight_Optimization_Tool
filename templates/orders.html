@@ -38,6 +38,9 @@
                   {% if today_override_value %}
                     <input type="hidden" name="today" value="{{ today_override_value }}">
                   {% endif %}
+                  {% if hide_past_due %}
+                    <input type="hidden" name="hide_past_due" value="1">
+                  {% endif %}
                   <input type="hidden" name="trailer_type" value="{{ optimize_defaults.trailer_type or 'STEP_DECK' }}">
                   <input type="hidden" name="capacity_feet" value="{{ optimize_defaults.capacity_feet }}">
                   <input type="hidden" name="max_detour_pct" value="{{ optimize_defaults.max_detour_pct }}">
@@ -349,7 +352,24 @@
                 <span class="meta-chip">{{ plant }}</span>
               {% endfor %}
             {% else %}
-              <span class="meta-chip">All Plants</span>
+              <button
+                type="button"
+                class="meta-chip meta-chip-button"
+                data-all-plants-chip
+                aria-controls="orders-past-due-toggle"
+                aria-expanded="false"
+              >
+                All Plants
+              </button>
+              <a
+                id="orders-past-due-toggle"
+                class="btn-ghost btn-xs orders-stealth-toggle hidden{% if hide_past_due %} is-active{% endif %}"
+                href="{{ past_due_toggle_url }}"
+                data-past-due-toggle
+                title="{% if hide_past_due %}Show past due orders on this page{% else %}Hide past due orders on this page{% endif %}"
+              >
+                {% if hide_past_due %}Past Due Hidden{% else %}Hide Past Due{% endif %}
+              </a>
             {% endif %}
           </div>
         </div>
@@ -630,6 +650,9 @@
               {% if today_override_value %}
                 <input type="hidden" name="today" value="{{ today_override_value }}">
               {% endif %}
+              {% if hide_past_due %}
+                <input type="hidden" name="hide_past_due" value="1">
+              {% endif %}
               <label>
                 Due Date
                 <select name="due" id="due-filter">
@@ -678,7 +701,7 @@
                 <span class="material-symbols-outlined">filter_alt</span>
                 Apply
               </button>
-              <a class="btn-secondary" href="{% if plant_filter_param and today_override_value %}{{ url_for('orders', plants=plant_filter_param, today=today_override_value) }}{% elif plant_filter_param %}{{ url_for('orders', plants=plant_filter_param) }}{% elif today_override_value %}{{ url_for('orders', today=today_override_value) }}{% else %}{{ url_for('orders') }}{% endif %}">
+              <a class="btn-secondary" href="{{ orders_reset_url }}">
                 <span class="material-symbols-outlined">restart_alt</span>
                 Reset
               </a>
@@ -891,6 +914,16 @@
       const todayInput = document.getElementById('orders-today-input');
       const todayApply = document.querySelector('[data-today-apply]');
       const todayClear = document.querySelector('[data-today-clear]');
+      const allPlantsChip = document.querySelector('[data-all-plants-chip]');
+      const pastDueToggle = document.querySelector('[data-past-due-toggle]');
+
+      if (allPlantsChip && pastDueToggle) {
+        allPlantsChip.addEventListener('click', () => {
+          const nextHidden = !pastDueToggle.classList.contains('hidden');
+          pastDueToggle.classList.toggle('hidden', nextHidden);
+          allPlantsChip.setAttribute('aria-expanded', nextHidden ? 'false' : 'true');
+        });
+      }
 
       if (optimizePanel) {
         optimizePanel.addEventListener('submit', (event) => {

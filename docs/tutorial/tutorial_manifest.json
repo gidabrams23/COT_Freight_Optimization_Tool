@@ -1,0 +1,333 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "slug": "edit-settings",
+      "title": "Edit Settings",
+      "route_hint": "/settings",
+      "audience": [
+        "all"
+      ],
+      "summary": "Maintain rates, optimizer defaults, and planning controls used by downstream load generation.",
+      "steps": [
+        {
+          "id": "open-settings-overview",
+          "title": "Open Settings Overview",
+          "instruction": "From the left navigation, open Settings and confirm you are on the Overview tab.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/settings/01-settings-overview.svg",
+            "alt": "Settings page overview tab"
+          },
+          "note": {
+            "tone": "tip",
+            "text": "Use this view to confirm current defaults before editing."
+          }
+        },
+        {
+          "id": "edit-optimizer-defaults",
+          "title": "Update Optimizer Defaults",
+          "instruction": "Adjust trailer, capacity, flex, and geo settings, then click Save Defaults.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/settings/02-optimizer-defaults.svg",
+            "alt": "Optimizer defaults form in Settings"
+          },
+          "note": {
+            "tone": "required",
+            "text": "Only approved planners/admins should change global defaults."
+          }
+        },
+        {
+          "id": "edit-rates",
+          "title": "Update Rate Inputs",
+          "instruction": "Use Rate Matrix and global metrics controls to keep freight estimates accurate.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/settings/03-rate-matrix.svg",
+            "alt": "Rates and metrics controls"
+          }
+        },
+        {
+          "id": "confirm-settings-save",
+          "title": "Confirm Changes",
+          "instruction": "Verify updated values render in overview cards and downstream planning pages.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/settings/04-save-confirmation.svg",
+            "alt": "Saved settings confirmation state"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "upload-orders",
+      "title": "Upload Orders",
+      "route_hint": "/orders",
+      "audience": [
+        "all"
+      ],
+      "summary": "Import order CSV files, monitor processing progress, and resolve SKU mapping gaps.",
+      "steps": [
+        {
+          "id": "open-data-intake",
+          "title": "Open Data Intake Hub",
+          "instruction": "Go to Orders and locate the Data Intake Hub panel.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/upload-orders/01-data-intake-hub.svg",
+            "alt": "Data Intake Hub in Orders page"
+          }
+        },
+        {
+          "id": "run-upload",
+          "title": "Upload CSV and Watch Progress",
+          "instruction": "Click Upload Orders, select a CSV file, and monitor the upload modal until completion.",
+          "media": {
+            "type": "video",
+            "src": "tutorial/upload-orders/02-upload-progress.mp4",
+            "poster": "tutorial/upload-orders/02-upload-progress-poster.svg",
+            "caption": "Example click-to-play upload walkthrough."
+          }
+        },
+        {
+          "id": "resolve-unmapped",
+          "title": "Resolve Unmapped SKU Items",
+          "instruction": "Review unmapped SKU cards, accept suggested dimensions, and approve entries.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/upload-orders/03-unmapped-skus.svg",
+            "alt": "Unmapped SKU resolution cards"
+          },
+          "note": {
+            "tone": "warning",
+            "text": "Incorrect SKU dimensions can distort utilization and load quality."
+          }
+        },
+        {
+          "id": "review-upload-history",
+          "title": "Review Upload Results",
+          "instruction": "Check recent import history, mapped percentage, and changed/reopened order counts.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/upload-orders/04-upload-history.svg",
+            "alt": "Recent imports and mapping quality"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "review-orders",
+      "title": "Review Orders",
+      "route_hint": "/orders",
+      "audience": [
+        "all"
+      ],
+      "summary": "Filter, inspect, and validate orders before launching optimization.",
+      "steps": [
+        {
+          "id": "set-order-filters",
+          "title": "Set Filters and Scope",
+          "instruction": "Apply plant, due-date, state, and customer filters to focus on the right order pool.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/review-orders/01-orders-filters.svg",
+            "alt": "Orders filters and plant scope controls"
+          }
+        },
+        {
+          "id": "select-order",
+          "title": "Select an Order Row",
+          "instruction": "Click an order row to load the expanded review pane.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/review-orders/02-select-order-row.svg",
+            "alt": "Selecting an order row"
+          }
+        },
+        {
+          "id": "inspect-line-items",
+          "title": "Inspect Line Items and Stack Data",
+          "instruction": "Review line-level quantities, stacking assumptions, and utilization signals.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/review-orders/03-expanded-order-details.svg",
+            "alt": "Expanded order details and stack panel"
+          }
+        },
+        {
+          "id": "validate-map-stops",
+          "title": "Validate Destinations and Map Stops",
+          "instruction": "Confirm destination sequence and identify any warning indicators before optimization.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/review-orders/04-stack-map-review.svg",
+            "alt": "Order destination map and stop validation"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "generate-draft-loads",
+      "title": "Generate Draft Loads",
+      "route_hint": "/orders",
+      "audience": [
+        "all"
+      ],
+      "summary": "Use the Session Config Workbench to generate draft loads from the current order pool.",
+      "steps": [
+        {
+          "id": "open-workbench",
+          "title": "Open Session Config Workbench",
+          "instruction": "Click Generate Draft Loads to open optimization settings.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/generate-loads/01-open-workbench.svg",
+            "alt": "Generate Draft Loads button and workbench panel"
+          }
+        },
+        {
+          "id": "set-origin-and-scope",
+          "title": "Set Origin and Scope",
+          "instruction": "Select origin plant and optional state/customer filters for the run.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/generate-loads/02-set-scope.svg",
+            "alt": "Origin and scope controls in workbench"
+          }
+        },
+        {
+          "id": "configure-scheduling",
+          "title": "Configure Scheduling Logic",
+          "instruction": "Set start date, batch horizon, and due-date flexibility based on dispatch needs.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/generate-loads/03-schedule-logic.svg",
+            "alt": "Scheduling controls for optimization"
+          }
+        },
+        {
+          "id": "run-optimization",
+          "title": "Run Optimization",
+          "instruction": "Submit Run Optimization and transition to the Loads review view.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/generate-loads/04-run-optimization.svg",
+            "alt": "Run optimization action"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "approve-reject-rebuild-loads",
+      "title": "Approve / Reject / Rebuild Loads",
+      "route_hint": "/loads",
+      "audience": [
+        "all"
+      ],
+      "summary": "Review draft loads, approve final loads, return orders to pool, and rebuild unapproved loads.",
+      "steps": [
+        {
+          "id": "open-load-review",
+          "title": "Open Draft and Final Tabs",
+          "instruction": "Use Loads tabs to switch between draft review and finalized outputs.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/loads-approval/01-draft-vs-final.svg",
+            "alt": "Draft vs final tab navigation on Loads page"
+          }
+        },
+        {
+          "id": "inspect-selected-load",
+          "title": "Inspect Selected Load",
+          "instruction": "Open a load and review schematic, manifest, map, utilization, and freight details.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/loads-approval/02-load-detail-review.svg",
+            "alt": "Detailed load inspection panel"
+          }
+        },
+        {
+          "id": "approve-or-return",
+          "title": "Approve or Return Orders",
+          "instruction": "Approve strong loads or return orders to pool with a required reason and detail.",
+          "media": {
+            "type": "video",
+            "src": "tutorial/loads-approval/03-approve-reject.mp4",
+            "poster": "tutorial/loads-approval/03-approve-reject-poster.svg",
+            "caption": "Example click-to-play approval and return workflow."
+          },
+          "note": {
+            "tone": "required",
+            "text": "Returning orders requires a reason and at least 10 characters of details."
+          }
+        },
+        {
+          "id": "rebuild-unapproved",
+          "title": "Rebuild Unapproved Loads",
+          "instruction": "Use clear/rebuild actions to regenerate draft loads for remaining order pools.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/loads-approval/04-rebuild-loads.svg",
+            "alt": "Load clear and rebuild controls"
+          },
+          "note": {
+            "tone": "warning",
+            "text": "Clear and rebuild actions can remove current draft composition."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "access-load-report",
+      "title": "Access Load Report",
+      "route_hint": "/load-report/<session_id>",
+      "audience": [
+        "all"
+      ],
+      "summary": "Access completed-session reporting, export workbook output, and print report views.",
+      "steps": [
+        {
+          "id": "complete-session",
+          "title": "Complete Session Approval",
+          "instruction": "Ensure all session loads are approved so report actions become available.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/load-report/01-completed-session.svg",
+            "alt": "Completed session requirement before report access"
+          }
+        },
+        {
+          "id": "open-report",
+          "title": "Open Load Report",
+          "instruction": "From completed load actions, open Load Report for the active session.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/load-report/02-open-load-report.svg",
+            "alt": "Open load report action from loads page"
+          }
+        },
+        {
+          "id": "download-workbook",
+          "title": "Export Excel Workbook",
+          "instruction": "Use Download Excel to export the structured load-session workbook.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/load-report/03-export-excel.svg",
+            "alt": "Download Excel button on load report page"
+          }
+        },
+        {
+          "id": "print-report",
+          "title": "Print PDF View",
+          "instruction": "Use browser print action from the report page to generate PDF output.",
+          "media": {
+            "type": "image",
+            "src": "tutorial/load-report/04-print-report.svg",
+            "alt": "Print action for load report"
+          }
+        }
+      ]
+    }
+  ]
+}
