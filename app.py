@@ -8400,73 +8400,77 @@ def save_schematic_edit(load_id):
     if not payload.get("can_edit"):
         return jsonify({"error": "Approved loads are read-only."}), 403
 
-    data = request.get_json(silent=True) or {}
-    requested_trailer = (data.get("trailer_type") or payload.get("trailer_type") or "").strip().upper()
-    if requested_trailer not in {"STEP_DECK", "FLATBED", "WEDGE"}:
-        return jsonify({"error": "Invalid trailer type"}), 400
-    if requested_trailer != payload.get("trailer_type"):
-        return jsonify({"error": "Trailer type changed. Update trailer first, then edit schematic."}), 400
-
-    units_by_id = {unit["unit_id"]: unit for unit in (payload.get("units") or [])}
     try:
-        normalized_layout = _normalize_edit_layout(
-            data.get("layout") or {},
+        data = request.get_json(silent=True) or {}
+        requested_trailer = (data.get("trailer_type") or payload.get("trailer_type") or "").strip().upper()
+        if requested_trailer not in {"STEP_DECK", "FLATBED", "WEDGE"}:
+            return jsonify({"error": "Invalid trailer type"}), 400
+        if requested_trailer != payload.get("trailer_type"):
+            return jsonify({"error": "Trailer type changed. Update trailer first, then edit schematic."}), 400
+
+        units_by_id = {unit["unit_id"]: unit for unit in (payload.get("units") or [])}
+        try:
+            normalized_layout = _normalize_edit_layout(
+                data.get("layout") or {},
+                units_by_id,
+                requested_trailer,
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        schematic, warnings = _build_schematic_from_layout(
+            normalized_layout,
             units_by_id,
             requested_trailer,
+            assumptions=payload.get("assumptions") or _get_stack_capacity_assumptions(),
         )
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        confirm_violation = _coerce_bool_value(data.get("confirm_violation"))
+        if warnings and not confirm_violation:
+            return jsonify(
+                {
+                    "ok": False,
+                    "requires_confirmation": True,
+                    "warnings": warnings,
+                    "warning_count": len(warnings),
+                }
+            ), 409
 
-    schematic, warnings = _build_schematic_from_layout(
-        normalized_layout,
-        units_by_id,
-        requested_trailer,
-        assumptions=payload.get("assumptions") or _get_stack_capacity_assumptions(),
-    )
-    confirm_violation = _coerce_bool_value(data.get("confirm_violation"))
-    if warnings and not confirm_violation:
-        return jsonify(
+        db.upsert_load_schematic_override(
+            load_id,
+            requested_trailer,
+            json.dumps(normalized_layout),
+            warnings_json=json.dumps(warnings),
+            is_invalid=bool(warnings),
+            updated_by=_get_session_profile_name() or _get_session_role(),
+        )
+
+        load_data = _build_load_schematic_payload(load_id)
+        if not load_data:
+            return jsonify({"error": "Load not found"}), 404
+
+        tab = (request.args.get("tab") or data.get("tab") or "").strip().lower()
+        response_payload = _build_schematic_fragment_payload(
+            load_data,
+            status=(load_data.get("status") or STATUS_PROPOSED).upper(),
+            tab=tab,
+        )
+        response_payload.update(
             {
-                "ok": False,
-                "requires_confirmation": True,
-                "warnings": warnings,
+                "ok": True,
                 "warning_count": len(warnings),
+                "warnings": warnings,
+                "metrics": {
+                    "utilization_pct": schematic.get("utilization_pct") or 0,
+                    "utilization_grade": schematic.get("utilization_grade") or "F",
+                    "total_linear_feet": schematic.get("total_linear_feet") or 0,
+                    "exceeds_capacity": bool(schematic.get("exceeds_capacity")),
+                },
             }
-        ), 409
-
-    db.upsert_load_schematic_override(
-        load_id,
-        requested_trailer,
-        json.dumps(normalized_layout),
-        warnings_json=json.dumps(warnings),
-        is_invalid=bool(warnings),
-        updated_by=_get_session_profile_name() or _get_session_role(),
-    )
-
-    load_data = _build_load_schematic_payload(load_id)
-    if not load_data:
-        return jsonify({"error": "Load not found"}), 404
-
-    tab = (request.args.get("tab") or data.get("tab") or "").strip().lower()
-    response_payload = _build_schematic_fragment_payload(
-        load_data,
-        status=(load_data.get("status") or STATUS_PROPOSED).upper(),
-        tab=tab,
-    )
-    response_payload.update(
-        {
-            "ok": True,
-            "warning_count": len(warnings),
-            "warnings": warnings,
-            "metrics": {
-                "utilization_pct": schematic.get("utilization_pct") or 0,
-                "utilization_grade": schematic.get("utilization_grade") or "F",
-                "total_linear_feet": schematic.get("total_linear_feet") or 0,
-                "exceeds_capacity": bool(schematic.get("exceeds_capacity")),
-            },
-        }
-    )
-    return jsonify(response_payload)
+        )
+        return jsonify(response_payload)
+    except Exception as exc:
+        logger.exception("Unhandled schematic save error for load_id=%s", load_id)
+        return jsonify({"error": f"Unhandled schematic save error: {exc.__class__.__name__}: {exc}"}), 500
 
 
 @app.route("/loads/<int:load_id>/status", methods=["POST"], strict_slashes=False)
