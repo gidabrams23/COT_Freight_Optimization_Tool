@@ -197,6 +197,57 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
         overflow_ft = stack_calculator.capacity_overflow_feet(config)
         self.assertGreater(overflow_ft, 0.0)
 
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_step_deck_upper_deck_full_stack_gets_full_upper_length_credit(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "TRAILER-7FT",
+                "sku": "T7",
+                "qty": 18,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 6,
+                "category": "FLAT",
+            }
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+        upper_positions = [
+            pos for pos in (config.get("positions") or []) if (pos.get("deck") or "").lower() == "upper"
+        ]
+        self.assertEqual(len(upper_positions), 1)
+        self.assertAlmostEqual(config.get("upper_deck_length") or 0.0, 10.0, places=1)
+        self.assertAlmostEqual(config.get("utilization_credit_ft") or 0.0, 24.0, places=1)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_step_deck_upper_deck_partial_stack_scales_to_upper_length_credit(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "TRAILER-7FT",
+                "sku": "T7",
+                "qty": 3,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 6,
+                "category": "FLAT",
+            }
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+        upper_positions = [
+            pos for pos in (config.get("positions") or []) if (pos.get("deck") or "").lower() == "upper"
+        ]
+        self.assertEqual(len(upper_positions), 1)
+        self.assertAlmostEqual(config.get("utilization_credit_ft") or 0.0, 5.0, places=1)
+
 
 if __name__ == "__main__":
     unittest.main()

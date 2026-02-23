@@ -402,6 +402,36 @@ def _position_credit_multiplier(position, max_stack_utilization_multiplier):
     return 1.0
 
 
+def _calculate_total_credit_feet(positions, trailer_config, max_stack_utilization_multiplier):
+    lower_credit = 0.0
+    upper_credit_raw = 0.0
+    upper_length_used = 0.0
+
+    for pos in positions or []:
+        length_ft = float(pos.get("length_ft") or 0.0)
+        multiplier = _position_credit_multiplier(pos, max_stack_utilization_multiplier)
+        credit = length_ft * multiplier
+        if (pos.get("deck") or "lower") == "upper":
+            upper_credit_raw += credit
+            upper_length_used += length_ft
+        else:
+            lower_credit += credit
+
+    upper_credit = upper_credit_raw
+    trailer_type = (trailer_config.get("type") or "").strip().upper()
+    upper_length = float(trailer_config.get("upper") or 0.0)
+    if (
+        trailer_type == "STEP_DECK"
+        and upper_length > 0
+        and upper_length_used > 0
+        and upper_length_used < (upper_length - 1e-6)
+    ):
+        # Normalize occupied upper-deck stacks to the full 10' basis.
+        upper_credit *= (upper_length / upper_length_used)
+
+    return lower_credit + upper_credit
+
+
 def _deck_usage_totals(positions):
     lower_total = sum(
         pos.get("length_ft") or 0 for pos in positions if (pos.get("deck") or "lower") == "lower"
@@ -801,9 +831,10 @@ def calculate_stack_configuration(
             pos["width_pct"] = 0
 
     total_linear_feet = sum(pos["length_ft"] for pos in positions)
-    total_credit_feet = sum(
-        pos["length_ft"] * _position_credit_multiplier(pos, max_stack_utilization_multiplier)
-        for pos in positions
+    total_credit_feet = _calculate_total_credit_feet(
+        positions,
+        trailer_config,
+        max_stack_utilization_multiplier,
     )
     utilization_pct = (total_credit_feet / capacity) * 100 if total_credit_feet else 0
     max_stack_height = max((pos["units_count"] for pos in positions), default=0)

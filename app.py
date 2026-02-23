@@ -2444,18 +2444,35 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
             pos["width_pct"] = 0
 
     total_linear_feet = sum(_coerce_float_value(pos.get("length_ft"), 0.0) for pos in positions)
-    total_credit_feet = sum(
-        _coerce_float_value(pos.get("length_ft"), 0.0)
-        * (
-            min(
-                _coerce_float_value(pos.get("capacity_used"), 0.0),
-                max_stack_utilization_multiplier,
-            )
-            if pos.get("overflow_applied")
-            else min(_coerce_float_value(pos.get("capacity_used"), 0.0), 1.0)
-        )
-        for pos in positions
-    )
+    lower_credit = 0.0
+    upper_credit_raw = 0.0
+    upper_length_used = 0.0
+    for pos in positions:
+        length_ft = _coerce_float_value(pos.get("length_ft"), 0.0)
+        capacity_used = _coerce_float_value(pos.get("capacity_used"), 0.0)
+        if pos.get("overflow_applied"):
+            multiplier = min(capacity_used, max_stack_utilization_multiplier)
+        else:
+            multiplier = min(capacity_used, 1.0)
+        multiplier = max(multiplier, 0.0)
+        credit = length_ft * multiplier
+        if (pos.get("deck") or "lower") == "upper":
+            upper_credit_raw += credit
+            upper_length_used += length_ft
+        else:
+            lower_credit += credit
+
+    upper_credit = upper_credit_raw
+    if (
+        trailer_config["type"] == "STEP_DECK"
+        and upper_length > 0
+        and upper_length_used > 0
+        and upper_length_used < (upper_length - 1e-6)
+    ):
+        # Normalize occupied upper-deck stacks to the full 10' basis.
+        upper_credit *= (upper_length / upper_length_used)
+
+    total_credit_feet = lower_credit + upper_credit
     utilization_pct = (total_credit_feet / capacity) * 100 if capacity > 0 else 0.0
     max_stack_height = max((pos.get("units_count") or 0 for pos in positions), default=0)
     compatibility_issues = stack_calculator.check_stacking_compatibility(positions)
