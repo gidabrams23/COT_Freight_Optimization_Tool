@@ -64,13 +64,6 @@
       {% endif %}
     </div>
   </div>
-  {% if load.schematic_warnings and load.schematic_warnings | length %}
-    <div class="alert-message warning" style="margin: 8px 0 10px;">
-      <strong>Planner Warning:</strong>
-      {{ (load.schematic_warnings[0].message if load.schematic_warnings[0].message else 'Review schematic warnings before approval.') }}
-      {% if (load.schematic_warnings | length) > 1 %} (+{{ (load.schematic_warnings | length) - 1 }} more){% endif %}
-    </div>
-  {% endif %}
   <div class="trailer-schematic trailer-{{ load.schematic.trailer_type | lower }}">
     <div class="trailer-body">
       {% if trailer == 'STEP_DECK' and has_upper %}

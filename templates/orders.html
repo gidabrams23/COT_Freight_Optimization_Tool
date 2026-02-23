@@ -32,7 +32,6 @@
                   data-active-session-status="{{ active_session_status }}"
                 >
                   {% set selected_states = optimize_defaults.state_filters or [] %}
-                  {% set selected_customers = optimize_defaults.customer_filters or [] %}
                   <input type="hidden" name="opt_toggles" value="1">
                   <input type="hidden" name="replace_session" value="">
                   {% if today_override_value %}
@@ -73,11 +72,11 @@
                     </div>
                   {% endif %}
 
-                  {% if optimize_errors and optimize_errors | length %}
-                    <div class="form-error optimize-error">
-                      {{ optimize_errors.session or optimize_errors.manual_order_input or optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
-                    </div>
-                  {% endif %}
+                  <div class="form-error optimize-error{% if not (optimize_errors and optimize_errors | length) %} hidden{% endif %}" data-optimize-inline-error data-server-error="{% if optimize_errors and optimize_errors | length %}1{% else %}0{% endif %}">
+                    {% if optimize_errors and optimize_errors | length %}
+                      {{ optimize_errors.session or optimize_errors.manual_order_input or optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.customer_filters or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
+                    {% endif %}
+                  </div>
 
                   <div class="optimize-mode-top-left">
                     <span class="meta-label">Optimization Strategy</span>
@@ -147,11 +146,7 @@
                           <span class="meta-label">Customer Selection</span>
                           <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
                         </div>
-                        <div class="customer-chip-row" data-customer-chips>
-                          <label class="checkbox-pill">
-                            <input type="checkbox" data-customer-all>
-                            <span>All Customers</span>
-                          </label>
+                        <div class="customer-chip-row customer-chip-row-static" data-customer-chips>
                           {% if ns.lowes %}
                             <label class="checkbox-pill">
                               <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
@@ -164,15 +159,13 @@
                               <span>{{ ns.tractor.label }}</span>
                             </label>
                           {% endif %}
-                          <div class="customer-selected" data-selected-chips>
-                            {% for cust in selected_customers %}
-                              <button class="chip-chip" type="button" data-selected-chip="{{ cust }}">
-                                <span>{{ cust }}</span>
-                                <span class="material-symbols-outlined">close</span>
-                              </button>
-                            {% endfor %}
-                          </div>
+                          <label class="checkbox-pill">
+                            <input type="checkbox" data-customer-all>
+                            <span>All Customers</span>
+                          </label>
                         </div>
+                        <p class="customer-selected-summary" data-selected-summary></p>
+                        <div class="customer-selected hidden" data-selected-chips></div>
                         <div class="optimize-dropdown">
                           <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
                             Add Customers
@@ -187,7 +180,7 @@
                               <div class="dropdown-scroll" data-customer-list>
                                 {% for cust in customers %}
                                   <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
-                                    <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input {% if cust in selected_customers %}checked{% endif %}>
+                                    <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input>
                                     <span>{{ cust }}</span>
                                   </label>
                                 {% endfor %}
@@ -653,58 +646,62 @@
               {% if hide_past_due %}
                 <input type="hidden" name="hide_past_due" value="1">
               {% endif %}
-              <label>
-                Due Date
-                <select name="due" id="due-filter">
-                  <option value="" {% if not due_filter %}selected{% endif %}>All Dates</option>
-                  <option value="PAST_DUE" {% if due_filter == 'PAST_DUE' %}selected{% endif %}>Past Due</option>
-                  <option value="THIS_WEEK" {% if due_filter == 'THIS_WEEK' %}selected{% endif %}>Due This Week</option>
-                  <option value="NEXT_WEEK" {% if due_filter == 'NEXT_WEEK' %}selected{% endif %}>Due Next Week</option>
-                  <option value="CUSTOM" {% if due_filter == 'CUSTOM' %}selected{% endif %}>Custom Range</option>
-                </select>
-              </label>
-              <label>
-                Start
-                <input type="date" name="due_start" value="{{ due_start or '' }}" id="due-start">
-              </label>
-              <label>
-                End
-                <input type="date" name="due_end" value="{{ due_end or '' }}" id="due-end">
-              </label>
-              <label>
-                Assignment
-                <select name="assigned">
-                  <option value="" {% if not assignment_filter %}selected{% endif %}>All</option>
-                  <option value="ASSIGNED" {% if assignment_filter == 'ASSIGNED' %}selected{% endif %}>Assigned</option>
-                  <option value="UNASSIGNED" {% if assignment_filter == 'UNASSIGNED' %}selected{% endif %}>Unassigned</option>
-                </select>
-              </label>
-              <label>
-                State
-                <select name="state">
-                  <option value="">All States</option>
-                  {% for state in states %}
-                    <option value="{{ state }}" {% if filters.state == state %}selected{% endif %}>{{ state }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-              <label>
-                Customer
-                <select name="customer">
-                  <option value="">All Customers</option>
-                  {% for cust in customers %}
-                    <option value="{{ cust }}" {% if filters.cust_name == cust %}selected{% endif %}>{{ cust }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-              <button class="btn-secondary" type="submit">
-                <span class="material-symbols-outlined">filter_alt</span>
-                Apply
-              </button>
-              <a class="btn-secondary" href="{{ orders_reset_url }}">
-                <span class="material-symbols-outlined">restart_alt</span>
-                Reset
-              </a>
+              <div class="orders-filter-fields">
+                <label>
+                  Due Date
+                  <select name="due" id="due-filter">
+                    <option value="" {% if not due_filter %}selected{% endif %}>All Dates</option>
+                    <option value="PAST_DUE" {% if due_filter == 'PAST_DUE' %}selected{% endif %}>Past Due</option>
+                    <option value="THIS_WEEK" {% if due_filter == 'THIS_WEEK' %}selected{% endif %}>Due This Week</option>
+                    <option value="NEXT_WEEK" {% if due_filter == 'NEXT_WEEK' %}selected{% endif %}>Due Next Week</option>
+                    <option value="CUSTOM" {% if due_filter == 'CUSTOM' %}selected{% endif %}>Custom Range</option>
+                  </select>
+                </label>
+                <label>
+                  Start
+                  <input type="date" name="due_start" value="{{ due_start or '' }}" id="due-start">
+                </label>
+                <label>
+                  End
+                  <input type="date" name="due_end" value="{{ due_end or '' }}" id="due-end">
+                </label>
+                <label>
+                  Assignment
+                  <select name="assigned">
+                    <option value="" {% if not assignment_filter %}selected{% endif %}>All</option>
+                    <option value="ASSIGNED" {% if assignment_filter == 'ASSIGNED' %}selected{% endif %}>Assigned</option>
+                    <option value="UNASSIGNED" {% if assignment_filter == 'UNASSIGNED' %}selected{% endif %}>Unassigned</option>
+                  </select>
+                </label>
+                <label>
+                  State
+                  <select name="state">
+                    <option value="">All States</option>
+                    {% for state in states %}
+                      <option value="{{ state }}" {% if filters.state == state %}selected{% endif %}>{{ state }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+                <label>
+                  Customer
+                  <select name="customer">
+                    <option value="">All Customers</option>
+                    {% for cust in customers %}
+                      <option value="{{ cust }}" {% if filters.cust_name == cust %}selected{% endif %}>{{ cust }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+              <div class="orders-filter-actions">
+                <button class="btn-secondary orders-filter-apply" type="submit">
+                  <span class="material-symbols-outlined">filter_alt</span>
+                  Apply Filters
+                </button>
+                <a class="btn-secondary orders-filter-reset" href="{{ orders_reset_url }}">
+                  <span class="material-symbols-outlined">restart_alt</span>
+                  Reset
+                </a>
+              </div>
             </form>
           </div>
 
@@ -906,6 +903,7 @@
         auto: Array.from(document.querySelectorAll('[data-optimize-content="auto"]')),
         manual: Array.from(document.querySelectorAll('[data-optimize-content="manual"]')),
       };
+      const optimizeInlineError = document.querySelector('[data-optimize-inline-error]');
       const replaceSessionInput = optimizePanel ? optimizePanel.querySelector('input[name="replace_session"]') : null;
       const activeSessionId = optimizePanel ? optimizePanel.dataset.activeSessionId : '';
       const activeSessionStatus = optimizePanel ? (optimizePanel.dataset.activeSessionStatus || '').toUpperCase() : '';
@@ -925,8 +923,32 @@
         });
       }
 
+      function setOptimizeInlineError(message) {
+        if (!optimizeInlineError) return;
+        const hasServerError = optimizeInlineError.dataset.serverError === '1';
+        if (message) {
+          optimizeInlineError.textContent = message;
+          optimizeInlineError.classList.remove('hidden');
+          return;
+        }
+        if (!hasServerError) {
+          optimizeInlineError.textContent = '';
+          optimizeInlineError.classList.add('hidden');
+        }
+      }
+
       if (optimizePanel) {
         optimizePanel.addEventListener('submit', (event) => {
+          const mode = (optimizeModeInput ? optimizeModeInput.value : 'auto').toLowerCase();
+          if (mode !== 'manual') {
+            const hasSelectedCustomer = Array.from(customerInputs.values()).some((input) => input.checked);
+            if (!hasSelectedCustomer) {
+              event.preventDefault();
+              setOptimizeInlineError('Select at least one customer to run optimization.');
+              return;
+            }
+          }
+          setOptimizeInlineError('');
           if (!activeSessionId || activeSessionStatus !== 'DRAFT') return;
           if (replaceSessionInput && replaceSessionInput.value === '1') return;
           const ok = window.confirm('Replace existing load planning session?');
@@ -1195,6 +1217,7 @@
     const customerList = document.querySelector('[data-customer-list]');
     const customerSearch = document.querySelector('[data-customer-search]');
     const customerInputs = new Map();
+    const selectedSummary = document.querySelector('[data-selected-summary]');
     const selectedChips = document.querySelector('[data-selected-chips]');
     const allCustomersToggle = document.querySelector('[data-customer-all]');
 
@@ -1244,7 +1267,7 @@
       strategicMap.forEach((_, key) => syncStrategicCheckbox(key));
     }
 
-    function setAllCustomers(value) {
+    function clearCustomerSelection() {
       if (!customerList) return;
       customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
         input.checked = false;
@@ -1254,23 +1277,60 @@
         checkbox.indeterminate = false;
       });
       if (allCustomersToggle) {
-        allCustomersToggle.checked = value;
+        allCustomersToggle.checked = false;
       }
+      setOptimizeInlineError('');
+      syncCustomerChips();
+    }
+
+    function setAllCustomers() {
+      if (!customerList) return;
+      customerList.querySelectorAll('[data-customer-input]').forEach((input) => {
+        input.checked = true;
+      });
+      strategicCheckboxes.forEach((checkbox) => {
+        checkbox.checked = true;
+        checkbox.indeterminate = false;
+      });
+      if (allCustomersToggle) {
+        allCustomersToggle.checked = true;
+      }
+      setOptimizeInlineError('');
       syncCustomerChips();
     }
 
     function syncAllCustomersToggle() {
       if (!allCustomersToggle || !customerList) return;
-      const anySelected = customerList.querySelector('input[type="checkbox"]:checked');
-      allCustomersToggle.checked = !anySelected;
+      const inputs = Array.from(customerList.querySelectorAll('[data-customer-input]'));
+      const allSelected = inputs.length > 0 && inputs.every((input) => input.checked);
+      allCustomersToggle.checked = allSelected;
     }
 
     function syncCustomerChips() {
+      if (!selectedSummary) return;
+      if (selectedChips) {
+        selectedChips.querySelectorAll('[data-selected-chip]').forEach((chip) => chip.remove());
+      }
+      if (allCustomersToggle && allCustomersToggle.checked) {
+        selectedSummary.textContent = 'All customers selected.';
+        if (selectedChips) selectedChips.classList.add('hidden');
+        return;
+      }
+      const selectedEntries = Array.from(customerInputs.entries()).filter(([, input]) => input.checked);
+      const selectedCount = selectedEntries.length;
+      if (selectedCount === 0) {
+        selectedSummary.textContent = 'No customers selected.';
+        if (selectedChips) selectedChips.classList.add('hidden');
+      } else if (selectedCount === 1) {
+        selectedSummary.textContent = '';
+      } else {
+        selectedSummary.textContent = '';
+      }
       if (!selectedChips) return;
-      selectedChips.querySelectorAll('[data-selected-chip]').forEach((chip) => chip.remove());
-      customerInputs.forEach((input, name) => {
-        if (!input.checked) return;
+      let chipCount = 0;
+      selectedEntries.forEach(([name, input]) => {
         if (excludedCustomers.has(name)) return;
+        chipCount += 1;
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'chip-chip';
@@ -1280,10 +1340,19 @@
           input.checked = false;
           syncStrategicCheckboxes();
           syncAllCustomersToggle();
+          setOptimizeInlineError('');
           syncCustomerChips();
         });
         selectedChips.appendChild(button);
       });
+      if (chipCount > 0) {
+        selectedChips.classList.remove('hidden');
+      } else {
+        selectedChips.classList.add('hidden');
+        if (!selectedSummary.textContent && selectedCount > 0) {
+          selectedSummary.textContent = selectedCount === 1 ? '1 customer selected.' : `${selectedCount} customers selected.`;
+        }
+      }
     }
 
     if (customerSearch && customerList) {
@@ -1298,7 +1367,7 @@
     }
 
     document.querySelectorAll('[data-clear-all="customers"]').forEach((btn) => {
-      btn.addEventListener('click', () => setAllCustomers(true));
+      btn.addEventListener('click', () => clearCustomerSelection());
     });
 
     document.querySelectorAll('[data-strategic-key]').forEach((checkbox) => {
@@ -1313,6 +1382,7 @@
         });
         syncStrategicCheckboxes();
         syncAllCustomersToggle();
+        setOptimizeInlineError('');
         syncCustomerChips();
       });
     });
@@ -1322,6 +1392,7 @@
         input.addEventListener('change', () => {
           syncStrategicCheckboxes();
           syncAllCustomersToggle();
+          setOptimizeInlineError('');
           syncCustomerChips();
         });
       });
@@ -1330,7 +1401,9 @@
     if (allCustomersToggle) {
       allCustomersToggle.addEventListener('change', () => {
         if (allCustomersToggle.checked) {
-          setAllCustomers(true);
+          setAllCustomers();
+        } else {
+          clearCustomerSelection();
         }
       });
     }

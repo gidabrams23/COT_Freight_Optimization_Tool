@@ -672,10 +672,10 @@ def access_switch():
 
     profile = db.get_access_profile(profile_id) if profile_id else None
     if not profile:
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("orders"))
 
     _apply_profile_to_session(profile, reset_filters=True)
-    next_url = _safe_next_url(request.form.get("next")) or url_for("dashboard")
+    next_url = _safe_next_url(request.form.get("next")) or url_for("orders")
     return redirect(next_url)
 
 
@@ -3613,6 +3613,13 @@ def _build_command_center_dashboard_context():
 
 
 @app.route("/")
+def home():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    return redirect(url_for("orders"))
+
+
 @app.route("/dashboard")
 def dashboard():
     session_redirect = _require_session()
@@ -4285,6 +4292,14 @@ def orders_optimize():
         form_data = _collect_form_data()
         result = {
             "errors": {"manual_order_input": manual_mode_error},
+            "form_data": form_data,
+            "success_message": "",
+            "summary": None,
+        }
+    elif optimize_mode == "auto" and not _collect_form_data().get("customer_filters"):
+        form_data = _collect_form_data()
+        result = {
+            "errors": {"customer_filters": "Select at least one customer to run optimization."},
             "form_data": form_data,
             "success_message": "",
             "summary": None,

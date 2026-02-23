@@ -2250,7 +2250,7 @@ textarea {
   gap: 0;
   width: min(760px, 92vw);
   z-index: 500;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .orders-page .optimize-inline-panel::before {
@@ -2555,6 +2555,18 @@ textarea {
   padding-right: 4px;
 }
 
+.optimize-dropdown [data-dropdown-panel="customers"] {
+  position: relative;
+  top: 0;
+  left: 0;
+  right: auto;
+  margin-top: 2px;
+}
+
+.optimize-dropdown [data-dropdown-panel="customers"] .dropdown-scroll {
+  max-height: 320px;
+}
+
 .customer-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -2562,10 +2574,30 @@ textarea {
   align-items: center;
 }
 
+.customer-chip-row-static {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.customer-chip-row-static .checkbox-pill {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  font-size: 10px;
+}
+
 .customer-selected {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.customer-selected-summary {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.92);
+  min-height: 16px;
 }
 
 .chip-chip {
@@ -2641,6 +2673,150 @@ textarea {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.orders-page .orders-toolbar .filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-areas:
+    "due start end actions"
+    "assignment state customer actions";
+  gap: 12px 14px;
+  align-items: end;
+}
+
+.orders-page .orders-toolbar .filters label {
+  margin: 0;
+}
+
+.orders-filter-fields {
+  display: contents;
+}
+
+.orders-filter-fields > label {
+  min-width: 0;
+}
+
+.orders-filter-fields > label:nth-child(1) {
+  grid-area: due;
+}
+
+.orders-filter-fields > label:nth-child(2) {
+  grid-area: start;
+}
+
+.orders-filter-fields > label:nth-child(3) {
+  grid-area: end;
+}
+
+.orders-filter-fields > label:nth-child(4) {
+  grid-area: assignment;
+}
+
+.orders-filter-fields > label:nth-child(5) {
+  grid-area: state;
+}
+
+.orders-filter-fields > label:nth-child(6) {
+  grid-area: customer;
+}
+
+.orders-page .orders-toolbar .filters select,
+.orders-page .orders-toolbar .filters input {
+  width: 100%;
+  min-width: 0;
+}
+
+.orders-filter-actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  justify-content: end;
+  align-self: stretch;
+  min-width: 0;
+}
+
+.orders-filter-apply,
+.orders-filter-reset {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.orders-filter-apply {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.95), rgba(29, 78, 216, 0.95));
+  border-color: rgba(147, 197, 253, 0.45);
+  color: #eff6ff;
+}
+
+.orders-filter-apply:hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.95), rgba(37, 99, 235, 0.95));
+}
+
+.orders-filter-reset {
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.95), rgba(51, 65, 85, 0.95));
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #e2e8f0;
+}
+
+.orders-filter-reset:hover {
+  background: linear-gradient(180deg, rgba(100, 116, 139, 0.95), rgba(71, 85, 105, 0.95));
+}
+
+@media (max-width: 1300px) {
+  .orders-page .orders-toolbar .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "due start end"
+      "assignment state customer"
+      "actions actions actions";
+  }
+
+  .orders-filter-actions {
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-end;
+  }
+
+  .orders-filter-apply,
+  .orders-filter-reset {
+    width: min(220px, 100%);
+  }
+}
+
+@media (max-width: 900px) {
+  .orders-page .orders-toolbar .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "due start"
+      "end assignment"
+      "state customer"
+      "actions actions";
+  }
+
+  .orders-filter-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 640px) {
+  .orders-page .orders-toolbar .filters {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "due"
+      "start"
+      "end"
+      "assignment"
+      "state"
+      "customer"
+      "actions";
+  }
+
+  .orders-filter-actions {
+    flex-direction: column;
+  }
 }
 
 .optimize-filter-search {

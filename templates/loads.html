@@ -568,17 +568,6 @@
                         <div class="alert-message warning{% if not load.over_capacity %} hidden{% endif %}" id="over-capacity-{{ load.id }}">
                           <strong>Over Capacity:</strong> This is a single-order load that exceeds trailer capacity. Review before dispatch.
                         </div>
-                        <div class="alert-message warning{% if not load.schematic_warning_count %} hidden{% endif %}" id="schematic-warning-{{ load.id }}">
-                          <strong>Schematic Warning:</strong>
-                          <span data-schematic-warning-message>
-                            {% if load.schematic_warning_count %}
-                              {{ (load.schematic_warnings[0].message if load.schematic_warnings and load.schematic_warnings[0].message else 'Review schematic warnings before approval.') }}
-                              {% if load.schematic_warning_count > 1 %} (+{{ load.schematic_warning_count - 1 }} more){% endif %}
-                            {% else %}
-                              Review schematic warnings before approval.
-                            {% endif %}
-                          </span>
-                        </div>
                       </div>
                     </div>
 
@@ -1374,20 +1363,6 @@
       const alert = document.getElementById(`over-capacity-${loadId}`);
       if (alert) {
         alert.classList.toggle('hidden', !(payload && payload.over_capacity));
-      }
-      const schematicAlert = document.getElementById(`schematic-warning-${loadId}`);
-      if (schematicAlert) {
-        const warnings = (payload && Array.isArray(payload.warnings)) ? payload.warnings : [];
-        const firstMessage = warnings.length && warnings[0] && warnings[0].message
-          ? String(warnings[0].message)
-          : 'Review schematic warnings before approval.';
-        const messageNode = schematicAlert.querySelector('[data-schematic-warning-message]');
-        if (messageNode) {
-          messageNode.textContent = warnings.length > 1
-            ? `${firstMessage} (+${warnings.length - 1} more)`
-            : firstMessage;
-        }
-        schematicAlert.classList.toggle('hidden', warnings.length === 0);
       }
       const panel = document.getElementById(`load-detail-${loadId}`);
       if (panel) {
