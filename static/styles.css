@@ -9492,11 +9492,23 @@ button.plant-card {
 
 .loads-tabs-shell .load-tabs {
   margin: 0;
+  flex-wrap: nowrap;
+  min-width: max-content;
 }
 
 .loads-page .load-tabs {
   border-bottom: none;
   padding: 0;
+}
+
+.loads-page .load-tabs-left,
+.loads-page .load-tabs-actions {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.loads-page .load-tabs-actions {
+  flex: 0 0 auto;
 }
 
 .loads-page .load-tab.active {
@@ -9898,13 +9910,15 @@ button.plant-card {
 }
 
 .loads-review-pane .manifest-table {
-  table-layout: fixed;
+  table-layout: auto;
+  width: max-content;
+  min-width: 100%;
 }
 
 .loads-review-pane .manifest-table th,
 .loads-review-pane .manifest-table td {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .loads-review-pane .manifest-table th:nth-child(1),
@@ -9914,7 +9928,7 @@ button.plant-card {
 
 .loads-review-pane .manifest-table th:nth-child(2),
 .loads-review-pane .manifest-table td:nth-child(2) {
-  width: auto;
+  min-width: 240px;
 }
 
 .loads-review-pane .manifest-table td:nth-child(1),
@@ -13828,5 +13842,129 @@ button.plant-card {
 
   .tutorial-step-index {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Loads laptop compact mode: preserve one-screen review without browser zoom. */
+body.loads-auto-compact .page.page-loads-index {
+  padding: 10px;
+}
+
+body.loads-auto-compact .page.page-loads-index .loads-page {
+  gap: 10px;
+}
+
+body.loads-auto-compact .loads-hero-row {
+  grid-template-columns: minmax(400px, 1.4fr) minmax(330px, 1fr);
+  padding: 10px 12px;
+}
+
+body.loads-auto-compact .loads-title h1 {
+  font-size: 13px;
+  letter-spacing: 0.16em;
+}
+
+body.loads-auto-compact .loads-optimization-inline {
+  margin-top: 4px;
+  max-width: 540px;
+}
+
+body.loads-auto-compact .loads-optimization-inline .metric-value {
+  font-size: 15px;
+}
+
+body.loads-auto-compact .loads-optimization-inline .metric-value-sub {
+  font-size: 11px;
+}
+
+body.loads-auto-compact .approval-tracker {
+  min-width: 280px;
+  padding: 7px 9px;
+}
+
+body.loads-auto-compact .approval-tracker-pct {
+  font-size: 24px;
+}
+
+body.loads-auto-compact .loads-review-layout {
+  grid-template-columns: minmax(390px, 1.1fr) minmax(320px, 0.9fr);
+  gap: 8px;
+  --loads-grid-columns: minmax(0, 1fr) minmax(0, 1.05fr) max-content minmax(0, 0.72fr);
+}
+
+body.loads-auto-compact .loads-tabs-shell {
+  padding: 5px 7px 4px;
+}
+
+body.loads-auto-compact .loads-shell-header-left,
+body.loads-auto-compact .loads-shell-header-right {
+  padding: 7px 9px;
+}
+
+body.loads-auto-compact .loads-grid-head-cell {
+  padding: 7px 9px;
+  font-size: 9px;
+}
+
+body.loads-auto-compact .loads-review-layout .loads-master .load-summary-grid .summary-cell {
+  min-height: 52px;
+  padding: 8px;
+  gap: 5px;
+}
+
+body.loads-auto-compact .loads-review-label {
+  font-size: 10px;
+  max-width: 132px;
+}
+
+body.loads-auto-compact .loads-review-pane {
+  padding: 6px 8px 8px;
+}
+
+body.loads-auto-compact .loads-review-pane .load-detail-panel.single-screen .load-detail-grid.load-approval-grid {
+  grid-template-columns: minmax(0, 2.6fr) minmax(0, 2.1fr);
+}
+
+body.loads-auto-compact .loads-review-pane .load-detail-panel.single-screen {
+  height: auto;
+  min-height: 100%;
+  flex: 0 0 auto;
+}
+
+body.loads-auto-compact .loads-review-pane .load-detail-panel.single-screen .load-detail-grid.load-approval-grid {
+  height: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+  grid-template-rows: auto auto;
+}
+
+body.loads-auto-compact .loads-review-pane .card-header-row {
+  padding: 2px 6px;
+}
+
+body.loads-auto-compact .loads-review-pane .card-header-row h3 {
+  font-size: 10px;
+}
+
+body.loads-auto-compact .loads-review-pane .meta-chip {
+  font-size: 8px;
+  padding: 1px 4px;
+}
+
+body.loads-auto-compact .loads-review-pane .manifest-table th,
+body.loads-auto-compact .loads-review-pane .manifest-table td {
+  padding: 4px 5px;
+  font-size: 9px;
+}
+
+body.loads-auto-sidebar .page.page-loads-index {
+  padding-left: 10px;
+  padding-right: 12px;
+}
+
+@media (max-width: 1450px) and (min-width: 1101px) {
+  body.loads-auto-compact .loads-review-layout {
+    grid-template-columns: minmax(390px, 1.1fr) minmax(330px, 0.9fr);
+    --loads-grid-columns: minmax(0, 1fr) minmax(0, 1.05fr) max-content minmax(0, 0.72fr);
   }
 }

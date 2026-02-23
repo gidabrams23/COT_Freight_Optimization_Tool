@@ -1580,6 +1580,50 @@
       layout.style.setProperty('--loads-review-height', `${clamped}px`);
     }
 
+    function initLoadsViewportLayoutMode() {
+      const layout = document.querySelector('[data-load-review-layout]');
+      const body = document.body;
+      if (!layout || !body) return;
+
+      const compactQuery = window.matchMedia('(max-width: 1920px) and (min-width: 1101px)');
+      const autoSidebarQuery = window.matchMedia('(max-width: 1560px) and (min-width: 901px)');
+      let autoSidebarApplied = false;
+
+      const applyViewportMode = () => {
+        body.classList.toggle('loads-auto-compact', compactQuery.matches);
+
+        if (autoSidebarQuery.matches) {
+          body.classList.add('loads-auto-sidebar');
+          if (!body.classList.contains('sidebar-collapsed')) {
+            body.classList.add('sidebar-collapsed');
+            autoSidebarApplied = true;
+          }
+        } else {
+          body.classList.remove('loads-auto-sidebar');
+          if (autoSidebarApplied) {
+            const preferredCollapsed = window.localStorage.getItem('sidebar-collapsed') === 'true';
+            body.classList.toggle('sidebar-collapsed', preferredCollapsed);
+            autoSidebarApplied = false;
+          }
+        }
+
+        syncReviewLayoutHeight();
+      };
+
+      applyViewportMode();
+
+      const onViewportChange = debounce(applyViewportMode, 80);
+      if (typeof compactQuery.addEventListener === 'function') {
+        compactQuery.addEventListener('change', onViewportChange);
+        autoSidebarQuery.addEventListener('change', onViewportChange);
+      } else {
+        compactQuery.addListener(onViewportChange);
+        autoSidebarQuery.addListener(onViewportChange);
+      }
+
+      window.addEventListener('resize', onViewportChange);
+    }
+
     function showReviewEmpty(message) {
       if (selectedLoadId) {
         restoreSelectedHeaderElements(selectedLoadId);
@@ -1899,8 +1943,7 @@
       showReviewEmpty('No loads available.');
     }
 
-    syncReviewLayoutHeight();
-    window.addEventListener('resize', debounce(syncReviewLayoutHeight, 100));
+    initLoadsViewportLayoutMode();
 
     document.querySelectorAll('.manifest-order-row').forEach((row) => {
       row.addEventListener('click', (event) => {
