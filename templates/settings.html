@@ -33,7 +33,7 @@
     <div class="settings-content">
       {% if tab == 'overview' %}
         <div class="settings-command-grid">
-          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-rates">
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-rates" style="order: 1;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">payments</span>
@@ -81,7 +81,52 @@
             </form>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-plants">
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-stop-colors" style="order: 99;">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">palette</span>
+                <div>
+                  <h2>Stop Colors</h2>
+                  <p class="muted">Default color map for stops 1-12 across manifest dots and stacking schematic blocks.</p>
+                </div>
+              </div>
+              {% if is_admin %}
+                <div class="settings-card-actions">
+                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="stop-colors-form">Save Colors</button>
+                </div>
+              {% endif %}
+            </div>
+            <form class="settings-stop-color-form" id="stop-colors-form" method="post" action="{{ url_for('save_stop_colors') }}">
+              <input type="hidden" name="tab" value="overview">
+              <div class="settings-stop-color-grid">
+                {% for row in stop_color_rows %}
+                  <label class="settings-stop-color-row" data-stop-color-row>
+                    <span class="settings-stop-color-label">Stop {{ row.sequence }}</span>
+                    <span class="settings-stop-color-swatch" data-stop-color-swatch style="--stop-color: {{ row.color }};"></span>
+                    <input
+                      class="settings-stop-color-picker"
+                      type="color"
+                      name="stop_color_{{ row.sequence }}"
+                      value="{{ row.color }}"
+                      data-stop-color-input
+                      {% if not is_admin %}disabled{% endif %}
+                    >
+                    <input
+                      class="table-input settings-stop-color-hex"
+                      type="text"
+                      value="{{ row.color }}"
+                      data-stop-color-hex
+                      maxlength="7"
+                      pattern="#[0-9A-Fa-f]{6}"
+                      {% if not is_admin %}disabled{% endif %}
+                    >
+                  </label>
+                {% endfor %}
+              </div>
+            </form>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-plants" style="order: 3;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">factory</span>
@@ -117,7 +162,7 @@
             </div>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-defaults">
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-defaults" style="order: 4;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">tune</span>
@@ -148,9 +193,9 @@
                       <td>Trailer Type</td>
                       <td>
                         <select class="select-field settings-default-input" name="trailer_type" {% if not is_admin %}disabled{% endif %}>
-                          <option value="STEP_DECK" {% if optimizer_defaults.trailer_type == 'STEP_DECK' %}selected{% endif %}>STEP_DECK</option>
-                          <option value="FLATBED" {% if optimizer_defaults.trailer_type == 'FLATBED' %}selected{% endif %}>FLATBED</option>
-                          <option value="WEDGE" {% if optimizer_defaults.trailer_type == 'WEDGE' %}selected{% endif %}>WEDGE</option>
+                          {% for trailer_option in trailer_profile_options %}
+                            <option value="{{ trailer_option.value }}" {% if optimizer_defaults.trailer_type == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
+                          {% endfor %}
                         </select>
                       </td>
                       <td class="settings-default-note">Primary profile for capacity planning</td>
@@ -185,13 +230,52 @@
                       <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="max_back_overhang_ft" value="{{ optimizer_defaults.max_back_overhang_ft or 4 }}" {% if not is_admin %}disabled{% endif %}></td>
                       <td class="settings-default-note">Allowed overhang off trailer back (left side in schematic) before hard capacity violation.</td>
                     </tr>
+                    <tr>
+                      <td>Upper Deck Two-Across Max Length (ft)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_two_across_max_length_ft" value="{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">For step decks, items at or below this length can be treated as 2-across on upper deck to add capacity. Upper deck stacking still uses flatbed max stack values.</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
             </form>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-grades">
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-trailers" style="order: 98;">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">local_shipping</span>
+                <div>
+                  <h2>Trailer Types</h2>
+                  <p class="muted">Profiles available in the load schematic and optimizer controls.</p>
+                </div>
+              </div>
+            </div>
+            <div class="table-container table-container-compact settings-table-shell">
+              <table class="settings-table settings-defaults-table">
+                <thead>
+                  <tr>
+                    <th>Trailer</th>
+                    <th>Total (ft)</th>
+                    <th>Lower (ft)</th>
+                    <th>Upper (ft)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for trailer_option in trailer_profile_options %}
+                    <tr>
+                      <td>{{ trailer_option.label }}</td>
+                      <td>{{ trailer_option.capacity | round(1) }}</td>
+                      <td>{{ trailer_option.lower | round(1) }}</td>
+                      <td>{{ trailer_option.upper | round(1) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-grades" style="order: 2;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">speed</span>
@@ -258,7 +342,7 @@
             </form>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-wide settings-card-strategic">
+          <article class="content-block settings-command-card settings-command-card-wide settings-card-strategic" style="order: 5;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">star</span>
@@ -278,7 +362,7 @@
               <textarea class="settings-textarea-hidden" name="strategic_customers" data-strategic-hidden hidden>{{ strategic_customers_raw or '' }}</textarea>
               <div class="strategic-editor">
                 <div class="strategic-editor-head">
-                  <span class="muted">Pattern matching is case-insensitive substring logic. Customer Flex Days overrides global optimizer flex for that customer (leave blank to use global). Return Trip means carrier route is planned back to origin plant.</span>
+                  <span class="muted">Pattern matching is case-insensitive substring logic. Customer Flex Days overrides global optimizer flex for that customer (leave blank to use global). Return Trip means carrier route is planned back to origin plant. Ignore for Optimization excludes matching customers from auto optimize runs only.</span>
                   {% if is_admin %}
                     <button class="settings-card-btn settings-card-btn-secondary settings-inline-btn" type="button" data-strategic-add>
                       <span class="material-symbols-outlined">add</span>
@@ -296,6 +380,8 @@
                         <th>No Mix</th>
                         <th>Default 51' Wedge</th>
                         <th>Requires Return Trip</th>
+                        <th>Ignore for Optimization</th>
+                        <th>Include in Optimizer Workbench</th>
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -320,6 +406,12 @@
                             </td>
                             <td class="strategic-check-cell">
                               <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if entry.requires_return_to_origin %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td class="strategic-check-cell">
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-ignore-opt {% if entry.ignore_for_optimization %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                            </td>
+                            <td class="strategic-check-cell">
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-workbench {% if entry.include_in_optimizer_workbench %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
                             </td>
                             <td class="strategic-remove-cell">
                               {% if is_admin %}
@@ -352,6 +444,12 @@
                           <td class="strategic-check-cell">
                             <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if not is_admin %}disabled{% endif %}>
                           </td>
+                          <td class="strategic-check-cell">
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-ignore-opt {% if not is_admin %}disabled{% endif %}>
+                          </td>
+                          <td class="strategic-check-cell">
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-workbench checked {% if not is_admin %}disabled{% endif %}>
+                          </td>
                           <td class="strategic-remove-cell">
                             {% if is_admin %}
                               <button class="btn-ghost btn-icon" type="button" data-strategic-remove title="Remove row">
@@ -380,13 +478,15 @@
                     {% if entry.no_mix %}- No Mix{% endif %}
                     {% if entry.default_wedge_51 %}- 51' Wedge{% endif %}
                     {% if entry.requires_return_to_origin %}- Return Trip{% endif %}
+                    {% if entry.ignore_for_optimization %}- Ignored in Auto Optimize{% endif %}
+                    {% if not entry.include_in_optimizer_workbench %}- Hidden in Workbench{% endif %}
                   </span>
                 {% endfor %}
               {% endif %}
             </div>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-wide settings-card-registry">
+          <article class="content-block settings-command-card settings-command-card-wide settings-card-registry" style="order: 6;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">inventory_2</span>
@@ -542,11 +642,39 @@
         </div>
       {% elif tab == 'skus' %}
         <div class="content-block settings-skus-tab">
-          <div class="content-header">
-            <h2>SKU Specifications</h2>
+          <div class="content-header sku-header-row">
+            <div class="sku-header-title">
+              <h2>SKU Specifications</h2>
+              <a class="sku-export-btn" href="{{ url_for('export_sku_cheat_sheet') }}">
+                <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                Download SKU Cheat Sheet (.xlsx)
+              </a>
+            </div>
           </div>
           <div class="sku-filter-shell">
             <div class="sku-filter-bar" id="sku-filter-panel">
+              <label class="sku-filter-field sku-filter-search">
+                <span>Search</span>
+                <input class="select-field" type="search" data-sku-search placeholder="Search SKU or description">
+              </label>
+              <label class="sku-filter-field">
+                <span>Length (ft)</span>
+                <select class="select-field" data-sku-length-filter>
+                  <option value="">All Lengths</option>
+                  {% for length in sku_lengths %}
+                    <option value="{{ length }}">{{ length }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="sku-filter-field">
+                <span>Step Deck</span>
+                <select class="select-field" data-sku-step-filter>
+                  <option value="">All Step Deck Values</option>
+                  {% for stack_value in sku_step_decks %}
+                    <option value="{{ stack_value }}">{{ stack_value }}</option>
+                  {% endfor %}
+                </select>
+              </label>
               <label class="sku-filter-field">
                 <span>Category</span>
                 <select class="select-field" data-sku-category-filter>
@@ -557,12 +685,13 @@
                 </select>
               </label>
               <label class="sku-filter-field">
-                <span>Added After</span>
-                <input class="select-field" type="date" data-sku-date-from>
-              </label>
-              <label class="sku-filter-field">
-                <span>Added Before</span>
-                <input class="select-field" type="date" data-sku-date-to>
+                <span>Flat Bed</span>
+                <select class="select-field" data-sku-flat-filter>
+                  <option value="">All Flat Bed Values</option>
+                  {% for stack_value in sku_flat_beds %}
+                    <option value="{{ stack_value }}">{{ stack_value }}</option>
+                  {% endfor %}
+                </select>
               </label>
               <button class="btn-ghost btn-xs" type="button" data-sku-filter-reset>Reset</button>
               {% if is_admin %}
@@ -596,8 +725,6 @@
           {% endif %}
 
           {% if specs %}
-            {% set planner_specs = specs | selectattr('added_at') | list %}
-            {% set system_specs = specs | rejectattr('added_at') | list %}
             <div class="table-container">
               <table class="settings-table inline-edit-table" id="sku-table" data-save="/skus/save">
                 <thead>
@@ -626,8 +753,12 @@
                     <tr data-id="{{ spec.id }}"
                         data-sku-row
                         data-origin="planner"
-                        data-category="{{ (spec.category or '') | upper }}"
-                        data-added-date="{{ spec.added_at or spec.created_at or '' }}">
+                        data-sku-value="{{ spec.sku or '' }}"
+                        data-description-value="{{ spec.description or '' }}"
+                        data-category-value="{{ (spec.category or '') | upper }}"
+                        data-length-value="{{ spec.length_with_tongue_ft if spec.length_with_tongue_ft is not none else '' }}"
+                        data-step-deck-value="{{ spec.max_stack_step_deck if spec.max_stack_step_deck is not none else '' }}"
+                        data-flat-bed-value="{{ spec.max_stack_flat_bed if spec.max_stack_flat_bed is not none else '' }}">
                       <td>
                         <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}>
                       </td>
@@ -675,8 +806,12 @@
                     <tr data-id="{{ spec.id }}"
                         data-sku-row
                         data-origin="system"
-                        data-category="{{ (spec.category or '') | upper }}"
-                        data-added-date="{{ spec.added_at or spec.created_at or '' }}">
+                        data-sku-value="{{ spec.sku or '' }}"
+                        data-description-value="{{ spec.description or '' }}"
+                        data-category-value="{{ (spec.category or '') | upper }}"
+                        data-length-value="{{ spec.length_with_tongue_ft if spec.length_with_tongue_ft is not none else '' }}"
+                        data-step-deck-value="{{ spec.max_stack_step_deck if spec.max_stack_step_deck is not none else '' }}"
+                        data-flat-bed-value="{{ spec.max_stack_flat_bed if spec.max_stack_flat_bed is not none else '' }}">
                       <td>
                         <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}>
                       </td>
@@ -935,6 +1070,11 @@
                       <td>Back Overhang Allowance (ft)</td>
                       <td>{{ optimizer_defaults.max_back_overhang_ft or 4 }}</td>
                       <td>Allowed trailer-back overhang before capacity is treated as exceeded.</td>
+                    </tr>
+                    <tr>
+                      <td>Upper Deck Two-Across Max Length (ft)</td>
+                      <td>{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}</td>
+                      <td>Step deck upper-deck stacks at or below this length can be modeled 2-across. Upper deck stack height still follows flatbed max-stack per SKU.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1197,6 +1337,8 @@
             noMix = false,
             defaultWedge = false,
             requiresReturnTrip = false,
+            ignoreForOptimization = false,
+            includeInOptimizerWorkbench = true,
           } = {}) {
             const row = document.createElement('tr');
             row.className = 'strategic-row';
@@ -1219,6 +1361,12 @@
               </td>
               <td class="strategic-check-cell">
                 <input class="strategic-checkbox" type="checkbox" data-strategic-return ${requiresReturnTrip ? 'checked' : ''}>
+              </td>
+              <td class="strategic-check-cell">
+                <input class="strategic-checkbox" type="checkbox" data-strategic-ignore-opt ${ignoreForOptimization ? 'checked' : ''}>
+              </td>
+              <td class="strategic-check-cell">
+                <input class="strategic-checkbox" type="checkbox" data-strategic-workbench ${includeInOptimizerWorkbench ? 'checked' : ''}>
               </td>
               <td class="strategic-remove-cell">
                 <button class="btn-ghost btn-icon" type="button" data-strategic-remove title="Remove row">
@@ -1246,6 +1394,8 @@
                 const no_mix = !!row.querySelector('[data-strategic-no-mix]')?.checked;
                 const default_wedge_51 = !!row.querySelector('[data-strategic-wedge]')?.checked;
                 const requires_return_to_origin = !!row.querySelector('[data-strategic-return]')?.checked;
+                const ignore_for_optimization = !!row.querySelector('[data-strategic-ignore-opt]')?.checked;
+                const include_in_optimizer_workbench = !!row.querySelector('[data-strategic-workbench]')?.checked;
                 return {
                   label,
                   patterns,
@@ -1253,6 +1403,8 @@
                   no_mix,
                   default_wedge_51,
                   requires_return_to_origin,
+                  ignore_for_optimization,
+                  include_in_optimizer_workbench,
                 };
               })
               .filter((entry) => entry.label && entry.patterns.length);
@@ -1274,6 +1426,8 @@
               if (entry.no_mix) tags.push('No Mix');
               if (entry.default_wedge_51) tags.push("51' Wedge");
               if (entry.requires_return_to_origin) tags.push('Return Trip');
+              if (entry.ignore_for_optimization) tags.push('Ignored in Auto Optimize');
+              if (!entry.include_in_optimizer_workbench) tags.push('Hidden in Workbench');
               const tagText = tags.length ? ` - ${tags.join(' | ')}` : '';
               chip.append(` - ${entry.patterns.join(', ')}${tagText}`);
               chipList.appendChild(chip);
@@ -1305,13 +1459,13 @@
           });
 
           rowsHost.addEventListener('input', (event) => {
-            if (event.target.matches('[data-strategic-label], [data-strategic-patterns], [data-strategic-flex], [data-strategic-no-mix], [data-strategic-wedge], [data-strategic-return]')) {
+            if (event.target.matches('[data-strategic-label], [data-strategic-patterns], [data-strategic-flex], [data-strategic-no-mix], [data-strategic-wedge], [data-strategic-return], [data-strategic-ignore-opt], [data-strategic-workbench]')) {
               syncHiddenField();
             }
           });
 
           rowsHost.addEventListener('change', (event) => {
-            if (event.target.matches('[data-strategic-no-mix], [data-strategic-wedge], [data-strategic-return]')) {
+            if (event.target.matches('[data-strategic-no-mix], [data-strategic-wedge], [data-strategic-return], [data-strategic-ignore-opt], [data-strategic-workbench]')) {
               syncHiddenField();
             }
           });
@@ -1354,11 +1508,73 @@
           });
         }
 
+        function setupStopColorEditor() {
+          const form = document.getElementById('stop-colors-form');
+          if (!form) return;
+          const rows = Array.from(form.querySelectorAll('[data-stop-color-row]'));
+          if (!rows.length) return;
+
+          const normalizeHex = (value) => {
+            let text = String(value || '').trim().toUpperCase();
+            if (!text) return '';
+            if (!text.startsWith('#')) text = `#${text}`;
+            return /^#[0-9A-F]{6}$/.test(text) ? text : '';
+          };
+
+          rows.forEach((row) => {
+            const colorInput = row.querySelector('[data-stop-color-input]');
+            const hexInput = row.querySelector('[data-stop-color-hex]');
+            const swatch = row.querySelector('[data-stop-color-swatch]');
+            if (!colorInput || !hexInput || !swatch) return;
+
+            const syncFromColor = () => {
+              const normalized = normalizeHex(colorInput.value) || '#000000';
+              colorInput.value = normalized.toLowerCase();
+              hexInput.value = normalized;
+              swatch.style.setProperty('--stop-color', normalized);
+            };
+            const syncFromHex = () => {
+              const normalized = normalizeHex(hexInput.value);
+              if (!normalized) return false;
+              colorInput.value = normalized.toLowerCase();
+              hexInput.value = normalized;
+              swatch.style.setProperty('--stop-color', normalized);
+              return true;
+            };
+
+            colorInput.addEventListener('input', syncFromColor);
+            colorInput.addEventListener('change', syncFromColor);
+            hexInput.addEventListener('blur', () => {
+              if (!syncFromHex()) syncFromColor();
+            });
+            hexInput.addEventListener('change', () => {
+              if (!syncFromHex()) syncFromColor();
+            });
+            syncFromColor();
+          });
+
+          form.addEventListener('submit', () => {
+            rows.forEach((row) => {
+              const colorInput = row.querySelector('[data-stop-color-input]');
+              const hexInput = row.querySelector('[data-stop-color-hex]');
+              if (!colorInput || !hexInput) return;
+              const normalized = normalizeHex(hexInput.value);
+              if (normalized) {
+                colorInput.value = normalized.toLowerCase();
+                hexInput.value = normalized;
+              } else {
+                hexInput.value = normalizeHex(colorInput.value) || '#000000';
+              }
+            });
+          });
+        }
+
 
         if (tab === 'rates') setupRatesMatrix();
         if (tab === 'overview') {
           setupStrategicEditor();
           setupUtilGradeSync();
+          setupStopColorEditor();
           attachInlineSaver('overview-sku-table');
           attachInlineSaver('overview-plants-table');
         }
@@ -1391,46 +1607,64 @@
 
       const table = document.getElementById('sku-table');
       if (!table) return;
+      const searchInput = document.querySelector('[data-sku-search]');
+      const lengthSelect = document.querySelector('[data-sku-length-filter]');
+      const stepSelect = document.querySelector('[data-sku-step-filter]');
       const categorySelect = document.querySelector('[data-sku-category-filter]');
-      const dateFrom = document.querySelector('[data-sku-date-from]');
-      const dateTo = document.querySelector('[data-sku-date-to]');
+      const flatSelect = document.querySelector('[data-sku-flat-filter]');
       const resetButton = document.querySelector('[data-sku-filter-reset]');
       const rows = Array.from(table.querySelectorAll('tbody tr[data-sku-row]'));
       const groupRows = Array.from(table.querySelectorAll('tbody tr[data-sku-group]'));
 
       const normalize = (value) => (value || '').trim().toUpperCase();
-      const parseDate = (value) => {
-        if (!value) return null;
-        const normalized = String(value).split('T')[0];
-        const parsed = new Date(normalized);
-        if (Number.isNaN(parsed.getTime())) return null;
-        return parsed;
+      const normalizeNumeric = (value) => {
+        if (value === null || value === undefined || value === '') return '';
+        const parsed = Number.parseFloat(value);
+        if (Number.isNaN(parsed)) return '';
+        return String(parsed);
+      };
+      const readFieldValue = (row, fieldName, fallbackValue = '') => {
+        const input = row.querySelector(`[data-field="${fieldName}"]`);
+        if (!input) return fallbackValue;
+        return input.value || '';
       };
 
       const applyFilters = () => {
+        const searchTerm = normalize(searchInput ? searchInput.value : '');
+        const lengthValue = normalizeNumeric(lengthSelect ? lengthSelect.value : '');
+        const stepValue = normalizeNumeric(stepSelect ? stepSelect.value : '');
         const category = normalize(categorySelect ? categorySelect.value : '');
-        const fromDate = parseDate(dateFrom ? dateFrom.value : '');
-        const toDate = parseDate(dateTo ? dateTo.value : '');
-        const toDateEnd = toDate ? new Date(toDate.getTime()) : null;
-        if (toDateEnd) {
-          toDateEnd.setHours(23, 59, 59, 999);
-        }
+        const flatValue = normalizeNumeric(flatSelect ? flatSelect.value : '');
 
         rows.forEach((row) => {
           let visible = true;
-          const rowCategory = normalize(row.dataset.category || '');
+          const rowSku = normalize(readFieldValue(row, 'sku', row.dataset.skuValue || ''));
+          const rowDescription = normalize(readFieldValue(row, 'description', row.dataset.descriptionValue || ''));
+          const rowCategory = normalize(readFieldValue(row, 'category', row.dataset.categoryValue || ''));
+          const rowLength = normalizeNumeric(
+            readFieldValue(row, 'length_with_tongue_ft', row.dataset.lengthValue || '')
+          );
+          const rowStepDeck = normalizeNumeric(
+            readFieldValue(row, 'max_stack_step_deck', row.dataset.stepDeckValue || '')
+          );
+          const rowFlatBed = normalizeNumeric(
+            readFieldValue(row, 'max_stack_flat_bed', row.dataset.flatBedValue || '')
+          );
+
+          if (searchTerm && !rowSku.includes(searchTerm) && !rowDescription.includes(searchTerm)) {
+            visible = false;
+          }
+          if (visible && lengthValue && rowLength !== lengthValue) {
+            visible = false;
+          }
+          if (visible && stepValue && rowStepDeck !== stepValue) {
+            visible = false;
+          }
           if (category && rowCategory !== category) {
             visible = false;
           }
-
-          if (visible && (fromDate || toDateEnd)) {
-            const rowDate = parseDate(row.dataset.addedDate || '');
-            if (!rowDate) {
-              visible = false;
-            } else {
-              if (fromDate && rowDate < fromDate) visible = false;
-              if (toDateEnd && rowDate > toDateEnd) visible = false;
-            }
+          if (visible && flatValue && rowFlatBed !== flatValue) {
+            visible = false;
           }
 
           row.style.display = visible ? '' : 'none';
@@ -1446,7 +1680,7 @@
         });
       };
 
-      [categorySelect, dateFrom, dateTo].forEach((input) => {
+      [searchInput, lengthSelect, stepSelect, categorySelect, flatSelect].forEach((input) => {
         if (!input) return;
         input.addEventListener('change', applyFilters);
         input.addEventListener('input', applyFilters);
@@ -1454,9 +1688,11 @@
 
       if (resetButton) {
         resetButton.addEventListener('click', () => {
+          if (searchInput) searchInput.value = '';
+          if (lengthSelect) lengthSelect.value = '';
+          if (stepSelect) stepSelect.value = '';
           if (categorySelect) categorySelect.value = '';
-          if (dateFrom) dateFrom.value = '';
-          if (dateTo) dateTo.value = '';
+          if (flatSelect) flatSelect.value = '';
           applyFilters();
         });
       }

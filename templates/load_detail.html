@@ -232,9 +232,9 @@
           <h3>Trailer Type</h3>
           {% set trailer = load.trailer_type or 'STEP_DECK' %}
           <select class="select-field load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
-            <option value="STEP_DECK" {% if trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
-            <option value="WEDGE" {% if trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
-            <option value="FLATBED" {% if trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
+            {% for trailer_option in trailer_profile_options %}
+              <option value="{{ trailer_option.value }}" {% if trailer == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
+            {% endfor %}
           </select>
           <p class="muted">Trailer type affects stacking and capacity limits.</p>
         </div>

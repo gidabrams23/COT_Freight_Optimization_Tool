@@ -14,11 +14,13 @@ DEFAULT_BUILD_PARAMS = {
     "geo_radius": "100",
     "stack_overflow_max_height": "5",
     "max_back_overhang_ft": "4",
+    "upper_two_across_max_length_ft": "7",
     "orders_start_date": "",
     "algorithm_version": "v2",
     "compare_algorithms": False,
     "optimize_mode": "auto",
     "manual_order_input": "",
+    "ignore_due_date": False,
 }
 
 
@@ -151,7 +153,8 @@ def list_loads(origin_plant=None, session_id=None, include_stack_metrics=True):
     lines_by_load_id = db.list_load_lines_for_load_ids(load_ids)
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()} if include_stack_metrics else {}
     for load in loads:
-        trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+        trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
+        is_step_deck = trailer_type.startswith("STEP_DECK")
         lines = lines_by_load_id.get(load.get("id"), [])
         load["lines"] = lines
         if not include_stack_metrics:
@@ -161,10 +164,12 @@ def list_loads(origin_plant=None, session_id=None, include_stack_metrics=True):
         for line in lines:
             sku = line.get("sku")
             spec = sku_specs.get(sku) if sku else None
-            if trailer_type == "STEP_DECK":
+            if is_step_deck:
                 max_stack = (spec or {}).get("max_stack_step_deck") or (spec or {}).get("max_stack_flat_bed") or 1
+                upper_max_stack = (spec or {}).get("max_stack_flat_bed") or max_stack or 1
             else:
                 max_stack = (spec or {}).get("max_stack_flat_bed") or 1
+                upper_max_stack = max_stack
             line_items.append(
                 {
                     "item": line.get("item"),
@@ -173,6 +178,7 @@ def list_loads(origin_plant=None, session_id=None, include_stack_metrics=True):
                     "qty": line.get("qty") or 0,
                     "unit_length_ft": line.get("unit_length_ft") or 0,
                     "max_stack_height": max_stack,
+                    "upper_deck_max_stack_height": upper_max_stack,
                     "category": (spec or {}).get("category", ""),
                     "order_id": line.get("so_num"),
                 }
@@ -194,10 +200,21 @@ def list_loads(origin_plant=None, session_id=None, include_stack_metrics=True):
     return loads
 
 
-def build_loads(form, reset_proposed=True, store_settings=True, session_id=None, session_factory=None, created_by=None):
+def build_loads(
+    form,
+    reset_proposed=True,
+    store_settings=True,
+    session_id=None,
+    session_factory=None,
+    created_by=None,
+    include_baseline=True,
+):
     ui_toggles = "opt_toggles" in form
     enforce_time_window = _truthy(form.get("enforce_time_window")) if ui_toggles else True
     batch_horizon_enabled = _truthy(form.get("batch_horizon_enabled")) if ui_toggles else False
+    ignore_due_date = _truthy(form.get("ignore_due_date")) if form else False
+    if ignore_due_date:
+        enforce_time_window = False
     state_filters = _clean_list(_get_list(form, "opt_states"), upper=True)
     customer_filters = _clean_list(_get_list(form, "opt_customers"))
     algorithm_version = "v2"
@@ -205,19 +222,24 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
     optimize_mode = _clean_value(form.get("optimize_mode", "auto")).lower() if form else "auto"
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
+    reopt_speed = _clean_value(form.get("__reopt_speed", "")).lower() if form else ""
+    fast_reopt = reopt_speed == "fast"
     manual_order_input = _clean_value(form.get("manual_order_input", "")) if form else ""
     selected_so_nums = _parse_manual_so_nums(manual_order_input) if optimize_mode == "manual" else []
     reference_date = _parse_date(form.get("today")) if form else None
     if not reference_date:
         reference_date = date.today()
     orders_start_date = _clean_value(form.get("orders_start_date", "")) if form else ""
-    if not orders_start_date:
+    if not orders_start_date and optimize_mode != "manual":
         orders_start_date = reference_date.strftime("%Y-%m-%d")
 
     form_data = {
         "origin_plant": _clean_value(form.get("origin_plant", "")),
         "capacity_feet": _clean_value(form.get("capacity_feet", "")),
-        "trailer_type": _clean_value(form.get("trailer_type", "")).upper(),
+        "trailer_type": stack_calculator.normalize_trailer_type(
+            _clean_value(form.get("trailer_type", "")),
+            default=DEFAULT_BUILD_PARAMS.get("trailer_type") or "STEP_DECK",
+        ),
         "max_detour_pct": _clean_value(form.get("max_detour_pct", "")),
         "time_window_days": _clean_value(form.get("time_window_days", "")),
         "geo_radius": _clean_value(form.get("geo_radius", "")),
@@ -227,12 +249,19 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
         "max_back_overhang_ft": _clean_value(
             form.get("max_back_overhang_ft", DEFAULT_BUILD_PARAMS.get("max_back_overhang_ft", "4"))
         ),
+        "upper_two_across_max_length_ft": _clean_value(
+            form.get(
+                "upper_two_across_max_length_ft",
+                DEFAULT_BUILD_PARAMS.get("upper_two_across_max_length_ft", "7"),
+            )
+        ),
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": _clean_value(form.get("batch_end_date", "")),
         "state_filters": state_filters,
         "customer_filters": customer_filters,
         "orders_start_date": orders_start_date,
+        "ignore_due_date": ignore_due_date,
         "algorithm_version": algorithm_version,
         "compare_algorithms": compare_algorithms,
         "optimize_mode": optimize_mode,
@@ -251,9 +280,11 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
         if not form_data["time_window_days"]:
             form_data["time_window_days"] = "0"
     validation.validate_positive_float(form_data["geo_radius"], "geo_radius", errors)
-    parsed_orders_start_date = _parse_date(form_data["orders_start_date"])
-    if not parsed_orders_start_date:
-        errors["orders_start_date"] = "Enter a valid orders start date (YYYY-MM-DD)."
+    parsed_orders_start_date = None
+    if form_data["orders_start_date"]:
+        parsed_orders_start_date = _parse_date(form_data["orders_start_date"])
+        if not parsed_orders_start_date:
+            errors["orders_start_date"] = "Enter a valid orders start date (YYYY-MM-DD)."
 
     batch_end_date = None
     if batch_horizon_enabled:
@@ -262,7 +293,7 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
         if form_data["batch_end_date"] and not batch_end_date:
             errors["batch_end_date"] = "Enter a valid date (YYYY-MM-DD)."
 
-    if form_data["trailer_type"] and form_data["trailer_type"] not in {"STEP_DECK", "FLATBED", "WEDGE"}:
+    if form_data["trailer_type"] and not stack_calculator.is_valid_trailer_type(form_data["trailer_type"]):
         errors["trailer_type"] = "Select a valid trailer type."
     if optimize_mode == "manual" and not selected_so_nums:
         errors["manual_order_input"] = "Paste at least one order number to run manual selection."
@@ -287,6 +318,14 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
         max_back_overhang_ft = float(DEFAULT_BUILD_PARAMS.get("max_back_overhang_ft", 4) or 4)
     max_back_overhang_ft = max(max_back_overhang_ft, 0.0)
 
+    try:
+        upper_two_across_max_length_ft = float(form_data["upper_two_across_max_length_ft"] or 0)
+    except (TypeError, ValueError):
+        upper_two_across_max_length_ft = float(
+            DEFAULT_BUILD_PARAMS.get("upper_two_across_max_length_ft", 7) or 7
+        )
+    upper_two_across_max_length_ft = max(upper_two_across_max_length_ft, 0.0)
+
     params = {
         "origin_plant": form_data["origin_plant"],
         "capacity_feet": float(form_data["capacity_feet"]),
@@ -296,15 +335,18 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
         "geo_radius": float(form_data["geo_radius"]),
         "stack_overflow_max_height": stack_overflow_max_height,
         "max_back_overhang_ft": round(max_back_overhang_ft, 2),
+        "upper_two_across_max_length_ft": round(upper_two_across_max_length_ft, 2),
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": batch_end_date,
         "state_filters": [] if optimize_mode == "manual" else state_filters,
         "customer_filters": [] if optimize_mode == "manual" else customer_filters,
         "selected_so_nums": selected_so_nums,
+        "optimize_mode": optimize_mode,
         "orders_start_date": parsed_orders_start_date,
+        "ignore_due_date": ignore_due_date,
         # Backward compatibility for logic that still checks this flag.
-        "ignore_past_due": bool(parsed_orders_start_date),
+        "ignore_past_due": bool(parsed_orders_start_date) and not ignore_due_date,
         "reference_date": reference_date,
         "algorithm_version": algorithm_version,
         "compare_algorithms": compare_algorithms,
@@ -312,22 +354,22 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
         "v2_low_util_threshold": 70.0,
         "v2_lambda_low_util_count": 560.0,
         "v2_lambda_low_util_depth": 24.0,
-        "v2_rescue_passes": 4,
-        "v2_grade_rescue_passes": 5,
+        "v2_rescue_passes": 3 if fast_reopt else 4,
+        "v2_grade_rescue_passes": 3 if fast_reopt else 5,
         "v2_grade_rescue_min_savings": -90.0,
         "v2_grade_rescue_min_gain": 0.0,
         "v2_grade_repair_limit": 12,
         "v2_grade_repair_min_savings": -350.0,
-        "v2_fd_rebalance_passes": 3,
+        "v2_fd_rebalance_passes": 2 if fast_reopt else 3,
         "v2_fd_target_util": 55.0,
         "v2_fd_absorb_max_cost_increase_f": 5000.0,
         "v2_fd_absorb_max_cost_increase_d": 2200.0,
         "v2_fd_absorb_detour_cap": 999.0,
-        "v2_fd_candidate_limit": 120,
+        "v2_fd_candidate_limit": 60 if fast_reopt else 120,
         "v2_allow_order_interleave": True,
-        "v2_pair_neighbors": 18,
-        "v2_pair_neighbors_low_util": 56,
-        "v2_incremental_neighbors": 20,
+        "v2_pair_neighbors": 12 if fast_reopt else 18,
+        "v2_pair_neighbors_low_util": 32 if fast_reopt else 56,
+        "v2_incremental_neighbors": 12 if fast_reopt else 20,
         "v2_geo_escape_threshold": 40.0,
         "v2_on_way_bearing_deg": 35.0,
         "v2_on_way_radial_gap_miles": 500.0,
@@ -353,7 +395,7 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
         optimized_loads = optimizer.build_optimized_loads_v2(params)
     else:
         optimized_loads = optimizer.build_optimized_loads(params)
-    baseline_loads = optimizer.build_baseline_loads(params)
+    baseline_loads = optimizer.build_baseline_loads(params) if include_baseline else []
     algorithm_comparison = None
     if compare_algorithms:
         if algorithm_version == "v2":
@@ -468,7 +510,7 @@ def build_loads(form, reset_proposed=True, store_settings=True, session_id=None,
                 )
         connection.commit()
 
-    summary = build_summary(baseline_loads, optimized_loads)
+    summary = build_summary(baseline_loads, optimized_loads) if include_baseline else None
 
     return {
         "errors": {},
@@ -503,8 +545,11 @@ def create_manual_load(origin_plant, so_nums, trailer_type=None, created_by=None
     except (TypeError, ValueError):
         capacity_feet = float(DEFAULT_BUILD_PARAMS.get("capacity_feet") or 53)
 
-    trailer_choice = (trailer_type or settings.get("trailer_type") or DEFAULT_BUILD_PARAMS.get("trailer_type") or "STEP_DECK").strip().upper()
-    if trailer_choice not in {"STEP_DECK", "FLATBED", "WEDGE"}:
+    trailer_choice = stack_calculator.normalize_trailer_type(
+        trailer_type or settings.get("trailer_type") or DEFAULT_BUILD_PARAMS.get("trailer_type") or "STEP_DECK",
+        default="STEP_DECK",
+    )
+    if not stack_calculator.is_valid_trailer_type(trailer_choice):
         return {"errors": {"trailer_type": "Select a valid trailer type."}, "load_id": None}
 
     optimizer = Optimizer()

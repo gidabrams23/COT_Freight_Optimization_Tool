@@ -46,6 +46,9 @@
 
     <article class="card">
       <h2>SKU List</h2>
+      <div class="form-actions" style="margin-bottom: 12px;">
+        <a class="btn btn-secondary" href="{{ url_for('export_sku_cheat_sheet') }}">Export SKU Cheat Sheet</a>
+      </div>
       {% if specs %}
         <div class="table-wrapper">
           <table class="data-table">

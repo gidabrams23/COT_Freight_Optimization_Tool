@@ -1986,12 +1986,37 @@ textarea {
   gap: var(--spacing-md);
 }
 
+.load-number-seed-modal-card {
+  width: min(460px, 96vw);
+}
+
+.load-number-seed-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.load-number-seed-prefix {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.load-number-seed-input {
+  width: 120px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .schematic-edit-modal-card {
-  width: min(1240px, 96vw);
+  width: min(1120px, 94vw);
 }
 
 .schematic-edit-body {
-  gap: 12px;
+  gap: 8px;
 }
 
 .schematic-edit-summary {
@@ -2008,43 +2033,49 @@ textarea {
 }
 
 .schematic-edit-canvas {
-  border: 1px solid rgba(51, 65, 85, 0.8);
+  border: 1px solid rgba(71, 85, 105, 0.88);
   border-radius: var(--radius-md);
-  background: rgba(2, 6, 23, 0.72);
-  padding: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  padding: 8px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .schematic-edit-stepdeck-row {
   --schematic-edit-upper-void-height: 20px;
   display: flex;
+  flex-direction: row-reverse;
   gap: 0;
-  border: 2px solid rgba(35, 54, 72, 0.95);
+  border: 2px solid rgba(71, 85, 105, 0.88);
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(2, 6, 23, 0.5);
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+  align-items: stretch;
+  flex-wrap: nowrap;
 }
 
 .schematic-edit-deck {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px 8px 10px;
+  background: rgba(15, 23, 42, 0.88);
 }
 
 .schematic-edit-stepdeck-row .schematic-edit-deck {
   min-width: 0;
+  overflow: hidden;
 }
 
 .schematic-edit-stepdeck-row .schematic-edit-deck.is-upper {
-  border-left: 1px solid rgba(35, 54, 72, 0.95);
+  border-right: 1px solid rgba(71, 85, 105, 0.88);
 }
 
 .schematic-edit-deck-title {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text-secondary);
+  color: rgba(226, 232, 240, 0.98);
   font-weight: 700;
 }
 
@@ -2053,15 +2084,17 @@ textarea {
 }
 
 .schematic-edit-deck-track {
-  border: 1px solid rgba(51, 65, 85, 0.75);
+  border: 1px solid rgba(100, 116, 139, 0.78);
   border-radius: 10px;
-  background: rgba(15, 23, 42, 0.75);
-  min-height: 152px;
-  padding: 8px;
+  background: rgba(30, 41, 59, 0.86);
+  min-height: 112px;
+  padding: 6px 8px;
   display: flex;
   align-items: flex-end;
-  gap: 5px;
-  overflow-x: hidden;
+  gap: 6px;
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .schematic-edit-deck-track.has-unavailable-zone {
@@ -2074,7 +2107,7 @@ textarea {
   right: 8px;
   bottom: 0;
   height: var(--schematic-edit-upper-void-height);
-  border-top: 1px dashed rgba(71, 85, 105, 0.95);
+  border-top: 1px dashed rgba(148, 163, 184, 0.88);
   border-radius: 6px;
   background:
     repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.1) 0 8px, rgba(2, 6, 23, 0) 8px 16px),
@@ -2089,29 +2122,36 @@ textarea {
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.86);
+  color: rgba(203, 213, 225, 0.96);
 }
 
 .schematic-edit-stack-slot {
-  flex: 0 1 52px;
-  min-width: 24px;
-  min-height: 96px;
-  border: 1px dashed rgba(59, 130, 246, 0.55);
+  flex: 0 0 clamp(22px, 1.8vw, 30px);
+  min-width: 20px;
+  min-height: 84px;
+  border: 2px dashed rgba(125, 211, 252, 0.92);
   border-radius: 8px;
-  color: rgba(147, 197, 253, 0.9);
-  font-size: 9px;
+  color: rgba(224, 242, 254, 0.98);
+  font-size: 11px;
+  font-weight: 800;
   text-align: center;
-  line-height: 1.15;
-  padding: 4px;
+  line-height: 1;
+  padding: 4px 2px;
   display: grid;
   place-items: center;
   cursor: copy;
-  background: rgba(19, 127, 236, 0.06);
+  background: rgba(56, 189, 248, 0.16);
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
 .schematic-edit-stack-slot.dragover {
-  border-color: rgba(34, 197, 94, 0.8);
-  background: rgba(34, 197, 94, 0.12);
+  border-color: #f8fafc;
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, 0.48), rgba(74, 222, 128, 0.28));
+  box-shadow:
+    0 0 0 2px rgba(240, 253, 250, 0.52),
+    0 0 30px rgba(34, 197, 94, 0.35);
+  transform: translateY(-1px);
 }
 
 .schematic-edit-stack {
@@ -2131,36 +2171,40 @@ textarea {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: rgba(203, 213, 225, 0.98);
 }
 
 .schematic-edit-stack-length {
-  color: rgba(147, 197, 253, 0.9);
+  color: rgba(125, 211, 252, 0.98);
 }
 
 .schematic-edit-stack-body {
-  min-height: 96px;
-  border: 1px solid rgba(71, 85, 105, 0.8);
+  min-height: 84px;
+  border: 1px solid rgba(100, 116, 139, 0.92);
   border-radius: 8px;
-  background: rgba(2, 6, 23, 0.65);
-  padding: 4px;
+  background: rgba(15, 23, 42, 0.9);
+  padding: 8px 7px;
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
   justify-content: flex-start;
-  gap: 3px;
+  gap: 4px;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
 .schematic-edit-drop-slot {
   width: 100%;
-  min-height: 8px;
+  min-height: 28px;
   border-radius: 6px;
-  border: 1px dashed rgba(71, 85, 105, 0.55);
+  border: 1px dashed rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.25);
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 
 .schematic-edit-drop-slot.dragover {
-  border-color: rgba(34, 197, 94, 0.8);
-  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(240, 253, 250, 1);
+  background: rgba(34, 197, 94, 0.36);
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.45);
 }
 
 .schematic-edit-unit {
@@ -2171,7 +2215,7 @@ textarea {
   cursor: grab;
   color: #e2e8f0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  width: clamp(38px, calc(var(--unit-length-ratio, 1) * 100%), 100%);
+  width: clamp(28px, calc(var(--unit-length-ratio, 1) * 100%), 100%);
   justify-self: center;
 }
 
@@ -2191,6 +2235,30 @@ textarea {
   color: rgba(148, 163, 184, 0.9);
 }
 
+.schematic-edit-deck-usage {
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.schematic-edit-deck-usage-line {
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.15), rgba(226, 232, 240, 0.88), rgba(226, 232, 240, 0.15));
+}
+
+.schematic-edit-deck-usage-value {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: rgba(226, 232, 240, 0.96);
+}
+
+.schematic-edit-deck-usage-value.is-over {
+  color: rgba(253, 186, 116, 0.98);
+}
+
 .schematic-edit-warnings {
   display: grid;
   gap: 6px;
@@ -2199,8 +2267,80 @@ textarea {
 .schematic-edit-warning-list {
   display: grid;
   gap: 4px;
-  max-height: 140px;
+  max-height: 84px;
   overflow: auto;
+}
+
+.schematic-edit-deck-track {
+  flex-direction: row-reverse;
+}
+
+.schematic-edit-stack.is-two-across .schematic-edit-stack-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-content: end;
+  justify-items: stretch;
+  column-gap: 4px;
+  row-gap: 3px;
+  position: relative;
+}
+
+.schematic-edit-stack.is-two-across .schematic-edit-drop-slot {
+  display: none;
+}
+
+.schematic-edit-stack-two-across-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.65);
+  background: rgba(56, 189, 248, 0.2);
+  color: #bae6fd;
+  font-size: 12px;
+  line-height: 14px;
+  text-align: center;
+  z-index: 6;
+  pointer-events: auto;
+  cursor: help;
+}
+
+.schematic-edit-stack-two-across-icon[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 170px;
+  max-width: 190px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(71, 85, 105, 0.8);
+  background: rgba(2, 6, 23, 0.96);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: left;
+  z-index: 130;
+  pointer-events: none;
+}
+
+.schematic-edit-stack-two-across-icon[data-tooltip]:hover::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(2, 6, 23, 0.96);
+  z-index: 131;
+  pointer-events: none;
 }
 
 .schematic-edit-warning-item {
@@ -2388,6 +2528,44 @@ textarea {
   margin-top: 10px;
 }
 
+.optimize-submit-status {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  background: rgba(37, 99, 235, 0.14);
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.optimize-submit-status-icon {
+  font-size: 16px;
+  animation: optimize-submit-spin 1.1s linear infinite;
+}
+
+.optimize-submit-status-text {
+  color: #bfdbfe;
+  text-transform: uppercase;
+}
+
+.optimize-submit-status-timer {
+  min-width: 44px;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  color: #eff6ff;
+}
+
+@keyframes optimize-submit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .optimize-panel-submit {
   min-width: 170px;
   min-height: 40px;
@@ -2478,6 +2656,49 @@ textarea {
 
 .optimize-manual-hint {
   margin: 0;
+}
+
+.optimize-manual-callout {
+  border: 1px solid rgba(51, 65, 85, 0.78);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 8px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.optimize-manual-callout-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.optimize-manual-callout-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.optimize-manual-callout-missing {
+  display: grid;
+  gap: 6px;
+}
+
+.optimize-manual-missing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.optimize-manual-missing-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.34);
+  color: #fecaca;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
 }
 
 .optimize-field {
@@ -2647,6 +2868,12 @@ textarea {
     flex-wrap: wrap;
   }
 
+  .optimize-submit-status {
+    width: 100%;
+    margin-right: 0;
+    justify-content: space-between;
+  }
+
   .optimize-panel-submit {
     width: 100%;
     min-width: 0;
@@ -2673,6 +2900,19 @@ textarea {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.optimize-filter-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.optimize-all-customers-pill {
+  padding: 5px 10px;
+  font-size: 10px;
 }
 
 .orders-page .orders-toolbar .filters {
@@ -3081,6 +3321,214 @@ textarea {
   margin-bottom: var(--spacing-sm);
 }
 
+.manual-add-capacity-card {
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.45);
+  padding: var(--spacing-sm);
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.manual-add-capacity-visual {
+  border: 1px solid rgba(51, 65, 85, 0.7);
+  border-radius: var(--radius-md);
+  background: rgba(2, 6, 23, 0.48);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.manual-schematic-deck {
+  border: 1px solid rgba(71, 85, 105, 0.78);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 8px;
+  display: grid;
+  gap: 7px;
+}
+
+.manual-schematic-deck-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.manual-schematic-deck-title {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #dbeafe;
+}
+
+.manual-schematic-deck-remaining {
+  font-size: 10px;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.manual-schematic-track {
+  border: 1px solid rgba(71, 85, 105, 0.74);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.58);
+  padding: 8px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.manual-schematic-stack {
+  min-width: 68px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.manual-schematic-stack-body {
+  border: 1px solid rgba(100, 116, 139, 0.84);
+  border-radius: 8px;
+  min-height: 76px;
+  background: rgba(15, 23, 42, 0.82);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.manual-schematic-stack-body.is-over {
+  border-color: rgba(248, 113, 113, 0.75);
+}
+
+.manual-schematic-stack-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #e2e8f0;
+  text-align: center;
+  padding: 4px 3px;
+  background: rgba(30, 41, 59, 0.72);
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.5);
+}
+
+.manual-schematic-stack-open.tight {
+  font-size: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.manual-schematic-stack-fill {
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.28), rgba(37, 99, 235, 0.6));
+}
+
+.manual-schematic-stack.is-remaining .manual-schematic-stack-body.empty {
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  border-style: dashed;
+  border-color: rgba(148, 163, 184, 0.75);
+  background: rgba(30, 41, 59, 0.55);
+  padding: 8px 6px;
+}
+
+.manual-schematic-empty-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+  text-align: center;
+}
+
+.manual-schematic-empty-sub {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.manual-schematic-stack-length {
+  font-size: 11px;
+  color: #cbd5e1;
+  text-align: center;
+}
+
+.manual-schematic-deck-foot {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.manual-add-capacity-summary {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.manual-add-capacity-summary.is-over {
+  color: #fca5a5;
+}
+
+.manual-add-selected-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.manual-add-selected-chip {
+  border: 1px solid var(--chip-accent, rgba(96, 165, 250, 0.8));
+  background: rgba(15, 23, 42, 0.72);
+  color: #dbeafe;
+  border-radius: 999px;
+  font-size: 10px;
+  padding: 4px 8px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.manual-add-selected-chip.is-over {
+  border-color: rgba(248, 113, 113, 0.8);
+  background: rgba(127, 29, 29, 0.55);
+  color: #fecaca;
+}
+
+.manual-add-capacity-overflow {
+  border: 1px dashed rgba(248, 113, 113, 0.7);
+  border-radius: var(--radius-sm);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+.manual-add-order-list {
+  min-height: 260px;
+  max-height: 430px;
+}
+
+.manual-add-progress-card {
+  width: min(520px, calc(100vw - 24px));
+}
+
+.manual-add-progress-card .modal-header {
+  border-bottom: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+.manual-add-progress-card .modal-body {
+  padding-top: var(--spacing-md);
+}
+
+.manual-add-progress-icon {
+  animation: manual-add-spin 1.1s linear infinite;
+}
+
+@keyframes manual-add-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .manual-load-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3160,6 +3608,85 @@ textarea {
   line-height: 1.35;
 }
 
+.manual-order-fit-row {
+  display: flex;
+  align-items: center;
+}
+
+.manual-fit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.manual-fit-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: currentColor;
+}
+
+.manual-fit-badge.ok {
+  color: #86efac;
+  background: rgba(22, 101, 52, 0.28);
+  border-color: rgba(74, 222, 128, 0.45);
+}
+
+.manual-fit-badge.over {
+  color: #fca5a5;
+  background: rgba(127, 29, 29, 0.4);
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+.manual-fit-badge.unknown {
+  color: #bfdbfe;
+  background: rgba(30, 58, 138, 0.33);
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.manual-order-skus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.manual-order-skus.compact {
+  gap: 4px;
+}
+
+.manual-sku-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: rgba(37, 99, 235, 0.14);
+  color: #bfdbfe;
+  font-size: 10px;
+  line-height: 1;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.manual-sku-chip-overflow {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: rgba(51, 65, 85, 0.35);
+  color: var(--text-secondary);
+}
+
+.manual-sku-chip-empty {
+  border-color: rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.45);
+  color: var(--text-secondary);
+}
+
 @media (max-width: 980px) {
   .modal-backdrop {
     padding: var(--spacing-lg);
@@ -3175,6 +3702,10 @@ textarea {
 
   .manual-load-grid {
     grid-template-columns: 1fr;
+  }
+
+  .manual-add-order-list {
+    max-height: 340px;
   }
 }
 
@@ -6283,7 +6814,7 @@ button.plant-card {
   overflow: hidden;
 }
 
-.trailer-schematic:not(.trailer-step_deck) .trailer-deck.upper {
+.trailer-schematic:not(.trailer-step_deck):not(.trailer-step-deck-profile) .trailer-deck.upper {
   position: absolute;
   top: -10px;
   height: 55%;
@@ -6293,7 +6824,8 @@ button.plant-card {
   box-shadow: 0 6px 16px rgba(2, 6, 23, 0.35);
 }
 
-.trailer-schematic.trailer-step_deck .trailer-deck.upper {
+.trailer-schematic.trailer-step_deck .trailer-deck.upper,
+.trailer-schematic.trailer-step-deck-profile .trailer-deck.upper {
   position: relative;
   height: auto;
   background: rgba(30, 41, 59, 0.9);
@@ -6319,6 +6851,7 @@ button.plant-card {
 .trailer-schematic .deck-positions {
   min-height: 100px;
   gap: var(--spacing-xs);
+  flex-direction: row-reverse;
 }
 
 .position-stack {
@@ -6528,7 +7061,8 @@ button.plant-card {
   align-items: flex-end;
 }
 
-.load-detail-panel .trailer-schematic.trailer-step_deck .trailer-deck.upper {
+.load-detail-panel .trailer-schematic.trailer-step_deck .trailer-deck.upper,
+.load-detail-panel .trailer-schematic.trailer-step-deck-profile .trailer-deck.upper {
   margin-left: 6px;
   margin-top: 0;
   transform: translateY(-10px);
@@ -7029,6 +7563,7 @@ button.plant-card {
 
 .deck-positions {
   display: flex;
+  flex-direction: row-reverse;
   gap: var(--spacing-sm);
   align-items: flex-end;
   min-height: 100px;
@@ -7107,9 +7642,10 @@ button.plant-card {
 
 .trailer-schematic .stack-overflow-indicator {
   position: absolute;
-  bottom: 20px;
-  right: 2px;
-  z-index: 3;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -7123,9 +7659,41 @@ button.plant-card {
   cursor: help;
 }
 
+/* Hard anchor overflow marker to top-center of the stack body in all schematic variants. */
+.trailer-schematic .position-stack > .stack-overflow-indicator,
+.trailer-schematic .position-stack-two-across > .stack-overflow-indicator {
+  position: absolute !important;
+  top: -10px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  z-index: 30 !important;
+}
+
+.trailer-schematic .stack-two-across-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  font-size: 12px;
+  line-height: 14px;
+  text-align: center;
+  cursor: help;
+}
+
 .trailer-schematic .position-stack {
   width: 100%;
   align-items: stretch;
+  position: relative;
+  overflow: visible;
 }
 
 .trailer-schematic .unit-block {
@@ -7133,13 +7701,14 @@ button.plant-card {
   max-width: none;
   height: 18px;
   box-shadow: inset 0 0 0 1px rgba(30, 41, 59, 0.6);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .position-actions {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
+  top: 4px;
+  left: 2px;
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -7151,7 +7720,7 @@ button.plant-card {
 
 .position-column:hover .position-actions {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .position-action-btn {
@@ -7170,8 +7739,128 @@ button.plant-card {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  align-self: flex-end;
+  align-self: flex-start;
   cursor: pointer;
+  pointer-events: auto;
+}
+
+.position-stack-two-across {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  position: relative;
+}
+
+.position-stack-half {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trailer-schematic .unit-block[data-tooltip],
+.trailer-schematic .stack-overflow-indicator[data-tooltip],
+.trailer-schematic .deck-void-hint[data-tooltip] {
+  position: relative;
+}
+
+.trailer-schematic .unit-block[data-tooltip]:hover::after,
+.trailer-schematic .stack-overflow-indicator[data-tooltip]:hover::after,
+.trailer-schematic .deck-void-hint[data-tooltip]:hover::after {
+  content: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 170px;
+  max-width: 190px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(71, 85, 105, 0.8);
+  background: rgba(2, 6, 23, 0.96);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: left;
+  z-index: 120;
+  pointer-events: none;
+}
+
+.trailer-schematic .unit-block[data-tooltip]:hover::before,
+.trailer-schematic .stack-overflow-indicator[data-tooltip]:hover::before,
+.trailer-schematic .deck-void-hint[data-tooltip]:hover::before {
+  content: none;
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(2, 6, 23, 0.96);
+  z-index: 121;
+  pointer-events: none;
+}
+
+.schematic-hover-tooltip {
+  position: fixed;
+  z-index: 4000;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.85);
+  background: rgba(2, 6, 23, 0.97);
+  color: #e2e8f0;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.schematic-hover-tooltip.hidden {
+  display: none;
+}
+
+.schematic-hover-tooltip-row + .schematic-hover-tooltip-row {
+  margin-top: 2px;
+}
+
+.trailer-schematic .deck-void-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #7dd3fc;
+  border: 1px dashed rgba(56, 189, 248, 0.6);
+  background: rgba(56, 189, 248, 0.1);
+  border-radius: 999px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  cursor: help;
+  margin-left: 12px;
+  position: relative;
+  z-index: 10;
+}
+
+.trailer-schematic .deck-void-hint .material-symbols-outlined {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.trailer-schematic,
+.trailer-schematic .trailer-body,
+.trailer-schematic .trailer-deck,
+.trailer-schematic .deck-positions,
+.trailer-schematic .position-column {
+  overflow: visible;
 }
 
 .position-action-btn .material-symbols-outlined {
@@ -7340,6 +8029,11 @@ button.plant-card {
 
 .sku-filter-field {
   min-width: 160px;
+}
+
+.sku-filter-search {
+  flex: 1 1 260px;
+  min-width: 220px;
 }
 
 .sku-filter-field span {
@@ -7520,12 +8214,20 @@ button.plant-card {
   order: 2;
 }
 
+.settings-card-stop-colors {
+  order: 3;
+}
+
 .settings-card-plants {
   order: 3;
 }
 
 .settings-card-defaults {
   order: 4;
+}
+
+.settings-card-stop-colors .settings-panel-title .material-symbols-outlined {
+  color: #22c55e;
 }
 
 .settings-card-strategic {
@@ -7607,6 +8309,62 @@ button.plant-card {
 .settings-mini-form {
   display: grid;
   gap: 8px;
+}
+
+.settings-stop-color-form {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-stop-color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-stop-color-row {
+  display: grid;
+  grid-template-columns: auto 24px 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid rgba(71, 85, 105, 0.55);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.settings-stop-color-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.settings-stop-color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.9);
+  background: var(--stop-color, #94a3b8);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.settings-stop-color-picker {
+  width: 40px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(71, 85, 105, 0.72);
+  background: rgba(15, 23, 42, 0.85);
+  padding: 1px;
+  cursor: pointer;
+}
+
+.settings-stop-color-hex {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  min-height: 24px;
 }
 
 .settings-rate-grid {
@@ -8208,18 +8966,28 @@ button.plant-card {
 
 .settings-card-plants .settings-table-shell,
 .settings-card-defaults .settings-table-shell {
-  min-height: 318px;
-  max-height: 318px;
-  overflow: auto;
+  min-height: 350px;
+  max-height: 350px;
+  overflow: hidden;
 }
 
+/* Visual parity rule: table total heights should align even with different row counts. */
 .settings-card-plants #overview-plants-table tbody td {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.settings-card-defaults .settings-defaults-table tbody td {
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .settings-card-plants #overview-plants-table .table-input {
-  min-height: 28px;
+  min-height: 26px;
+}
+
+.settings-card-defaults .settings-default-input {
+  min-height: 22px;
 }
 
 .settings-card-defaults .settings-default-input {
@@ -8415,6 +9183,43 @@ button.plant-card {
 
 .settings-page .settings-skus-tab .sku-filter-bar {
   align-items: flex-end;
+}
+
+.settings-page .settings-skus-tab .sku-header-row {
+  margin-bottom: 12px;
+}
+
+.settings-page .settings-skus-tab .sku-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-page .settings-skus-tab .sku-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(79, 115, 182, 0.68);
+  background: linear-gradient(180deg, rgba(26, 44, 80, 0.92), rgba(21, 37, 66, 0.92));
+  color: #dbe8ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  box-shadow: 0 6px 14px -10px rgba(58, 93, 154, 0.85);
+}
+
+.settings-page .settings-skus-tab .sku-export-btn:hover {
+  border-color: rgba(114, 153, 230, 0.92);
+  background: linear-gradient(180deg, rgba(33, 54, 95, 0.96), rgba(27, 46, 81, 0.96));
+  color: #f2f7ff;
+}
+
+.settings-page .settings-skus-tab .sku-export-btn .material-symbols-outlined {
+  font-size: 15px;
 }
 
 .settings-page .settings-skus-tab .sku-add-toggle {
@@ -8631,6 +9436,10 @@ button.plant-card {
     grid-template-columns: 1fr 1fr;
   }
 
+  .settings-stop-color-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .settings-strategic-table {
     min-width: 980px;
   }
@@ -8650,6 +9459,10 @@ button.plant-card {
 
 @media (max-width: 700px) {
   .settings-rate-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-stop-color-grid {
     grid-template-columns: 1fr;
   }
 
@@ -11007,14 +11820,15 @@ button.plant-card {
 
 .load-detail-panel .schematic-card .trailer-schematic .trailer-body,
 .orders-expanded-pane .schematic-card .trailer-schematic .trailer-body {
-  padding-right: 44px;
+  padding-left: 44px;
+  padding-right: 0;
 }
 
 .load-detail-panel .schematic-card .trailer-schematic .trailer-deck-row.step-deck.step-deck-frame,
 .orders-expanded-pane .schematic-card .trailer-schematic .trailer-deck-row.step-deck.step-deck-frame {
   --schematic-stack-height: 170px;
   --schematic-void-height: calc(var(--schematic-stack-height) / 10);
-  --schematic-label-space: 20px;
+  --schematic-label-space: 14px;
   gap: 0;
   border: 4px solid rgba(35, 54, 72, 0.95);
   border-radius: 14px;
@@ -11024,6 +11838,7 @@ button.plant-card {
     inset 0 0 0 1px rgba(148, 163, 184, 0.08),
     0 20px 55px rgba(2, 6, 23, 0.55);
   align-items: stretch; /* keep upper/lower aligned */
+  flex-direction: row-reverse;
 }
 
 .orders-expanded-pane .schematic-card .trailer-schematic {
@@ -11031,13 +11846,14 @@ button.plant-card {
 }
 
 .orders-expanded-pane .schematic-card .trailer-schematic .trailer-body {
-  padding-right: 34px;
+  padding-left: 34px;
+  padding-right: 0;
 }
 
 .orders-expanded-pane .schematic-card .trailer-schematic .trailer-deck-row.step-deck.step-deck-frame {
   --schematic-stack-height: 110px;
   --schematic-void-height: calc(var(--schematic-stack-height) / 12);
-  --schematic-label-space: 12px;
+  --schematic-label-space: 8px;
   border-width: 3px;
 }
 
@@ -11051,6 +11867,7 @@ button.plant-card {
   display: flex;
   flex-direction: column;
   min-height: 250px;
+  overflow: visible;
 }
 
 .orders-expanded-pane .schematic-card .trailer-schematic .trailer-deck-row.step-deck.step-deck-frame .trailer-deck {
@@ -11063,7 +11880,19 @@ button.plant-card {
   transform: none;
   margin: 0;
   align-self: stretch;
-  border-left: 1px solid rgba(35, 54, 72, 0.95);
+  border-right: 1px solid rgba(35, 54, 72, 0.95);
+  border-left: 0;
+}
+
+.load-detail-panel .schematic-card .trailer-schematic .trailer-truck,
+.orders-expanded-pane .schematic-card .trailer-schematic .trailer-truck {
+  left: 0;
+  right: auto;
+}
+
+.load-detail-panel .schematic-card .trailer-schematic .trailer-truck .material-symbols-outlined,
+.orders-expanded-pane .schematic-card .trailer-schematic .trailer-truck .material-symbols-outlined {
+  transform: scaleX(-1);
 }
 
 .load-detail-panel .schematic-card .trailer-schematic .deck-header,
@@ -11176,6 +12005,7 @@ button.plant-card {
 
 .load-detail-panel .schematic-card .trailer-schematic .unit-block.glass-block,
 .orders-expanded-pane .schematic-card .trailer-schematic .unit-block.glass-block {
+  position: relative;
   border-radius: 6px;
   border: 1.5px solid var(--accent, #137fec);
   background: rgba(19, 127, 236, 0.1);
@@ -11200,6 +12030,30 @@ button.plant-card {
   font-size: 10px;
   letter-spacing: 0.06em;
   text-shadow: 0 1px 8px rgba(2, 6, 23, 0.85);
+}
+
+.load-detail-panel .schematic-card .trailer-schematic .unit-block.glass-block .stop-sequence-indicator,
+.orders-expanded-pane .schematic-card .trailer-schematic .unit-block.glass-block .stop-sequence-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  background: var(--accent, #137fec);
+  box-shadow:
+    0 0 0 1px rgba(2, 6, 23, 0.72),
+    0 0 0 1px rgba(248, 250, 252, 0.24) inset;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .load-detail-panel .schematic-card .trailer-schematic .position-column.vacant .position-stack,
@@ -11275,17 +12129,18 @@ button.plant-card {
   background:
     repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.10) 0 10px, rgba(2, 6, 23, 0) 10px 20px),
     rgba(148, 163, 184, 0.05);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .load-detail-panel .schematic-card .trailer-schematic .deck-void .void-x,
 .orders-expanded-pane .schematic-card .trailer-schematic .deck-void .void-x {
   position: absolute;
   inset: 8px 14px;
+  pointer-events: none;
 }
 
 .load-detail-panel .schematic-card .trailer-schematic .deck-void .void-x::before,
@@ -11324,24 +12179,28 @@ button.plant-card {
 
 .load-detail-panel .schematic-card .trailer-schematic .deck-footer,
 .orders-expanded-pane .schematic-card .trailer-schematic .deck-footer {
-  margin-top: 8px;
+  margin-top: 2px;
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 6px;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(148, 163, 184, 0.78);
+  overflow: visible;
 }
 
 .orders-expanded-pane .schematic-card .trailer-schematic .deck-footer {
-  margin-top: 6px;
+  margin-top: 1px;
 }
 
 .load-detail-panel .schematic-card .trailer-schematic .deck-footer .deck-line,
 .orders-expanded-pane .schematic-card .trailer-schematic .deck-footer .deck-line {
-  flex: 0 0 var(--line-span, 100%);
+  order: 1;
+  flex: 0 1 var(--line-span, 100%);
+  min-width: 0;
   position: relative;
   height: 16px;
   display: flex;
@@ -11370,12 +12229,14 @@ button.plant-card {
 
 .load-detail-panel .schematic-card .trailer-schematic .deck-footer .deck-overhang-line,
 .orders-expanded-pane .schematic-card .trailer-schematic .deck-footer .deck-overhang-line {
-  flex: 1;
+  order: 2;
+  flex: 1 1 auto;
   position: relative;
   height: 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .load-detail-panel .schematic-card .trailer-schematic .deck-footer .deck-overhang-line::before,
@@ -11393,15 +12254,16 @@ button.plant-card {
 .orders-expanded-pane .schematic-card .trailer-schematic .deck-footer .deck-overhang {
   position: relative;
   z-index: 1;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.82);
-  background: rgba(2, 6, 23, 0.6);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.34);
   padding: 0 6px;
   border-radius: 4px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  white-space: nowrap;
 }
 
 /* Command Center Dashboard */
@@ -13722,7 +14584,8 @@ button.plant-card {
 }
 
 .orders-page .orders-expanded-pane .schematic-card .trailer-schematic .trailer-body {
-  padding-right: 24px;
+  padding-left: 24px;
+  padding-right: 0;
 }
 
 .orders-page .orders-expanded-pane .schematic-card .trailer-schematic .trailer-deck-row.step-deck.step-deck-frame {

@@ -18,6 +18,14 @@ PLANT_COORDS = {
 }
 
 
+def invalidate_coordinate_caches(zip_coords=False, plant_coords=False):
+    global _ZIP_COORDS_CACHE, _PLANT_COORDS_CACHE
+    if zip_coords:
+        _ZIP_COORDS_CACHE = None
+    if plant_coords:
+        _PLANT_COORDS_CACHE = None
+
+
 def load_zip_coordinates(path=ZIP_COORDS_PATH):
     global _ZIP_COORDS_CACHE
     if _ZIP_COORDS_CACHE is not None:

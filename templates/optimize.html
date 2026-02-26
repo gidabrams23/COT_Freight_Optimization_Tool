@@ -39,9 +39,9 @@
             Trailer Type
             <select name="trailer_type" required>
               {% set selected_trailer = form_data.trailer_type or 'STEP_DECK' %}
-              <option value="STEP_DECK" {% if selected_trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
-              <option value="WEDGE" {% if selected_trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
-              <option value="FLATBED" {% if selected_trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
+              {% for trailer_option in trailer_profile_options %}
+                <option value="{{ trailer_option.value }}" {% if selected_trailer == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
+              {% endfor %}
             </select>
             {% if errors.trailer_type %}
               <span class="form-error">{{ errors.trailer_type }}</span>
@@ -77,6 +77,7 @@
           </label>
           <input type="hidden" name="stack_overflow_max_height" value="{{ form_data.stack_overflow_max_height or 5 }}">
           <input type="hidden" name="max_back_overhang_ft" value="{{ form_data.max_back_overhang_ft or 4 }}">
+          <input type="hidden" name="upper_two_across_max_length_ft" value="{{ form_data.upper_two_across_max_length_ft or 7 }}">
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">
               <span class="material-symbols-outlined">tune</span>

@@ -6,7 +6,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = Path(os.environ.get("APP_DB_PATH", str(ROOT / "data" / "db" / "app.db")))
+DEFAULT_DB_PATH = (
+    "/var/data/app.db"
+    if (os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
+    else str(ROOT / "data" / "db" / "app.db")
+)
+DB_PATH = Path(os.environ.get("APP_DB_PATH", DEFAULT_DB_PATH))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 SEED_DIR = Path(os.environ.get("APP_SEED_DIR", str(ROOT / "data" / "seed")))
 
@@ -15,6 +20,7 @@ DEFAULT_PLANTS = {
     "IA": {"name": "Missouri Valley", "lat": 41.55944, "lng": -95.90250},
     "TX": {"name": "Mexia", "lat": 31.66222, "lng": -96.49722},
     "VA": {"name": "Montross", "lat": 38.09389, "lng": -76.82611},
+    "CL": {"name": "Callao", "lat": 37.97216, "lng": -76.57288},
     "OR": {"name": "Coburg", "lat": 44.13944, "lng": -123.05889},
     "NV": {"name": "Winnemucca", "lat": 40.96833, "lng": -117.72667},
 }
@@ -579,12 +585,15 @@ def _seed_reference_data(connection):
             "sku_specifications.csv",
             [
                 "sku",
+                "description",
                 "category",
                 "length_with_tongue_ft",
                 "max_stack_step_deck",
                 "max_stack_flat_bed",
                 "notes",
+                "added_at",
                 "created_at",
+                "source",
             ],
         ),
         (
@@ -799,6 +808,7 @@ def init_db():
                 max_stack_flat_bed INTEGER DEFAULT 1,
                 notes TEXT,
                 added_at TEXT,
+                source TEXT,
                 created_at TEXT NOT NULL
             )
             """
@@ -982,7 +992,9 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 archived_at TEXT,
                 horizon_end TEXT,
-                config_json TEXT
+                config_json TEXT,
+                load_number_prefix TEXT,
+                next_load_sequence INTEGER
             )
             """
         )
@@ -1256,6 +1268,8 @@ def init_db():
         _ensure_column(connection, "loads", "utilization_pct", "utilization_pct REAL DEFAULT 0.0")
         _ensure_column(connection, "loads", "optimization_score", "optimization_score REAL DEFAULT 0.0")
         _ensure_column(connection, "loads", "created_by", "created_by TEXT")
+        _ensure_column(connection, "planning_sessions", "load_number_prefix", "load_number_prefix TEXT")
+        _ensure_column(connection, "planning_sessions", "next_load_sequence", "next_load_sequence INTEGER")
         _ensure_column(connection, "optimizer_settings", "baseline_cost", "baseline_cost REAL")
         _ensure_column(connection, "optimizer_settings", "baseline_set_at", "baseline_set_at TEXT")
         _ensure_column(connection, "replay_eval_day_plant", "optimized_strategy", "optimized_strategy TEXT")
@@ -1269,6 +1283,29 @@ def init_db():
         _ensure_column(connection, "upload_history", "deleted_at", "deleted_at TEXT")
         _ensure_column(connection, "sku_specifications", "description", "description TEXT")
         _ensure_column(connection, "sku_specifications", "added_at", "added_at TEXT")
+        _ensure_column(connection, "sku_specifications", "source", "source TEXT")
+
+        connection.execute(
+            """
+            UPDATE sku_specifications
+            SET source = 'planner'
+            WHERE source IS NULL AND COALESCE(TRIM(added_at), '') <> ''
+            """
+        )
+        connection.execute(
+            """
+            UPDATE sku_specifications
+            SET source = 'system'
+            WHERE source IS NULL OR COALESCE(TRIM(source), '') = ''
+            """
+        )
+        connection.execute(
+            """
+            UPDATE sku_specifications
+            SET added_at = COALESCE(added_at, created_at)
+            WHERE source = 'planner' AND COALESCE(TRIM(added_at), '') = ''
+            """
+        )
 
         connection.execute(
             "UPDATE loads SET trailer_type = 'STEP_DECK' WHERE trailer_type IS NULL"
@@ -2481,7 +2518,7 @@ def list_sku_specs():
         rows = connection.execute(
             """
             SELECT id, sku, description, category, length_with_tongue_ft, max_stack_step_deck,
-                   max_stack_flat_bed, notes, added_at, created_at
+                   max_stack_flat_bed, notes, added_at, source, created_at
             FROM sku_specifications
             ORDER BY sku ASC
             """
@@ -2492,14 +2529,17 @@ def list_sku_specs():
 def upsert_sku_spec(spec):
     created_at = datetime.utcnow().isoformat(timespec="seconds")
     added_at = spec.get("added_at") or created_at
+    source = (spec.get("source") or "planner").strip().lower()
+    if source not in {"planner", "system"}:
+        source = "planner"
     with get_connection() as connection:
         connection.execute(
             """
             INSERT INTO sku_specifications (
                 sku, description, category, length_with_tongue_ft, max_stack_step_deck,
-                max_stack_flat_bed, notes, added_at, created_at
+                max_stack_flat_bed, notes, added_at, created_at, source
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(sku) DO UPDATE SET
                 category = excluded.category,
                 length_with_tongue_ft = excluded.length_with_tongue_ft,
@@ -2507,7 +2547,8 @@ def upsert_sku_spec(spec):
                 max_stack_flat_bed = excluded.max_stack_flat_bed,
                 description = excluded.description,
                 notes = excluded.notes,
-                added_at = COALESCE(sku_specifications.added_at, excluded.added_at)
+                added_at = COALESCE(sku_specifications.added_at, excluded.added_at),
+                source = COALESCE(sku_specifications.source, excluded.source)
             """,
             (
                 spec.get("sku"),
@@ -2519,6 +2560,7 @@ def upsert_sku_spec(spec):
                 spec.get("notes"),
                 added_at,
                 created_at,
+                source,
             ),
         )
         connection.commit()
@@ -2661,7 +2703,9 @@ def list_plants():
             """
             SELECT id, plant_code, name, lat, lng, address, created_at
             FROM plants
-            ORDER BY plant_code ASC
+            ORDER BY
+                CASE WHEN plant_code = 'CL' THEN 1 ELSE 0 END ASC,
+                plant_code ASC
             """
         ).fetchall()
         return [dict(row) for row in rows]
@@ -3537,6 +3581,75 @@ def get_next_load_sequence(plant_code, year_suffix):
     return max_seq + 1
 
 
+def reserve_planning_session_load_number(
+    session_id,
+    plant_code,
+    year_suffix,
+    starting_sequence=None,
+):
+    if not session_id or not plant_code or not year_suffix:
+        return {"error": "invalid_arguments"}
+    prefix = f"{str(plant_code).strip().upper()}{str(year_suffix).strip()}"
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT load_number_prefix, next_load_sequence
+            FROM planning_sessions
+            WHERE id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        if not row:
+            return {"error": "session_not_found"}
+
+        stored_prefix = (row["load_number_prefix"] or "").strip().upper()
+        next_sequence = row["next_load_sequence"]
+
+        if next_sequence is None:
+            if starting_sequence is None:
+                return {
+                    "needs_start": True,
+                    "prefix": f"{prefix}-",
+                }
+            assigned_sequence = int(starting_sequence)
+            next_sequence = assigned_sequence + 1
+            connection.execute(
+                """
+                UPDATE planning_sessions
+                SET load_number_prefix = ?,
+                    next_load_sequence = ?
+                WHERE id = ?
+                """,
+                (prefix, next_sequence, session_id),
+            )
+            connection.commit()
+            return {
+                "load_number": f"{prefix}-{assigned_sequence:04d}",
+                "assigned_sequence": assigned_sequence,
+                "next_sequence": next_sequence,
+                "prefix": f"{prefix}-",
+            }
+
+        assigned_sequence = int(next_sequence)
+        effective_prefix = stored_prefix or prefix
+        connection.execute(
+            """
+            UPDATE planning_sessions
+            SET load_number_prefix = ?,
+                next_load_sequence = ?
+            WHERE id = ?
+            """,
+            (effective_prefix, assigned_sequence + 1, session_id),
+        )
+        connection.commit()
+        return {
+            "load_number": f"{effective_prefix}-{assigned_sequence:04d}",
+            "assigned_sequence": assigned_sequence,
+            "next_sequence": assigned_sequence + 1,
+            "prefix": f"{effective_prefix}-",
+        }
+
+
 def update_load_status(load_id, status, load_number=None):
     with get_connection() as connection:
         if load_number is None:
@@ -4067,11 +4180,7 @@ def _seed_plants(connection):
         """
         INSERT INTO plants (plant_code, name, lat, lng, address)
         VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(plant_code) DO UPDATE SET
-            name = excluded.name,
-            lat = excluded.lat,
-            lng = excluded.lng,
-            address = excluded.address
+        ON CONFLICT(plant_code) DO NOTHING
         """,
         rows,
     )

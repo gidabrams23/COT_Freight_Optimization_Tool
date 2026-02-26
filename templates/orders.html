@@ -46,6 +46,7 @@
                   <input type="hidden" name="geo_radius" value="{{ optimize_defaults.geo_radius }}">
                   <input type="hidden" name="stack_overflow_max_height" value="{{ optimize_defaults.stack_overflow_max_height or 5 }}">
                   <input type="hidden" name="max_back_overhang_ft" value="{{ optimize_defaults.max_back_overhang_ft or 4 }}">
+                  <input type="hidden" name="upper_two_across_max_length_ft" value="{{ optimize_defaults.upper_two_across_max_length_ft or 7 }}">
                   <input type="hidden" name="enforce_time_window" value="1">
                   <input type="hidden" name="batch_horizon_enabled" value="{% if optimize_defaults.batch_horizon_enabled %}1{% endif %}" id="optimize-batch-toggle">
                   <input type="hidden" name="algorithm_version" value="v2">
@@ -133,18 +134,28 @@
                       </div>
 
                       <div class="optimize-filter-block">
-                        {% set ns = namespace(lowes=None, tractor=None) %}
+                        {% set ns = namespace(lowes=None, tractor=None, ace=None, trailers=None) %}
                         {% for group in strategic_customer_groups or [] %}
                           {% set label = group.label | lower %}
                           {% if ns.lowes is none and 'lowe' in label %}
                             {% set ns.lowes = group %}
                           {% elif ns.tractor is none and 'tractor' in label %}
                             {% set ns.tractor = group %}
+                          {% elif ns.ace is none and 'ace' in label %}
+                            {% set ns.ace = group %}
+                          {% elif ns.trailers is none and 'trailer' in label %}
+                            {% set ns.trailers = group %}
                           {% endif %}
                         {% endfor %}
                         <div class="optimize-filter-actions">
                           <span class="meta-label">Customer Selection</span>
-                          <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
+                          <div class="optimize-filter-action-buttons">
+                            <label class="checkbox-pill optimize-all-customers-pill">
+                              <input type="checkbox" data-customer-all>
+                              <span>All Customers</span>
+                            </label>
+                            <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
+                          </div>
                         </div>
                         <div class="customer-chip-row customer-chip-row-static" data-customer-chips>
                           {% if ns.lowes %}
@@ -159,10 +170,18 @@
                               <span>{{ ns.tractor.label }}</span>
                             </label>
                           {% endif %}
-                          <label class="checkbox-pill">
-                            <input type="checkbox" data-customer-all>
-                            <span>All Customers</span>
-                          </label>
+                          {% if ns.ace %}
+                            <label class="checkbox-pill">
+                              <input type="checkbox" data-strategic-key="{{ ns.ace.key }}">
+                              <span>{{ ns.ace.label }}</span>
+                            </label>
+                          {% endif %}
+                          {% if ns.trailers %}
+                            <label class="checkbox-pill">
+                              <input type="checkbox" data-strategic-key="{{ ns.trailers.key }}">
+                              <span>{{ ns.trailers.label }}</span>
+                            </label>
+                          {% endif %}
                         </div>
                         <p class="customer-selected-summary" data-selected-summary></p>
                         <div class="customer-selected hidden" data-selected-chips></div>
@@ -209,6 +228,14 @@
                         <p class="form-hint optimize-manual-hint">
                           Paste orders directly from Excel. The optimizer will include matching open orders without state/customer/plant filters.
                         </p>
+                        <div class="optimize-manual-callout hidden" data-manual-validate>
+                          <div class="optimize-manual-callout-summary" data-manual-summary></div>
+                          <div class="optimize-manual-callout-detail" data-manual-detail></div>
+                          <div class="optimize-manual-callout-missing hidden" data-manual-missing-wrap>
+                            <div class="meta-label">Orders Not Found</div>
+                            <div class="optimize-manual-missing-list" data-manual-missing-list></div>
+                          </div>
+                        </div>
                       </div>
                     </section>
 
@@ -235,10 +262,23 @@
                                id="optimize-flex-days"
                                required>
                       </label>
+                      <label class="checkbox-pill">
+                        <input type="checkbox" name="ignore_due_date" value="1" id="optimize-ignore-due"
+                               {% if optimize_defaults.ignore_due_date %}checked{% endif %}>
+                        <span>Unlimited Due-Date Flexibility</span>
+                      </label>
+                      <p class="form-hint optimize-manual-hint">
+                        Removes due-date spacing limits (including customer-specific limits) but still applies Orders Start Date and Batch End Date filters.
+                      </p>
                     </section>
                   </div>
 
                   <div class="optimize-inline-actions">
+                    <div class="optimize-submit-status hidden" data-optimize-submit-status aria-live="polite">
+                      <span class="material-symbols-outlined optimize-submit-status-icon" aria-hidden="true">sync</span>
+                      <span class="optimize-submit-status-text">Running optimization...</span>
+                      <span class="optimize-submit-status-timer" data-optimize-submit-timer>00:00</span>
+                    </div>
                     <button class="btn-ghost" type="button" data-optimize-close>Cancel</button>
                     <button class="btn-success optimize-panel-submit" type="submit">
                       <span class="material-symbols-outlined">rocket_launch</span>
@@ -894,10 +934,17 @@
       const optimizeToggle = document.querySelector('[data-optimize-toggle]');
       const optimizeCloseButtons = Array.from(document.querySelectorAll('[data-optimize-close]'));
       const optimizeFlexDays = document.getElementById('optimize-flex-days');
+      const optimizeIgnoreDue = document.getElementById('optimize-ignore-due');
       const optimizeBatchEnd = document.getElementById('optimize-batch-end');
       const optimizeBatchToggle = document.getElementById('optimize-batch-toggle');
+      const optimizeOrdersStart = optimizePanel ? optimizePanel.querySelector('input[name="orders_start_date"]') : null;
       const optimizeModeInput = document.getElementById('optimize-mode-input');
       const optimizeManualInput = document.getElementById('optimize-manual-input');
+      const manualValidateCallout = document.querySelector('[data-manual-validate]');
+      const manualValidateSummary = document.querySelector('[data-manual-summary]');
+      const manualValidateDetail = document.querySelector('[data-manual-detail]');
+      const manualMissingWrap = document.querySelector('[data-manual-missing-wrap]');
+      const manualMissingList = document.querySelector('[data-manual-missing-list]');
       const optimizeTabs = Array.from(document.querySelectorAll('[data-optimize-tab]'));
       const optimizeTabContent = {
         auto: Array.from(document.querySelectorAll('[data-optimize-content="auto"]')),
@@ -907,6 +954,11 @@
       const replaceSessionInput = optimizePanel ? optimizePanel.querySelector('input[name="replace_session"]') : null;
       const activeSessionId = optimizePanel ? optimizePanel.dataset.activeSessionId : '';
       const activeSessionStatus = optimizePanel ? (optimizePanel.dataset.activeSessionStatus || '').toUpperCase() : '';
+      const optimizeSubmitStatus = optimizePanel ? optimizePanel.querySelector('[data-optimize-submit-status]') : null;
+      const optimizeSubmitTimer = optimizePanel ? optimizePanel.querySelector('[data-optimize-submit-timer]') : null;
+      const optimizeActionButtons = optimizePanel
+        ? Array.from(optimizePanel.querySelectorAll('.optimize-inline-actions button'))
+        : [];
       const todayToggle = document.querySelector('[data-today-toggle]');
       const todayPanel = document.querySelector('[data-today-panel]');
       const todayInput = document.getElementById('orders-today-input');
@@ -914,6 +966,11 @@
       const todayClear = document.querySelector('[data-today-clear]');
       const allPlantsChip = document.querySelector('[data-all-plants-chip]');
       const pastDueToggle = document.querySelector('[data-past-due-toggle]');
+      let manualValidateTimer = null;
+      let manualValidateRequestId = 0;
+      let optimizeSubmitInterval = null;
+      let optimizeSubmitStartTs = 0;
+      let optimizeSubmitRunning = false;
 
       if (allPlantsChip && pastDueToggle) {
         allPlantsChip.addEventListener('click', () => {
@@ -937,6 +994,112 @@
         }
       }
 
+      function clearManualValidation() {
+        if (!manualValidateCallout || !manualValidateSummary || !manualMissingWrap || !manualMissingList) return;
+        manualValidateSummary.textContent = '';
+        if (manualValidateDetail) manualValidateDetail.textContent = '';
+        manualValidateCallout.classList.add('hidden');
+        manualMissingWrap.classList.add('hidden');
+        manualMissingList.innerHTML = '';
+      }
+
+      function renderManualValidation(payload) {
+        if (!manualValidateCallout || !manualValidateSummary || !manualMissingWrap || !manualMissingList) return;
+        const pastedCount = Number(payload.pasted_count || 0);
+        const matchedCount = Number(payload.matched_count || 0);
+        const notFound = Array.isArray(payload.not_found_so_nums) ? payload.not_found_so_nums : [];
+        const notFoundCount = Number(payload.not_found_count || notFound.length || 0);
+        manualValidateCallout.classList.remove('hidden');
+        manualValidateSummary.textContent = `${notFoundCount} / ${pastedCount} not found`;
+        if (manualValidateDetail) {
+          manualValidateDetail.textContent = `${matchedCount} matched open orders`;
+        }
+        manualMissingList.innerHTML = '';
+        if (notFound.length) {
+          manualMissingWrap.classList.remove('hidden');
+          notFound.forEach((soNum) => {
+            const chip = document.createElement('span');
+            chip.className = 'optimize-manual-missing-chip';
+            chip.textContent = soNum;
+            manualMissingList.appendChild(chip);
+          });
+        } else {
+          manualMissingWrap.classList.add('hidden');
+        }
+      }
+
+      function requestManualValidation() {
+        if (!optimizeManualInput || !manualValidateSummary || !manualValidateCallout) return;
+        const raw = optimizeManualInput.value || '';
+        if (!raw.trim()) {
+          clearManualValidation();
+          return;
+        }
+        manualValidateCallout.classList.remove('hidden');
+        manualValidateSummary.textContent = 'Checking pasted orders...';
+        if (manualValidateDetail) manualValidateDetail.textContent = '';
+        const requestId = ++manualValidateRequestId;
+        fetch('/api/orders/manual-validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manual_order_input: raw }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error('validation-failed');
+            }
+            return response.json();
+          })
+          .then((payload) => {
+            if (requestId !== manualValidateRequestId) return;
+            if ((optimizeManualInput.value || '') !== raw) return;
+            renderManualValidation(payload || {});
+          })
+          .catch(() => {
+            if (requestId !== manualValidateRequestId) return;
+            manualValidateCallout.classList.remove('hidden');
+            manualValidateSummary.textContent = 'Unable to validate pasted orders right now.';
+            if (manualValidateDetail) manualValidateDetail.textContent = '';
+            if (manualMissingWrap) manualMissingWrap.classList.add('hidden');
+            if (manualMissingList) manualMissingList.innerHTML = '';
+          });
+      }
+
+      function scheduleManualValidation() {
+        if (manualValidateTimer) {
+          window.clearTimeout(manualValidateTimer);
+        }
+        manualValidateTimer = window.setTimeout(requestManualValidation, 260);
+      }
+
+      function renderOptimizeSubmitElapsed() {
+        if (!optimizeSubmitTimer || !optimizeSubmitStartTs) return;
+        const elapsedSec = Math.max(Math.floor((Date.now() - optimizeSubmitStartTs) / 1000), 0);
+        const mm = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+        const ss = String(elapsedSec % 60).padStart(2, '0');
+        optimizeSubmitTimer.textContent = `${mm}:${ss}`;
+      }
+
+      function startOptimizeSubmitIndicator() {
+        if (optimizeSubmitRunning) return;
+        optimizeSubmitRunning = true;
+        optimizeSubmitStartTs = Date.now();
+        if (optimizeSubmitStatus) {
+          optimizeSubmitStatus.classList.remove('hidden');
+        }
+        renderOptimizeSubmitElapsed();
+        if (optimizeSubmitInterval) {
+          window.clearInterval(optimizeSubmitInterval);
+        }
+        optimizeSubmitInterval = window.setInterval(renderOptimizeSubmitElapsed, 1000);
+        optimizeActionButtons.forEach((button) => {
+          button.disabled = true;
+        });
+        optimizeCloseButtons.forEach((button) => {
+          button.disabled = true;
+        });
+      }
+
       if (optimizePanel) {
         optimizePanel.addEventListener('submit', (event) => {
           const mode = (optimizeModeInput ? optimizeModeInput.value : 'auto').toLowerCase();
@@ -949,20 +1112,55 @@
             }
           }
           setOptimizeInlineError('');
-          if (!activeSessionId || activeSessionStatus !== 'DRAFT') return;
-          if (replaceSessionInput && replaceSessionInput.value === '1') return;
+          if (!activeSessionId || activeSessionStatus !== 'DRAFT') {
+            startOptimizeSubmitIndicator();
+            return;
+          }
+          if (replaceSessionInput && replaceSessionInput.value === '1') {
+            startOptimizeSubmitIndicator();
+            return;
+          }
           const ok = window.confirm('Replace existing load planning session?');
           if (!ok) {
             event.preventDefault();
             return;
           }
           if (replaceSessionInput) replaceSessionInput.value = '1';
+          startOptimizeSubmitIndicator();
+        });
+      }
+      if (optimizeManualInput) {
+        optimizeManualInput.addEventListener('input', () => {
+          const mode = (optimizeModeInput ? optimizeModeInput.value : 'auto').toLowerCase();
+          if (mode !== 'manual') return;
+          scheduleManualValidation();
         });
       }
 
     function setBatchToggle() {
       if (!optimizeBatchToggle || !optimizeBatchEnd) return;
       optimizeBatchToggle.value = optimizeBatchEnd.value ? '1' : '';
+    }
+
+    function syncIgnoreDueDateState() {
+      const ignoreDueDate = !!(optimizeIgnoreDue && optimizeIgnoreDue.checked);
+      const mode = (optimizeModeInput ? optimizeModeInput.value : 'auto').toLowerCase();
+      const autoMode = mode !== 'manual';
+
+      if (optimizeFlexDays) {
+        optimizeFlexDays.disabled = ignoreDueDate;
+        optimizeFlexDays.required = !ignoreDueDate;
+      }
+
+      if (optimizeOrdersStart) {
+        optimizeOrdersStart.disabled = !autoMode;
+        optimizeOrdersStart.required = autoMode;
+      }
+
+      if (optimizeBatchEnd) {
+        optimizeBatchEnd.disabled = !autoMode;
+      }
+      setBatchToggle();
     }
 
     function openOptimizePanel() {
@@ -1015,9 +1213,12 @@
       });
       if (normalized === 'manual') {
         if (optimizeBatchToggle) optimizeBatchToggle.value = '';
+        scheduleManualValidation();
       } else {
         setBatchToggle();
+        clearManualValidation();
       }
+      syncIgnoreDueDateState();
       closeAllDropdowns();
     }
 
@@ -1043,6 +1244,9 @@
       setBatchToggle();
       optimizeBatchEnd.addEventListener('input', setBatchToggle);
       optimizeBatchEnd.addEventListener('change', setBatchToggle);
+    }
+    if (optimizeIgnoreDue) {
+      optimizeIgnoreDue.addEventListener('change', syncIgnoreDueDateState);
     }
 
     if (optimizePanel && optimizePanel.dataset.optimizeAutoshow === 'true') {
@@ -1558,13 +1762,15 @@
       const lowerDeck = Number(config.lower_deck_length || capacity);
       const upperDeck = Number(config.upper_deck_length || 0);
 
-      const isStepDeck = trailerKey === 'STEP_DECK' && upperDeck > 0;
+      const isStepDeck = trailerKey.startsWith('STEP_DECK') && upperDeck > 0;
 
       const lowerPositions = config.positions.filter((pos) => (pos.deck || 'lower') === 'lower');
       const upperPositions = config.positions.filter((pos) => pos.deck === 'upper');
 
-      const lowerUsedFt = lowerPositions.reduce((sum, pos) => sum + (Number(pos.length_ft) || 0), 0);
-      const upperUsedFt = upperPositions.reduce((sum, pos) => sum + (Number(pos.length_ft) || 0), 0);
+      const lowerUsedFt = Number(config.lower_deck_used_length_ft || 0)
+        || lowerPositions.reduce((sum, pos) => sum + (Number(pos.length_ft) || 0), 0);
+      const upperUsedFt = Number(config.upper_deck_effective_length_ft || 0)
+        || upperPositions.reduce((sum, pos) => sum + (Number(pos.effective_length_ft || pos.length_ft) || 0), 0);
       const lowerRemFt = Math.max(lowerDeck - lowerUsedFt, 0);
       const upperRemFt = Math.max(upperDeck - upperUsedFt, 0);
       const lowerDisplayFt = Math.max(lowerDeck, lowerUsedFt);
@@ -1586,32 +1792,40 @@
         ? clampPct((upperDisplayFt / displayCapacity) * 100)
         : 0;
 
-      function renderPositionStack(pos) {
-        let html = '<div class="position-stack">';
-        (pos.items || []).forEach((item) => {
-          const itemLabel = item.item || item.sku || 'ITEM';
-          const units = Number(item.units || 0);
-          const maxStack = Number(item.max_stack || 1) || 1;
-          const blockHeight = 100 / maxStack;
-          const itemLength = Number(item.unit_length_ft || pos.length_ft || 0);
-          const posLength = Number(pos.length_ft || 0);
-          const widthRaw = posLength ? (itemLength / posLength) * 100 : 100;
-          const blockWidth = clampPct(widthRaw);
-          const tooltipParts = [
-            itemLabel,
-            item.item_desc || '',
-            itemLength ? `${itemLength.toFixed(1)} ft` : '',
-            maxStack ? `Max stack: ${maxStack}` : '',
-          ].filter((value) => value);
-          const tooltipText = tooltipParts.join(' | ');
-          const tooltipAttr = tooltipText ? ` title="${escapeHtml(tooltipText)}"` : '';
-          for (let u = 0; u < units; u++) {
-            html += `<div class="unit-block glass-block"${tooltipAttr} style="--accent: ${accent}; --accent-bg: ${accent}22; height: ${blockHeight}%; width: ${blockWidth}%;"><span class="unit-label">${escapeHtml(itemLabel)}</span></div>`;
-          }
-        });
-        html += '</div>';
-        return html;
-      }
+        function renderPositionStack(pos) {
+          let html = '<div class="position-stack">';
+          (pos.items || []).forEach((item) => {
+            const itemLabel = item.item || item.sku || 'ITEM';
+            const units = Number(item.units || 0);
+            const maxStack = Number(item.max_stack || 1) || 1;
+            const blockHeight = 100 / maxStack;
+            const itemLength = Number(item.unit_length_ft || pos.length_ft || 0);
+            const posLength = Number(pos.length_ft || 0);
+            const widthRaw = posLength ? (itemLength / posLength) * 100 : 100;
+            const blockWidth = clampPct(widthRaw);
+            const stopSequenceRaw = Number(item.stop_sequence);
+            const stopSequence = Number.isFinite(stopSequenceRaw) && stopSequenceRaw > 0
+              ? Math.trunc(stopSequenceRaw)
+              : null;
+            const tooltipParts = [
+              itemLabel,
+              item.item_desc || '',
+              itemLength ? `${itemLength.toFixed(1)} ft` : '',
+              maxStack ? `Max stack: ${maxStack}` : '',
+              stopSequence ? `Stop: ${stopSequence}` : '',
+            ].filter((value) => value);
+            const tooltipText = tooltipParts.join(' | ');
+            const tooltipAttr = tooltipText ? ` data-tooltip="${escapeHtml(tooltipText)}"` : '';
+            const stopBadgeHtml = stopSequence
+              ? `<span class="stop-sequence-indicator" aria-hidden="true">${stopSequence}</span>`
+              : '';
+            for (let u = 0; u < units; u++) {
+              html += `<div class="unit-block glass-block"${tooltipAttr} style="--accent: ${accent}; --accent-bg: ${accent}22; height: ${blockHeight}%; width: ${blockWidth}%;">${stopBadgeHtml}<span class="unit-label">${escapeHtml(itemLabel)}</span></div>`;
+            }
+          });
+          html += '</div>';
+          return html;
+        }
 
       function stackNumberForPosition(pos, fallbackIndex) {
         const parsed = Number(String((pos && pos.position_id) || '').replace(/[^0-9]/g, ''));
@@ -1623,7 +1837,7 @@
         if (!pos || !pos.overflow_applied) return '';
         const stackNum = stackNumberForPosition(pos, fallbackIndex);
         const note = String(pos.overflow_note || `Stack ${stackNum} was overutilized to allow for additional space.`);
-        return `<span class="stack-overflow-indicator" title="${escapeHtml(note)}">!</span>`;
+        return `<span class="stack-overflow-indicator" data-tooltip="${escapeHtml(note)}">!</span>`;
       }
 
       let schematic = `<div class="trailer-schematic trailer-${safeTrailerClass(config.trailer_type)}"><div class="trailer-body">`;
@@ -1686,7 +1900,7 @@
 
         upperPositions.forEach((pos, posIdx) => {
           const widthPct = upperDisplayFt
-            ? clampPct(((Number(pos.length_ft) || 0) / upperDisplayFt) * 100)
+            ? clampPct(((Number(pos.effective_length_ft || pos.length_ft) || 0) / upperDisplayFt) * 100)
             : 0;
           schematic += `<div class="position-column" style="flex: 0 0 ${widthPct}%;">`;
           schematic += renderOverflowIndicator(pos, lowerPositions.length + posIdx + 1);
@@ -1720,7 +1934,7 @@
       } else {
         schematic += `
           <div class="trailer-deck lower" style="flex: 1 1 auto;">
-            <div class="deck-label">${trailerKey === 'FLATBED' ? 'Main Deck' : `Lower Deck - ${fmtFeet(lowerDeck)} ft`}</div>
+            <div class="deck-label">${trailerKey.startsWith('STEP_DECK') ? `Lower Deck - ${fmtFeet(lowerDeck)} ft` : 'Main Deck'}</div>
             <div class="deck-positions">
         `;
 

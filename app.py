@@ -4,6 +4,8 @@ import math
 import os
 import re
 import secrets
+import threading
+import uuid
 from datetime import date, datetime, timedelta
 
 from flask import (
@@ -96,6 +98,17 @@ app.config.update(
         default=not _is_local_dev_mode(),
     ),
 )
+_raw_web_concurrency = (os.environ.get("WEB_CONCURRENCY") or "").strip()
+try:
+    _configured_web_concurrency = int(_raw_web_concurrency) if _raw_web_concurrency else 1
+except ValueError:
+    _configured_web_concurrency = 1
+if _configured_web_concurrency > 1:
+    logger.warning(
+        "WEB_CONCURRENCY=%s detected. Re-optimization job status is process-local; "
+        "set WEB_CONCURRENCY=1 to avoid cross-worker status loss.",
+        _configured_web_concurrency,
+    )
 
 @app.template_filter("short_date")
 def short_date(value):
@@ -130,18 +143,20 @@ def short_date(value):
 
     return f"{parsed.strftime('%b')} {parsed.day}"
 
-PLANT_CODES = ["GA", "TX", "VA", "IA", "OR", "NV"]
+PLANT_CODES = ["GA", "TX", "VA", "IA", "OR", "NV", "CL"]
 PLANT_NAMES = {
     "GA": "Lavonia",
     "IA": "Missouri Valley",
     "TX": "Mexia",
     "VA": "Montross",
+    "CL": "Callao",
     "OR": "Coburg",
     "NV": "Winnemucca",
 }
 STATUS_PROPOSED = "PROPOSED"
 STATUS_DRAFT = "DRAFT"
 STATUS_APPROVED = "APPROVED"
+LOAD_NUMBER_START_PATTERN = re.compile(r"^\d{4}$")
 OPTIMIZER_V2_ENABLED = (
     os.environ.get("OPTIMIZER_V2_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
 )
@@ -169,9 +184,28 @@ LOAD_REJECTION_REASONS = [
 OPTIMIZER_DEFAULTS_SETTING_KEY = "optimizer_defaults"
 UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY = "utilization_grade_thresholds"
 REPLAY_EVAL_PRESET_SETTING_KEY = "replay_eval_preset"
+STOP_COLOR_PALETTE_SETTING_KEY = "stop_color_palette"
 DEFAULT_UTILIZATION_GRADE_THRESHOLDS = {"A": 85, "B": 70, "C": 55, "D": 40}
 DEFAULT_STACK_OVERFLOW_MAX_HEIGHT = 5
 DEFAULT_MAX_BACK_OVERHANG_FT = 4.0
+DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT = 7.0
+DEFAULT_STOP_COLOR_PALETTE = [
+    "#6FAD47",
+    "#01B0F0",
+    "#EC7D31",
+    "#FFFFFF",
+    "#FE0000",
+    "#A56CD2",
+    "#A5A6A6",
+    "#FED966",
+    "#FE6699",
+    "#6CF8FB",
+    "#5F87CC",
+    "#FEFF00",
+]
+FALLBACK_STOP_COLOR = "#64748B"
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-F]{6}$")
+TRAILER_PROFILE_OPTIONS = stack_calculator.trailer_profile_options()
 TUTORIAL_MANIFEST_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "docs",
@@ -186,6 +220,10 @@ TUTORIAL_NOTE_LABELS = {
     "required": "Required",
 }
 TUTORIAL_NAV_ENABLED = _env_bool("TUTORIAL_NAV_ENABLED", default=False)
+REOPT_JOB_RETENTION_SEC = 60 * 60
+REOPT_JOB_MAX_ENTRIES = 200
+_REOPT_JOB_LOCK = threading.Lock()
+_REOPT_JOBS = {}
 
 
 db.init_db()
@@ -237,11 +275,42 @@ db.ensure_default_access_profiles(
 )
 db.ensure_default_planning_settings(
     {
-        "strategic_customers": "\n".join(
+        "strategic_customers": json.dumps(
             [
-                "Lowe's|LOWE'S,LOWES",
-                "Tractor Supply|TRACTOR SUPPLY,TRACTORSUPPLY",
-            ]
+                {
+                    "label": "Lowe's",
+                    "patterns": ["LOWE'S", "LOWES"],
+                    "include_in_optimizer_workbench": True,
+                },
+                {
+                    "label": "Tractor Supply",
+                    "patterns": ["TRACTOR SUPPLY", "TRACTORSUPPLY"],
+                    "include_in_optimizer_workbench": True,
+                },
+                {
+                    "label": "Ace",
+                    "patterns": ["ACE HARDWARE CORPORATION", "ACE HARDWARE"],
+                    "include_in_optimizer_workbench": True,
+                },
+                {
+                    "label": "TrailersPlus",
+                    "patterns": ["TRAILERSPLUS", "TRAILER'S PLUS"],
+                    "include_in_optimizer_workbench": True,
+                },
+                {
+                    "label": "COT Sample",
+                    "patterns": ["COT SAMPLE", "COTSAMPLE"],
+                    "ignore_for_optimization": True,
+                    "include_in_optimizer_workbench": False,
+                },
+                {
+                    "label": "Carolina Equipment",
+                    "patterns": ["CAROLINA EQUIPMENT", "CAROLINAEQUIPMENT"],
+                    "ignore_for_optimization": True,
+                    "include_in_optimizer_workbench": False,
+                },
+            ],
+            separators=(",", ":"),
         ),
         STOP_FEE_SETTING_KEY: DEFAULT_STOP_FEE,
         MIN_LOAD_COST_SETTING_KEY: DEFAULT_MIN_LOAD_COST,
@@ -267,10 +336,18 @@ db.ensure_default_planning_settings(
                     )
                     or DEFAULT_MAX_BACK_OVERHANG_FT
                 ),
+                "upper_two_across_max_length_ft": float(
+                    load_builder.DEFAULT_BUILD_PARAMS.get(
+                        "upper_two_across_max_length_ft",
+                        DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
+                    )
+                    or DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT
+                ),
             }
         ),
         REPLAY_EVAL_PRESET_SETTING_KEY: json.dumps(replay_evaluator.DEFAULT_REPLAY_PRESET),
         UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY: json.dumps(DEFAULT_UTILIZATION_GRADE_THRESHOLDS),
+        STOP_COLOR_PALETTE_SETTING_KEY: json.dumps(DEFAULT_STOP_COLOR_PALETTE),
     }
 )
 
@@ -346,6 +423,9 @@ def login():
             expected = (os.environ.get("ADMIN_PASSWORD") or "").strip()
             if not expected:
                 if _is_local_dev_mode():
+                    expected = "admin"
+                elif password == "admin":
+                    # Local fallback: allow one known default when env config is missing.
                     expected = "admin"
                 else:
                     error = "Admin password is not configured."
@@ -823,6 +903,10 @@ def _default_optimize_form():
     form_data["max_back_overhang_ft"] = str(
         optimizer_defaults["max_back_overhang_ft"]
     )
+    form_data["upper_two_across_max_length_ft"] = str(
+        optimizer_defaults.get("upper_two_across_max_length_ft", DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT)
+    )
+    form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
     if not form_data.get("orders_start_date"):
         form_data["orders_start_date"] = date.today().strftime("%Y-%m-%d")
     if not form_data["origin_plant"] and PLANT_CODES:
@@ -1011,7 +1095,10 @@ def _build_freight_breakdown(load, stop_fee_amount, fuel_surcharge_per_mile, loa
 
 def _get_optimizer_default_settings():
     defaults = {
-        "trailer_type": (load_builder.DEFAULT_BUILD_PARAMS.get("trailer_type") or "STEP_DECK").strip().upper(),
+        "trailer_type": stack_calculator.normalize_trailer_type(
+            load_builder.DEFAULT_BUILD_PARAMS.get("trailer_type"),
+            default="STEP_DECK",
+        ),
         "capacity_feet": _coerce_non_negative_float(load_builder.DEFAULT_BUILD_PARAMS.get("capacity_feet"), 53),
         "max_detour_pct": _coerce_non_negative_float(load_builder.DEFAULT_BUILD_PARAMS.get("max_detour_pct"), 15),
         "time_window_days": _coerce_non_negative_int(load_builder.DEFAULT_BUILD_PARAMS.get("time_window_days"), 7),
@@ -1024,6 +1111,10 @@ def _get_optimizer_default_settings():
             load_builder.DEFAULT_BUILD_PARAMS.get("max_back_overhang_ft"),
             DEFAULT_MAX_BACK_OVERHANG_FT,
         ),
+        "upper_two_across_max_length_ft": _coerce_non_negative_float(
+            load_builder.DEFAULT_BUILD_PARAMS.get("upper_two_across_max_length_ft"),
+            DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
+        ),
     }
     setting = db.get_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY) or {}
     raw_text = (setting.get("value_text") or "").strip()
@@ -1033,10 +1124,10 @@ def _get_optimizer_default_settings():
         except json.JSONDecodeError:
             parsed = None
         if isinstance(parsed, dict):
-            trailer_type = (parsed.get("trailer_type") or defaults["trailer_type"]).strip().upper()
-            if trailer_type not in {"STEP_DECK", "FLATBED", "WEDGE"}:
-                trailer_type = defaults["trailer_type"]
-            defaults["trailer_type"] = trailer_type
+            defaults["trailer_type"] = stack_calculator.normalize_trailer_type(
+                parsed.get("trailer_type"),
+                default=defaults["trailer_type"],
+            )
             defaults["capacity_feet"] = _coerce_non_negative_float(parsed.get("capacity_feet"), defaults["capacity_feet"])
             defaults["max_detour_pct"] = _coerce_non_negative_float(parsed.get("max_detour_pct"), defaults["max_detour_pct"])
             defaults["time_window_days"] = _coerce_non_negative_int(
@@ -1052,7 +1143,12 @@ def _get_optimizer_default_settings():
                 parsed.get("max_back_overhang_ft"),
                 defaults["max_back_overhang_ft"],
             )
+            defaults["upper_two_across_max_length_ft"] = _coerce_non_negative_float(
+                parsed.get("upper_two_across_max_length_ft"),
+                defaults["upper_two_across_max_length_ft"],
+            )
     defaults["max_back_overhang_ft"] = round(defaults["max_back_overhang_ft"], 2)
+    defaults["upper_two_across_max_length_ft"] = round(defaults["upper_two_across_max_length_ft"], 2)
     return defaults
 
 
@@ -1067,6 +1163,13 @@ def _get_stack_capacity_assumptions():
             _coerce_non_negative_float(
                 defaults.get("max_back_overhang_ft"),
                 DEFAULT_MAX_BACK_OVERHANG_FT,
+            ),
+            2,
+        ),
+        "upper_two_across_max_length_ft": round(
+            _coerce_non_negative_float(
+                defaults.get("upper_two_across_max_length_ft"),
+                DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
             ),
             2,
         ),
@@ -1091,6 +1194,11 @@ def _get_replay_eval_preset():
         or defaults.get("max_back_overhang_ft")
         or DEFAULT_MAX_BACK_OVERHANG_FT
     )
+    defaults["upper_two_across_max_length_ft"] = float(
+        optimizer_defaults.get("upper_two_across_max_length_ft")
+        or defaults.get("upper_two_across_max_length_ft")
+        or DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT
+    )
 
     setting = db.get_planning_setting(REPLAY_EVAL_PRESET_SETTING_KEY) or {}
     raw_text = (setting.get("value_text") or "").strip()
@@ -1103,10 +1211,10 @@ def _get_replay_eval_preset():
     if isinstance(parsed, dict):
         defaults.update(parsed)
 
-    trailer = str(defaults.get("trailer_type") or "STEP_DECK").strip().upper()
-    if trailer not in {"STEP_DECK", "FLATBED", "WEDGE"}:
-        trailer = "STEP_DECK"
-    defaults["trailer_type"] = trailer
+    defaults["trailer_type"] = stack_calculator.normalize_trailer_type(
+        defaults.get("trailer_type"),
+        default="STEP_DECK",
+    )
     defaults["capacity_feet"] = _coerce_non_negative_float(defaults.get("capacity_feet"), 53)
     defaults["max_detour_pct"] = _coerce_non_negative_float(defaults.get("max_detour_pct"), 15)
     defaults["time_window_days"] = _coerce_non_negative_int(defaults.get("time_window_days"), 7)
@@ -1119,6 +1227,20 @@ def _get_replay_eval_preset():
         _coerce_non_negative_float(
             defaults.get("max_back_overhang_ft"),
             DEFAULT_MAX_BACK_OVERHANG_FT,
+        ),
+        2,
+    )
+    defaults["upper_two_across_max_length_ft"] = round(
+        _coerce_non_negative_float(
+            defaults.get("upper_two_across_max_length_ft"),
+            DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
+        ),
+        2,
+    )
+    defaults["upper_two_across_max_length_ft"] = round(
+        _coerce_non_negative_float(
+            defaults.get("upper_two_across_max_length_ft"),
+            DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
         ),
         2,
     )
@@ -1381,6 +1503,39 @@ def _parse_strategic_customers(value_text):
     return customer_rules.parse_strategic_customers(value_text)
 
 
+def _parse_manual_so_nums(raw_text):
+    text = str(raw_text or "").strip()
+    if not text:
+        return []
+    parsed = []
+    seen = set()
+    for token in re.split(r"[\s,;]+", text):
+        value = token.strip().strip("\"'")
+        if not value:
+            continue
+        normalized = value.upper()
+        if normalized in {"SO_NUM", "ORDER", "ORDERS", "ORDER#", "SO#"}:
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        parsed.append(value)
+    return parsed
+
+
+def _sku_is_planner_input(spec):
+    source = (spec.get("source") or "").strip().lower()
+    if source == "planner":
+        return True
+    if source == "system":
+        return False
+    return bool((spec.get("added_at") or "").strip())
+
+
+def _sku_source_label(spec):
+    return "Planner Input" if _sku_is_planner_input(spec) else "Cheat Sheet"
+
+
 def _sync_legacy_plant_filter(selected, allowed):
     if not selected or len(selected) >= len(allowed):
         session["plant_filter"] = "ALL"
@@ -1634,6 +1789,7 @@ def _serialize_session_config(form_data, params):
             "batch_horizon_enabled": params.get("batch_horizon_enabled"),
             "batch_end_date": form_data.get("batch_end_date") or "",
             "orders_start_date": form_data.get("orders_start_date") or "",
+            "ignore_due_date": bool(params.get("ignore_due_date")),
             "state_filters": params.get("state_filters") or [],
             "customer_filters": params.get("customer_filters") or [],
             "ignore_past_due": params.get("ignore_past_due"),
@@ -1701,21 +1857,20 @@ def _period_range(period, today):
     return start, end
 
 
-def _build_load_thumbnail(load, sku_specs, color_palette, max_blocks=4):
+def _build_load_thumbnail(load, sku_specs, stop_color_palette=None, max_blocks=4):
     lines = db.list_load_lines(load["id"])
     if not lines:
         return []
 
-    order_colors = {}
-    for line in lines:
-        so_num = line.get("so_num")
-        if so_num and so_num not in order_colors:
-            order_colors[so_num] = color_palette[len(order_colors) % len(color_palette)]
-
-    trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+    trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
+    order_colors = _build_order_colors_for_lines(
+        lines,
+        stop_sequence_map=stop_sequence_map,
+        stop_palette=stop_color_palette,
+    )
     schematic, line_items, _ = _calculate_load_schematic(
         lines,
         sku_specs,
@@ -1758,6 +1913,97 @@ def _stop_sequence_map_from_ordered_stops(ordered_stops):
         if key and key not in sequence:
             sequence[key] = idx
     return sequence
+
+
+def _normalize_hex_color(value, fallback):
+    fallback_text = str(fallback or FALLBACK_STOP_COLOR).strip().upper()
+    if not HEX_COLOR_PATTERN.fullmatch(fallback_text):
+        fallback_text = FALLBACK_STOP_COLOR
+    raw = str(value or "").strip().upper()
+    if not raw:
+        return fallback_text
+    if not raw.startswith("#"):
+        raw = f"#{raw}"
+    if HEX_COLOR_PATTERN.fullmatch(raw):
+        return raw
+    return fallback_text
+
+
+def _get_stop_color_palette():
+    defaults = list(DEFAULT_STOP_COLOR_PALETTE)
+    setting = db.get_planning_setting(STOP_COLOR_PALETTE_SETTING_KEY) or {}
+    raw_value = (setting.get("value_text") or "").strip()
+    if not raw_value:
+        return defaults
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return defaults
+
+    if isinstance(parsed, list):
+        normalized = []
+        for idx, default_color in enumerate(defaults):
+            source = parsed[idx] if idx < len(parsed) else default_color
+            normalized.append(_normalize_hex_color(source, default_color))
+        return normalized
+
+    if isinstance(parsed, dict):
+        normalized = []
+        for idx, default_color in enumerate(defaults, start=1):
+            source = parsed.get(str(idx))
+            if source is None:
+                source = parsed.get(idx)
+            normalized.append(_normalize_hex_color(source, default_color))
+        return normalized
+
+    return defaults
+
+
+def _color_for_stop_sequence(stop_sequence, stop_palette=None):
+    palette = list(stop_palette or _get_stop_color_palette())
+    if not palette:
+        return FALLBACK_STOP_COLOR
+    sequence = _coerce_int_value(stop_sequence, 0)
+    if sequence <= 0:
+        return FALLBACK_STOP_COLOR
+    return palette[(sequence - 1) % len(palette)]
+
+
+def _build_order_colors_for_lines(lines, stop_sequence_map=None, stop_palette=None):
+    palette = list(stop_palette or _get_stop_color_palette())
+    order_ids = []
+    order_stop_map = {}
+    for line in lines or []:
+        order_id = (line.get("so_num") or "").strip()
+        if not order_id:
+            continue
+        if order_id not in order_ids:
+            order_ids.append(order_id)
+        stop_sequence = None
+        if stop_sequence_map:
+            stop_sequence = stop_sequence_map.get(
+                _line_stop_key(line.get("state"), line.get("zip"))
+            )
+        stop_value = _coerce_int_value(stop_sequence, 0)
+        if stop_value <= 0:
+            continue
+        current = order_stop_map.get(order_id)
+        if current is None or stop_value < current:
+            order_stop_map[order_id] = stop_value
+
+    order_colors = {}
+    fallback_idx = 0
+    for order_id in order_ids:
+        stop_sequence = order_stop_map.get(order_id)
+        if stop_sequence:
+            order_colors[order_id] = _color_for_stop_sequence(stop_sequence, palette)
+            continue
+        if palette:
+            order_colors[order_id] = palette[fallback_idx % len(palette)]
+            fallback_idx += 1
+        else:
+            order_colors[order_id] = FALLBACK_STOP_COLOR
+    return order_colors
 
 
 def _requires_return_to_origin(lines):
@@ -1911,15 +2157,18 @@ def _build_route_stops_for_lines(lines, zip_coords):
 
 
 def _build_schematic_line_items(lines, sku_specs, trailer_type, stop_sequence_map=None):
-    trailer_key = (trailer_type or "STEP_DECK").strip().upper()
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    is_step_deck = trailer_key.startswith("STEP_DECK")
     line_items = []
     for line in lines or []:
         sku = line.get("sku")
         spec = sku_specs.get(sku) if sku else None
-        if trailer_key == "STEP_DECK":
+        if is_step_deck:
             max_stack = (spec or {}).get("max_stack_step_deck") or (spec or {}).get("max_stack_flat_bed") or 1
+            upper_max_stack = (spec or {}).get("max_stack_flat_bed") or max_stack or 1
         else:
             max_stack = (spec or {}).get("max_stack_flat_bed") or 1
+            upper_max_stack = max_stack
         stop_sequence = None
         if stop_sequence_map:
             stop_sequence = stop_sequence_map.get(_line_stop_key(line.get("state"), line.get("zip")))
@@ -1931,6 +2180,7 @@ def _build_schematic_line_items(lines, sku_specs, trailer_type, stop_sequence_ma
                 "qty": line.get("qty") or 0,
                 "unit_length_ft": line.get("unit_length_ft") or 0,
                 "max_stack_height": max_stack,
+                "upper_deck_max_stack_height": upper_max_stack,
                 "category": (spec or {}).get("category", ""),
                 "order_id": line.get("so_num"),
                 "stop_sequence": stop_sequence,
@@ -1965,6 +2215,7 @@ def _calculate_load_schematic(
         preserve_order_contiguity=preserve_order_contiguity,
         stack_overflow_max_height=assumptions.get("stack_overflow_max_height"),
         max_back_overhang_ft=assumptions.get("max_back_overhang_ft"),
+        upper_two_across_max_length_ft=assumptions.get("upper_two_across_max_length_ft"),
     )
     return schematic, line_items, order_numbers
 
@@ -2002,7 +2253,7 @@ def _warning(code, message, position_id=None, deck=None):
 
 
 def _trailer_config_for_type(trailer_type):
-    trailer_key = (trailer_type or "STEP_DECK").strip().upper()
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
     base = stack_calculator.TRAILER_CONFIGS.get(
         trailer_key,
         stack_calculator.TRAILER_CONFIGS["STEP_DECK"],
@@ -2016,21 +2267,25 @@ def _trailer_config_for_type(trailer_type):
 
 
 def _build_schematic_units(lines, sku_specs, trailer_type, stop_sequence_map=None, order_colors=None):
-    trailer_key = (trailer_type or "STEP_DECK").strip().upper()
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    is_step_deck = trailer_key.startswith("STEP_DECK")
     order_colors = order_colors or {}
     units = []
     for line_idx, line in enumerate(lines or [], start=1):
         sku = line.get("sku")
         spec = sku_specs.get(sku) if sku else None
-        if trailer_key == "STEP_DECK":
+        if is_step_deck:
             max_stack = (
                 (spec or {}).get("max_stack_step_deck")
                 or (spec or {}).get("max_stack_flat_bed")
                 or 1
             )
+            upper_max_stack = (spec or {}).get("max_stack_flat_bed") or max_stack or 1
         else:
             max_stack = (spec or {}).get("max_stack_flat_bed") or 1
+            upper_max_stack = max_stack
         max_stack = max(_coerce_int_value(max_stack, 1), 1)
+        upper_max_stack = max(_coerce_int_value(upper_max_stack, max_stack), 1)
         qty = max(_coerce_int_value(line.get("qty"), 0), 0)
         if qty <= 0:
             continue
@@ -2052,6 +2307,7 @@ def _build_schematic_units(lines, sku_specs, trailer_type, stop_sequence_map=Non
                     "item_desc": line.get("item_desc"),
                     "unit_length_ft": unit_length_ft,
                     "max_stack": max_stack,
+                    "upper_max_stack": upper_max_stack,
                     "category": (spec or {}).get("category", ""),
                     "stop_sequence": stop_sequence,
                     "color": order_colors.get(order_id, "#334155"),
@@ -2068,6 +2324,7 @@ def _unit_item_key_from_unit(unit):
         unit.get("item_desc") or "",
         round(_coerce_float_value(unit.get("unit_length_ft"), 0.0), 4),
         max(_coerce_int_value(unit.get("max_stack"), 1), 1),
+        max(_coerce_int_value(unit.get("upper_max_stack"), unit.get("max_stack") or 1), 1),
         unit.get("category") or "",
     )
 
@@ -2080,6 +2337,7 @@ def _unit_item_key_from_schematic_item(item):
         item.get("item_desc") or "",
         round(_coerce_float_value(item.get("unit_length_ft"), 0.0), 4),
         max(_coerce_int_value(item.get("max_stack"), 1), 1),
+        max(_coerce_int_value(item.get("upper_max_stack"), item.get("max_stack") or 1), 1),
         item.get("category") or "",
     )
 
@@ -2206,6 +2464,7 @@ def _aggregate_position_items(units):
             unit.get("item_desc"),
             unit.get("category"),
             max(_coerce_int_value(unit.get("max_stack"), 1), 1),
+            max(_coerce_int_value(unit.get("upper_max_stack"), unit.get("max_stack") or 1), 1),
             _coerce_float_value(unit.get("unit_length_ft"), 0.0),
             unit.get("order_id"),
             unit.get("stop_sequence"),
@@ -2221,6 +2480,10 @@ def _aggregate_position_items(units):
                 "item_desc": unit.get("item_desc"),
                 "category": unit.get("category"),
                 "max_stack": max(_coerce_int_value(unit.get("max_stack"), 1), 1),
+                "upper_max_stack": max(
+                    _coerce_int_value(unit.get("upper_max_stack"), unit.get("max_stack") or 1),
+                    1,
+                ),
                 "unit_length_ft": _coerce_float_value(unit.get("unit_length_ft"), 0.0),
                 "order_id": unit.get("order_id"),
                 "stop_sequence": unit.get("stop_sequence"),
@@ -2285,6 +2548,13 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
         ),
         2,
     )
+    upper_two_across_max_length_ft = round(
+        _coerce_non_negative_float(
+            assumptions.get("upper_two_across_max_length_ft"),
+            DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
+        ),
+        2,
+    )
     max_stack_utilization_multiplier = (
         1.0 + (1.0 / stack_overflow_max_height)
         if stack_overflow_max_height > 0
@@ -2298,6 +2568,18 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
 
     positions = []
     warnings = []
+    effective_units_by_position = {}
+
+    def _effective_unit_max_stack(unit, deck_name):
+        if deck_name == "upper" and trailer_config["type"].startswith("STEP_DECK"):
+            return max(
+                _coerce_int_value(
+                    unit.get("upper_max_stack"),
+                    unit.get("max_stack") or 1,
+                ),
+                1,
+            )
+        return max(_coerce_int_value(unit.get("max_stack"), 1), 1)
 
     for idx, raw_pos in enumerate((layout or {}).get("positions") or [], start=1):
         unit_ids = raw_pos.get("unit_ids") or []
@@ -2317,6 +2599,16 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
             deck = "lower"
         position_id = raw_pos.get("position_id") or f"p{idx}"
 
+        effective_units = []
+        capacity_used = 0.0
+        for unit in units:
+            effective_max_stack = _effective_unit_max_stack(unit, deck)
+            capacity_used += 1.0 / effective_max_stack
+            adjusted = dict(unit)
+            adjusted["max_stack"] = effective_max_stack
+            effective_units.append(adjusted)
+        effective_units_by_position[position_id] = effective_units
+
         if deck == "upper":
             too_long_units = [
                 unit for unit in units if _coerce_float_value(unit.get("unit_length_ft"), 0.0) > (upper_length + 1e-6)
@@ -2331,8 +2623,45 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
                     )
                 )
 
+        aggregated_items = _aggregate_position_items(units)
+        if deck == "upper" and trailer_config["type"].startswith("STEP_DECK"):
+            for item in aggregated_items:
+                item["max_stack"] = max(
+                    _coerce_int_value(
+                        item.get("upper_max_stack"),
+                        item.get("max_stack") or 1,
+                    ),
+                    1,
+                )
+
+        positions.append(
+            {
+                "position_id": position_id,
+                "deck": deck,
+                "length_ft": round(length_ft, 2),
+                "items": aggregated_items,
+                "capacity_used": round(capacity_used, 4),
+                "overflow_applied": False,
+                "overflow_note": None,
+                "units_count": len(units),
+                "top_stop_sequence": units[-1].get("stop_sequence"),
+                "top_length_ft": _coerce_float_value(units[-1].get("unit_length_ft"), length_ft),
+            }
+        )
+
+    upper_usage_meta = stack_calculator.apply_upper_usage_metadata(
+        positions,
+        trailer_config,
+        upper_two_across_max_length_ft,
+    )
+
+    for idx, pos in enumerate(positions, start=1):
+        position_id = pos.get("position_id") or f"p{idx}"
+        deck = (pos.get("deck") or "lower").strip().lower() or "lower"
+        capacity_used = _coerce_float_value(pos.get("capacity_used"), 0.0)
+        effective_units = effective_units_by_position.get(position_id) or []
         overflow_applied = _position_allows_single_overflow(
-            units,
+            effective_units,
             stack_overflow_max_height=stack_overflow_max_height,
             max_stack_utilization_multiplier=max_stack_utilization_multiplier,
             capacity_used=capacity_used,
@@ -2376,29 +2705,21 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
                         deck=deck,
                     )
                 )
-
-        positions.append(
-            {
-                "position_id": position_id,
-                "deck": deck,
-                "length_ft": round(length_ft, 2),
-                "items": _aggregate_position_items(units),
-                "capacity_used": round(capacity_used, 4),
-                "overflow_applied": bool(overflow_applied),
-                "overflow_note": overflow_note,
-                "units_count": len(units),
-                "top_stop_sequence": units[-1].get("stop_sequence"),
-                "top_length_ft": _coerce_float_value(units[-1].get("unit_length_ft"), length_ft),
-            }
-        )
+        pos["overflow_applied"] = bool(overflow_applied)
+        pos["overflow_note"] = overflow_note
 
     lower_total = sum(
         _coerce_float_value(pos.get("length_ft"), 0.0)
         for pos in positions
         if (pos.get("deck") or "lower") == "lower"
     )
-    upper_total = sum(
+    upper_total_raw = sum(
         _coerce_float_value(pos.get("length_ft"), 0.0)
+        for pos in positions
+        if (pos.get("deck") or "lower") == "upper"
+    )
+    upper_total_effective = sum(
+        _coerce_float_value(pos.get("effective_length_ft"), _coerce_float_value(pos.get("length_ft"), 0.0))
         for pos in positions
         if (pos.get("deck") or "lower") == "upper"
     )
@@ -2431,40 +2752,49 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
 
     _append_overhang_warning("Lower", max(lower_total - lower_length, 0.0), "lower")
     if upper_length > 0:
-        _append_overhang_warning("Upper", max(upper_total - upper_length, 0.0), "upper")
+        _append_overhang_warning("Upper", max(upper_total_effective - upper_length, 0.0), "upper")
 
     for pos in positions:
         deck_length = upper_length if pos.get("deck") == "upper" else lower_length
+        width_length = (
+            _coerce_float_value(
+                pos.get("effective_length_ft"),
+                _coerce_float_value(pos.get("length_ft"), 0.0),
+            )
+            if (pos.get("deck") or "lower") == "upper"
+            else _coerce_float_value(pos.get("length_ft"), 0.0)
+        )
         if deck_length > 0:
             pos["width_pct"] = min(
-                round((_coerce_float_value(pos.get("length_ft"), 0.0) / deck_length) * 100, 1),
+                round((width_length / deck_length) * 100, 1),
                 100,
             )
         else:
             pos["width_pct"] = 0
 
-    total_linear_feet = sum(_coerce_float_value(pos.get("length_ft"), 0.0) for pos in positions)
+    total_linear_feet = lower_total + upper_total_effective
     lower_credit = 0.0
     upper_credit_raw = 0.0
     upper_length_used = 0.0
     for pos in positions:
         length_ft = _coerce_float_value(pos.get("length_ft"), 0.0)
+        effective_length_ft = _coerce_float_value(pos.get("effective_length_ft"), length_ft)
         capacity_used = _coerce_float_value(pos.get("capacity_used"), 0.0)
         if pos.get("overflow_applied"):
             multiplier = min(capacity_used, max_stack_utilization_multiplier)
         else:
             multiplier = min(capacity_used, 1.0)
         multiplier = max(multiplier, 0.0)
-        credit = length_ft * multiplier
+        credit = (effective_length_ft if (pos.get("deck") or "lower") == "upper" else length_ft) * multiplier
         if (pos.get("deck") or "lower") == "upper":
             upper_credit_raw += credit
-            upper_length_used += length_ft
+            upper_length_used += effective_length_ft
         else:
             lower_credit += credit
 
     upper_credit = upper_credit_raw
     if (
-        trailer_config["type"] == "STEP_DECK"
+        trailer_config["type"].startswith("STEP_DECK")
         and upper_length > 0
         and upper_length_used > 0
         and upper_length_used < (upper_length - 1e-6)
@@ -2481,7 +2811,7 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
         if upper_length <= 0
         else (
             lower_total > (lower_length + max_back_overhang_ft)
-            or upper_total > (upper_length + max_back_overhang_ft)
+            or upper_total_effective > (upper_length + max_back_overhang_ft)
         )
     )
     utilization_grade = _utilization_grade(utilization_pct)
@@ -2503,6 +2833,17 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
             "capacity_feet": capacity,
             "lower_deck_length": lower_length,
             "upper_deck_length": upper_length,
+            "lower_deck_used_length_ft": round(lower_total, 1),
+            "upper_deck_raw_length_ft": round(upper_total_raw, 1),
+            "upper_deck_effective_length_ft": round(upper_total_effective, 1),
+            "upper_two_across_applied_count": int(upper_usage_meta.get("paired_positions") or 0),
+            "upper_two_across_max_length_ft": round(
+                _coerce_non_negative_float(
+                    upper_usage_meta.get("threshold_ft"),
+                    upper_two_across_max_length_ft,
+                ),
+                2,
+            ),
             "stack_overflow_max_height": stack_overflow_max_height,
             "max_back_overhang_ft": max_back_overhang_ft,
             "max_stack_utilization_multiplier": round(
@@ -2560,29 +2901,20 @@ def _build_load_schematic_edit_payload(load_id):
     if not load:
         return None
 
-    trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+    trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
     assumptions = _get_stack_capacity_assumptions()
     lines = db.list_load_lines(load_id)
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
-    color_palette = [
-        "#137fec",
-        "#10b981",
-        "#f59e0b",
-        "#ef4444",
-        "#8b5cf6",
-        "#22d3ee",
-        "#f472b6",
-        "#f97316",
-    ]
-    order_colors = {}
-    for line in lines:
-        so_num = (line.get("so_num") or "").strip()
-        if so_num and so_num not in order_colors:
-            order_colors[so_num] = color_palette[len(order_colors) % len(color_palette)]
+    stop_color_palette = _get_stop_color_palette()
 
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
+    order_colors = _build_order_colors_for_lines(
+        lines,
+        stop_sequence_map=stop_sequence_map,
+        stop_palette=stop_color_palette,
+    )
     base_schematic, _, _ = _calculate_load_schematic(
         lines,
         sku_specs,
@@ -2599,14 +2931,15 @@ def _build_load_schematic_edit_payload(load_id):
         order_colors=order_colors,
     )
     units_by_id = {unit["unit_id"]: unit for unit in units}
-    layout = _layout_from_schematic(base_schematic, units)
+    base_layout = _layout_from_schematic(base_schematic, units)
+    layout = base_layout
     override = db.get_load_schematic_override(load_id)
     if override and (override.get("trailer_type") or "").strip().upper() == trailer_type:
         try:
             override_layout = json.loads(override.get("layout_json") or "{}")
             layout = _normalize_edit_layout(override_layout, units_by_id, trailer_type)
         except (json.JSONDecodeError, ValueError):
-            layout = _layout_from_schematic(base_schematic, units)
+            layout = base_layout
 
     schematic, warnings = _build_schematic_from_layout(
         layout,
@@ -2623,6 +2956,7 @@ def _build_load_schematic_edit_payload(load_id):
         "can_edit": status != STATUS_APPROVED,
         "units": units,
         "layout": layout,
+        "base_layout": base_layout,
         "metrics": {
             "utilization_pct": schematic.get("utilization_pct") or 0,
             "utilization_grade": schematic.get("utilization_grade") or "F",
@@ -2734,6 +3068,31 @@ def _normalize_load_number(load_number):
     if len(parts) < 2:
         return trimmed, None
     return trimmed, parts[-1]
+
+
+def _planning_session_year_suffix(planning_session):
+    if not planning_session:
+        return _year_suffix()
+    created_dt = _parse_datetime(planning_session.get("created_at"))
+    created_date = created_dt.date() if created_dt else _parse_date(planning_session.get("created_at"))
+    return _year_suffix(created_date or date.today())
+
+
+def _reserve_session_load_number(planning_session, fallback_plant_code, starting_sequence=None):
+    if not planning_session:
+        return {"error": "session_not_found"}
+    session_id = planning_session.get("id")
+    plant_code = (
+        (planning_session.get("plant_code") or "").strip().upper()
+        or (fallback_plant_code or "").strip().upper()
+    )
+    year_suffix = _planning_session_year_suffix(planning_session)
+    return db.reserve_planning_session_load_number(
+        session_id,
+        plant_code,
+        year_suffix,
+        starting_sequence=starting_sequence,
+    )
 
 
 def _normalize_tutorial_relpath(value):
@@ -2930,7 +3289,10 @@ def _reoptimize_form_data(plant_code, session_id=None):
     if settings.get("capacity_feet") is not None:
         form_data["capacity_feet"] = str(settings.get("capacity_feet"))
     if settings.get("trailer_type"):
-        form_data["trailer_type"] = settings.get("trailer_type")
+        form_data["trailer_type"] = stack_calculator.normalize_trailer_type(
+            settings.get("trailer_type"),
+            default=form_data.get("trailer_type"),
+        )
     if settings.get("max_detour_pct") is not None:
         form_data["max_detour_pct"] = str(settings.get("max_detour_pct"))
     if settings.get("time_window_days") is not None:
@@ -2941,6 +3303,8 @@ def _reoptimize_form_data(plant_code, session_id=None):
         form_data["stack_overflow_max_height"] = str(settings.get("stack_overflow_max_height"))
     if settings.get("max_back_overhang_ft") is not None:
         form_data["max_back_overhang_ft"] = str(settings.get("max_back_overhang_ft"))
+    if settings.get("upper_two_across_max_length_ft") is not None:
+        form_data["upper_two_across_max_length_ft"] = str(settings.get("upper_two_across_max_length_ft"))
 
     if not session_id:
         return form_data
@@ -2957,7 +3321,10 @@ def _reoptimize_form_data(plant_code, session_id=None):
     if session_config.get("capacity_feet") is not None:
         form_data["capacity_feet"] = str(session_config.get("capacity_feet"))
     if session_config.get("trailer_type"):
-        form_data["trailer_type"] = str(session_config.get("trailer_type")).strip().upper()
+        form_data["trailer_type"] = stack_calculator.normalize_trailer_type(
+            session_config.get("trailer_type"),
+            default=form_data.get("trailer_type"),
+        )
     if session_config.get("max_detour_pct") is not None:
         form_data["max_detour_pct"] = str(session_config.get("max_detour_pct"))
     if session_config.get("time_window_days") is not None:
@@ -2968,6 +3335,8 @@ def _reoptimize_form_data(plant_code, session_id=None):
         form_data["stack_overflow_max_height"] = str(session_config.get("stack_overflow_max_height"))
     if session_config.get("max_back_overhang_ft") is not None:
         form_data["max_back_overhang_ft"] = str(session_config.get("max_back_overhang_ft"))
+    if session_config.get("upper_two_across_max_length_ft") is not None:
+        form_data["upper_two_across_max_length_ft"] = str(session_config.get("upper_two_across_max_length_ft"))
 
     form_data["opt_toggles"] = "1"
     if session_config.get("enforce_time_window", True):
@@ -2985,6 +3354,8 @@ def _reoptimize_form_data(plant_code, session_id=None):
 
     form_data["opt_states"] = _coerce_filter_list(session_config.get("state_filters"))
     form_data["opt_customers"] = _coerce_filter_list(session_config.get("customer_filters"))
+    ignore_due_date = bool(session_config.get("ignore_due_date", False))
+    form_data["ignore_due_date"] = ignore_due_date
     orders_start_date = (session_config.get("orders_start_date") or "").strip()
     if not orders_start_date and session_config.get("ignore_past_due", True):
         orders_start_date = date.today().strftime("%Y-%m-%d")
@@ -2992,7 +3363,7 @@ def _reoptimize_form_data(plant_code, session_id=None):
     return form_data
 
 
-def _reoptimize_for_plant(plant_code, session_id=None, created_by=None):
+def _reoptimize_for_plant(plant_code, session_id=None, created_by=None, speed_profile="standard"):
     if not plant_code:
         return {"errors": {"origin_plant": "Missing plant code."}}
     if session_id:
@@ -3000,13 +3371,178 @@ def _reoptimize_for_plant(plant_code, session_id=None, created_by=None):
     else:
         db.clear_unapproved_loads(plant_code)
     form_data = _reoptimize_form_data(plant_code, session_id=session_id)
+    speed_mode = (speed_profile or "").strip().lower()
+    if speed_mode == "fast":
+        form_data["__reopt_speed"] = "fast"
     return load_builder.build_loads(
         form_data,
         reset_proposed=False,
         store_settings=False,
         session_id=session_id,
         created_by=created_by,
+        include_baseline=False,
     )
+
+
+def _reopt_scope_key(plant_code, session_id=None):
+    normalized_plant = (plant_code or "").strip().upper()
+    if session_id:
+        return f"{normalized_plant}:session:{int(session_id)}"
+    return f"{normalized_plant}:plant"
+
+
+def _trim_reopt_jobs(now_ts=None):
+    current_ts = now_ts or datetime.utcnow().timestamp()
+    active_ids = []
+    finished_rows = []
+    for job_id, job in _REOPT_JOBS.items():
+        status = (job.get("status") or "").lower()
+        if status == "running":
+            active_ids.append(job_id)
+            continue
+        finished_at = job.get("finished_at")
+        if finished_at:
+            try:
+                finished_ts = datetime.fromisoformat(finished_at).timestamp()
+            except ValueError:
+                finished_ts = current_ts
+        else:
+            finished_ts = current_ts
+        age = current_ts - finished_ts
+        if age > REOPT_JOB_RETENTION_SEC:
+            finished_rows.append((job_id, finished_ts, True))
+        else:
+            finished_rows.append((job_id, finished_ts, False))
+
+    for job_id, _, should_prune in finished_rows:
+        if should_prune:
+            _REOPT_JOBS.pop(job_id, None)
+
+    active_count = len(active_ids)
+    retained_finished = [
+        (job_id, finished_ts)
+        for job_id, finished_ts, should_prune in finished_rows
+        if not should_prune
+    ]
+    if active_count + len(retained_finished) <= REOPT_JOB_MAX_ENTRIES:
+        return
+
+    retained_finished.sort(key=lambda item: item[1])
+    while active_count + len(retained_finished) > REOPT_JOB_MAX_ENTRIES and retained_finished:
+        stale_id, _ = retained_finished.pop(0)
+        _REOPT_JOBS.pop(stale_id, None)
+
+
+def _start_reopt_job(plant_code, session_id=None, created_by=None, speed_profile="standard"):
+    normalized_plant = (plant_code or "").strip().upper()
+    if not normalized_plant:
+        raise ValueError("Missing plant code.")
+    normalized_session = int(session_id) if session_id else None
+    scope_key = _reopt_scope_key(normalized_plant, normalized_session)
+    now_iso = datetime.utcnow().isoformat(timespec="seconds")
+
+    with _REOPT_JOB_LOCK:
+        _trim_reopt_jobs()
+        for existing_id, existing in _REOPT_JOBS.items():
+            if existing.get("scope_key") != scope_key:
+                continue
+            if (existing.get("status") or "").lower() == "running":
+                return existing_id
+
+        job_id = uuid.uuid4().hex
+        _REOPT_JOBS[job_id] = {
+            "id": job_id,
+            "scope_key": scope_key,
+            "plant_code": normalized_plant,
+            "session_id": normalized_session,
+            "speed_profile": (speed_profile or "standard").strip().lower() or "standard",
+            "status": "running",
+            "created_at": now_iso,
+            "started_at": now_iso,
+            "finished_at": "",
+            "error": "",
+            "success_message": "",
+        }
+
+    worker = threading.Thread(
+        target=_run_reopt_job,
+        args=(
+            job_id,
+            normalized_plant,
+            normalized_session,
+            created_by,
+            (speed_profile or "standard").strip().lower() or "standard",
+        ),
+        daemon=True,
+        name=f"reopt-{normalized_plant}-{job_id[:8]}",
+    )
+    worker.start()
+    return job_id
+
+
+def _run_reopt_job(job_id, plant_code, session_id=None, created_by=None, speed_profile="standard"):
+    try:
+        result = _reoptimize_for_plant(
+            plant_code,
+            session_id=session_id,
+            created_by=created_by,
+            speed_profile=speed_profile,
+        ) or {}
+        errors = result.get("errors") or {}
+        success_message = (result.get("success_message") or "").strip()
+        error_message = ""
+        status = "done"
+        if errors:
+            status = "failed"
+            try:
+                first_error = next(iter(errors.values()))
+            except StopIteration:
+                first_error = "Re-optimization failed."
+            error_message = str(first_error or "Re-optimization failed.").strip()
+
+        finished_iso = datetime.utcnow().isoformat(timespec="seconds")
+        with _REOPT_JOB_LOCK:
+            job = _REOPT_JOBS.get(job_id)
+            if job is not None:
+                job.update(
+                    {
+                        "status": status,
+                        "finished_at": finished_iso,
+                        "error": error_message,
+                        "success_message": success_message,
+                    }
+                )
+                _trim_reopt_jobs()
+    except Exception:  # pragma: no cover - defensive path
+        logger.exception(
+            "Background re-optimization failed for plant=%s session_id=%s",
+            plant_code,
+            session_id,
+        )
+        finished_iso = datetime.utcnow().isoformat(timespec="seconds")
+        with _REOPT_JOB_LOCK:
+            job = _REOPT_JOBS.get(job_id)
+            if job is not None:
+                job.update(
+                    {
+                        "status": "failed",
+                        "finished_at": finished_iso,
+                        "error": "Unexpected re-optimization error.",
+                    }
+                )
+                _trim_reopt_jobs()
+
+
+def _get_reopt_job(job_id):
+    normalized = (job_id or "").strip()
+    if not normalized:
+        return None
+    with _REOPT_JOB_LOCK:
+        _trim_reopt_jobs()
+        row = _REOPT_JOBS.get(normalized)
+        if not row:
+            return None
+        return dict(row)
 
 
 @app.context_processor
@@ -3028,6 +3564,7 @@ def inject_session_context():
         "plant_filter_cards": _build_plant_filter_cards(allowed_plants, selected_plants),
         "is_admin": role == ROLE_ADMIN,
         "show_tutorial_nav": TUTORIAL_NAV_ENABLED,
+        "trailer_profile_options": TRAILER_PROFILE_OPTIONS,
     }
 
 
@@ -3530,16 +4067,7 @@ def _build_command_center_dashboard_context():
 
         # Load review widgets.
         sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
-        color_palette = [
-            "#137fec",
-            "#10b981",
-            "#f59e0b",
-            "#ef4444",
-            "#8b5cf6",
-            "#22d3ee",
-            "#f472b6",
-            "#f97316",
-        ]
+        stop_color_palette = _get_stop_color_palette()
 
         def _fetch_loads(limit, ascending, max_util=None):
             if not plant_scope:
@@ -3584,7 +4112,7 @@ def _build_command_center_dashboard_context():
                         "origin_plant": load.get("origin_plant"),
                         "utilization_pct": round(load.get("utilization_pct") or 0, 1),
                         "ship_date": ship_date,
-                        "thumbnail": _build_load_thumbnail(load, sku_specs, color_palette),
+                        "thumbnail": _build_load_thumbnail(load, sku_specs, stop_color_palette),
                     }
                 )
             return formatted
@@ -3885,7 +4413,7 @@ def orders():
     else:
         orders_by_plant = db.count_orders_by_plant(card_filters)
     plant_cards = []
-    for plant in plants:
+    for plant in [code for code in plants if code != "CL"]:
         plant_cards.append(
             {
                 "code": plant,
@@ -3905,6 +4433,7 @@ def orders():
     optimize_defaults["batch_horizon_enabled"] = True
     optimize_defaults["batch_end_date"] = _default_batch_end_date().strftime("%Y-%m-%d")
     optimize_defaults["orders_start_date"] = date.today().strftime("%Y-%m-%d")
+    optimize_defaults["ignore_due_date"] = False
     optimize_defaults["algorithm_version"] = "v2"
     optimize_defaults["compare_algorithms"] = False
 
@@ -3922,7 +4451,10 @@ def orders():
                 config = {}
             optimize_defaults["origin_plant"] = config.get("origin_plant") or optimize_defaults["origin_plant"]
             optimize_defaults["capacity_feet"] = str(config.get("capacity_feet") or optimize_defaults["capacity_feet"])
-            optimize_defaults["trailer_type"] = config.get("trailer_type") or optimize_defaults["trailer_type"]
+            optimize_defaults["trailer_type"] = stack_calculator.normalize_trailer_type(
+                config.get("trailer_type") or optimize_defaults["trailer_type"],
+                default=optimize_defaults["trailer_type"],
+            )
             optimize_defaults["max_detour_pct"] = str(config.get("max_detour_pct") or optimize_defaults["max_detour_pct"])
             optimize_defaults["time_window_days"] = str(config.get("time_window_days") or optimize_defaults["time_window_days"])
             optimize_defaults["geo_radius"] = str(config.get("geo_radius") or optimize_defaults["geo_radius"])
@@ -3932,11 +4464,16 @@ def orders():
             optimize_defaults["max_back_overhang_ft"] = str(
                 config.get("max_back_overhang_ft") or optimize_defaults["max_back_overhang_ft"]
             )
+            optimize_defaults["upper_two_across_max_length_ft"] = str(
+                config.get("upper_two_across_max_length_ft")
+                or optimize_defaults.get("upper_two_across_max_length_ft", DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT)
+            )
             optimize_defaults["enforce_time_window"] = bool(config.get("enforce_time_window", True))
             optimize_defaults["batch_horizon_enabled"] = bool(config.get("batch_horizon_enabled", False))
             optimize_defaults["batch_end_date"] = config.get("batch_end_date") or optimize_defaults["batch_end_date"]
             optimize_defaults["state_filters"] = config.get("state_filters") or []
             optimize_defaults["customer_filters"] = config.get("customer_filters") or []
+            optimize_defaults["ignore_due_date"] = bool(config.get("ignore_due_date", False))
             config_start_date = (config.get("orders_start_date") or "").strip()
             if not config_start_date and config.get("ignore_past_due", True):
                 config_start_date = date.today().strftime("%Y-%m-%d")
@@ -3965,6 +4502,8 @@ def orders():
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
     strategic_customer_groups = []
     for entry in strategic_customers:
+        if not entry.get("include_in_optimizer_workbench", True):
+            continue
         matching_customers = [
             cust
             for cust in customers
@@ -4197,20 +4736,7 @@ def orders_optimize():
         optimize_form["batch_end_date"] = ""
 
         raw_manual = str(optimize_form.get("manual_order_input") or "").strip()
-        manual_so_nums = []
-        if raw_manual:
-            seen = set()
-            for token in re.split(r"[\s,;]+", raw_manual):
-                value = token.strip().strip("\"'")
-                if not value:
-                    continue
-                normalized = value.upper()
-                if normalized in {"SO_NUM", "ORDER", "ORDERS", "ORDER#", "SO#"}:
-                    continue
-                if value in seen:
-                    continue
-                seen.add(value)
-                manual_so_nums.append(value)
+        manual_so_nums = _parse_manual_so_nums(raw_manual)
 
         if manual_so_nums:
             manual_lines = db.list_order_lines_by_so_nums(manual_so_nums)
@@ -4241,7 +4767,10 @@ def orders_optimize():
     def _collect_form_data():
         form_data = _default_optimize_form()
         form_data["origin_plant"] = origin_plant
-        form_data["trailer_type"] = optimize_form.get("trailer_type", "STEP_DECK")
+        form_data["trailer_type"] = stack_calculator.normalize_trailer_type(
+            optimize_form.get("trailer_type"),
+            default=form_data.get("trailer_type", "STEP_DECK"),
+        )
         form_data["time_window_days"] = optimize_form.get(
             "time_window_days", form_data.get("time_window_days", "7")
         )
@@ -4256,6 +4785,13 @@ def orders_optimize():
             "max_back_overhang_ft",
             form_data.get("max_back_overhang_ft", str(DEFAULT_MAX_BACK_OVERHANG_FT)),
         )
+        form_data["upper_two_across_max_length_ft"] = optimize_form.get(
+            "upper_two_across_max_length_ft",
+            form_data.get(
+                "upper_two_across_max_length_ft",
+                str(DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT),
+            ),
+        )
         form_data["state_filters"] = [
             value.strip().upper()
             for value in optimize_form.getlist("opt_states")
@@ -4267,7 +4803,10 @@ def orders_optimize():
             if value and value.strip()
         ]
         ui_toggles = "opt_toggles" in optimize_form
+        form_data["ignore_due_date"] = bool(optimize_form.get("ignore_due_date")) if ui_toggles else False
         form_data["enforce_time_window"] = bool(optimize_form.get("enforce_time_window")) if ui_toggles else True
+        if form_data["ignore_due_date"]:
+            form_data["enforce_time_window"] = False
         form_data["batch_horizon_enabled"] = bool(optimize_form.get("batch_horizon_enabled")) if ui_toggles else False
         form_data["batch_end_date"] = optimize_form.get("batch_end_date") or _default_batch_end_date().strftime(
             "%Y-%m-%d"
@@ -4427,6 +4966,7 @@ def orders_optimize():
             "orders": orders_by_plant.get(plant, 0),
         }
         for plant in plants
+        if plant != "CL"
     ]
 
     rejected_orders = sum(1 for order in orders_list if order.get("is_excluded"))
@@ -4448,6 +4988,8 @@ def orders_optimize():
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
     strategic_customer_groups = []
     for entry in strategic_customers:
+        if not entry.get("include_in_optimizer_workbench", True):
+            continue
         matching_customers = [
             cust
             for cust in customers
@@ -4587,6 +5129,55 @@ def orders_optimize():
         needs_replace=False,
         is_admin=role == ROLE_ADMIN,
         optimizer_v2_enabled=OPTIMIZER_V2_ENABLED,
+    )
+
+
+@app.route("/api/orders/manual-validate", methods=["POST"])
+def api_manual_order_validate():
+    session_redirect = _require_session()
+    if session_redirect:
+        return jsonify({"error": "Session expired"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    manual_order_input = payload.get("manual_order_input") or ""
+    parsed_so_nums = _parse_manual_so_nums(manual_order_input)
+    if not parsed_so_nums:
+        return jsonify(
+            {
+                "pasted_count": 0,
+                "matched_count": 0,
+                "not_found_count": 0,
+                "matched_so_nums": [],
+                "not_found_so_nums": [],
+            }
+        )
+
+    allowed_plants = set(_get_allowed_plants())
+    matches = []
+    matched_set = set()
+    rows = db.list_orders_by_so_nums_any(parsed_so_nums, include_closed=False)
+    for row in rows:
+        so_num = str(row.get("so_num") or "").strip()
+        plant_code = _normalize_plant_code(row.get("plant"))
+        if (
+            not so_num
+            or plant_code not in allowed_plants
+            or _coerce_bool_value(row.get("is_excluded"))
+            or so_num in matched_set
+        ):
+            continue
+        matches.append(so_num)
+        matched_set.add(so_num)
+
+    not_found = [so_num for so_num in parsed_so_nums if so_num not in matched_set]
+    return jsonify(
+        {
+            "pasted_count": len(parsed_so_nums),
+            "matched_count": len(matches),
+            "not_found_count": len(not_found),
+            "matched_so_nums": matches,
+            "not_found_so_nums": not_found,
+        }
     )
 
 
@@ -4774,6 +5365,18 @@ def loads():
     today_override = _resolve_today_override(request.args.get("today"))
     today = today_override or date.today()
     reopt_status = request.args.get("reopt", "")
+    reopt_job_id = (request.args.get("reopt_job") or "").strip()
+    if reopt_job_id:
+        reopt_job = _get_reopt_job(reopt_job_id)
+        if reopt_job:
+            if reopt_job.get("plant_code") not in allowed_plants:
+                reopt_job_id = ""
+            else:
+                current_status = (reopt_job.get("status") or "").strip().lower()
+                if current_status in {"running", "done", "failed"}:
+                    reopt_status = current_status
+        else:
+            reopt_job_id = ""
     feedback_error = request.args.get("feedback_error") or ""
     feedback_target = request.args.get("feedback_target") or ""
     manual_error = request.args.get("manual_error") or ""
@@ -4827,7 +5430,8 @@ def loads():
     zip_coords = geo_utils.load_zip_coordinates()
     plant_names = {row["plant_code"]: row["name"] for row in db.list_plants()}
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
-    color_palette = [
+    stop_color_palette = _get_stop_color_palette()
+    sku_color_palette = [
         "#137fec",
         "#10b981",
         "#f59e0b",
@@ -4837,31 +5441,16 @@ def loads():
         "#f472b6",
         "#f97316",
     ]
-    route_palette = [
-        "#38bdf8",
-        "#22c55e",
-        "#f59e0b",
-        "#f97316",
-        "#a855f7",
-        "#ef4444",
-    ]
     stop_fee_amount = _get_stop_fee_amount()
     fuel_surcharge_per_mile = _get_fuel_surcharge_per_mile()
     load_minimum_amount = _get_load_minimum_amount()
 
     for load in loads_data:
         lines = load.get("lines", [])
-        trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+        trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
         load["trailer_type"] = trailer_type
         load["total_units"] = sum((line.get("qty") or 0) for line in lines)
         load["total_sales"] = sum((line.get("sales") or 0) for line in lines)
-        order_colors = {}
-        for line in lines:
-            so_num = line.get("so_num")
-            if so_num and so_num not in order_colors:
-                order_colors[so_num] = color_palette[len(order_colors) % len(color_palette)]
-        load["order_colors"] = order_colors
-        load["order_count"] = len(order_colors)
         stops = []
         stop_map = {}
         due_dates = []
@@ -4948,7 +5537,6 @@ def loads():
                 group["status_label"] = line_status
 
         for group in manifest_groups:
-            group["color"] = load["order_colors"].get(group["order_id"], "#64748b")
             group["sku_list"] = sorted(group.get("sku_set") or [])
             group_due = _parse_date(group.get("due_date"))
             group["due_status"] = _due_status(group_due, today=today)
@@ -4985,10 +5573,21 @@ def loads():
             else list(stops)
         )
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
+        order_colors = _build_order_colors_for_lines(
+            lines,
+            stop_sequence_map=stop_sequence_map,
+            stop_palette=stop_color_palette,
+        )
+        load["order_colors"] = order_colors
+        load["order_count"] = len(order_colors)
 
         for group in manifest_groups:
             group["stop_sequence"] = stop_sequence_map.get(
                 _line_stop_key(group.get("state"), group.get("zip"))
+            )
+            group["color"] = order_colors.get(
+                group["order_id"],
+                _color_for_stop_sequence(group.get("stop_sequence"), stop_color_palette),
             )
         manifest_groups.sort(
             key=lambda group: (
@@ -5042,8 +5641,18 @@ def loads():
             route_nodes[-1]["type"] = "final"
             route_nodes[-1]["icon"] = "flag"
 
-        for idx, node in enumerate(route_nodes):
-            color = route_palette[idx % len(route_palette)]
+        for node in route_nodes:
+            node_type = (node.get("type") or "").strip().lower()
+            is_return_origin = (
+                node_type == "final"
+                and requires_return_to_origin
+                and origin_coords
+                and node.get("coords") == origin_coords
+            )
+            if node_type == "origin" or is_return_origin:
+                color = "#38bdf8"
+            else:
+                color = _color_for_stop_sequence(node.get("sequence"), stop_color_palette)
             node["color"] = color
             node["bg"] = f"{color}22"
 
@@ -5074,7 +5683,7 @@ def loads():
         for idx, item in enumerate(line_items):
             sku = item.get("sku") or f"item-{idx}"
             if sku not in sku_colors:
-                sku_colors[sku] = color_palette[len(sku_colors) % len(color_palette)]
+                sku_colors[sku] = sku_color_palette[len(sku_colors) % len(sku_color_palette)]
 
         utilization_pct = schematic.get("utilization_pct", load.get("utilization_pct", 0)) or 0
         load["utilization_pct"] = utilization_pct
@@ -5411,6 +6020,7 @@ def loads():
         draft_tab_count=draft_tab_count,
         final_tab_count=final_tab_count,
         reopt_status=reopt_status,
+        reopt_job_id=reopt_job_id,
         load_sections=load_sections,
         order_status_counts=order_status_counts,
         load_status_counts=load_status_counts,
@@ -5617,7 +6227,7 @@ def _build_replay_simulation_loads(load_metrics):
             "status": STATUS_PROPOSED,
             "simulation_status": "SIMULATED",
             "build_source": "OPTIMIZED",
-            "trailer_type": (load_data.get("trailer_type") or "STEP_DECK").strip().upper() or "STEP_DECK",
+            "trailer_type": stack_calculator.normalize_trailer_type(load_data.get("trailer_type"), default="STEP_DECK"),
             "utilization_pct": float(metric.get("utilization_pct") or 0.0),
             "estimated_miles": float(metric.get("estimated_miles") or 0.0),
             "estimated_cost": float(metric.get("estimated_cost") or 0.0),
@@ -6313,7 +6923,7 @@ def _build_planning_session_rollup(loads):
                 "id": load.get("id"),
                 "load_number": load.get("load_number") or f"Load #{load.get('id')}",
                 "status": (load.get("status") or "PROPOSED").upper(),
-                "trailer_type": (load.get("trailer_type") or "STEP_DECK").upper(),
+                "trailer_type": stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK"),
                 "utilization_pct": round(float(load.get("utilization_pct") or 0), 1),
                 "estimated_cost": round(float(load.get("estimated_cost") or 0), 2),
                 "estimated_miles": round(float(load.get("estimated_miles") or 0), 1),
@@ -6351,21 +6961,12 @@ def _build_planning_session_rollup(loads):
 def _build_load_report_rows(loads):
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
     zip_coords = geo_utils.load_zip_coordinates()
-    color_palette = [
-        "#137fec",
-        "#10b981",
-        "#f59e0b",
-        "#ef4444",
-        "#8b5cf6",
-        "#22d3ee",
-        "#f472b6",
-        "#f97316",
-    ]
+    stop_color_palette = _get_stop_color_palette()
     rows = []
 
     for load in loads or []:
         lines = load.get("lines") or []
-        trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+        trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
         ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         schematic, _, _ = _calculate_load_schematic(
@@ -6459,11 +7060,11 @@ def _build_load_report_rows(loads):
                 entry.get("so_num") or "",
             )
         )
-        order_colors = {}
-        for order in order_rows:
-            so_num = order.get("so_num")
-            if so_num and so_num not in order_colors:
-                order_colors[so_num] = color_palette[len(order_colors) % len(color_palette)]
+        order_colors = _build_order_colors_for_lines(
+            lines,
+            stop_sequence_map=stop_sequence_map,
+            stop_palette=stop_color_palette,
+        )
 
         early_orders = []
         for order in order_rows:
@@ -7437,7 +8038,8 @@ def manual_load_create():
             )
         )
 
-    trailer_type = (request.form.get("trailer_type") or "").strip().upper() or None
+    trailer_type_raw = (request.form.get("trailer_type") or "").strip().upper()
+    trailer_type = trailer_type_raw if stack_calculator.is_valid_trailer_type(trailer_type_raw) else None
 
     # Clear any non-manual draft loads so selected orders can be reassigned.
     if session_id:
@@ -7462,7 +8064,7 @@ def manual_load_create():
 
 
 def _capacity_for_trailer(trailer_type):
-    trailer_key = (trailer_type or "STEP_DECK").strip().upper()
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
     config = stack_calculator.TRAILER_CONFIGS.get(trailer_key, stack_calculator.TRAILER_CONFIGS["STEP_DECK"])
     try:
         return float(config.get("capacity") or 53)
@@ -7489,7 +8091,7 @@ def manual_add_suggestions(load_id):
         return jsonify({"error": "Approved loads cannot be modified."}), 400
 
     plant_code = load.get("origin_plant")
-    trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+    trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
     capacity_ft = _capacity_for_trailer(trailer_type)
 
     lines = db.list_load_lines(load_id)
@@ -7523,12 +8125,137 @@ def manual_add_suggestions(load_id):
         if coords and coords not in stop_coords:
             stop_coords.append(coords)
 
+    sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
+    existing_schematic = {
+        "trailer_type": trailer_type,
+        "lower_deck_length": 0.0,
+        "upper_deck_length": 0.0,
+        "lower_remaining_ft": 0.0,
+        "upper_remaining_ft": 0.0,
+        "decks": {"lower": [], "upper": []},
+    }
+    if lines:
+        schematic, _, _ = _calculate_load_schematic(
+            lines,
+            sku_specs,
+            trailer_type,
+            stop_sequence_map=None,
+        )
+        lower_deck_length = float(schematic.get("lower_deck_length") or 0.0)
+        upper_deck_length = float(schematic.get("upper_deck_length") or 0.0)
+        lower_used_ft = float(schematic.get("lower_deck_used_length_ft") or 0.0)
+        upper_used_ft = float(schematic.get("upper_deck_effective_length_ft") or 0.0)
+        deck_rows = {"lower": [], "upper": []}
+        for pos in schematic.get("positions") or []:
+            deck = (pos.get("deck") or "lower").strip().lower()
+            if deck not in {"lower", "upper"}:
+                deck = "lower"
+            length_ft = float(pos.get("length_ft") or 0.0)
+            effective_length_ft = float(pos.get("effective_length_ft") or length_ft)
+            display_length_ft = effective_length_ft if deck == "upper" else length_ft
+            capacity_used = max(float(pos.get("capacity_used") or 0.0), 0.0)
+            vertical_fill_ratio = min(capacity_used, 1.0)
+            vertical_open_ratio = max(1.0 - vertical_fill_ratio, 0.0)
+            deck_rows.setdefault(deck, []).append(
+                {
+                    "position_id": pos.get("position_id") or "",
+                    "length_ft": round(length_ft, 1),
+                    "effective_length_ft": round(effective_length_ft, 1),
+                    "display_length_ft": round(display_length_ft, 1),
+                    "vertical_fill_ratio": round(vertical_fill_ratio, 4),
+                    "vertical_open_ratio": round(vertical_open_ratio, 4),
+                    "capacity_used": round(capacity_used, 4),
+                    "overflow_applied": bool(pos.get("overflow_applied")),
+                }
+            )
+        existing_schematic = {
+            "trailer_type": trailer_type,
+            "lower_deck_length": round(lower_deck_length, 1),
+            "upper_deck_length": round(upper_deck_length, 1),
+            "lower_remaining_ft": round(max(lower_deck_length - lower_used_ft, 0.0), 1),
+            "upper_remaining_ft": round(max(upper_deck_length - upper_used_ft, 0.0), 1),
+            "decks": deck_rows,
+        }
+
     search_query = (request.args.get("q") or "").strip()
     candidates = db.list_eligible_manual_orders(
         plant_code,
         search=search_query or None,
         limit=None,
     )
+    candidate_so_nums = []
+    seen_candidate_so_nums = set()
+    for order in candidates:
+        so_num = str(order.get("so_num") or "").strip()
+        if not so_num or so_num in existing_so_nums or so_num in seen_candidate_so_nums:
+            continue
+        seen_candidate_so_nums.add(so_num)
+        candidate_so_nums.append(so_num)
+
+    sku_lines = db.list_order_lines_for_so_nums(
+        plant_code,
+        list(existing_so_nums) + candidate_so_nums,
+    )
+    sku_rollups = {}
+    for line in sku_lines:
+        so_num = str(line.get("so_num") or "").strip()
+        if not so_num:
+            continue
+        sku_key = str(line.get("sku") or line.get("item") or "").strip() or "UNKNOWN"
+        so_rollup = sku_rollups.setdefault(so_num, {})
+        sku_entry = so_rollup.setdefault(
+            sku_key,
+            {
+                "sku": sku_key,
+                "ft": 0.0,
+                "qty": 0,
+            },
+        )
+        sku_entry["ft"] += float(line.get("total_length_ft") or 0)
+        try:
+            sku_entry["qty"] += int(float(line.get("qty") or 0))
+        except (TypeError, ValueError):
+            pass
+
+    def _serialize_sku_rollup(so_num):
+        rollup = sku_rollups.get(so_num, {})
+        entries = []
+        for entry in rollup.values():
+            entries.append(
+                {
+                    "sku": entry.get("sku") or "UNKNOWN",
+                    "ft": round(float(entry.get("ft") or 0), 1),
+                    "qty": int(entry.get("qty") or 0),
+                }
+            )
+        entries.sort(key=lambda item: (-(item.get("ft") or 0), item.get("sku") or ""))
+        return entries
+
+    existing_segments = []
+    existing_order_sort = sorted(
+        existing_so_nums,
+        key=lambda so_num: (
+            (order_map.get(so_num) or {}).get("due_date") or "9999-12-31",
+            so_num,
+        ),
+    )
+    for so_num in existing_order_sort:
+        order = order_map.get(so_num) or {}
+        length_ft = (
+            float(order.get("total_length_ft") or 0)
+            if order.get("total_length_ft") is not None
+            else float(line_totals.get(so_num) or 0)
+        )
+        if length_ft <= 0:
+            continue
+        existing_segments.append(
+            {
+                "so_num": so_num,
+                "total_length_ft": round(length_ft, 1),
+                "sku_breakdown": _serialize_sku_rollup(so_num),
+            }
+        )
+
     suggestions = []
     for order in candidates:
         so_num = str(order.get("so_num") or "").strip()
@@ -7545,6 +8272,7 @@ def manual_add_suggestions(load_id):
             )
 
         total_length_ft = float(order.get("total_length_ft") or 0)
+        sku_breakdown = _serialize_sku_rollup(so_num)
 
         suggestions.append(
             {
@@ -7555,8 +8283,10 @@ def manual_add_suggestions(load_id):
                 "state": order.get("state") or "",
                 "zip": order.get("zip") or "",
                 "total_length_ft": total_length_ft,
+                "stack_added_ft": round(total_length_ft, 1),
                 "utilization_pct": order.get("utilization_pct") or 0,
                 "distance_miles": round(dist, 1) if dist is not None else None,
+                "sku_breakdown": sku_breakdown,
             }
         )
 
@@ -7582,6 +8312,8 @@ def manual_add_suggestions(load_id):
                 "remaining_ft": round(remaining_ft, 1),
                 "util_pct": util_pct,
             },
+            "existing_schematic": existing_schematic,
+            "existing_segments": existing_segments,
             "params": {},
             "suggestions": suggestions,
         }
@@ -7634,10 +8366,46 @@ def manual_add_orders(load_id):
     db.delete_load_schematic_override(load_id)
 
     session_id = load.get("planning_session_id")
-    _reoptimize_for_plant(plant_code, session_id=session_id)
+    reopt_job_id = _start_reopt_job(plant_code, session_id=session_id, speed_profile="fast")
     return jsonify(
         {
-            "redirect_url": url_for("loads", plants=plant_code, tab="draft", reopt="done", session_id=session_id)
+            "redirect_url": url_for(
+                "loads",
+                plants=plant_code,
+                tab="draft",
+                reopt="done",
+                session_id=session_id,
+            ),
+            "status_url": url_for("loads_reopt_job_status", job_id=reopt_job_id),
+            "reopt_job_id": reopt_job_id,
+        }
+    )
+
+
+@app.route("/loads/reopt_jobs/<job_id>")
+def loads_reopt_job_status(job_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return jsonify({"error": "Session expired"}), 401
+
+    job = _get_reopt_job(job_id)
+    if not job:
+        return jsonify({"error": "Re-optimization job not found."}), 404
+
+    if job.get("plant_code") not in _get_allowed_plants():
+        return jsonify({"error": "Not authorized for this re-optimization job."}), 403
+
+    return jsonify(
+        {
+            "job_id": job.get("id"),
+            "status": job.get("status") or "unknown",
+            "plant_code": job.get("plant_code") or "",
+            "session_id": job.get("session_id"),
+            "created_at": job.get("created_at") or "",
+            "started_at": job.get("started_at") or "",
+            "finished_at": job.get("finished_at") or "",
+            "error": job.get("error") or "",
+            "success_message": job.get("success_message") or "",
         }
     )
 
@@ -7750,8 +8518,9 @@ def load_detail(load_id):
         )
 
     load_data = dict(load)
-    trailer_type = (load_data.get("trailer_type") or "STEP_DECK").strip().upper()
+    trailer_type = stack_calculator.normalize_trailer_type(load_data.get("trailer_type"), default="STEP_DECK")
     load_data["trailer_type"] = trailer_type
+    stop_color_palette = _get_stop_color_palette()
     lines = db.list_load_lines(load_id)
     plant_names = {row["plant_code"]: row["name"] for row in db.list_plants()}
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
@@ -7811,9 +8580,10 @@ def load_detail(load_id):
             "subtitle": origin_name or "",
             "icon": "home",
             "coords": origin_coords,
+            "sequence": 0,
         }
     ]
-    for stop in ordered_stops:
+    for idx, stop in enumerate(ordered_stops, start=1):
         coords = None
         if stop.get("lat") is not None and stop.get("lng") is not None:
             coords = (stop.get("lat"), stop.get("lng"))
@@ -7824,6 +8594,7 @@ def load_detail(load_id):
                 "subtitle": ", ".join(stop.get("customers") or []),
                 "icon": "person_pin_circle",
                 "coords": coords,
+                "sequence": idx,
             }
         )
     if requires_return_to_origin and origin_coords and len(route_nodes) > 1:
@@ -7834,19 +8605,22 @@ def load_detail(load_id):
                 "subtitle": origin_name or "",
                 "icon": "home",
                 "coords": origin_coords,
+                "sequence": len(route_nodes),
             }
         )
 
-    route_palette = [
-        "#38bdf8",
-        "#22c55e",
-        "#f59e0b",
-        "#f97316",
-        "#a855f7",
-        "#ef4444",
-    ]
-    for idx, node in enumerate(route_nodes):
-        color = route_palette[idx % len(route_palette)]
+    for node in route_nodes:
+        node_type = (node.get("type") or "").strip().lower()
+        is_return_origin = (
+            node_type == "final"
+            and requires_return_to_origin
+            and origin_coords
+            and node.get("coords") == origin_coords
+        )
+        if node_type == "origin" or is_return_origin:
+            color = "#38bdf8"
+        else:
+            color = _color_for_stop_sequence(node.get("sequence"), stop_color_palette)
         node["color"] = color
         node["bg"] = f"{color}22"
 
@@ -7898,7 +8672,7 @@ def load_detail(load_id):
     utilization_pct = schematic.get("utilization_pct", load_data.get("utilization_pct", 0)) or 0
     exceeds_capacity = schematic.get("exceeds_capacity", False)
     over_capacity = exceeds_capacity and len(order_numbers) <= 1
-    color_palette = [
+    sku_color_palette = [
         "#137fec",
         "#10b981",
         "#f59e0b",
@@ -7912,7 +8686,7 @@ def load_detail(load_id):
     for idx, item in enumerate(line_items):
         sku = item.get("sku") or f"item-{idx}"
         if sku not in sku_colors:
-            sku_colors[sku] = color_palette[len(sku_colors) % len(color_palette)]
+            sku_colors[sku] = sku_color_palette[len(sku_colors) % len(sku_color_palette)]
 
     load_data["schematic"] = schematic
     load_data["sku_colors"] = sku_colors
@@ -8093,7 +8867,7 @@ def update_load_trailer(load_id):
         or body_data.get("trailer_type")
         or ""
     ).strip().upper()
-    if trailer_type not in {"STEP_DECK", "FLATBED", "WEDGE"}:
+    if not stack_calculator.is_valid_trailer_type(trailer_type):
         return jsonify({"error": "Invalid trailer type"}), 400
 
     load = db.get_load(load_id)
@@ -8118,21 +8892,11 @@ def update_load_trailer(load_id):
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load["origin_plant"], zip_coords)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
-    order_colors = {}
-    color_palette = [
-        "#137fec",
-        "#10b981",
-        "#f59e0b",
-        "#ef4444",
-        "#8b5cf6",
-        "#22d3ee",
-        "#f472b6",
-        "#f97316",
-    ]
-    for line in lines:
-        order_id = (line.get("so_num") or "").strip()
-        if order_id and order_id not in order_colors:
-            order_colors[order_id] = color_palette[len(order_colors) % len(color_palette)]
+    order_colors = _build_order_colors_for_lines(
+        lines,
+        stop_sequence_map=stop_sequence_map,
+        stop_palette=_get_stop_color_palette(),
+    )
 
     override = db.get_load_schematic_override(load_id)
     if override:
@@ -8144,21 +8908,14 @@ def update_load_trailer(load_id):
             order_colors=order_colors,
         )
         units_by_id = {unit["unit_id"]: unit for unit in units}
-        try:
-            source_layout = json.loads(override.get("layout_json") or "{}")
-        except json.JSONDecodeError:
-            source_layout = {}
-        remapped_layout = _remap_layout_for_trailer(source_layout, trailer_type)
-        try:
-            normalized_layout = _normalize_edit_layout(remapped_layout, units_by_id, trailer_type)
-        except ValueError:
-            base_schematic, _, _ = _calculate_load_schematic(
-                lines,
-                sku_specs,
-                trailer_type,
-                stop_sequence_map=stop_sequence_map,
-            )
-            normalized_layout = _layout_from_schematic(base_schematic, units)
+        base_schematic, _, _ = _calculate_load_schematic(
+            lines,
+            sku_specs,
+            trailer_type,
+            stop_sequence_map=stop_sequence_map,
+            assumptions=assumptions,
+        )
+        normalized_layout = _layout_from_schematic(base_schematic, units)
 
         remapped_schematic, warnings = _build_schematic_from_layout(
             normalized_layout,
@@ -8218,19 +8975,73 @@ def update_load_trailer(load_id):
             stop_sequence_map=stop_sequence_map,
             assumptions=assumptions,
         )
-        utilization_pct = schematic.get("utilization_pct", 0) or 0
-        if schematic.get("exceeds_capacity"):
+        if schematic.get("exceeds_capacity") and not confirm_violation:
             return jsonify(
                 {
-                    "error": (
-                        "Cannot assign this trailer: multi-order loads may not exceed deck capacity. "
-                        "Split into separate loads first."
-                    )
+                    "requires_confirmation": True,
+                    "warnings": [
+                        {
+                            "code": "TRAILER_EXCEEDS_CAPACITY",
+                            "message": (
+                                "This trailer selection exceeds deck capacity/overhang limits for the current mix. "
+                                "Continue anyway to keep the selected trailer."
+                            ),
+                            "level": "warning",
+                        }
+                    ],
+                    "warning_count": 1,
                 }
-            ), 400
+            ), 409
+
+    best_schematic, _, _ = _calculate_load_schematic(
+        lines,
+        sku_specs,
+        trailer_type,
+        stop_sequence_map=stop_sequence_map,
+        assumptions=assumptions,
+    )
+    best_units = _build_schematic_units(
+        lines,
+        sku_specs,
+        trailer_type,
+        stop_sequence_map=stop_sequence_map,
+        order_colors=order_colors,
+    )
+    best_layout = _layout_from_schematic(best_schematic, best_units)
+    units_by_id = {unit["unit_id"]: unit for unit in best_units}
+    remapped_schematic, warnings = _build_schematic_from_layout(
+        best_layout,
+        units_by_id,
+        trailer_type,
+        assumptions=assumptions,
+    )
+    if warnings and not confirm_violation:
+        return jsonify(
+            {
+                "requires_confirmation": True,
+                "warnings": warnings,
+                "warning_count": len(warnings),
+                "remap_preview": {
+                    "layout": best_layout,
+                    "metrics": {
+                        "utilization_pct": remapped_schematic.get("utilization_pct") or 0,
+                        "utilization_grade": remapped_schematic.get("utilization_grade") or "F",
+                        "total_linear_feet": remapped_schematic.get("total_linear_feet") or 0,
+                        "exceeds_capacity": bool(remapped_schematic.get("exceeds_capacity")),
+                    },
+                },
+            }
+        ), 409
 
     db.update_load_trailer_type(load_id, trailer_type)
-    db.delete_load_schematic_override(load_id)
+    db.upsert_load_schematic_override(
+        load_id,
+        trailer_type,
+        json.dumps(best_layout),
+        warnings_json=json.dumps(warnings),
+        is_invalid=bool(warnings),
+        updated_by=_get_session_profile_name() or _get_session_role(),
+    )
     return ("", 204)
 
 
@@ -8239,30 +9050,20 @@ def _build_load_schematic_payload(load_id):
     if not load:
         return None
 
-    trailer_type = (load.get("trailer_type") or "STEP_DECK").strip().upper()
+    trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
     assumptions = _get_stack_capacity_assumptions()
     load["trailer_type"] = trailer_type
     lines = db.list_load_lines(load_id)
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
-    color_palette = [
-        "#137fec",
-        "#10b981",
-        "#f59e0b",
-        "#ef4444",
-        "#8b5cf6",
-        "#22d3ee",
-        "#f472b6",
-        "#f97316",
-    ]
-    order_colors = {}
-    for line in lines:
-        so_num = line.get("so_num")
-        if so_num and so_num not in order_colors:
-            order_colors[so_num] = color_palette[len(order_colors) % len(color_palette)]
 
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
+    order_colors = _build_order_colors_for_lines(
+        lines,
+        stop_sequence_map=stop_sequence_map,
+        stop_palette=_get_stop_color_palette(),
+    )
     schematic, _, order_numbers = _calculate_load_schematic(
         lines,
         sku_specs,
@@ -8389,6 +9190,7 @@ def load_schematic_edit(load_id):
             "can_edit": bool(payload.get("can_edit")),
             "units": payload.get("units") or [],
             "layout": payload.get("layout") or {"positions": []},
+            "base_layout": payload.get("base_layout") or {"positions": []},
             "metrics": payload.get("metrics") or {},
             "warnings": payload.get("warnings") or [],
             "warning_count": int(payload.get("warning_count") or 0),
@@ -8419,9 +9221,13 @@ def save_schematic_edit(load_id):
 
     try:
         data = request.get_json(silent=True) or {}
-        requested_trailer = (data.get("trailer_type") or payload.get("trailer_type") or "").strip().upper()
-        if requested_trailer not in {"STEP_DECK", "FLATBED", "WEDGE"}:
+        requested_trailer_raw = (data.get("trailer_type") or payload.get("trailer_type") or "").strip().upper()
+        if not stack_calculator.is_valid_trailer_type(requested_trailer_raw):
             return jsonify({"error": "Invalid trailer type"}), 400
+        requested_trailer = stack_calculator.normalize_trailer_type(
+            requested_trailer_raw,
+            default=payload.get("trailer_type") or "STEP_DECK",
+        )
         if requested_trailer != payload.get("trailer_type"):
             return jsonify({"error": "Trailer type changed. Update trailer first, then edit schematic."}), 400
 
@@ -8523,6 +9329,7 @@ def update_load_status(load_id):
     plant_code = load.get("origin_plant")
     year_suffix = _year_suffix()
     planning_session_id = load.get("planning_session_id")
+    planning_session = db.get_planning_session(planning_session_id) if planning_session_id else None
 
     redirect_target = request.referrer or url_for(
         "loads", session_id=_get_active_planning_session_id()
@@ -8663,8 +9470,37 @@ def update_load_status(load_id):
 
     if action == "approve_lock":
         if not load_number:
-            seq = db.get_next_load_sequence(plant_code, year_suffix)
-            load_number = _format_load_number(plant_code, year_suffix, seq, draft=False)
+            if planning_session:
+                start_value = (request.form.get("load_number_start") or "").strip()
+                starting_sequence = None
+                if start_value:
+                    if not LOAD_NUMBER_START_PATTERN.fullmatch(start_value):
+                        return jsonify(
+                            {
+                                "error": "Starting load number must be exactly 4 digits.",
+                                "invalid_load_number_seed": True,
+                            }
+                        ), 400
+                    starting_sequence = int(start_value)
+                reservation = _reserve_session_load_number(
+                    planning_session,
+                    plant_code,
+                    starting_sequence=starting_sequence,
+                )
+                if reservation.get("needs_start"):
+                    return jsonify(
+                        {
+                            "error": "Enter the first 4-digit load number for this planning session.",
+                            "requires_load_number_seed": True,
+                            "load_number_prefix": reservation.get("prefix") or "",
+                        }
+                    ), 428
+                reserved_number = reservation.get("load_number")
+                if reserved_number:
+                    load_number = reserved_number
+            if not load_number:
+                seq = db.get_next_load_sequence(plant_code, year_suffix)
+                load_number = _format_load_number(plant_code, year_suffix, seq, draft=False)
         else:
             normalized, suffix = _normalize_load_number(load_number)
             if suffix == "D":
@@ -8941,7 +9777,9 @@ def approve_all_loads():
             params,
         ).fetchall()
 
+    planning_session = db.get_planning_session(session_id) if session_id else None
     year_suffix = _year_suffix()
+    seed_year_suffix = _planning_session_year_suffix(planning_session) if planning_session else year_suffix
     for row in rows:
         current_status = (row["status"] or STATUS_PROPOSED).upper()
         if current_status == STATUS_APPROVED:
@@ -8949,8 +9787,21 @@ def approve_all_loads():
         plant_code = row["origin_plant"]
         load_number = row["load_number"]
         if not load_number:
-            seq = db.get_next_load_sequence(plant_code, year_suffix)
-            load_number = _format_load_number(plant_code, year_suffix, seq, draft=False)
+            if planning_session:
+                reservation = _reserve_session_load_number(planning_session, plant_code)
+                if reservation.get("needs_start"):
+                    seed_seq = db.get_next_load_sequence(plant_code, seed_year_suffix)
+                    reservation = _reserve_session_load_number(
+                        planning_session,
+                        plant_code,
+                        starting_sequence=seed_seq,
+                    )
+                reserved_number = reservation.get("load_number")
+                if reserved_number:
+                    load_number = reserved_number
+            if not load_number:
+                seq = db.get_next_load_sequence(plant_code, year_suffix)
+                load_number = _format_load_number(plant_code, year_suffix, seq, draft=False)
         else:
             normalized, suffix = _normalize_load_number(load_number)
             if suffix == "D":
@@ -9003,7 +9854,9 @@ def approve_full_truckloads():
         and _is_full_truckload(load)
     ]
 
+    planning_session = db.get_planning_session(session_id) if session_id else None
     year_suffix = _year_suffix()
+    seed_year_suffix = _planning_session_year_suffix(planning_session) if planning_session else year_suffix
     for load in candidates:
         current_status = (load.get("status") or STATUS_PROPOSED).upper()
         if current_status == STATUS_APPROVED:
@@ -9011,8 +9864,21 @@ def approve_full_truckloads():
         plant_code = load.get("origin_plant")
         load_number = load.get("load_number")
         if not load_number:
-            seq = db.get_next_load_sequence(plant_code, year_suffix)
-            load_number = _format_load_number(plant_code, year_suffix, seq, draft=False)
+            if planning_session:
+                reservation = _reserve_session_load_number(planning_session, plant_code)
+                if reservation.get("needs_start"):
+                    seed_seq = db.get_next_load_sequence(plant_code, seed_year_suffix)
+                    reservation = _reserve_session_load_number(
+                        planning_session,
+                        plant_code,
+                        starting_sequence=seed_seq,
+                    )
+                reserved_number = reservation.get("load_number")
+                if reserved_number:
+                    load_number = reserved_number
+            if not load_number:
+                seq = db.get_next_load_sequence(plant_code, year_suffix)
+                load_number = _format_load_number(plant_code, year_suffix, seq, draft=False)
         else:
             normalized, suffix = _normalize_load_number(load_number)
             if suffix == "D":
@@ -9151,10 +10017,16 @@ def settings():
     specs = []
     recent_specs = []
     sku_categories = []
+    sku_lengths = []
+    sku_step_decks = []
+    sku_flat_beds = []
+    planner_specs = []
+    system_specs = []
     lookups_data = []
     plants_data = []
     strategic_customers_raw = ""
     strategic_customers = []
+    stop_color_rows = []
     optimizer_defaults = _default_optimize_form()
     optimizer_defaults.update(_get_optimizer_default_settings())
     util_grade_thresholds = []
@@ -9173,10 +10045,32 @@ def settings():
             reverse=True,
         )[:5]
     if tab == "skus":
+        def _collect_numeric_filters(field_name, cast=int):
+            values = set()
+            for spec in specs:
+                raw_value = spec.get(field_name)
+                if raw_value in (None, ""):
+                    continue
+                try:
+                    if cast is int:
+                        normalized = str(int(float(raw_value)))
+                    else:
+                        normalized = f"{float(raw_value):g}"
+                except (TypeError, ValueError):
+                    continue
+                values.add(normalized)
+            return sorted(values, key=lambda value: float(value))
+
+        planner_specs = [spec for spec in specs if _sku_is_planner_input(spec)]
+        system_specs = [spec for spec in specs if not _sku_is_planner_input(spec)]
         raw_categories = {
-            (spec.get("category") or "").strip().upper() for spec in specs
+            (spec.get("category") or "").strip().upper()
+            for spec in specs
         }
         sku_categories = sorted([category for category in raw_categories if category])
+        sku_lengths = _collect_numeric_filters("length_with_tongue_ft", cast=float)
+        sku_step_decks = _collect_numeric_filters("max_stack_step_deck", cast=int)
+        sku_flat_beds = _collect_numeric_filters("max_stack_flat_bed", cast=int)
     elif tab == "lookups":
         lookups_data = db.list_item_lookups()
     if tab in {"overview", "plants"}:
@@ -9186,6 +10080,10 @@ def settings():
         strategic_customers_raw = setting.get("value_text") or ""
         strategic_customers = _parse_strategic_customers(strategic_customers_raw)
         util_grade_thresholds = _build_utilization_grade_rows(_get_utilization_grade_thresholds())
+        stop_color_rows = [
+            {"sequence": idx, "color": color}
+            for idx, color in enumerate(_get_stop_color_palette(), start=1)
+        ]
 
     return render_template(
         "settings.html",
@@ -9196,6 +10094,8 @@ def settings():
         rate_states=rate_states,
         rate_matrix=rate_matrix,
         specs=specs,
+        planner_specs=planner_specs,
+        system_specs=system_specs,
         recent_specs=recent_specs,
         lookups=lookups_data,
         plants_data=plants_data,
@@ -9204,7 +10104,11 @@ def settings():
         optimizer_defaults=optimizer_defaults,
         util_grade_thresholds=util_grade_thresholds,
         sku_categories=sku_categories,
+        sku_lengths=sku_lengths,
+        sku_step_decks=sku_step_decks,
+        sku_flat_beds=sku_flat_beds,
         fuel_surcharge_per_mile=fuel_surcharge_per_mile,
+        stop_color_rows=stop_color_rows,
         is_admin=_get_session_role() == ROLE_ADMIN,
     )
 
@@ -9220,6 +10124,25 @@ def save_planning_tools():
     parsed = customer_rules.parse_strategic_customers(strategic_customers_raw)
     serialized = customer_rules.serialize_strategic_customers(parsed)
     db.upsert_planning_setting("strategic_customers", serialized)
+    target_tab = (request.form.get("tab") or "overview").strip().lower()
+    if target_tab != "overview":
+        target_tab = "overview"
+    return redirect(url_for("settings", tab=target_tab))
+
+
+@app.route("/settings/stop-colors/save", methods=["POST"])
+def save_stop_colors():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_admin()
+
+    palette = []
+    for idx, default_color in enumerate(DEFAULT_STOP_COLOR_PALETTE, start=1):
+        raw = request.form.get(f"stop_color_{idx}")
+        palette.append(_normalize_hex_color(raw, default_color))
+    db.upsert_planning_setting(STOP_COLOR_PALETTE_SETTING_KEY, json.dumps(palette))
+
     target_tab = (request.form.get("tab") or "overview").strip().lower()
     if target_tab != "overview":
         target_tab = "overview"
@@ -9310,8 +10233,8 @@ def save_optimizer_defaults():
     payload = request.get_json(silent=True) or request.form
     current = _get_optimizer_default_settings()
     trailer_type = (payload.get("trailer_type") or current["trailer_type"]).strip().upper()
-    if trailer_type not in {"STEP_DECK", "FLATBED", "WEDGE"}:
-        trailer_type = current["trailer_type"]
+    if not stack_calculator.is_valid_trailer_type(trailer_type):
+        trailer_type = stack_calculator.normalize_trailer_type(current["trailer_type"], default="STEP_DECK")
     optimized = {
         "trailer_type": trailer_type,
         "capacity_feet": round(
@@ -9338,6 +10261,16 @@ def save_optimizer_defaults():
             _coerce_non_negative_float(
                 payload.get("max_back_overhang_ft"),
                 current.get("max_back_overhang_ft", DEFAULT_MAX_BACK_OVERHANG_FT),
+            ),
+            2,
+        ),
+        "upper_two_across_max_length_ft": round(
+            _coerce_non_negative_float(
+                payload.get("upper_two_across_max_length_ft"),
+                current.get(
+                    "upper_two_across_max_length_ft",
+                    DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
+                ),
             ),
             2,
         ),
@@ -9498,6 +10431,7 @@ def save_plant():
         "address": (payload.get("address") or "").strip(),
     }
     db.update_plant(int(plant_id), plant)
+    geo_utils.invalidate_coordinate_caches(plant_coords=True)
     return jsonify({"status": "ok"})
 
 
@@ -9510,6 +10444,99 @@ def skus():
         return redirect(url_for("settings", tab="skus"))
     specs = db.list_sku_specs()
     return render_template("skus.html", specs=specs)
+
+
+@app.route("/skus/export-cheat-sheet.xlsx")
+def export_sku_cheat_sheet():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    specs = db.list_sku_specs()
+    ordered_specs = sorted(
+        specs,
+        key=lambda spec: (
+            0 if _sku_is_planner_input(spec) else 1,
+            str(spec.get("sku") or "").upper(),
+        ),
+    )
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "SKU Cheat Sheet"
+
+    headers = [
+        "Source",
+        "SKU",
+        "Description",
+        "Category",
+        "Length w/ Tongue (ft)",
+        "Max Stack Step Deck",
+        "Max Stack Flat Bed",
+        "Notes",
+        "Added",
+    ]
+    sheet.append(headers)
+
+    header_fill = PatternFill("solid", fgColor="1F4E78")
+    header_font = Font(color="FFFFFF", bold=True)
+    header_alignment = Alignment(horizontal="center", vertical="center")
+
+    for col_idx, _ in enumerate(headers, start=1):
+        header_cell = sheet.cell(row=1, column=col_idx)
+        header_cell.fill = header_fill
+        header_cell.font = header_font
+        header_cell.alignment = header_alignment
+
+    for spec in ordered_specs:
+        sheet.append(
+            [
+                _sku_source_label(spec),
+                spec.get("sku") or "",
+                spec.get("description") or "",
+                spec.get("category") or "",
+                spec.get("length_with_tongue_ft"),
+                spec.get("max_stack_step_deck"),
+                spec.get("max_stack_flat_bed"),
+                spec.get("notes") or "",
+                spec.get("added_at") or spec.get("created_at") or "",
+            ]
+        )
+
+    widths = {
+        "A": 16,
+        "B": 18,
+        "C": 38,
+        "D": 18,
+        "E": 22,
+        "F": 20,
+        "G": 19,
+        "H": 30,
+        "I": 21,
+    }
+    for col, width in widths.items():
+        sheet.column_dimensions[col].width = width
+
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = f"A1:I{max(sheet.max_row, 1)}"
+
+    data_alignment_left = Alignment(horizontal="left", vertical="center")
+    data_alignment_center = Alignment(horizontal="center", vertical="center")
+    for row_idx in range(2, sheet.max_row + 1):
+        for col_idx in [1, 2, 3, 4, 8, 9]:
+            sheet.cell(row=row_idx, column=col_idx).alignment = data_alignment_left
+        for col_idx in [5, 6, 7]:
+            sheet.cell(row=row_idx, column=col_idx).alignment = data_alignment_center
+
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    filename = f"sku_cheat_sheet_{date.today().isoformat()}.xlsx"
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @app.route("/skus/add", methods=["POST"])
@@ -9648,6 +10675,7 @@ def order_stack_config(so_num):
                 "positions_required": positions_required,
                 "linear_feet": linear_feet,
                 "category": row["category"] or "",
+                "stop_sequence": 1,
             }
         )
 

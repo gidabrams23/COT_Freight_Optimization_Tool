@@ -118,6 +118,14 @@ def parse_strategic_customers(value_text):
                         "default_due_date_flex_days" in row
                         or "due_date_flex_days" in row
                     )
+                    has_ignore_for_optimization_flag = (
+                        "ignore_for_optimization" in row
+                        or "exclude_from_optimization" in row
+                    )
+                    has_include_workbench_flag = (
+                        "include_in_optimizer_workbench" in row
+                        or "show_in_optimizer_workbench" in row
+                    )
                     if has_return_flag:
                         requires_return = _coerce_bool(
                             row.get(
@@ -145,6 +153,22 @@ def parse_strategic_customers(value_text):
                                 row.get("default_wedge_51", row.get("prefer_wedge_51", False))
                             ),
                             "requires_return_to_origin": requires_return,
+                            "ignore_for_optimization": _coerce_bool(
+                                row.get(
+                                    "ignore_for_optimization",
+                                    row.get("exclude_from_optimization", False),
+                                )
+                            )
+                            if has_ignore_for_optimization_flag
+                            else False,
+                            "include_in_optimizer_workbench": _coerce_bool(
+                                row.get(
+                                    "include_in_optimizer_workbench",
+                                    row.get("show_in_optimizer_workbench", True),
+                                )
+                            )
+                            if has_include_workbench_flag
+                            else True,
                         }
                     )
         except json.JSONDecodeError:
@@ -182,6 +206,8 @@ def parse_strategic_customers(value_text):
                     label,
                     patterns,
                 ),
+                "ignore_for_optimization": False,
+                "include_in_optimizer_workbench": True,
             }
         )
 
@@ -206,6 +232,12 @@ def serialize_strategic_customers(entries):
                 "default_wedge_51": _coerce_bool((entry or {}).get("default_wedge_51")),
                 "requires_return_to_origin": _coerce_bool(
                     (entry or {}).get("requires_return_to_origin")
+                ),
+                "ignore_for_optimization": _coerce_bool(
+                    (entry or {}).get("ignore_for_optimization")
+                ),
+                "include_in_optimizer_workbench": _coerce_bool(
+                    (entry or {}).get("include_in_optimizer_workbench", True)
                 ),
             }
         )

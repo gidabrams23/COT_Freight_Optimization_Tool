@@ -74,7 +74,7 @@ ROUTING_ENABLED=false
    - `ADMIN_PASSWORD`: required for admin login in non-development environments.
    - `APP_DB_PATH`: set to `/var/data/app.db` if you attach a Render disk.
    - Optional Gunicorn tuning:
-     - `WEB_CONCURRENCY` (default `4`)
+     - `WEB_CONCURRENCY` (default `1`, recommended for SQLite + in-process reoptimization jobs)
      - `GUNICORN_THREADS` (default `2`)
      - `GUNICORN_TIMEOUT` (default `180`)
 4. (Recommended) Add a persistent disk:

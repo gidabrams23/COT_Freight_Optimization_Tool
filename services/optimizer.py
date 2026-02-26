@@ -317,6 +317,14 @@ class Optimizer:
         if not filtered:
             return []
 
+        optimize_mode = (params.get("optimize_mode") or "auto").strip().lower()
+        if optimize_mode != "manual":
+            filtered = [
+                group
+                for group in filtered
+                if not bool(group.get("ignore_for_optimization"))
+            ]
+
         max_due_date = params.get("batch_max_due_date")
         if include_batch and max_due_date:
             filtered = [
@@ -1044,9 +1052,18 @@ class Optimizer:
 
                 # Final rescue: allow STEP_DECK recipients to shift to FLATBED if it unlocks
                 # absorption of very small trailing groups.
-                recipient_trailer = (recipient.get("trailer_type") or "").strip().upper()
-                preferred_trailer = (params.get("trailer_type") or "").strip().upper()
-                evaluate_flatbed = preferred_trailer == "STEP_DECK" or recipient_trailer == "STEP_DECK"
+                recipient_trailer = stack_calculator.normalize_trailer_type(
+                    recipient.get("trailer_type"),
+                    default="STEP_DECK",
+                )
+                preferred_trailer = stack_calculator.normalize_trailer_type(
+                    params.get("trailer_type"),
+                    default="STEP_DECK",
+                )
+                evaluate_flatbed = (
+                    preferred_trailer.startswith("STEP_DECK")
+                    or recipient_trailer.startswith("STEP_DECK")
+                )
                 if evaluate_flatbed and not self._groups_require_wedge(combined_groups):
                     flatbed_stack_config = self._stack_config_for_groups(
                         combined_groups,
@@ -2081,6 +2098,9 @@ class Optimizer:
         requires_return_to_origin = bool(
             (strategic_rule or {}).get("requires_return_to_origin")
         )
+        ignore_for_optimization = bool(
+            (strategic_rule or {}).get("ignore_for_optimization")
+        )
 
         coords = self.zip_coords.get(representative_zip) if representative_zip else None
 
@@ -2100,6 +2120,7 @@ class Optimizer:
             "no_mix": no_mix,
             "default_wedge_51": default_wedge_51,
             "requires_return_to_origin": requires_return_to_origin,
+            "ignore_for_optimization": ignore_for_optimization,
         }
 
     def _coerce_optional_non_negative_int(self, value):
@@ -2130,6 +2151,7 @@ class Optimizer:
             stop_sequence_map=active_stop_sequence_map,
             stack_overflow_max_height=params.get("stack_overflow_max_height"),
             max_back_overhang_ft=params.get("max_back_overhang_ft"),
+            upper_two_across_max_length_ft=params.get("upper_two_across_max_length_ft"),
         )
 
     def _groups_require_wedge(self, groups):
@@ -2138,10 +2160,10 @@ class Optimizer:
     def _preferred_trailer_for_groups(self, groups, fallback_trailer):
         if self._groups_require_wedge(groups):
             return "WEDGE"
-        trailer = (fallback_trailer or "STEP_DECK").strip().upper()
-        if trailer in {"STEP_DECK", "FLATBED", "WEDGE"}:
-            return trailer
-        return "STEP_DECK"
+        return stack_calculator.normalize_trailer_type(
+            fallback_trailer,
+            default="STEP_DECK",
+        )
 
     def _allow_order_interleave(self, params, groups):
         if len(groups) <= 1:
@@ -2163,9 +2185,10 @@ class Optimizer:
         stop_sequence_map=None,
         stack_overflow_max_height=None,
         max_back_overhang_ft=None,
+        upper_two_across_max_length_ft=None,
     ):
         group_keys = tuple(group.get("key") for group in groups if group.get("key"))
-        trailer_key = (trailer_type or "STEP_DECK").strip().upper()
+        trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
         sequence_signature = ()
         if stop_sequence_map:
             sequence_signature = tuple(
@@ -2180,6 +2203,7 @@ class Optimizer:
             sequence_signature,
             stack_overflow_max_height,
             max_back_overhang_ft,
+            upper_two_across_max_length_ft,
         )
         if cache_key in self._stack_cache:
             return self._stack_cache[cache_key]
@@ -2194,6 +2218,11 @@ class Optimizer:
                 for line in group.get("lines", []):
                     sku = line.get("sku")
                     max_stack = self._max_stack_for_trailer(sku, trailer_choice)
+                    upper_max_stack = (
+                        self._max_stack_for_trailer(sku, "FLATBED")
+                        if str(trailer_choice or "").strip().upper().startswith("STEP_DECK")
+                        else max_stack
+                    )
                     items.append(
                         {
                             "item": line.get("item"),
@@ -2202,6 +2231,7 @@ class Optimizer:
                             "qty": line.get("qty") or 0,
                             "unit_length_ft": line.get("unit_length_ft") or 0,
                             "max_stack_height": max_stack,
+                            "upper_deck_max_stack_height": upper_max_stack,
                             "category": self._sku_category(line.get("sku")),
                             "order_id": line.get("so_num"),
                             "stop_sequence": stop_sequence,
@@ -2216,10 +2246,11 @@ class Optimizer:
             preserve_order_contiguity=not allow_order_interleave,
             stack_overflow_max_height=stack_overflow_max_height,
             max_back_overhang_ft=max_back_overhang_ft,
+            upper_two_across_max_length_ft=upper_two_across_max_length_ft,
         )
 
         # Auto-upgrade step deck -> flatbed when the load doesn't fit the 43' / 10' split.
-        if trailer_key == "STEP_DECK" and config.get("exceeds_capacity"):
+        if trailer_key.startswith("STEP_DECK") and config.get("exceeds_capacity"):
             flatbed_key = "FLATBED"
             flatbed_cache_key = (
                 group_keys,
@@ -2229,6 +2260,7 @@ class Optimizer:
                 sequence_signature,
                 stack_overflow_max_height,
                 max_back_overhang_ft,
+                upper_two_across_max_length_ft,
             )
             flatbed_config = self._stack_cache.get(flatbed_cache_key)
             if flatbed_config is None:
@@ -2239,6 +2271,7 @@ class Optimizer:
                     preserve_order_contiguity=not allow_order_interleave,
                     stack_overflow_max_height=stack_overflow_max_height,
                     max_back_overhang_ft=max_back_overhang_ft,
+                    upper_two_across_max_length_ft=upper_two_across_max_length_ft,
                 )
                 self._stack_cache[flatbed_cache_key] = flatbed_config
             if flatbed_config and not flatbed_config.get("exceeds_capacity"):
@@ -2278,8 +2311,8 @@ class Optimizer:
         spec = self.sku_specs.get(sku)
         if not spec:
             return 1
-        trailer_key = (trailer_type or "STEP_DECK").strip().upper()
-        if trailer_key == "STEP_DECK":
+        trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+        if trailer_key.startswith("STEP_DECK"):
             return spec.get("max_stack_step_deck") or spec.get("max_stack_flat_bed") or 1
         return spec.get("max_stack_flat_bed") or 1
 

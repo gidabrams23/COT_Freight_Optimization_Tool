@@ -187,6 +187,14 @@
     <div class="card-widget loads-panel">
       {% if reopt_status == 'done' %}
         <div class="banner">Re-optimization complete.</div>
+      {% elif reopt_status == 'running' %}
+        <div class="banner" id="reopt-running-banner">
+          Re-optimization is running in the background. This page will refresh when complete.
+        </div>
+      {% elif reopt_status == 'failed' %}
+        <div class="alert alert-error">
+          Re-optimization failed. Please try again from Orders.
+        </div>
       {% endif %}
 
       {% if manual_error %}
@@ -803,6 +811,46 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="load-number-seed-modal" data-load-number-seed-modal aria-hidden="true">
+    <div class="modal-card load-number-seed-modal-card" role="dialog" aria-modal="true" aria-labelledby="load-number-seed-title">
+      <div class="modal-header">
+        <div class="modal-title">
+          <h3 id="load-number-seed-title">Set Session Load Number Start</h3>
+          <p>Enter the first 4-digit load number for this planning session.</p>
+        </div>
+        <button class="btn-icon" type="button" data-load-number-seed-cancel aria-label="Close load number setup">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <form data-load-number-seed-form>
+        <div class="modal-body">
+          <label>
+            <span class="metric-label">Next Available Load Number</span>
+            <div class="load-number-seed-input-wrap">
+              <span class="load-number-seed-prefix" data-load-number-seed-prefix>GA26-</span>
+              <input
+                class="select-field load-number-seed-input"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                pattern="[0-9]{4}"
+                maxlength="4"
+                placeholder="0001"
+                data-load-number-seed-input
+                required
+              >
+            </div>
+          </label>
+          <div class="form-error hidden" data-load-number-seed-error></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" type="button" data-load-number-seed-cancel>Cancel</button>
+          <button class="btn-primary" type="submit">Use This Number</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   {% if tab != 'final' and not is_replay %}
     <div class="modal-backdrop hidden" id="manual-load-modal" data-manual-load-modal>
       <div class="modal-card">
@@ -907,22 +955,23 @@
         </div>
         <form id="manual-add-form">
           <div class="modal-body">
-            <div class="manual-util-card manual-add-util">
+            <div class="manual-util-card manual-add-capacity-card">
               <div class="manual-util-header">
-                <span class="metric-label">Remaining Capacity</span>
+                <span class="metric-label">Load Footprint Schematic</span>
                 <span class="subtext" id="manual-add-util-meta"></span>
               </div>
-              <div class="manual-util-bar">
-                <span class="manual-util-fill" id="manual-add-util-fill" style="width: 0%;"></span>
+              <div class="manual-add-capacity-visual" id="manual-add-capacity-visual">
+                <div class="subtext">Existing SKU footprint and remaining feet will appear here.</div>
               </div>
+              <div class="manual-add-capacity-summary" id="manual-add-capacity-summary"></div>
             </div>
             <div class="subtext" id="manual-add-meta"></div>
             <div class="manual-base-search manual-add-search">
               <span class="material-symbols-outlined">search</span>
-              <input class="select-field" type="text" id="manual-add-search" placeholder="Search by order #, customer, city, state, or due date..." autocomplete="off" aria-label="Search available orders">
+              <input class="select-field" type="text" id="manual-add-search" placeholder="Search by order #, customer, city, state, due date, or SKU..." autocomplete="off" aria-label="Search available orders">
             </div>
-            <div class="manual-order-list" id="manual-add-list">
-              <div class="subtext">Select a load’s “Manually Add Orders” button to see suggestions.</div>
+            <div class="manual-order-list manual-add-order-list" id="manual-add-list">
+              <div class="subtext">Select a load's "Manually Add Orders" button to see suggestions.</div>
             </div>
             <div class="subtext hidden" id="manual-add-error"></div>
           </div>
@@ -931,6 +980,22 @@
             <button class="btn-primary" type="submit" id="manual-add-submit" disabled>Add Selected Orders</button>
           </div>
         </form>
+      </div>
+    </div>
+    <div class="modal-backdrop hidden" id="manual-add-progress-modal" data-manual-add-progress-modal aria-hidden="true">
+      <div class="modal-card manual-add-progress-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>Re-optimizing Draft Loads</h3>
+            <p id="manual-add-progress-meta">Please wait while the network is rebuilt.</p>
+          </div>
+        </div>
+        <div class="modal-body">
+          <div class="reopt-banner">
+            <span class="material-symbols-outlined manual-add-progress-icon" aria-hidden="true">sync</span>
+            <span id="manual-add-progress-status">Applying manual updates and re-optimizing remaining orders...</span>
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-backdrop hidden" id="schematic-edit-modal" data-schematic-edit-modal>
@@ -980,6 +1045,7 @@
     const todayClear = document.querySelector('[data-today-clear]');
     const sortToggle = document.querySelector('[data-sort-toggle]');
     const sortPanel = document.querySelector('[data-sort-panel]');
+    let loadNumberSeedModalApi = null;
 
     function parseJsonResponseSafe(response) {
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
@@ -1423,13 +1489,12 @@
                 return response.json().then((payload) => ({ response, payload }));
               }
               if (!response.ok) {
-                return response.json()
-                  .then((payload) => {
-                    throw new Error((payload && payload.error) || 'Trailer update failed');
-                  })
-                  .catch(() => {
-                    throw new Error('Trailer update failed');
-                  });
+                return parseJsonResponseSafe(response).then((payload) => {
+                  throw new Error(
+                    (payload && payload.error)
+                    || `Trailer update failed (${response.status})`
+                  );
+                });
               }
               return { response, payload: null };
             })
@@ -1449,13 +1514,12 @@
                 }
                 return submitTrailerUpdate(true).then((second) => {
                   if (!second.ok) {
-                    return second.json()
-                      .then((errPayload) => {
-                        throw new Error((errPayload && errPayload.error) || 'Trailer remap save failed');
-                      })
-                      .catch(() => {
-                        throw new Error('Trailer remap save failed');
-                      });
+                    return parseJsonResponseSafe(second).then((errPayload) => {
+                      throw new Error(
+                        (errPayload && errPayload.error)
+                        || `Trailer remap save failed (${second.status})`
+                      );
+                    });
                   }
                   return null;
                 });
@@ -1800,31 +1864,140 @@
       }
     }
 
+    function initLoadNumberSeedModal() {
+      const modal = document.getElementById('load-number-seed-modal');
+      if (!modal) {
+        return {
+          prompt: () => Promise.resolve(null),
+          close: () => {},
+        };
+      }
+
+      const form = modal.querySelector('[data-load-number-seed-form]');
+      const input = modal.querySelector('[data-load-number-seed-input]');
+      const prefix = modal.querySelector('[data-load-number-seed-prefix]');
+      const error = modal.querySelector('[data-load-number-seed-error]');
+      const cancelButtons = modal.querySelectorAll('[data-load-number-seed-cancel]');
+      let resolvePrompt = null;
+
+      const clearError = () => {
+        if (!error) return;
+        error.textContent = '';
+        error.classList.add('hidden');
+      };
+
+      const showError = (message) => {
+        if (!error) return;
+        error.textContent = message;
+        error.classList.remove('hidden');
+      };
+
+      const closeModal = (result = null) => {
+        modal.classList.add('hidden');
+        modal.setAttribute('aria-hidden', 'true');
+        clearError();
+        if (form) form.reset();
+        const done = resolvePrompt;
+        resolvePrompt = null;
+        if (done) done(result);
+      };
+
+      const openModal = (prefixValue) => {
+        if (prefix) prefix.textContent = prefixValue || '';
+        clearError();
+        if (input) input.value = '';
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        window.setTimeout(() => {
+          if (!input) return;
+          input.focus();
+          input.select();
+        }, 0);
+      };
+
+      if (input) {
+        input.addEventListener('input', () => {
+          input.value = (input.value || '').replace(/\D/g, '').slice(0, 4);
+          clearError();
+        });
+      }
+
+      if (form) {
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const value = (input?.value || '').trim();
+          if (!/^\d{4}$/.test(value)) {
+            showError('Enter exactly 4 digits.');
+            if (input) input.focus();
+            return;
+          }
+          closeModal(value);
+        });
+      }
+
+      cancelButtons.forEach((button) => {
+        button.addEventListener('click', () => closeModal(null));
+      });
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+          closeModal(null);
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (modal.classList.contains('hidden')) return;
+        event.preventDefault();
+        closeModal(null);
+      });
+
+      return {
+        prompt: ({ prefixValue } = {}) => {
+          if (resolvePrompt) {
+            resolvePrompt(null);
+            resolvePrompt = null;
+          }
+          return new Promise((resolve) => {
+            resolvePrompt = resolve;
+            openModal(prefixValue || '');
+          });
+        },
+        close: () => closeModal(null),
+      };
+    }
+
     function bindAsyncApprove() {
       document.querySelectorAll('form[data-async-approve]').forEach((form) => {
         if (form.dataset.bound === 'true') return;
         form.dataset.bound = 'true';
-        form.addEventListener('submit', (event) => {
+        form.addEventListener('submit', async (event) => {
           event.preventDefault();
-          const formData = new FormData(form);
-          // `form.action` can be shadowed by an `<input name="action">` inside the form.
-          // Always read from the attribute to avoid posting to `/[object HTMLInputElement]`.
           const postUrl = form.getAttribute('action') || '';
           if (!postUrl) {
             window.alert('Unable to update load status: missing form action URL.');
             return;
           }
-          form.querySelector('button')?.setAttribute('disabled', 'true');
-          fetch(postUrl, {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin',
-            headers: {
-              'X-Requested-With': 'XMLHttpRequest',
-              'Accept': 'application/json',
-            },
-          })
-            .then(async (response) => {
+          const submitButton = form.querySelector('button[type="submit"], button');
+          submitButton?.setAttribute('disabled', 'true');
+          let loadNumberStart = '';
+
+          try {
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              const formData = new FormData(form);
+              if (loadNumberStart) {
+                formData.set('load_number_start', loadNumberStart);
+              }
+              const response = await fetch(postUrl, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Accept': 'application/json',
+                },
+              });
+
               let payload = null;
               const contentType = response.headers.get('Content-Type') || '';
               if (contentType.includes('application/json')) {
@@ -1838,23 +2011,39 @@
                   _raw: text,
                 };
               }
+
+              if (payload?.requires_load_number_seed) {
+                if (!loadNumberSeedModalApi) {
+                  loadNumberSeedModalApi = initLoadNumberSeedModal();
+                }
+                const result = await loadNumberSeedModalApi.prompt({
+                  prefixValue: payload.load_number_prefix || '',
+                });
+                if (!result) {
+                  submitButton?.removeAttribute('disabled');
+                  return;
+                }
+                loadNumberStart = result;
+                continue;
+              }
+
               if (!response.ok || !payload || payload.error) {
                 const finalUrl = response.url || postUrl;
                 const message = `${payload?.error || `Approval failed (${response.status})`}${finalUrl ? `\n\nURL: ${finalUrl}` : ''}`;
                 throw new Error(message);
               }
-              return payload;
-            })
-            .then((payload) => {
+
               removeLoadFromView(payload.load_id);
               updateApprovalTracker(payload.progress);
               updateTabCounts(payload.tab_counts);
-            })
-            .catch((error) => {
-              form.querySelector('button')?.removeAttribute('disabled');
-              console.error('Async load status update failed', error);
-              window.alert(error?.message || 'Unable to update load status. Please try again.');
-            });
+              return;
+            }
+            throw new Error('Unable to set a starting load number. Please try again.');
+          } catch (error) {
+            submitButton?.removeAttribute('disabled');
+            console.error('Async load status update failed', error);
+            window.alert(error?.message || 'Unable to update load status. Please try again.');
+          }
         });
       });
     }
@@ -2183,12 +2372,14 @@
       if (cancelButton) cancelButton.addEventListener('click', closeModal);
 
       modal.addEventListener('click', (event) => {
+        if (isSubmitting) return;
         if (event.target === modal) {
           closeModal();
         }
       });
 
       document.addEventListener('keydown', (event) => {
+        if (isSubmitting) return;
         if (event.key !== 'Escape') return;
         if (modal.classList.contains('hidden')) return;
         closeModal();
@@ -2209,9 +2400,9 @@
       }
 
       const trailerCapacities = {
-        STEP_DECK: 53,
-        FLATBED: 53,
-        WEDGE: 51,
+        {% for trailer_option in trailer_profile_options %}
+          {{ trailer_option.value }}: {{ trailer_option.capacity | round(1) }},
+        {% endfor %}
       };
 
       const getCapacity = () => {
@@ -2618,14 +2809,71 @@
       const error = document.getElementById('manual-add-error');
       const submitBtn = document.getElementById('manual-add-submit');
       const utilMeta = document.getElementById('manual-add-util-meta');
-      const utilFill = document.getElementById('manual-add-util-fill');
+      const capacityVisual = document.getElementById('manual-add-capacity-visual');
+      const capacitySummary = document.getElementById('manual-add-capacity-summary');
+      const progressModal = document.getElementById('manual-add-progress-modal');
+      const progressMeta = document.getElementById('manual-add-progress-meta');
+      const progressStatus = document.getElementById('manual-add-progress-status');
 
       let activeLoadId = null;
       let activeController = null;
       let cachedSuggestions = [];
       let cachedSpace = {};
+      let cachedExistingSchematic = null;
       let selectedOrders = new Map();
       let searchTerm = '';
+      let isSubmitting = false;
+      let pollTimer = null;
+      let elapsedTimer = null;
+      const selectedPalette = [
+        '#2563eb',
+        '#15803d',
+        '#c2410c',
+        '#7c3aed',
+        '#0d9488',
+        '#db2777',
+      ];
+
+      const toFeet = (value) => {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : 0;
+      };
+
+      const formatFeet = (value) => `${toFeet(value).toFixed(1)} ft`;
+
+      const orderColor = (soNum) => {
+        const seed = (soNum || '').toString();
+        let hash = 0;
+        for (let index = 0; index < seed.length; index += 1) {
+          hash = (hash * 31 + seed.charCodeAt(index)) | 0;
+        }
+        return selectedPalette[Math.abs(hash) % selectedPalette.length];
+      };
+
+      const normalizeSkuBreakdown = (entries) => {
+        if (!Array.isArray(entries)) return [];
+        return entries
+          .map((entry) => ({
+            sku: ((entry && entry.sku) || 'UNKNOWN').toString().trim() || 'UNKNOWN',
+            ft: toFeet(entry && entry.ft),
+            qty: Number(entry && entry.qty) || 0,
+          }))
+          .filter((entry) => entry.sku);
+      };
+
+      const normalizeOrder = (order) => ({
+        so_num: (order.so_num || '').toString().trim(),
+        cust_name: (order.cust_name || '').toString().trim(),
+        due_date: (order.due_date || '').toString().trim(),
+        city: (order.city || '').toString().trim(),
+        state: (order.state || '').toString().trim(),
+        zip: (order.zip || '').toString().trim(),
+        total_length_ft: Number(order.total_length_ft || 0),
+        stack_added_ft: Number(order.stack_added_ft || order.total_length_ft || 0),
+        utilization_pct: Number(order.utilization_pct || 0),
+        distance_miles: order.distance_miles,
+        sku_breakdown: normalizeSkuBreakdown(order.sku_breakdown),
+      });
 
       const setError = (message) => {
         if (!error) return;
@@ -2638,23 +2886,293 @@
         error.classList.remove('hidden');
       };
 
+      const setSubmittingState = (value) => {
+        isSubmitting = Boolean(value);
+        if (submitBtn) submitBtn.disabled = isSubmitting || selectedOrders.size === 0;
+        if (closeButton) closeButton.disabled = isSubmitting;
+        if (cancelButton) cancelButton.disabled = isSubmitting;
+        if (searchInput) searchInput.disabled = isSubmitting;
+      };
+
+      const closeProgressModal = () => {
+        if (pollTimer) {
+          window.clearTimeout(pollTimer);
+          pollTimer = null;
+        }
+        if (elapsedTimer) {
+          window.clearInterval(elapsedTimer);
+          elapsedTimer = null;
+        }
+        if (!progressModal) return;
+        progressModal.classList.add('hidden');
+        progressModal.setAttribute('aria-hidden', 'true');
+      };
+
+      const openProgressModal = (message) => {
+        if (!progressModal) return;
+        if (progressMeta) progressMeta.textContent = 'Please wait while the network is rebuilt.';
+        if (progressStatus) {
+          progressStatus.textContent = message || 'Applying manual updates and re-optimizing remaining orders...';
+        }
+        progressModal.classList.remove('hidden');
+        progressModal.setAttribute('aria-hidden', 'false');
+      };
+
+      const getSelectedTotalFt = () => {
+        let total = 0;
+        selectedOrders.forEach((order) => {
+          total += toFeet(order.total_length_ft);
+        });
+        return total;
+      };
+
+      const renderCapacityPlaceholder = (message) => {
+        if (!capacityVisual) return;
+        capacityVisual.innerHTML = '';
+        const text = document.createElement('div');
+        text.className = 'subtext';
+        text.textContent = message;
+        capacityVisual.appendChild(text);
+        if (capacitySummary) capacitySummary.textContent = '';
+      };
+
+      const renderCapacityVisual = () => {
+        const capacity = toFeet(cachedSpace.capacity_ft);
+        const baseUsed = toFeet(cachedSpace.used_ft);
+        const selectedList = Array.from(selectedOrders.values());
+        const selectedTotal = selectedList.reduce((sum, order) => sum + toFeet(order.total_length_ft), 0);
+        const projectedUsed = baseUsed + selectedTotal;
+        const overByProjected = capacity ? Math.max(projectedUsed - capacity, 0) : 0;
+        const remainingProjected = capacity ? Math.max(capacity - projectedUsed, 0) : 0;
+        const overByCurrent = capacity ? Math.max(baseUsed - capacity, 0) : 0;
+        const baseWithin = Math.min(baseUsed, capacity);
+
+        if (!capacity) {
+          if (utilMeta) utilMeta.textContent = 'No capacity data available.';
+          renderCapacityPlaceholder('No trailer capacity data is available for this load.');
+          return;
+        }
+
+        if (utilMeta) {
+          if (selectedTotal > 0.05) {
+            if (overByProjected > 0.05) {
+              utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(overByProjected)} over`;
+            } else {
+              utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(remainingProjected)} open`;
+            }
+          } else if (overByCurrent > 0.05) {
+            utilMeta.textContent = `Current ${formatFeet(baseUsed)} of ${formatFeet(capacity)} | ${formatFeet(overByCurrent)} over`;
+          } else {
+            utilMeta.textContent = `Current ${formatFeet(baseUsed)} of ${formatFeet(capacity)} | ${formatFeet(Math.max(capacity - baseUsed, 0))} open`;
+          }
+        }
+
+        if (!capacityVisual) return;
+        capacityVisual.innerHTML = '';
+
+        const schematic = cachedExistingSchematic || {};
+        const decks = schematic.decks || {};
+
+        const buildDeck = (label, deckLength, remainingFt, rows) => {
+          const host = document.createElement('div');
+          host.className = 'manual-schematic-deck';
+
+          const head = document.createElement('div');
+          head.className = 'manual-schematic-deck-head';
+          const title = document.createElement('span');
+          title.className = 'manual-schematic-deck-title';
+          title.textContent = label;
+          const remain = document.createElement('span');
+          remain.className = 'manual-schematic-deck-remaining';
+          remain.textContent = `${formatFeet(remainingFt)} horizontal open`;
+          head.appendChild(title);
+          head.appendChild(remain);
+          host.appendChild(head);
+
+          const track = document.createElement('div');
+          track.className = 'manual-schematic-track';
+
+          const safeRows = Array.isArray(rows) ? rows : [];
+          const totalLen = safeRows.reduce((sum, row) => sum + toFeet(row.display_length_ft || row.length_ft), 0);
+          const widthBase = deckLength > 0.02 ? deckLength : (totalLen > 0.02 ? totalLen : 1);
+          safeRows.forEach((row) => {
+            const displayLength = toFeet(row.display_length_ft || row.length_ft);
+            if (displayLength <= 0.02) return;
+            const widthPct = Math.max((displayLength / widthBase) * 100, 7);
+            const verticalOpenRatio = Math.max(0, Math.min(Number(row.vertical_open_ratio || 0), 1));
+            const verticalOpenPct = Math.round(verticalOpenRatio * 100);
+            const verticalFillPct = Math.max(100 - verticalOpenPct, 0);
+
+            const stack = document.createElement('div');
+            stack.className = 'manual-schematic-stack';
+            stack.style.width = `${widthPct}%`;
+
+            const body = document.createElement('div');
+            body.className = 'manual-schematic-stack-body';
+            if (Number(row.capacity_used || 0) > 1.001) {
+              body.classList.add('is-over');
+            }
+
+            const open = document.createElement('div');
+            open.className = 'manual-schematic-stack-open';
+            open.style.height = `${Math.max(verticalOpenPct, 0)}%`;
+            open.textContent = `Open ${verticalOpenPct}%`;
+            if (verticalOpenPct < 20) {
+              open.classList.add('tight');
+            }
+
+            const fill = document.createElement('div');
+            fill.className = 'manual-schematic-stack-fill';
+            fill.style.height = `${Math.max(verticalFillPct, 4)}%`;
+
+            body.appendChild(open);
+            body.appendChild(fill);
+
+            const length = document.createElement('div');
+            length.className = 'manual-schematic-stack-length';
+            length.textContent = `${displayLength.toFixed(1)} ft`;
+
+            stack.appendChild(body);
+            stack.appendChild(length);
+            track.appendChild(stack);
+          });
+
+          if (remainingFt > 0.05) {
+            const remainingWidthPct = Math.max((remainingFt / widthBase) * 100, 8);
+            const empty = document.createElement('div');
+            empty.className = 'manual-schematic-stack is-remaining';
+            empty.style.width = `${remainingWidthPct}%`;
+            empty.innerHTML = `
+              <div class="manual-schematic-stack-body empty">
+                <div class="manual-schematic-empty-text">${remainingFt.toFixed(1)} ft remaining</div>
+                <div class="manual-schematic-empty-sub">MAX HEIGHT: 13'6"</div>
+              </div>
+              <div class="manual-schematic-stack-length">${remainingFt.toFixed(1)} ft</div>
+            `;
+            track.appendChild(empty);
+          }
+
+          host.appendChild(track);
+          const foot = document.createElement('div');
+          foot.className = 'manual-schematic-deck-foot';
+          foot.textContent = `${formatFeet(deckLength)} deck length`;
+          host.appendChild(foot);
+          return host;
+        };
+
+        const upperDeckLength = toFeet(schematic.upper_deck_length);
+        const lowerDeckLength = toFeet(schematic.lower_deck_length);
+        if (upperDeckLength > 0.02) {
+          capacityVisual.appendChild(
+            buildDeck(
+              'Upper Deck',
+              upperDeckLength,
+              toFeet(schematic.upper_remaining_ft),
+              decks.upper || [],
+            ),
+          );
+        }
+        capacityVisual.appendChild(
+          buildDeck(
+            'Lower Deck',
+            lowerDeckLength || capacity,
+            toFeet(schematic.lower_remaining_ft),
+            decks.lower || [],
+          ),
+        );
+
+        const overflowByOrder = {};
+        let remainingWithin = Math.max(capacity - baseWithin, 0);
+        selectedList.forEach((order) => {
+          const orderFt = toFeet(order.total_length_ft);
+          if (orderFt <= 0.02) return;
+          const withinFt = Math.min(orderFt, remainingWithin);
+          const overflowFt = Math.max(orderFt - withinFt, 0);
+          if (overflowFt > 0.02) {
+            overflowByOrder[order.so_num] = overflowFt;
+          }
+          remainingWithin = Math.max(remainingWithin - withinFt, 0);
+        });
+
+        const selectedStrip = document.createElement('div');
+        selectedStrip.className = 'manual-add-selected-strip';
+        if (!selectedList.length) {
+          const none = document.createElement('div');
+          none.className = 'subtext';
+          none.textContent = 'Select suggested orders to preview how remaining feet are consumed.';
+          selectedStrip.appendChild(none);
+        } else {
+          selectedList.forEach((order) => {
+            const chip = document.createElement('span');
+            chip.className = 'manual-add-selected-chip';
+            chip.style.setProperty('--chip-accent', orderColor(order.so_num));
+            const extra = overflowByOrder[order.so_num] ? ` (${formatFeet(overflowByOrder[order.so_num])} over)` : '';
+            if (overflowByOrder[order.so_num]) chip.classList.add('is-over');
+            chip.textContent = `#${order.so_num} +${formatFeet(order.total_length_ft)}${extra}`;
+            selectedStrip.appendChild(chip);
+          });
+        }
+        capacityVisual.appendChild(selectedStrip);
+
+        if (overByProjected > 0.05) {
+          const overflowHint = document.createElement('div');
+          overflowHint.className = 'manual-add-capacity-overflow';
+          overflowHint.textContent = `Projected overflow: ${formatFeet(overByProjected)} beyond available deck length`;
+          capacityVisual.appendChild(overflowHint);
+        }
+
+        if (capacitySummary) {
+          const baseText = `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)} | Projected ${formatFeet(projectedUsed)}`;
+          if (overByProjected > 0.05) {
+            capacitySummary.textContent = `${baseText} | Over by ${formatFeet(overByProjected)}`;
+            capacitySummary.classList.add('is-over');
+          } else {
+            capacitySummary.textContent = `${baseText} | ${formatFeet(remainingProjected)} remaining`;
+            capacitySummary.classList.remove('is-over');
+          }
+        }
+      };
+
+      const evaluateFitState = (order, soNum) => {
+        const capacity = toFeet(cachedSpace.capacity_ft);
+        if (!capacity) {
+          return { className: 'unknown', text: 'Capacity Unknown' };
+        }
+        const baseUsed = toFeet(cachedSpace.used_ft);
+        const orderFt = toFeet(order.total_length_ft);
+        const currentlySelected = getSelectedTotalFt();
+        const alreadySelected = selectedOrders.has(soNum);
+        const projected = baseUsed + currentlySelected + (alreadySelected ? 0 : orderFt);
+        const overBy = Math.max(projected - capacity, 0);
+        if (overBy > 0.05) {
+          return { className: 'over', text: `Over Capacity by ${overBy.toFixed(1)} ft` };
+        }
+        return { className: 'ok', text: 'Within Capacity' };
+      };
+
       const closeModal = () => {
+        if (isSubmitting) return;
         if (activeController) activeController.abort();
         activeController = null;
         activeLoadId = null;
         cachedSuggestions = [];
         cachedSpace = {};
+        cachedExistingSchematic = null;
         selectedOrders = new Map();
         searchTerm = '';
+        setSubmittingState(false);
+        closeProgressModal();
+        setError('');
         if (searchInput) searchInput.value = '';
+        if (meta) meta.textContent = '';
         if (utilMeta) utilMeta.textContent = '';
-        if (utilFill) utilFill.style.width = '0%';
+        renderCapacityPlaceholder('Existing SKU footprint and remaining feet will appear here.');
         modal.classList.add('hidden');
       };
 
       const updateSubmitState = () => {
         if (!submitBtn) return;
-        submitBtn.disabled = selectedOrders.size === 0;
+        submitBtn.disabled = isSubmitting || selectedOrders.size === 0;
       };
 
       const renderEmpty = (message) => {
@@ -2666,56 +3184,8 @@
         list.appendChild(div);
       };
 
-      const getSelectedTotalFt = () => {
-        let total = 0;
-        selectedOrders.forEach((order) => {
-          total += Number(order.total_length_ft || 0);
-        });
-        return total;
-      };
-
-      const normalizeOrder = (order) => ({
-        so_num: (order.so_num || '').toString().trim(),
-        cust_name: (order.cust_name || '').toString().trim(),
-        due_date: (order.due_date || '').toString().trim(),
-        city: (order.city || '').toString().trim(),
-        state: (order.state || '').toString().trim(),
-        total_length_ft: Number(order.total_length_ft || 0),
-        utilization_pct: Number(order.utilization_pct || 0),
-        distance_miles: order.distance_miles,
-      });
-
       const updateUtilizationUI = () => {
-        if (!utilMeta || !utilFill) return;
-        const capacity = Number(cachedSpace.capacity_ft || 0);
-        const baseUsed = Number(cachedSpace.used_ft || 0);
-        const selected = getSelectedTotalFt();
-        const used = baseUsed + selected;
-        const remaining = capacity ? Math.max(capacity - used, 0) : 0;
-        const overBy = capacity ? Math.max(used - capacity, 0) : 0;
-        const pctRaw = capacity ? Math.round((used / capacity) * 100) : 0;
-        const pct = Math.max(0, Math.min(100, pctRaw));
-        if (!capacity) {
-          utilMeta.textContent = 'No capacity data available.';
-          utilFill.style.width = '0%';
-          return;
-        }
-        if (overBy > 0.05) {
-          utilMeta.textContent = `${used.toFixed(1)} ft used / ${capacity} ft capacity | ${overBy.toFixed(1)} ft over`;
-        } else {
-          utilMeta.textContent = `${used.toFixed(1)} ft used / ${capacity} ft capacity | ${remaining.toFixed(1)} ft remaining`;
-        }
-        utilFill.style.width = `${pct}%`;
-        utilFill.classList.remove('success', 'warning', 'danger');
-        if (pctRaw >= 100) {
-          utilFill.classList.add('danger');
-        } else if (pct >= 85) {
-          utilFill.classList.add('success');
-        } else if (pct >= 70) {
-          utilFill.classList.add('warning');
-        } else {
-          utilFill.classList.add('danger');
-        }
+        renderCapacityVisual();
       };
 
       const renderSuggestionList = () => {
@@ -2727,6 +3197,9 @@
           const soNum = (item.so_num || '').toString().trim();
           if (!soNum) return false;
           if (!query) return true;
+          const skuTerms = (Array.isArray(item.sku_breakdown) ? item.sku_breakdown : [])
+            .map((entry) => (entry.sku || '').toString())
+            .join(' ');
           const haystack = [
             soNum,
             item.cust_name || '',
@@ -2734,6 +3207,7 @@
             item.city || '',
             item.state || '',
             item.zip || '',
+            skuTerms,
           ]
             .join(' ')
             .toLowerCase();
@@ -2742,7 +3216,7 @@
 
         if (meta) {
           const selectedCount = selectedOrders.size;
-          meta.textContent = `${visible.length} shown of ${cachedSuggestions.length} available | ${selectedCount} selected`;
+          meta.textContent = `${visible.length} shown of ${cachedSuggestions.length} available | ${selectedCount} selected (+${getSelectedTotalFt().toFixed(1)} ft)`;
         }
 
         if (!visible.length) {
@@ -2771,8 +3245,6 @@
             } else {
               selectedOrders.delete(soNum);
             }
-            updateSubmitState();
-            updateUtilizationUI();
             renderSuggestionList();
           });
 
@@ -2783,7 +3255,7 @@
           title.className = 'manual-order-title';
           const titleBits = [`#${soNum}`];
           if (item.distance_miles != null) titleBits.push(`${item.distance_miles} mi`);
-          if (item.total_length_ft != null) titleBits.push(`${Number(item.total_length_ft || 0).toFixed(1)} ft`);
+          if (item.stack_added_ft != null) titleBits.push(`+${Number(item.stack_added_ft || item.total_length_ft || 0).toFixed(1)} stack ft`);
           title.textContent = titleBits.join(' | ');
 
           const metaRow = document.createElement('div');
@@ -2800,8 +3272,41 @@
           if (item.utilization_pct != null) metaBitsRow.push(`${Math.round(item.utilization_pct || 0)}% util`);
           metaRow.textContent = metaBitsRow.join(' | ');
 
+          const fitState = evaluateFitState(item, soNum);
+          const fitRow = document.createElement('div');
+          fitRow.className = 'manual-order-fit-row';
+          const fitBadge = document.createElement('span');
+          fitBadge.className = `manual-fit-badge ${fitState.className}`;
+          fitBadge.textContent = fitState.text;
+          fitRow.appendChild(fitBadge);
+
+          const skuRow = document.createElement('div');
+          skuRow.className = 'manual-order-skus';
+          const skuEntries = normalizeSkuBreakdown(item.sku_breakdown);
+          if (skuEntries.length) {
+            skuEntries.slice(0, 5).forEach((entry) => {
+              const chip = document.createElement('span');
+              chip.className = 'manual-sku-chip';
+              chip.textContent = `${entry.sku} ${formatFeet(entry.ft)}`;
+              skuRow.appendChild(chip);
+            });
+            if (skuEntries.length > 5) {
+              const overflowChip = document.createElement('span');
+              overflowChip.className = 'manual-sku-chip manual-sku-chip-overflow';
+              overflowChip.textContent = `+${skuEntries.length - 5} more`;
+              skuRow.appendChild(overflowChip);
+            }
+          } else {
+            const emptyChip = document.createElement('span');
+            emptyChip.className = 'manual-sku-chip manual-sku-chip-empty';
+            emptyChip.textContent = 'No SKU detail';
+            skuRow.appendChild(emptyChip);
+          }
+
           textWrap.appendChild(title);
           textWrap.appendChild(metaRow);
+          textWrap.appendChild(fitRow);
+          textWrap.appendChild(skuRow);
 
           row.appendChild(checkbox);
           row.appendChild(textWrap);
@@ -2813,8 +3318,9 @@
       };
 
       const renderSuggestions = (payload) => {
-        cachedSuggestions = Array.isArray(payload.suggestions) ? payload.suggestions : [];
+        cachedSuggestions = Array.isArray(payload.suggestions) ? payload.suggestions.map((order) => normalizeOrder(order)) : [];
         cachedSpace = payload.space || {};
+        cachedExistingSchematic = payload.existing_schematic || null;
         selectedOrders = new Map();
         updateSubmitState();
         updateUtilizationUI();
@@ -2823,12 +3329,17 @@
 
       const loadSuggestions = (loadId) => {
         if (!list) return;
+        cachedSuggestions = [];
+        cachedSpace = {};
+        cachedExistingSchematic = null;
+        selectedOrders = new Map();
+        updateSubmitState();
         setError('');
         if (meta) meta.textContent = '';
         list.innerHTML = '<div class="subtext">Loading suggestions...</div>';
         if (submitBtn) submitBtn.disabled = true;
         if (utilMeta) utilMeta.textContent = '';
-        if (utilFill) utilFill.style.width = '0%';
+        renderCapacityPlaceholder('Loading existing SKU footprint and remaining feet...');
 
         if (activeController) activeController.abort();
         activeController = new AbortController();
@@ -2844,11 +3355,91 @@
           .catch((err) => {
             if (err && err.name === 'AbortError') return;
             renderEmpty('Suggestion lookup failed. Try again.');
+            renderCapacityPlaceholder('Suggestion lookup failed. Try again.');
           });
+      };
+
+      const startReoptPolling = (statusUrl, redirectUrl) => {
+        const url = (statusUrl || '').trim();
+        if (!url) {
+          window.location.assign(redirectUrl || window.location.href);
+          return;
+        }
+
+        const startedAt = Date.now();
+        let attempts = 0;
+        const maxAttempts = 400;
+        const pollIntervalMs = 3000;
+        const renderElapsed = () => {
+          const elapsedSec = Math.max(Math.floor((Date.now() - startedAt) / 1000), 0);
+          const mm = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+          const ss = String(elapsedSec % 60).padStart(2, '0');
+          if (progressMeta) progressMeta.textContent = `Please wait... ${mm}:${ss} elapsed`;
+        };
+        renderElapsed();
+        if (elapsedTimer) {
+          window.clearInterval(elapsedTimer);
+          elapsedTimer = null;
+        }
+        elapsedTimer = window.setInterval(renderElapsed, 1000);
+
+        const poll = () => {
+          fetch(url)
+            .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+            .then(({ ok, payload }) => {
+              if (!ok) {
+                throw new Error((payload && payload.error) || 'Unable to check re-optimization status.');
+              }
+              const status = (payload && payload.status ? payload.status : '').toLowerCase();
+              if (status === 'running') {
+                attempts += 1;
+                if (attempts >= maxAttempts) {
+                  const timeoutError = new Error('Re-optimization is taking longer than expected. Refresh to check status.');
+                  timeoutError.isTerminal = true;
+                  throw timeoutError;
+                }
+                pollTimer = window.setTimeout(poll, pollIntervalMs);
+                return;
+              }
+              if (status === 'done') {
+                if (elapsedTimer) {
+                  window.clearInterval(elapsedTimer);
+                  elapsedTimer = null;
+                }
+                window.location.assign(redirectUrl || window.location.href);
+                return;
+              }
+              const failedMessage = (payload && payload.error) || 'Re-optimization failed. Please try again.';
+              const terminalError = new Error(failedMessage);
+              terminalError.isTerminal = true;
+              throw terminalError;
+            })
+            .catch((err) => {
+              if (err && err.isTerminal) {
+                closeProgressModal();
+                setSubmittingState(false);
+                setError(err.message || 'Re-optimization failed. Please try again.');
+                return;
+              }
+              attempts += 1;
+              if (attempts >= maxAttempts) {
+                closeProgressModal();
+                setSubmittingState(false);
+                setError('Re-optimization is taking longer than expected. Refresh to check status.');
+                return;
+              }
+              pollTimer = window.setTimeout(poll, pollIntervalMs);
+            });
+        };
+
+        poll();
       };
 
       const openModal = (loadId) => {
         activeLoadId = loadId;
+        setSubmittingState(false);
+        closeProgressModal();
+        setError('');
         modal.classList.remove('hidden');
         searchTerm = '';
         if (searchInput) {
@@ -2877,16 +3468,18 @@
       if (form) {
         form.addEventListener('submit', (event) => {
           event.preventDefault();
+          if (isSubmitting) return;
           setError('');
           if (!activeLoadId) return;
 
-          const selected = Array.from(modal.querySelectorAll('input[name=\"so_nums\"]:checked')).map((node) => node.value);
+          const selected = Array.from(selectedOrders.keys());
           if (!selected.length) return;
 
           const confirmMsg = 'Convert this load to MANUAL, add the selected orders, and re-optimize remaining orders?';
           if (!window.confirm(confirmMsg)) return;
 
-          if (submitBtn) submitBtn.disabled = true;
+          setSubmittingState(true);
+          openProgressModal('Applying manual updates and re-optimizing remaining orders...');
           const formData = new FormData();
           selected.forEach((soNum) => formData.append('so_nums', soNum));
 
@@ -2896,10 +3489,13 @@
               if (!ok) {
                 throw new Error((data && data.error) || 'Unable to add orders.');
               }
-              const url = (data && data.redirect_url) || window.location.href;
-              window.location.assign(url);
+              const statusUrl = (data && data.status_url) || '';
+              const redirectUrl = (data && data.redirect_url) || window.location.href;
+              startReoptPolling(statusUrl, redirectUrl);
             })
             .catch((err) => {
+              closeProgressModal();
+              setSubmittingState(false);
               setError((err && err.message) || 'Unable to add orders. Try again.');
               updateSubmitState();
             });
@@ -3008,11 +3604,13 @@
         unitsById: {},
         layout: { positions: [] },
         originalLayout: { positions: [] },
+        baseLayout: { positions: [] },
         warnings: [],
         metrics: {},
         assumptions: {
           stack_overflow_max_height: 5,
           max_back_overhang_ft: 4,
+          upper_two_across_max_length_ft: 7,
         },
         draggingUnitId: null,
       };
@@ -3030,10 +3628,17 @@
         errorHost.classList.remove('hidden');
       };
 
+      const trailerProfiles = {{ trailer_profile_options | tojson }};
       const trailerConfig = (trailerType) => {
         const key = String(trailerType || 'STEP_DECK').trim().toUpperCase();
-        if (key === 'STEP_DECK') return { lower: 43, upper: 10, capacity: 53 };
-        if (key === 'WEDGE') return { lower: 51, upper: 0, capacity: 51 };
+        const profile = (trailerProfiles || []).find((entry) => String(entry.value || '').toUpperCase() === key);
+        if (profile) {
+          return {
+            lower: Number(profile.lower || 0),
+            upper: Number(profile.upper || 0),
+            capacity: Number(profile.capacity || 0),
+          };
+        }
         return { lower: 53, upper: 0, capacity: 53 };
       };
 
@@ -3183,6 +3788,12 @@
           Number(assumptions.max_back_overhang_ft || 0),
           0,
         );
+        const upperTwoAcrossMaxLengthFt = Math.max(
+          Number(assumptions.upper_two_across_max_length_ft || 0),
+          0,
+        );
+        const trailerKey = String(state.trailerType || '').trim().toUpperCase();
+        const isStepDeckProfile = trailerKey.startsWith('STEP_DECK');
         const maxStackUtilizationMultiplier = stackOverflowMaxHeight > 0
           ? (1 + (1 / stackOverflowMaxHeight))
           : 1;
@@ -3213,21 +3824,48 @@
           const ids = pos.unit_ids || [];
           const units = ids.map((id) => state.unitsById[id]).filter(Boolean);
           if (!units.length) return;
+          const deck = (pos.deck || 'lower') === 'upper' ? 'upper' : 'lower';
+          const unitsForCapacity = units.map((unit) => {
+            const effectiveMax = Math.max(
+              Number(
+                (isStepDeckProfile && deck === 'upper')
+                  ? (unit.upper_max_stack || unit.max_stack || 1)
+                  : (unit.max_stack || 1)
+              ),
+              1,
+            );
+            return { ...unit, max_stack: effectiveMax };
+          });
           const length = Math.max(...units.map((unit) => Number(unit.unit_length_ft || 0)));
-          const capUsed = units.reduce((sum, unit) => {
+          const capUsed = unitsForCapacity.reduce((sum, unit) => {
             const maxStack = Math.max(Number(unit.max_stack || 1), 1);
             return sum + (1 / maxStack);
           }, 0);
-          const overflowApplied = allowsSingleOverflow(units, capUsed);
-          const deck = (pos.deck || 'lower') === 'upper' ? 'upper' : 'lower';
+          const overflowApplied = allowsSingleOverflow(unitsForCapacity, capUsed);
           let overflowNote = '';
+          const requiredUpperStacks = deck === 'upper'
+            ? Math.max(Math.ceil(Math.max(capUsed - 0.000001, 0)), 1)
+            : 1;
+          const twoAcrossEligible = (
+            isStepDeckProfile
+            && deck === 'upper'
+            && upperTwoAcrossMaxLengthFt > 0
+            && length <= (upperTwoAcrossMaxLengthFt + 0.000001)
+          );
+          const effectiveLength = deck === 'upper'
+            ? (
+              twoAcrossEligible
+                ? (Math.ceil(requiredUpperStacks / 2) * length)
+                : (requiredUpperStacks * length)
+            )
+            : length;
 
-          totalLinear += length;
-          credit += length * (overflowApplied
+          totalLinear += effectiveLength;
+          credit += effectiveLength * (overflowApplied
             ? Math.min(capUsed, maxStackUtilizationMultiplier)
             : Math.min(capUsed, 1));
           if (deck === 'upper') {
-            upperTotal += length;
+            upperTotal += effectiveLength;
             if (cfg.upper > 0) {
               const tooLong = units.some((unit) => Number(unit.unit_length_ft || 0) > cfg.upper);
               if (tooLong) {
@@ -3240,6 +3878,14 @@
           } else {
             lowerTotal += length;
           }
+
+          pos.upper_required_stack_count = requiredUpperStacks;
+          pos.upper_two_across_eligible = !!twoAcrossEligible;
+          pos.two_across_applied = !!(twoAcrossEligible && requiredUpperStacks >= 2);
+          pos.two_across_note = pos.two_across_applied
+            ? `items less than ${upperTwoAcrossMaxLengthFt.toFixed(1).replace(/\.0$/, '')} ft stacked 2 across to allow for additional capacity`
+            : '';
+          pos.effective_length_ft = effectiveLength;
 
           if (capUsed > (maxStackUtilizationMultiplier + 0.000001)) {
             warnings.push({
@@ -3341,8 +3987,20 @@
         return lengths.length ? Math.max(...lengths) : 0;
       };
 
+      const getDeckUsageFt = (deckKey) => (
+        (state.layout.positions || [])
+          .filter((pos) => (pos.deck || 'lower') === deckKey)
+          .reduce((sum, pos) => {
+            if (deckKey === 'upper') {
+              return sum + Number(pos.effective_length_ft || getPositionLengthFt(pos) || 0);
+            }
+            return sum + getPositionLengthFt(pos);
+          }, 0)
+      );
+
       const renderDeck = (deckKey, options = {}) => {
         const showUpperVoid = !!options.showUpperVoid;
+        const stackIndexByPositionId = options.stackIndexByPositionId || {};
         const wrapper = document.createElement('div');
         wrapper.className = 'schematic-edit-deck';
         wrapper.dataset.deck = deckKey;
@@ -3375,13 +4033,15 @@
 
         const positions = (state.layout.positions || [])
           .filter((pos) => (pos.deck || 'lower') === deckKey);
+        const allowLeftInsertSlots = deckKey !== 'upper';
 
         const createStackSlot = (insertIdx) => {
           const slot = document.createElement('div');
           slot.className = 'schematic-edit-stack-slot';
           slot.dataset.deck = deckKey;
           slot.dataset.insertIndex = String(insertIdx);
-          slot.textContent = '+ New Stack';
+          slot.textContent = '+';
+          slot.setAttribute('aria-label', 'Create new stack');
           slot.title = 'Click to create an empty stack or drag a unit here.';
           slot.addEventListener('click', () => {
             createEmptyStack(deckKey, insertIdx);
@@ -3403,31 +4063,60 @@
           return slot;
         };
 
+        const appendDeckUsage = () => {
+          const deckUsageFt = getDeckUsageFt(deckKey);
+          const usage = document.createElement('div');
+          usage.className = 'schematic-edit-deck-usage';
+          usage.innerHTML = `
+            <div class="schematic-edit-deck-usage-line" aria-hidden="true"></div>
+            <div class="schematic-edit-deck-usage-value${deckUsageFt > deckCap + 0.05 ? ' is-over' : ''}">
+              ${deckUsageFt.toFixed(1)} / ${deckCap.toFixed(1)} ft used
+            </div>
+          `;
+          wrapper.appendChild(usage);
+        };
+
         if (!positions.length) {
           track.appendChild(createStackSlot(0));
+          appendDeckUsage();
           return wrapper;
         }
 
         positions.forEach((pos, posIdx) => {
-          track.appendChild(createStackSlot(posIdx));
+          if (allowLeftInsertSlots) {
+            track.appendChild(createStackSlot(posIdx));
+          }
 
           const stackCol = document.createElement('div');
           stackCol.className = 'schematic-edit-stack';
           stackCol.dataset.positionId = pos.position_id;
+          const isTwoAcross = deckKey === 'upper' && !!pos.two_across_applied;
+          if (isTwoAcross) stackCol.classList.add('is-two-across');
 
           const positionLengthFt = getPositionLengthFt(pos);
           stackCol.style.setProperty('--position-length-ft', String(positionLengthFt || 0));
+          stackCol.style.flex = `${Math.max(positionLengthFt || 1, 1)} 1 0`;
 
           const stackHeader = document.createElement('div');
           stackHeader.className = 'schematic-edit-stack-header';
+          const stackLabelNumber = Number(stackIndexByPositionId[pos.position_id] || (posIdx + 1));
           stackHeader.innerHTML = `
-            <span>Stack ${posIdx + 1}</span>
+            <span>Stack ${stackLabelNumber}</span>
             <span class="schematic-edit-stack-length">${Number(positionLengthFt || 0).toFixed(1)} ft</span>
           `;
           stackCol.appendChild(stackHeader);
 
           const stackBody = document.createElement('div');
           stackBody.className = 'schematic-edit-stack-body';
+          stackBody.addEventListener('dragover', (event) => {
+            event.preventDefault();
+          });
+          stackBody.addEventListener('drop', (event) => {
+            event.preventDefault();
+            const unitId = state.draggingUnitId || event.dataTransfer.getData('text/plain');
+            if (!unitId) return;
+            moveUnitToPosition(unitId, pos.position_id, (pos.unit_ids || []).length);
+          });
           stackCol.appendChild(stackBody);
 
           const ids = pos.unit_ids || [];
@@ -3445,6 +4134,7 @@
             });
             drop.addEventListener('drop', (event) => {
               event.preventDefault();
+              event.stopPropagation();
               drop.classList.remove('dragover');
               const unitId = state.draggingUnitId || event.dataTransfer.getData('text/plain');
               if (!unitId) return;
@@ -3453,7 +4143,9 @@
             return drop;
           };
 
-          stackBody.appendChild(createDropSlot(0));
+          if (!isTwoAcross) {
+            stackBody.appendChild(createDropSlot(0));
+          }
           ids.forEach((unitId, idx) => {
             const unit = state.unitsById[unitId];
             if (!unit) return;
@@ -3480,14 +4172,27 @@
               state.draggingUnitId = null;
               unitEl.classList.remove('dragging');
             });
+            if (isTwoAcross) {
+              unitEl.style.gridColumn = ((idx % 2) + 1).toString();
+            }
             stackBody.appendChild(unitEl);
-            stackBody.appendChild(createDropSlot(idx + 1));
+            if (!isTwoAcross) {
+              stackBody.appendChild(createDropSlot(idx + 1));
+            }
           });
+          if (isTwoAcross) {
+            const marker = document.createElement('span');
+            marker.className = 'schematic-edit-stack-two-across-icon material-symbols-outlined';
+            marker.textContent = 'view_week';
+            marker.dataset.tooltip = 'items less than 7 ft stacked 2 across to allow for additional capacity';
+            stackBody.appendChild(marker);
+          }
 
           track.appendChild(stackCol);
         });
 
         track.appendChild(createStackSlot(positions.length));
+        appendDeckUsage();
         return wrapper;
       };
 
@@ -3502,13 +4207,21 @@
         if (!canvas) return;
         canvas.innerHTML = '';
         const cfg = trailerConfig(state.trailerType);
-        const lowerDeck = renderDeck('lower');
+        const orderedPositions = Array.isArray(state.layout.positions) ? state.layout.positions : [];
+        const stackIndexByPositionId = {};
+        orderedPositions.forEach((pos, idx) => {
+          if (pos && pos.position_id) stackIndexByPositionId[pos.position_id] = idx + 1;
+        });
+        const lowerDeck = renderDeck('lower', { stackIndexByPositionId });
         if (cfg.upper > 0) {
           const stepDeckRow = document.createElement('div');
           stepDeckRow.className = 'schematic-edit-stepdeck-row';
-          lowerDeck.style.flex = `${Math.max(Number(cfg.lower || 1), 1)} 1 0`;
-          const upperDeck = renderDeck('upper', { showUpperVoid: true });
-          upperDeck.style.flex = `${Math.max(Number(cfg.upper || 1), 1)} 1 0`;
+          const totalDeckFt = Math.max(Number(cfg.lower || 0) + Number(cfg.upper || 0), 1);
+          const lowerPct = (Math.max(Number(cfg.lower || 1), 1) / totalDeckFt) * 100;
+          const upperPct = (Math.max(Number(cfg.upper || 1), 1) / totalDeckFt) * 100;
+          lowerDeck.style.flex = `0 0 ${lowerPct}%`;
+          const upperDeck = renderDeck('upper', { showUpperVoid: true, stackIndexByPositionId });
+          upperDeck.style.flex = `0 0 ${upperPct}%`;
           stepDeckRow.appendChild(lowerDeck);
           stepDeckRow.appendChild(upperDeck);
           canvas.appendChild(stepDeckRow);
@@ -3523,11 +4236,13 @@
         state.unitsById = {};
         state.layout = { positions: [] };
         state.originalLayout = { positions: [] };
+        state.baseLayout = { positions: [] };
         state.warnings = [];
         state.metrics = {};
         state.assumptions = {
           stack_overflow_max_height: 5,
           max_back_overhang_ft: 4,
+          upper_two_across_max_length_ft: 7,
         };
         state.draggingUnitId = null;
         setError('');
@@ -3581,9 +4296,11 @@
             });
             state.layout = cloneLayout(payload.layout);
             state.originalLayout = cloneLayout(payload.layout);
+            state.baseLayout = cloneLayout(payload.base_layout || payload.layout);
             state.assumptions = payload.assumptions || {
               stack_overflow_max_height: 5,
               max_back_overhang_ft: 4,
+              upper_two_across_max_length_ft: 7,
             };
             computeClientPreview();
             render();
@@ -3654,7 +4371,7 @@
 
       if (resetButton) {
         resetButton.addEventListener('click', () => {
-          state.layout = cloneLayout(state.originalLayout);
+          state.layout = cloneLayout(state.baseLayout || state.originalLayout);
           computeClientPreview();
           render();
         });
@@ -3708,6 +4425,62 @@
       });
     }
 
+    function initReoptStatusPolling() {
+      const reoptStatus = {{ (reopt_status or '') | tojson }};
+      const reoptJobId = {{ (reopt_job_id or '') | tojson }};
+      if (reoptStatus !== 'running' || !reoptJobId) return;
+
+      const buildStatusUrl = () => `/loads/reopt_jobs/${encodeURIComponent(reoptJobId)}`;
+      const buildRedirectUrl = (status) => {
+        const next = new URL(window.location.href);
+        next.searchParams.set('reopt', status);
+        next.searchParams.delete('reopt_job');
+        return next.toString();
+      };
+
+      let attempts = 0;
+      const maxAttempts = 120; // 6 minutes at 3s polling
+      const pollIntervalMs = 3000;
+
+      const poll = () => {
+        fetch(buildStatusUrl())
+          .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+          .then(({ ok, payload }) => {
+            if (!ok) {
+              throw new Error((payload && payload.error) || 'Status check failed.');
+            }
+
+            const status = (payload && payload.status ? payload.status : '').toLowerCase();
+            if (status === 'running') {
+              attempts += 1;
+              if (attempts >= maxAttempts) {
+                window.location.replace(buildRedirectUrl('failed'));
+                return;
+              }
+              window.setTimeout(poll, pollIntervalMs);
+              return;
+            }
+
+            if (status === 'done') {
+              window.location.replace(buildRedirectUrl('done'));
+              return;
+            }
+
+            window.location.replace(buildRedirectUrl('failed'));
+          })
+          .catch(() => {
+            attempts += 1;
+            if (attempts >= maxAttempts) {
+              window.location.replace(buildRedirectUrl('failed'));
+              return;
+            }
+            window.setTimeout(poll, pollIntervalMs);
+          });
+      };
+
+      window.setTimeout(poll, 1200);
+    }
+
     initFreightBreakdownModal();
     initManualLoadModal();
     initManualAddModal();
@@ -3715,7 +4488,107 @@
     initLoadsPlantCards();
     bindManualAddButtons();
     bindSchematicEditButtons();
+    initReoptStatusPolling();
     initSessionStopwatch();
+
+    function initSchematicHoverTooltips() {
+      if (window.__schematicHoverTooltipsBound) return;
+      window.__schematicHoverTooltipsBound = true;
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'schematic-hover-tooltip hidden';
+      tooltip.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(tooltip);
+
+      let activeTarget = null;
+
+      const escapeTooltipHtml = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+      function formatTooltipHtml(text) {
+        const rawParts = String(text || '')
+          .split('|')
+          .map((part) => part.trim())
+          .filter(Boolean);
+        if (!rawParts.length) return '';
+
+        // SKU unit tooltips are structured with pipe-delimited key/value fragments.
+        // We drop redundant first line, remove stop, and merge Length + Max stack.
+        const isSkuUnitTooltip = rawParts.some((part) => /^SKU\s*:/i.test(part));
+        if (!isSkuUnitTooltip) {
+          return rawParts
+            .map((part) => `<div class="schematic-hover-tooltip-row">${escapeTooltipHtml(part)}</div>`)
+            .join('');
+        }
+
+        const parts = rawParts.slice(1); // remove first line (item label), redundant with visible SKU label
+        const nonStop = parts.filter((part) => !/^Stop\s*:/i.test(part));
+        const lengthPart = nonStop.find((part) => /^Length\s*:/i.test(part));
+        const maxStackPart = nonStop.find((part) => /^Max stack\s*:/i.test(part));
+        const core = nonStop.filter(
+          (part) => !/^Length\s*:/i.test(part) && !/^Max stack\s*:/i.test(part)
+        );
+        if (lengthPart || maxStackPart) {
+          core.push([lengthPart, maxStackPart].filter(Boolean).join(' | '));
+        }
+        return core
+          .map((part) => `<div class="schematic-hover-tooltip-row">${escapeTooltipHtml(part)}</div>`)
+          .join('');
+      }
+
+      function positionTooltip(evt) {
+        if (!activeTarget) return;
+        const pad = 14;
+        const rect = tooltip.getBoundingClientRect();
+        let left = evt.clientX + pad;
+        let top = evt.clientY + pad;
+        if (left + rect.width > window.innerWidth - 10) left = Math.max(10, evt.clientX - rect.width - pad);
+        if (top + rect.height > window.innerHeight - 10) top = Math.max(10, evt.clientY - rect.height - pad);
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+      }
+
+      function hideTooltip() {
+        activeTarget = null;
+        tooltip.classList.add('hidden');
+        tooltip.innerHTML = '';
+      }
+
+      document.addEventListener('mouseover', (evt) => {
+        const target = evt.target && evt.target.closest ? evt.target.closest('[data-tooltip]') : null;
+        if (!target) return;
+        const text = target.getAttribute('data-tooltip');
+        if (!text) return;
+        activeTarget = target;
+        tooltip.innerHTML = formatTooltipHtml(text);
+        tooltip.classList.remove('hidden');
+      });
+
+      document.addEventListener('mousemove', (evt) => {
+        if (!activeTarget) return;
+        positionTooltip(evt);
+      });
+
+      document.addEventListener('mouseout', (evt) => {
+        if (!activeTarget) return;
+        const leaving = evt.target && evt.target.closest ? evt.target.closest('[data-tooltip]') : null;
+        if (!leaving || leaving !== activeTarget) return;
+        const entering = evt.relatedTarget && evt.relatedTarget.closest ? evt.relatedTarget.closest('[data-tooltip]') : null;
+        if (entering === activeTarget) return;
+        hideTooltip();
+      });
+
+      document.addEventListener('scroll', hideTooltip, true);
+      window.addEventListener('blur', hideTooltip);
+      window.addEventListener('resize', hideTooltip);
+    }
+
+    initSchematicHoverTooltips();
 
   </script>
 {% endblock %}
+

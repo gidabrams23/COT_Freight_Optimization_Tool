@@ -20,6 +20,7 @@ DEFAULT_REPLAY_PRESET = {
     "geo_radius": 100.0,
     "stack_overflow_max_height": 5,
     "max_back_overhang_ft": 4.0,
+    "upper_two_across_max_length_ft": 7.0,
     "enforce_time_window": True,
     "algorithm_version": "v2",
     "v2_low_util_threshold": 70.0,
@@ -362,13 +363,20 @@ def _build_optimizer_params(plant_code, preset):
     combined.update(preset or {})
     params = dict(combined)
     params["origin_plant"] = plant_code
-    params["trailer_type"] = str(params.get("trailer_type") or "STEP_DECK").strip().upper()
+    params["trailer_type"] = stack_calculator.normalize_trailer_type(
+        params.get("trailer_type"),
+        default="STEP_DECK",
+    )
     params["capacity_feet"] = float(params.get("capacity_feet") or 53.0)
     params["max_detour_pct"] = float(params.get("max_detour_pct") or 15.0)
     params["time_window_days"] = int(params.get("time_window_days") or 0)
     params["geo_radius"] = float(params.get("geo_radius") or 0.0)
     params["stack_overflow_max_height"] = max(int(params.get("stack_overflow_max_height") or 0), 0)
     params["max_back_overhang_ft"] = max(float(params.get("max_back_overhang_ft") or 0.0), 0.0)
+    params["upper_two_across_max_length_ft"] = max(
+        float(params.get("upper_two_across_max_length_ft") or 0.0),
+        0.0,
+    )
     params["enforce_time_window"] = bool(params.get("enforce_time_window", True))
     params["algorithm_version"] = "v2"
     params["ops_parity_enabled"] = _to_bool(params.get("ops_parity_enabled"), default=False)
@@ -493,11 +501,14 @@ def _normalized_overfill_profile(optimizer, groups, params):
             "candidates": [],
         }
 
-    trailer_preference = _clean_text(params.get("trailer_type")).upper() or "STEP_DECK"
+    trailer_preference = stack_calculator.normalize_trailer_type(
+        params.get("trailer_type"),
+        default="STEP_DECK",
+    )
     trailer_candidates = []
     primary_trailer = optimizer._preferred_trailer_for_groups(groups, trailer_preference)
     trailer_candidates.append(primary_trailer)
-    if primary_trailer == "STEP_DECK" and not optimizer._groups_require_wedge(groups):
+    if primary_trailer.startswith("STEP_DECK") and not optimizer._groups_require_wedge(groups):
         trailer_candidates.append("FLATBED")
 
     seen = set()
@@ -775,13 +786,16 @@ def _optimize_groups_v2(optimizer, groups, params):
 
 def _optimize_groups_v2_with_trailer_candidates(optimizer, groups, params):
     base_params = dict(params or {})
-    base_trailer = _clean_text(base_params.get("trailer_type")).upper() or "STEP_DECK"
+    base_trailer = stack_calculator.normalize_trailer_type(
+        base_params.get("trailer_type"),
+        default="STEP_DECK",
+    )
 
     candidates = []
     base_loads = _optimize_groups_v2(optimizer, groups, base_params)
     candidates.append((f"v2_{base_trailer.lower()}", base_loads, base_params))
 
-    if base_trailer == "STEP_DECK":
+    if base_trailer.startswith("STEP_DECK"):
         flatbed_params = dict(base_params)
         flatbed_params["trailer_type"] = "FLATBED"
         flatbed_loads = _optimize_groups_v2(optimizer, groups, flatbed_params)

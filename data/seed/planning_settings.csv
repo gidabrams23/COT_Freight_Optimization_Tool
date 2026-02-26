@@ -1,3 +1,2 @@
 key,value_text,updated_at
-strategic_customers,"Lowe's|LOWE'S,LOWES
-Tractor Supply|TRACTOR SUPPLY",2026-02-03 15:22:46
+strategic_customers,"[{""label"":""Lowe's"",""patterns"":[""LOWE'S"",""LOWES""],""include_in_optimizer_workbench"":true},{""label"":""Tractor Supply"",""patterns"":[""TRACTOR SUPPLY"",""TRACTORSUPPLY""],""include_in_optimizer_workbench"":true},{""label"":""Ace"",""patterns"":[""ACE HARDWARE CORPORATION"",""ACE HARDWARE""],""include_in_optimizer_workbench"":true},{""label"":""TrailersPlus"",""patterns"":[""TRAILERSPLUS"",""TRAILER'S PLUS""],""include_in_optimizer_workbench"":true},{""label"":""COT Sample"",""patterns"":[""COT SAMPLE"",""COTSAMPLE""],""ignore_for_optimization"":true,""include_in_optimizer_workbench"":false},{""label"":""Carolina Equipment"",""patterns"":[""CAROLINA EQUIPMENT"",""CAROLINAEQUIPMENT""],""ignore_for_optimization"":true,""include_in_optimizer_workbench"":false}]",2026-02-25 12:00:00

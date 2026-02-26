@@ -15,12 +15,15 @@ TABLES = {
     "sku_specifications": {
         "columns": [
             "sku",
+            "description",
             "category",
             "length_with_tongue_ft",
             "max_stack_step_deck",
             "max_stack_flat_bed",
             "notes",
+            "added_at",
             "created_at",
+            "source",
         ],
         "order_by": "sku ASC",
     },

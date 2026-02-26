@@ -1,6 +1,7 @@
 import json
 
 import db
+from services import stack_calculator
 from services.optimizer import Optimizer
 
 
@@ -23,7 +24,10 @@ class OptimizerEngine:
         params = {
             "origin_plant": plant_code,
             "capacity_feet": float(capacity_feet),
-            "trailer_type": (trailer_type or "STEP_DECK").strip().upper(),
+            "trailer_type": stack_calculator.normalize_trailer_type(
+                trailer_type,
+                default="STEP_DECK",
+            ),
             "max_detour_pct": 15.0,
             "time_window_days": int(flexibility_days),
             "geo_radius": float(proximity_miles),

@@ -9,11 +9,13 @@
   {% set upper_deck_ft = load.schematic.upper_deck_length | float %}
   {% set lower_positions = load.schematic.positions | selectattr('deck', 'equalto', 'lower') | list %}
   {% set upper_positions = load.schematic.positions | selectattr('deck', 'equalto', 'upper') | list %}
-  {% set lower_used_ft = (lower_positions | sum(attribute='length_ft')) | float %}
-  {% set upper_used_ft = (upper_positions | sum(attribute='length_ft')) | float %}
+  {% set lower_used_ft = (load.schematic.lower_deck_used_length_ft if load.schematic.lower_deck_used_length_ft is not none else (lower_positions | sum(attribute='length_ft'))) | float %}
+  {% set upper_used_ft = (load.schematic.upper_deck_effective_length_ft if load.schematic.upper_deck_effective_length_ft is not none else (upper_positions | sum(attribute='length_ft'))) | float %}
+  {% set upper_raw_ft = (load.schematic.upper_deck_raw_length_ft if load.schematic.upper_deck_raw_length_ft is not none else upper_used_ft) | float %}
   {% set lower_display_ft = ([lower_deck_ft, lower_used_ft] | max) %}
-  {% set upper_display_ft = ([upper_deck_ft, upper_used_ft] | max) if has_upper else 0 %}
-  {% set display_capacity = ([capacity_ft, lower_display_ft + upper_display_ft] | max) if (trailer == 'STEP_DECK' and has_upper) else ([capacity_ft, lower_display_ft] | max) %}
+  {% set upper_display_ft = ([upper_deck_ft, upper_used_ft, upper_raw_ft] | max) if has_upper else 0 %}
+  {% set is_step_deck_profile = trailer.startswith('STEP_DECK') %}
+  {% set display_capacity = ([capacity_ft, lower_display_ft + upper_display_ft] | max) if (is_step_deck_profile and has_upper) else ([capacity_ft, lower_display_ft] | max) %}
   {% set lower_width = ((lower_display_ft / display_capacity) * 100) | round(1) if display_capacity else 100 %}
   {% set upper_width = ((upper_display_ft / display_capacity) * 100) | round(1) if (has_upper and display_capacity) else 0 %}
   {% set util_pct_raw = load.schematic.utilization_pct or 0 %}
@@ -57,16 +59,16 @@
       {% endif %}
       {% if not read_only_mode %}
         <select class="select-field select-compact load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
-          <option value="STEP_DECK" {% if trailer == 'STEP_DECK' %}selected{% endif %}>53' Step Deck</option>
-          <option value="WEDGE" {% if trailer == 'WEDGE' %}selected{% endif %}>51' Wedge</option>
-          <option value="FLATBED" {% if trailer == 'FLATBED' %}selected{% endif %}>53' Flatbed</option>
+          {% for trailer_option in trailer_profile_options %}
+            <option value="{{ trailer_option.value }}" {% if trailer == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
+          {% endfor %}
         </select>
       {% endif %}
     </div>
   </div>
-  <div class="trailer-schematic trailer-{{ load.schematic.trailer_type | lower }}">
+  <div class="trailer-schematic trailer-{{ load.schematic.trailer_type | lower }}{% if is_step_deck_profile %} trailer-step-deck-profile{% endif %}">
     <div class="trailer-body">
-      {% if trailer == 'STEP_DECK' and has_upper %}
+      {% if is_step_deck_profile and has_upper %}
         {% set lower_rem_ft = lower_deck_ft - lower_used_ft %}
         {% set upper_rem_ft = upper_deck_ft - upper_used_ft %}
         {% set lower_overhang_ft = (lower_used_ft - lower_deck_ft) if (lower_used_ft - lower_deck_ft) > 0.05 else 0 %}
@@ -84,10 +86,6 @@
             <div class="deck-positions">
               {% for pos in lower_positions %}
                 <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
-                  {% if pos.overflow_applied %}
-                    {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
-                    <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
-                  {% endif %}
                   {% set order_ids = namespace(items=[]) %}
                   {% for item in pos["items"] %}
                     {% if item.order_id and item.order_id not in order_ids.items %}
@@ -95,6 +93,10 @@
                     {% endif %}
                   {% endfor %}
                   <div class="position-stack">
+                    {% if pos.overflow_applied %}
+                      {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                      <span class="stack-overflow-indicator" data-tooltip="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
+                    {% endif %}
                     {% for item in pos["items"] %}
                       {% set color = load.order_colors.get(item.order_id, '#334155') %}
                       {% set block_height = 100 / (item.max_stack or 1) %}
@@ -103,6 +105,7 @@
                       {% set block_width = 100 if width_raw > 100 else width_raw %}
                       {% set item_label = item.item or item.sku or 'ITEM' %}
                       {% set desc_label = item.item_desc or '' %}
+                      {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
                       {% set tooltip = item_label %}
                       {% if item.sku %}
                         {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
@@ -116,11 +119,17 @@
                       {% if item.max_stack %}
                         {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
                       {% endif %}
+                      {% if stop_sequence %}
+                        {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                      {% endif %}
                       {% for _ in range((item.units or 0) | int) %}
                         <div class="unit-block glass-block"
                              data-order-id="{{ item.order_id }}"
-                             title="{{ tooltip }}"
+                             data-tooltip="{{ tooltip }}"
                              style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                          {% if stop_sequence %}
+                            <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                          {% endif %}
                           <span class="unit-label">{{ item_label }}</span>
                         </div>
                       {% endfor %}
@@ -170,49 +179,141 @@
             <div class="deck-stage deck-stage-upper">
               <div class="deck-positions">
                 {% for pos in upper_positions %}
-                  <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
-                    {% if pos.overflow_applied %}
-                      {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
-                      <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
-                    {% endif %}
+                  <div class="position-column" style="--deck-span: {{ (pos.effective_length_ft or pos.length_ft or 1) | float | round(3) }};">
                     {% set order_ids = namespace(items=[]) %}
                     {% for item in pos["items"] %}
                       {% if item.order_id and item.order_id not in order_ids.items %}
                         {% set _ = order_ids.items.append(item.order_id) %}
                       {% endif %}
                     {% endfor %}
-                    <div class="position-stack">
-                      {% for item in pos["items"] %}
-                        {% set color = load.order_colors.get(item.order_id, '#334155') %}
-                        {% set block_height = 100 / (item.max_stack or 1) %}
-                        {% set item_length = item.unit_length_ft or pos.length_ft %}
-                        {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
-                        {% set block_width = 100 if width_raw > 100 else width_raw %}
-                        {% set item_label = item.item or item.sku or 'ITEM' %}
-                        {% set desc_label = item.item_desc or '' %}
-                        {% set tooltip = item_label %}
-                        {% if item.sku %}
-                          {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                    {% if pos.two_across_applied %}
+                      <div class="position-stack position-stack-two-across">
+                        {% if pos.overflow_applied %}
+                          {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                          <span class="stack-overflow-indicator" data-tooltip="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
                         {% endif %}
-                        {% if desc_label and desc_label != item_label %}
-                          {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                        <div class="position-stack-half">
+                          {% for item in pos["items"] %}
+                            {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                            {% set block_height = 100 / (item.max_stack or 1) %}
+                            {% set item_length = item.unit_length_ft or pos.length_ft %}
+                            {% set item_label = item.item or item.sku or 'ITEM' %}
+                            {% set desc_label = item.item_desc or '' %}
+                            {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
+                            {% set tooltip = item_label %}
+                            {% if item.sku %}
+                              {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                            {% endif %}
+                            {% if desc_label and desc_label != item_label %}
+                              {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                            {% endif %}
+                            {% if item_length %}
+                              {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                            {% endif %}
+                            {% if item.max_stack %}
+                              {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                            {% endif %}
+                            {% if stop_sequence %}
+                              {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                            {% endif %}
+                            {% set left_units = ((item.units or 0) | int + 1) // 2 %}
+                            {% for _ in range(left_units) %}
+                              <div class="unit-block glass-block"
+                                   data-order-id="{{ item.order_id }}"
+                                   data-tooltip="{{ tooltip }}"
+                                   style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: 100%;">
+                                {% if stop_sequence %}
+                                  <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                                {% endif %}
+                                <span class="unit-label">{{ item_label }}</span>
+                              </div>
+                            {% endfor %}
+                          {% endfor %}
+                        </div>
+                        <div class="position-stack-half">
+                          {% for item in pos["items"] %}
+                            {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                            {% set block_height = 100 / (item.max_stack or 1) %}
+                            {% set item_length = item.unit_length_ft or pos.length_ft %}
+                            {% set item_label = item.item or item.sku or 'ITEM' %}
+                            {% set desc_label = item.item_desc or '' %}
+                            {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
+                            {% set tooltip = item_label %}
+                            {% if item.sku %}
+                              {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                            {% endif %}
+                            {% if desc_label and desc_label != item_label %}
+                              {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                            {% endif %}
+                            {% if item_length %}
+                              {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                            {% endif %}
+                            {% if item.max_stack %}
+                              {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                            {% endif %}
+                            {% if stop_sequence %}
+                              {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                            {% endif %}
+                            {% set right_units = (item.units or 0) | int // 2 %}
+                            {% for _ in range(right_units) %}
+                              <div class="unit-block glass-block"
+                                   data-order-id="{{ item.order_id }}"
+                                   data-tooltip="{{ tooltip }}"
+                                   style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: 100%;">
+                                {% if stop_sequence %}
+                                  <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                                {% endif %}
+                                <span class="unit-label">{{ item_label }}</span>
+                              </div>
+                            {% endfor %}
+                          {% endfor %}
+                        </div>
+                      </div>
+                    {% else %}
+                      <div class="position-stack">
+                        {% if pos.overflow_applied %}
+                          {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                          <span class="stack-overflow-indicator" data-tooltip="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
                         {% endif %}
-                        {% if item_length %}
-                          {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
-                        {% endif %}
-                        {% if item.max_stack %}
-                          {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
-                        {% endif %}
-                        {% for _ in range((item.units or 0) | int) %}
-                          <div class="unit-block glass-block"
-                               data-order-id="{{ item.order_id }}"
-                               title="{{ tooltip }}"
-                               style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
-                            <span class="unit-label">{{ item_label }}</span>
-                          </div>
+                        {% for item in pos["items"] %}
+                          {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                          {% set block_height = 100 / (item.max_stack or 1) %}
+                          {% set item_length = item.unit_length_ft or pos.length_ft %}
+                          {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
+                          {% set block_width = 100 if width_raw > 100 else width_raw %}
+                          {% set item_label = item.item or item.sku or 'ITEM' %}
+                          {% set desc_label = item.item_desc or '' %}
+                          {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
+                          {% set tooltip = item_label %}
+                          {% if item.sku %}
+                            {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                          {% endif %}
+                          {% if desc_label and desc_label != item_label %}
+                            {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                          {% endif %}
+                          {% if item_length %}
+                            {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                          {% endif %}
+                          {% if item.max_stack %}
+                            {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                          {% endif %}
+                          {% if stop_sequence %}
+                            {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                          {% endif %}
+                          {% for _ in range((item.units or 0) | int) %}
+                            <div class="unit-block glass-block"
+                                 data-order-id="{{ item.order_id }}"
+                                 data-tooltip="{{ tooltip }}"
+                                 style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                              {% if stop_sequence %}
+                                <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                              {% endif %}
+                              <span class="unit-label">{{ item_label }}</span>
+                            </div>
+                          {% endfor %}
                         {% endfor %}
-                      {% endfor %}
-                    </div>
+                      </div>
+                    {% endif %}
                     {% if order_ids.items and not read_only_mode %}
                       <div class="position-actions">
                         {% for order_id in order_ids.items %}
@@ -236,7 +337,11 @@
                   </div>
                 {% endif %}
               </div>
-              <div class="deck-void"></div>
+              <div class="deck-void">
+                {% if upper_positions | selectattr('two_across_applied') | list %}
+                  <span class="deck-void-hint" data-tooltip="items less than 7 ft stacked 2 across to allow for additional capacity"><span class="material-symbols-outlined">view_week</span></span>
+                {% endif %}
+              </div>
             </div>
             <div class="deck-footer" style="--line-span: {{ upper_line_span }}%;">
               {% if upper_overhang %}
@@ -253,18 +358,10 @@
       {% else %}
         <div class="trailer-deck lower" style="flex: 1 1 auto;">
           {% set lower_rem_ft = lower_deck_ft - lower_used_ft %}
-          {% if trailer == 'FLATBED' %}
-            <div class="deck-label">Main Deck</div>
-          {% else %}
-            <div class="deck-label">Lower Deck - {{ load.schematic.lower_deck_length | round(0) | int }} ft</div>
-          {% endif %}
+          <div class="deck-label">Main Deck</div>
           <div class="deck-positions">
             {% for pos in load.schematic.positions if pos.deck == 'lower' %}
               <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
-                {% if pos.overflow_applied %}
-                  {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
-                  <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
-                {% endif %}
                 {% set order_ids = namespace(items=[]) %}
                 {% for item in pos["items"] %}
                   {% if item.order_id and item.order_id not in order_ids.items %}
@@ -272,6 +369,10 @@
                   {% endif %}
                 {% endfor %}
                 <div class="position-stack">
+                  {% if pos.overflow_applied %}
+                    {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                    <span class="stack-overflow-indicator" data-tooltip="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
+                  {% endif %}
                   {% for item in pos["items"] %}
                     {% set color = load.order_colors.get(item.order_id, '#334155') %}
                     {% set block_height = 100 / (item.max_stack or 1) %}
@@ -280,6 +381,7 @@
                     {% set block_width = 100 if width_raw > 100 else width_raw %}
                     {% set item_label = item.item or item.sku or 'ITEM' %}
                     {% set desc_label = item.item_desc or '' %}
+                    {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
                     {% set tooltip = item_label %}
                     {% if item.sku %}
                       {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
@@ -293,11 +395,17 @@
                     {% if item.max_stack %}
                       {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
                     {% endif %}
+                    {% if stop_sequence %}
+                      {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                    {% endif %}
                     {% for _ in range((item.units or 0) | int) %}
                       <div class="unit-block glass-block"
                            data-order-id="{{ item.order_id }}"
-                           title="{{ tooltip }}"
+                           data-tooltip="{{ tooltip }}"
                            style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                        {% if stop_sequence %}
+                          <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                        {% endif %}
                         <span class="unit-label">{{ item_label }}</span>
                       </div>
                     {% endfor %}
@@ -347,49 +455,141 @@
             <div class="deck-label">Upper Deck - {{ load.schematic.upper_deck_length | round(0) | int }} ft</div>
             <div class="deck-positions">
               {% for pos in load.schematic.positions if pos.deck == 'upper' %}
-                <div class="position-column" style="--deck-span: {{ (pos.length_ft or 1) | float | round(3) }};">
-                  {% if pos.overflow_applied %}
-                    {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
-                    <span class="stack-overflow-indicator" title="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
-                  {% endif %}
+                <div class="position-column" style="--deck-span: {{ (pos.effective_length_ft or pos.length_ft or 1) | float | round(3) }};">
                   {% set order_ids = namespace(items=[]) %}
                   {% for item in pos["items"] %}
                     {% if item.order_id and item.order_id not in order_ids.items %}
                       {% set _ = order_ids.items.append(item.order_id) %}
                     {% endif %}
                   {% endfor %}
-                  <div class="position-stack">
-                    {% for item in pos["items"] %}
-                      {% set color = load.order_colors.get(item.order_id, '#334155') %}
-                      {% set block_height = 100 / (item.max_stack or 1) %}
-                      {% set item_length = item.unit_length_ft or pos.length_ft %}
-                      {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
-                      {% set block_width = 100 if width_raw > 100 else width_raw %}
-                      {% set item_label = item.item or item.sku or 'ITEM' %}
-                      {% set desc_label = item.item_desc or '' %}
-                      {% set tooltip = item_label %}
-                      {% if item.sku %}
-                        {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                  {% if pos.two_across_applied %}
+                    <div class="position-stack position-stack-two-across">
+                      {% if pos.overflow_applied %}
+                        {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                        <span class="stack-overflow-indicator" data-tooltip="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
                       {% endif %}
-                      {% if desc_label and desc_label != item_label %}
-                        {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                      <div class="position-stack-half">
+                        {% for item in pos["items"] %}
+                          {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                          {% set block_height = 100 / (item.max_stack or 1) %}
+                          {% set item_length = item.unit_length_ft or pos.length_ft %}
+                          {% set item_label = item.item or item.sku or 'ITEM' %}
+                          {% set desc_label = item.item_desc or '' %}
+                          {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
+                          {% set tooltip = item_label %}
+                          {% if item.sku %}
+                            {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                          {% endif %}
+                          {% if desc_label and desc_label != item_label %}
+                            {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                          {% endif %}
+                          {% if item_length %}
+                            {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                          {% endif %}
+                          {% if item.max_stack %}
+                            {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                          {% endif %}
+                          {% if stop_sequence %}
+                            {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                          {% endif %}
+                          {% set left_units = ((item.units or 0) | int + 1) // 2 %}
+                          {% for _ in range(left_units) %}
+                            <div class="unit-block glass-block"
+                                 data-order-id="{{ item.order_id }}"
+                                 data-tooltip="{{ tooltip }}"
+                                 style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: 100%;">
+                              {% if stop_sequence %}
+                                <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                              {% endif %}
+                              <span class="unit-label">{{ item_label }}</span>
+                            </div>
+                          {% endfor %}
+                        {% endfor %}
+                      </div>
+                      <div class="position-stack-half">
+                        {% for item in pos["items"] %}
+                          {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                          {% set block_height = 100 / (item.max_stack or 1) %}
+                          {% set item_length = item.unit_length_ft or pos.length_ft %}
+                          {% set item_label = item.item or item.sku or 'ITEM' %}
+                          {% set desc_label = item.item_desc or '' %}
+                          {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
+                          {% set tooltip = item_label %}
+                          {% if item.sku %}
+                            {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                          {% endif %}
+                          {% if desc_label and desc_label != item_label %}
+                            {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                          {% endif %}
+                          {% if item_length %}
+                            {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                          {% endif %}
+                          {% if item.max_stack %}
+                            {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                          {% endif %}
+                          {% if stop_sequence %}
+                            {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                          {% endif %}
+                          {% set right_units = (item.units or 0) | int // 2 %}
+                          {% for _ in range(right_units) %}
+                            <div class="unit-block glass-block"
+                                 data-order-id="{{ item.order_id }}"
+                                 data-tooltip="{{ tooltip }}"
+                                 style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: 100%;">
+                              {% if stop_sequence %}
+                                <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                              {% endif %}
+                              <span class="unit-label">{{ item_label }}</span>
+                            </div>
+                          {% endfor %}
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% else %}
+                    <div class="position-stack">
+                      {% if pos.overflow_applied %}
+                        {% set stack_label = (pos.position_id | replace('p', '')) if pos.position_id else loop.index %}
+                        <span class="stack-overflow-indicator" data-tooltip="{{ pos.overflow_note or ('Stack ' ~ stack_label ~ ' was overutilized to allow for additional space.') }}">!</span>
                       {% endif %}
-                      {% if item_length %}
-                        {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
-                      {% endif %}
-                      {% if item.max_stack %}
-                        {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
-                      {% endif %}
-                      {% for _ in range((item.units or 0) | int) %}
-                        <div class="unit-block glass-block"
-                             data-order-id="{{ item.order_id }}"
-                             title="{{ tooltip }}"
-                             style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
-                          <span class="unit-label">{{ item_label }}</span>
-                        </div>
+                      {% for item in pos["items"] %}
+                        {% set color = load.order_colors.get(item.order_id, '#334155') %}
+                        {% set block_height = 100 / (item.max_stack or 1) %}
+                        {% set item_length = item.unit_length_ft or pos.length_ft %}
+                        {% set width_raw = (item_length / pos.length_ft * 100) if pos.length_ft else 100 %}
+                        {% set block_width = 100 if width_raw > 100 else width_raw %}
+                        {% set item_label = item.item or item.sku or 'ITEM' %}
+                        {% set desc_label = item.item_desc or '' %}
+                        {% set stop_sequence = (item.stop_sequence | int) if item.stop_sequence is not none else None %}
+                        {% set tooltip = item_label %}
+                        {% if item.sku %}
+                          {% set tooltip = tooltip ~ ' | SKU: ' ~ item.sku %}
+                        {% endif %}
+                        {% if desc_label and desc_label != item_label %}
+                          {% set tooltip = tooltip ~ ' | ' ~ desc_label %}
+                        {% endif %}
+                        {% if item_length %}
+                          {% set tooltip = tooltip ~ ' | Length: ' ~ ('%.0f' | format(item_length)) ~ ' ft' %}
+                        {% endif %}
+                        {% if item.max_stack %}
+                          {% set tooltip = tooltip ~ ' | Max stack: ' ~ item.max_stack %}
+                        {% endif %}
+                        {% if stop_sequence %}
+                          {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
+                        {% endif %}
+                        {% for _ in range((item.units or 0) | int) %}
+                          <div class="unit-block glass-block"
+                               data-order-id="{{ item.order_id }}"
+                               data-tooltip="{{ tooltip }}"
+                               style="--accent: {{ color }}; --accent-bg: {{ color }}22; height: {{ block_height }}%; width: {{ block_width }}%;">
+                            {% if stop_sequence %}
+                              <span class="stop-sequence-indicator" aria-hidden="true">{{ stop_sequence }}</span>
+                            {% endif %}
+                            <span class="unit-label">{{ item_label }}</span>
+                          </div>
+                        {% endfor %}
                       {% endfor %}
-                    {% endfor %}
-                  </div>
+                    </div>
+                  {% endif %}
                   {% if order_ids.items and not read_only_mode %}
                     <div class="position-actions">
                       {% for order_id in order_ids.items %}
@@ -406,6 +606,11 @@
             {% set upper_overhang_ft = (upper_used_ft - upper_deck_ft) if (upper_used_ft - upper_deck_ft) > 0.05 else 0 %}
             {% set upper_overhang = upper_overhang_ft > 0 %}
             {% set upper_line_span = ((upper_deck_ft / upper_display_ft) * 100) | round(1) if upper_display_ft else 100 %}
+            <div class="deck-void">
+              {% if upper_positions | selectattr('two_across_applied') | list %}
+                <span class="deck-void-hint" data-tooltip="items less than 7 ft stacked 2 across to allow for additional capacity"><span class="material-symbols-outlined">view_week</span></span>
+              {% endif %}
+            </div>
             <div class="deck-footer" style="--line-span: {{ upper_line_span }}%;">
               {% if upper_overhang %}
                 <div class="deck-overhang-line">
