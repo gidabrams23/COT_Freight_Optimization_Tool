@@ -1,6 +1,7 @@
 from collections import Counter
 from datetime import datetime, date
 import heapq
+import json
 import math
 
 import db
@@ -46,6 +47,11 @@ DEFAULT_V2_HOME_LENGTH_PRIORITY_RADIUS_MILES = 250.0
 DEFAULT_V2_HOME_LENGTH_PRIORITY_THRESHOLD_FT = 12.0
 DEFAULT_V2_HOME_LENGTH_PRIORITY_WEIGHT = 1.0
 DEFAULT_V2_HOME_LENGTH_PRIORITY_MAX_BONUS = 12.0
+TRAILER_ASSIGNMENT_RULES_SETTING_KEY = "trailer_assignment_rules"
+DEFAULT_AUTO_HOTSHOT_UTILIZATION_THRESHOLD_PCT = 45.0
+DEFAULT_TRACTOR_SUPPLY_WEDGE_MIN_ITEM_LENGTH_FT = 16.0
+DEFAULT_TRACTOR_SUPPLY_WEDGE_CATEGORY_TOKENS = ("CARGO",)
+DEFAULT_LIVESTOCK_CATEGORY_TOKENS = ("LIVESTOCK",)
 
 
 class Optimizer:
@@ -60,6 +66,7 @@ class Optimizer:
             zip_coords=self.zip_coords,
         )
         self.strategic_customers = self._load_strategic_customers()
+        self.trailer_assignment_rules = self._load_trailer_assignment_rules()
         self._strategic_customer_cache = {}
         self._stack_cache = {}
         self._merge_id_counter = 0
@@ -68,6 +75,54 @@ class Optimizer:
         setting = db.get_planning_setting("strategic_customers") or {}
         raw_value = setting.get("value_text") or ""
         return customer_rules.parse_strategic_customers(raw_value)
+
+    def _load_trailer_assignment_rules(self):
+        defaults = {
+            "livestock_wedge_enabled": True,
+            "livestock_category_tokens": list(DEFAULT_LIVESTOCK_CATEGORY_TOKENS),
+            "auto_assign_hotshot_enabled": True,
+            "auto_assign_hotshot_utilization_threshold_pct": DEFAULT_AUTO_HOTSHOT_UTILIZATION_THRESHOLD_PCT,
+        }
+        setting = db.get_planning_setting(TRAILER_ASSIGNMENT_RULES_SETTING_KEY) or {}
+        raw_value = (setting.get("value_text") or "").strip()
+        parsed = None
+        if raw_value:
+            try:
+                parsed = json.loads(raw_value)
+            except json.JSONDecodeError:
+                parsed = None
+        if not isinstance(parsed, dict):
+            return defaults
+
+        tokens = parsed.get("livestock_category_tokens")
+        if isinstance(tokens, str):
+            tokens = [tokens]
+        if isinstance(tokens, (list, tuple, set)):
+            normalized_tokens = []
+            for token in tokens:
+                text = str(token or "").strip().upper()
+                if text and text not in normalized_tokens:
+                    normalized_tokens.append(text)
+        else:
+            normalized_tokens = []
+        if not normalized_tokens:
+            normalized_tokens = list(DEFAULT_LIVESTOCK_CATEGORY_TOKENS)
+
+        return {
+            "livestock_wedge_enabled": self._coerce_bool(
+                parsed.get("livestock_wedge_enabled"),
+                defaults["livestock_wedge_enabled"],
+            ),
+            "livestock_category_tokens": normalized_tokens,
+            "auto_assign_hotshot_enabled": self._coerce_bool(
+                parsed.get("auto_assign_hotshot_enabled"),
+                defaults["auto_assign_hotshot_enabled"],
+            ),
+            "auto_assign_hotshot_utilization_threshold_pct": self._coerce_non_negative_float(
+                parsed.get("auto_assign_hotshot_utilization_threshold_pct"),
+                defaults["auto_assign_hotshot_utilization_threshold_pct"],
+            ),
+        }
 
     def _strategic_rule_for_customer(self, customer_name):
         normalized = customer_rules.normalize_customer_text(customer_name)
@@ -111,6 +166,7 @@ class Optimizer:
         )
 
         active = self._rescue_orphans(active, params)
+        active = self._apply_auto_hotshot_tail_assignments(active, params)
         return list(active.values())
 
     def build_optimized_loads_v2(self, params):
@@ -195,6 +251,7 @@ class Optimizer:
             objective_weights,
             time_window_days,
         )
+        active = self._apply_auto_hotshot_tail_assignments(active, runtime_params)
         return list(active.values())
 
     def build_baseline_loads(self, params):
@@ -956,6 +1013,66 @@ class Optimizer:
 
             if not changed:
                 break
+
+        return active_loads
+
+    def _apply_auto_hotshot_tail_assignments(self, active_loads, params):
+        rules = self.trailer_assignment_rules or {}
+        if not self._coerce_bool(rules.get("auto_assign_hotshot_enabled"), True):
+            return active_loads
+
+        for merge_id, load in sorted(
+            list((active_loads or {}).items()),
+            key=lambda entry: float((entry[1] or {}).get("utilization_pct") or 0.0),
+        ):
+            if not load:
+                continue
+            current_trailer = stack_calculator.normalize_trailer_type(
+                load.get("trailer_type"),
+                default="STEP_DECK",
+            )
+            if current_trailer == "HOTSHOT":
+                continue
+            groups = list(load.get("groups") or [])
+            if not groups or self._groups_require_wedge(groups):
+                continue
+
+            hotshot_config = self._stack_config_for_groups(
+                groups,
+                params,
+                trailer_type="HOTSHOT",
+            )
+            if not hotshot_config or hotshot_config.get("exceeds_capacity"):
+                continue
+            overflow_feet = stack_calculator.capacity_overflow_feet(hotshot_config)
+            if overflow_feet > 0.05:
+                continue
+            warning_codes = {
+                str((warning or {}).get("code") or "").strip().upper()
+                for warning in (hotshot_config.get("warnings") or [])
+            }
+            if "ITEM_HANGS_OVER_DECK" in warning_codes:
+                continue
+
+            updated = dict(load)
+            updated["trailer_type"] = "HOTSHOT"
+            updated["utilization_pct"] = float(
+                hotshot_config.get("utilization_pct", load.get("utilization_pct") or 0.0) or 0.0
+            )
+            updated["exceeds_capacity"] = bool(
+                hotshot_config.get("exceeds_capacity", load.get("exceeds_capacity"))
+            )
+            order_numbers = {
+                (line.get("so_num") or "").strip()
+                for line in (updated.get("lines") or [])
+                if (line.get("so_num") or "").strip()
+            }
+            updated["over_capacity"] = bool(
+                updated["exceeds_capacity"] and len(order_numbers) <= 1
+            )
+            updated["auto_trailer_upgrade"] = True
+            updated["auto_trailer_reason"] = "Assigned HOTSHOT because the load fits on a hotshot trailer."
+            active_loads[merge_id] = updated
 
         return active_loads
 
@@ -2067,7 +2184,12 @@ class Optimizer:
         due_date = min(due_dates) if due_dates else None
         representative_zip = self._select_representative_zip(lines)
         destination_state = self._select_primary_state(lines)
-        categories = [self._sku_category(line.get("sku")) for line in lines]
+        categories = [self._line_category(line) for line in lines]
+        normalized_categories = [
+            str(category or "").strip().upper()
+            for category in categories
+            if str(category or "").strip()
+        ]
         cust_name = ""
         if order_summary:
             cust_name = (order_summary.get("cust_name") or "").strip()
@@ -2094,7 +2216,23 @@ class Optimizer:
             (strategic_rule or {}).get("default_due_date_flex_days")
         )
         no_mix = bool((strategic_rule or {}).get("no_mix"))
-        default_wedge_51 = bool((strategic_rule or {}).get("default_wedge_51"))
+        explicit_wedge = bool((strategic_rule or {}).get("default_wedge_51"))
+        max_unit_length_ft = self._max_unit_length_ft(lines)
+        wedge_min_item_length_ft = self._coerce_optional_non_negative_float(
+            (strategic_rule or {}).get("wedge_min_item_length_ft")
+        )
+        if (
+            wedge_min_item_length_ft is None
+            and customer_rules.is_tractor_supply_customer(cust_name)
+            and self._group_contains_tractor_supply_wedge_category(normalized_categories)
+        ):
+            wedge_min_item_length_ft = DEFAULT_TRACTOR_SUPPLY_WEDGE_MIN_ITEM_LENGTH_FT
+        wedge_by_length = (
+            wedge_min_item_length_ft is not None
+            and max_unit_length_ft >= wedge_min_item_length_ft
+        )
+        wedge_by_livestock = self._group_contains_livestock(normalized_categories)
+        default_wedge_51 = explicit_wedge or wedge_by_length or wedge_by_livestock
         requires_return_to_origin = bool(
             (strategic_rule or {}).get("requires_return_to_origin")
         )
@@ -2111,7 +2249,7 @@ class Optimizer:
             "due_date": due_date,
             "zip": representative_zip,
             "state": destination_state,
-            "categories": categories,
+            "categories": normalized_categories,
             "coords": coords,
             "order_summary": order_summary or {},
             "cust_name": cust_name,
@@ -2119,6 +2257,9 @@ class Optimizer:
             "default_due_date_flex_days": default_due_date_flex_days,
             "no_mix": no_mix,
             "default_wedge_51": default_wedge_51,
+            "wedge_min_item_length_ft": wedge_min_item_length_ft,
+            "max_unit_length_ft": max_unit_length_ft,
+            "contains_livestock": wedge_by_livestock,
             "requires_return_to_origin": requires_return_to_origin,
             "ignore_for_optimization": ignore_for_optimization,
         }
@@ -2131,6 +2272,80 @@ class Optimizer:
         except (TypeError, ValueError, AttributeError):
             return None
         return max(parsed, 0)
+
+    def _coerce_optional_non_negative_float(self, value):
+        if value is None:
+            return None
+        text = str(value).strip()
+        if text == "":
+            return None
+        try:
+            parsed = float(text)
+        except (TypeError, ValueError, AttributeError):
+            return None
+        return max(parsed, 0.0)
+
+    def _coerce_non_negative_float(self, value, default=0.0):
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            parsed = float(default)
+        return max(parsed, 0.0)
+
+    def _coerce_bool(self, value, default=False):
+        if value is None:
+            return bool(default)
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on", "y"}
+
+    def _max_unit_length_ft(self, lines):
+        max_length = 0.0
+        for line in lines or []:
+            candidates = [
+                line.get("unit_length_ft"),
+                line.get("length_with_tongue_ft"),
+            ]
+            sku = line.get("sku")
+            if sku and self.sku_specs.get(sku):
+                candidates.append(self.sku_specs[sku].get("length_with_tongue_ft"))
+            for raw in candidates:
+                value = self._coerce_optional_non_negative_float(raw)
+                if value is None:
+                    continue
+                max_length = max(max_length, value)
+        return max_length
+
+    def _group_contains_livestock(self, categories):
+        rules = self.trailer_assignment_rules or {}
+        if not self._coerce_bool(rules.get("livestock_wedge_enabled"), True):
+            return False
+        tokens = rules.get("livestock_category_tokens") or list(DEFAULT_LIVESTOCK_CATEGORY_TOKENS)
+        normalized_tokens = {
+            str(token or "").strip().upper()
+            for token in tokens
+            if str(token or "").strip()
+        }
+        if not normalized_tokens:
+            normalized_tokens = set(DEFAULT_LIVESTOCK_CATEGORY_TOKENS)
+        normalized_categories = {
+            str(category or "").strip().upper()
+            for category in (categories or [])
+            if str(category or "").strip()
+        }
+        return bool(normalized_categories.intersection(normalized_tokens))
+
+    def _group_contains_tractor_supply_wedge_category(self, categories):
+        normalized_categories = [
+            str(category or "").strip().upper()
+            for category in (categories or [])
+            if str(category or "").strip()
+        ]
+        for category in normalized_categories:
+            for token in DEFAULT_TRACTOR_SUPPLY_WEDGE_CATEGORY_TOKENS:
+                if category == token or category.startswith(f"{token}-"):
+                    return True
+        return False
 
     def _stack_config_for_groups(self, groups, params, trailer_type=None, stop_sequence_map=None):
         trailer_choice = self._preferred_trailer_for_groups(
@@ -2152,6 +2367,9 @@ class Optimizer:
             stack_overflow_max_height=params.get("stack_overflow_max_height"),
             max_back_overhang_ft=params.get("max_back_overhang_ft"),
             upper_two_across_max_length_ft=params.get("upper_two_across_max_length_ft"),
+            upper_deck_exception_max_length_ft=params.get("upper_deck_exception_max_length_ft"),
+            upper_deck_exception_overhang_allowance_ft=params.get("upper_deck_exception_overhang_allowance_ft"),
+            upper_deck_exception_categories=params.get("upper_deck_exception_categories"),
         )
 
     def _groups_require_wedge(self, groups):
@@ -2186,9 +2404,16 @@ class Optimizer:
         stack_overflow_max_height=None,
         max_back_overhang_ft=None,
         upper_two_across_max_length_ft=None,
+        upper_deck_exception_max_length_ft=None,
+        upper_deck_exception_overhang_allowance_ft=None,
+        upper_deck_exception_categories=None,
     ):
         group_keys = tuple(group.get("key") for group in groups if group.get("key"))
         trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+        if trailer_key in {"HOTSHOT", "WEDGE"}:
+            capacity_for_calc = None
+        else:
+            capacity_for_calc = capacity_feet
         sequence_signature = ()
         if stop_sequence_map:
             sequence_signature = tuple(
@@ -2198,12 +2423,19 @@ class Optimizer:
         cache_key = (
             group_keys,
             trailer_key,
-            capacity_feet,
+            capacity_for_calc,
             bool(allow_order_interleave),
             sequence_signature,
             stack_overflow_max_height,
             max_back_overhang_ft,
             upper_two_across_max_length_ft,
+            upper_deck_exception_max_length_ft,
+            upper_deck_exception_overhang_allowance_ft,
+            tuple(
+                stack_calculator.normalize_upper_deck_exception_categories(
+                    upper_deck_exception_categories
+                )
+            ),
         )
         if cache_key in self._stack_cache:
             return self._stack_cache[cache_key]
@@ -2242,11 +2474,14 @@ class Optimizer:
         config = stack_calculator.calculate_stack_configuration(
             build_line_items(trailer_key),
             trailer_type=trailer_key,
-            capacity_feet=capacity_feet,
+            capacity_feet=capacity_for_calc,
             preserve_order_contiguity=not allow_order_interleave,
             stack_overflow_max_height=stack_overflow_max_height,
             max_back_overhang_ft=max_back_overhang_ft,
             upper_two_across_max_length_ft=upper_two_across_max_length_ft,
+            upper_deck_exception_max_length_ft=upper_deck_exception_max_length_ft,
+            upper_deck_exception_overhang_allowance_ft=upper_deck_exception_overhang_allowance_ft,
+            upper_deck_exception_categories=upper_deck_exception_categories,
         )
 
         # Auto-upgrade step deck -> flatbed when the load doesn't fit the 43' / 10' split.
@@ -2272,6 +2507,9 @@ class Optimizer:
                     stack_overflow_max_height=stack_overflow_max_height,
                     max_back_overhang_ft=max_back_overhang_ft,
                     upper_two_across_max_length_ft=upper_two_across_max_length_ft,
+                    upper_deck_exception_max_length_ft=upper_deck_exception_max_length_ft,
+                    upper_deck_exception_overhang_allowance_ft=upper_deck_exception_overhang_allowance_ft,
+                    upper_deck_exception_categories=upper_deck_exception_categories,
                 )
                 self._stack_cache[flatbed_cache_key] = flatbed_config
             if flatbed_config and not flatbed_config.get("exceeds_capacity"):
@@ -2306,6 +2544,17 @@ class Optimizer:
     def _sku_category(self, sku):
         spec = self.sku_specs.get(sku)
         return spec.get("category") if spec else ""
+
+    def _line_category(self, line):
+        sku_category = self._sku_category((line or {}).get("sku"))
+        if str(sku_category or "").strip():
+            return sku_category
+        # Fallback when SKU-spec category is missing: use order-line category/bin.
+        for key in ("category", "bin"):
+            value = (line or {}).get(key)
+            if str(value or "").strip():
+                return value
+        return ""
 
     def _max_stack_for_trailer(self, sku, trailer_type):
         spec = self.sku_specs.get(sku)

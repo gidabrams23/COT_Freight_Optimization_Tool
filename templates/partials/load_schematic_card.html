@@ -23,46 +23,88 @@
   {% set util_width = 100 if util_pct > 100 else util_pct %}
   {% set util_pct_display = util_pct | round(0) | int %}
   {% set util_grade = load.schematic.utilization_grade or 'F' %}
+  {% set util_grade_key = (util_grade or 'F') | upper %}
+  {% if util_grade_key == 'A' %}
+    {% set util_class = 'util-a' %}
+  {% elif util_grade_key == 'B' %}
+    {% set util_class = 'util-b' %}
+  {% elif util_grade_key == 'C' %}
+    {% set util_class = 'util-c' %}
+  {% elif util_grade_key == 'D' %}
+    {% set util_class = 'util-d' %}
+  {% else %}
+    {% set util_class = 'util-f' %}
+  {% endif %}
   <div class="card-header-row schematic-header compact">
     <div class="schematic-header-left">
       <div class="schematic-title-row">
         <h3>Stacking Schematic</h3>
         <div class="schematic-stats">
-          <span class="metric-label">Utilization</span>
-          <span class="metric-value">{{ util_pct_display }}%</span>
-          <span class="metric-label">Grade</span>
-          <span class="metric-value grade">Grade {{ util_grade }}</span>
+          <div class="schematic-stat-row">
+            <span class="metric-value">Utilization {{ util_pct_display }}%</span>
+            <span class="util-grade {{ util_class }}">Grade {{ util_grade_key }}</span>
+          </div>
         </div>
-        {% if load.auto_trailer_label %}
-          <span class="badge badge-warning" title="{{ load.auto_trailer_reason or '' }}">{{ load.auto_trailer_label }}</span>
-        {% endif %}
         {% if load.has_custom_schematic %}
           <span class="badge badge-info">Custom Layout</span>
         {% endif %}
         {% if load.schematic_warning_count %}
-          <span class="badge badge-warning" title="Schematic has {{ load.schematic_warning_count }} warning(s).">
-            {{ load.schematic_warning_count }} warning{% if load.schematic_warning_count != 1 %}s{% endif %}
-          </span>
+          <div class="schematic-warning-wrap">
+            <span class="badge badge-warning schematic-warning-pill">
+              {{ load.schematic_warning_count }} warning{% if load.schematic_warning_count != 1 %}s{% endif %}
+            </span>
+            <div class="schematic-warning-popover" role="tooltip" aria-label="Schematic warnings">
+              <div class="schematic-warning-title">Schematic Warnings</div>
+              <ul class="schematic-warning-list">
+                {% if load.schematic_warnings %}
+                  {% for warning in load.schematic_warnings %}
+                    <li>
+                      {% if warning is mapping %}
+                        {{ warning.message or warning.code or 'Warning' }}
+                      {% else %}
+                        {{ warning }}
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                {% else %}
+                  <li>Schematic warnings were detected.</li>
+                {% endif %}
+              </ul>
+            </div>
+          </div>
         {% endif %}
       </div>
     </div>
     <div class="schematic-header-right">
       {% if not read_only_mode and status != 'APPROVED' and tab != 'final' %}
-        <button class="btn-secondary btn-xs js-schematic-edit-open" type="button" data-load-id="{{ load.id }}">
+        <button class="btn-secondary btn-xs btn-muted-action js-schematic-edit-open" type="button" data-load-id="{{ load.id }}">
           <span class="material-symbols-outlined">edit</span>
           Edit Schematic
         </button>
-        <button class="btn-secondary btn-xs js-manual-add-open" type="button" data-load-id="{{ load.id }}">
+        <button class="btn-secondary btn-xs btn-muted-action js-manual-add-open" type="button" data-load-id="{{ load.id }}">
           <span class="material-symbols-outlined">add_box</span>
-          Manually Add Orders
+          <span class="btn-two-line-label">Manually Add<br>Orders</span>
         </button>
       {% endif %}
       {% if not read_only_mode %}
-        <select class="select-field select-compact load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
-          {% for trailer_option in trailer_profile_options %}
-            <option value="{{ trailer_option.value }}" {% if trailer == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
-          {% endfor %}
-        </select>
+        <div class="trailer-select-wrap">
+          <select class="select-field select-compact load-trailer-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
+            {% for trailer_option in trailer_profile_options %}
+              <option value="{{ trailer_option.value }}" {% if trailer == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
+            {% endfor %}
+          </select>
+          {% if load.auto_trailer_reason or load.auto_trailer_label %}
+            <div class="trailer-auto-wrap">
+              <span class="trailer-auto-indicator">
+                <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+                AUTO
+              </span>
+              <div class="trailer-auto-popover" role="tooltip" aria-label="Auto trailer rationale">
+                {{ load.auto_trailer_reason or load.auto_trailer_label }}
+              </div>
+            </div>
+          {% endif %}
+        </div>
       {% endif %}
     </div>
   </div>
@@ -216,7 +258,7 @@
                             {% if stop_sequence %}
                               {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
                             {% endif %}
-                            {% set left_units = ((item.units or 0) | int + 1) // 2 %}
+                            {% set left_units = (item.two_across_left_units if item.two_across_left_units is defined else ((item.units or 0) | int // 2)) | int %}
                             {% for _ in range(left_units) %}
                               <div class="unit-block glass-block"
                                    data-order-id="{{ item.order_id }}"
@@ -254,7 +296,7 @@
                             {% if stop_sequence %}
                               {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
                             {% endif %}
-                            {% set right_units = (item.units or 0) | int // 2 %}
+                            {% set right_units = (item.two_across_right_units if item.two_across_right_units is defined else (((item.units or 0) | int + 1) // 2)) | int %}
                             {% for _ in range(right_units) %}
                               <div class="unit-block glass-block"
                                    data-order-id="{{ item.order_id }}"
@@ -492,7 +534,7 @@
                           {% if stop_sequence %}
                             {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
                           {% endif %}
-                          {% set left_units = ((item.units or 0) | int + 1) // 2 %}
+                          {% set left_units = (item.two_across_left_units if item.two_across_left_units is defined else ((item.units or 0) | int // 2)) | int %}
                           {% for _ in range(left_units) %}
                             <div class="unit-block glass-block"
                                  data-order-id="{{ item.order_id }}"
@@ -530,7 +572,7 @@
                           {% if stop_sequence %}
                             {% set tooltip = tooltip ~ ' | Stop: ' ~ stop_sequence %}
                           {% endif %}
-                          {% set right_units = (item.units or 0) | int // 2 %}
+                          {% set right_units = (item.two_across_right_units if item.two_across_right_units is defined else (((item.units or 0) | int + 1) // 2)) | int %}
                           {% for _ in range(right_units) %}
                             <div class="unit-block glass-block"
                                  data-order-id="{{ item.order_id }}"

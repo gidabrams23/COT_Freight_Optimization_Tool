@@ -61,7 +61,7 @@
                   <td>{{ customer.name }}</td>
                   <td>{{ customer.zip }}</td>
                   <td>{{ customer.notes or '' }}</td>
-                  <td>{{ customer.created_at }}</td>
+                  <td>{{ customer.created_at | est_datetime }}</td>
                   <td class="table-actions">
                     <a class="btn btn-danger" href="{{ url_for('delete_customer', customer_id=customer.id) }}">Delete</a>
                   </td>

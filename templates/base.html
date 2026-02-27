@@ -47,12 +47,12 @@
               {% endif %}
             </div>
             <div class="nav-section">
-              <div class="nav-section-label">ADMIN</div>
+              <div class="nav-section-label">{% if is_admin %}ADMIN{% else %}TOOLS{% endif %}</div>
+              <a class="nav-item{% if request.path.startswith('/planning-sessions') and not request.path.startswith('/planning-sessions/replay') %} active{% endif %}" href="{{ url_for('planning_sessions') }}">
+                <span class="material-symbols-outlined nav-icon">history</span>
+                <span class="nav-text">Session History</span>
+              </a>
               {% if is_admin %}
-                <a class="nav-item{% if request.path.startswith('/planning-sessions') and not request.path.startswith('/planning-sessions/replay') %} active{% endif %}" href="{{ url_for('planning_sessions') }}">
-                  <span class="material-symbols-outlined nav-icon">history</span>
-                  <span class="nav-text">Session History</span>
-                </a>
                 <a class="nav-item{% if request.path.startswith('/planning-sessions/replay') %} active{% endif %}" href="{{ url_for('planning_sessions_replay') }}">
                   <span class="material-symbols-outlined nav-icon">query_stats</span>
                   <span class="nav-text">Replay Eval</span>

@@ -5,21 +5,16 @@
     <header class="settings-header">
       <div class="settings-title">
         <h1>Session {{ planning_session.session_code }}</h1>
-        <p class="muted">Planner {{ planning_session.created_by or 'Planner' }} &middot; {{ planning_session.created_at }}</p>
+        <p class="muted">Planner {{ planning_session.created_by or 'Planner' }} | {{ planning_session.created_at | est_datetime }}</p>
       </div>
       <div class="panel-actions">
         <a class="btn-secondary btn-xs" href="{{ url_for('loads', session_id=planning_session.id) }}">View Loads</a>
-        {% if report_available %}
-          <a class="btn-secondary btn-xs" href="{{ url_for('load_report', session_id=planning_session.id) }}">Load Report</a>
-          <a class="btn-ghost btn-xs" href="{{ url_for('load_report_export', session_id=planning_session.id) }}">Export Excel</a>
-        {% endif %}
+        <a class="btn-secondary btn-xs" href="{{ url_for('load_report', session_id=planning_session.id) }}">Load Report</a>
+        <a class="btn-ghost btn-xs" href="{{ url_for('load_report_export', session_id=planning_session.id) }}">Export Excel</a>
         <a class="btn-primary btn-xs" href="{{ url_for('planning_session_revise', session_id=planning_session.id) }}">Revise</a>
         {% if (planning_session.status or '') | upper == 'DRAFT' %}
           <a class="btn-success btn-xs" href="{{ url_for('planning_session_resume', session_id=planning_session.id) }}">Resume</a>
         {% endif %}
-        <form method="post" action="{{ url_for('planning_session_delete', session_id=planning_session.id) }}" onsubmit="return confirm('Delete this session and all of its loads? This will reintroduce those orders into the draft pool.');">
-          <button class="btn-danger btn-xs" type="submit">Delete Session</button>
-        </form>
       </div>
     </header>
 

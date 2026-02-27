@@ -75,7 +75,7 @@
                   <td>{{ spec.max_stack_step_deck }}</td>
                   <td>{{ spec.max_stack_flat_bed }}</td>
                   <td>{{ spec.notes or '-' }}</td>
-                  <td>{{ spec.added_at or spec.created_at or '-' }}</td>
+                  <td>{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '-' }}</td>
                   <td>
                     <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
                       <button class="btn btn-danger" type="submit">Delete</button>

@@ -259,6 +259,7 @@ def _rebuild_loads_if_needed(connection):
             route_legs_json TEXT,
             route_geometry_json TEXT,
             route_fallback INTEGER DEFAULT 0,
+            route_reversed INTEGER DEFAULT 0,
             standalone_cost REAL,
             consolidation_savings REAL,
             fragility_score REAL,
@@ -619,6 +620,11 @@ def _seed_reference_data(connection):
             ["key", "value_text", "updated_at"],
         ),
         (
+            "access_profiles",
+            "access_profiles.csv",
+            ["name", "is_admin", "allowed_plants", "default_plants", "created_at"],
+        ),
+        (
             "zip_coordinates",
             "zip_coordinates.csv",
             ["zip", "lat", "lng", "city", "state", "created_at"],
@@ -752,6 +758,7 @@ def init_db():
             route_legs_json TEXT,
             route_geometry_json TEXT,
             route_fallback INTEGER DEFAULT 0,
+            route_reversed INTEGER DEFAULT 0,
             standalone_cost REAL,
             consolidation_savings REAL,
             fragility_score REAL,
@@ -1253,6 +1260,7 @@ def init_db():
         _ensure_column(connection, "loads", "route_legs_json", "route_legs_json TEXT")
         _ensure_column(connection, "loads", "route_geometry_json", "route_geometry_json TEXT")
         _ensure_column(connection, "loads", "route_fallback", "route_fallback INTEGER DEFAULT 0")
+        _ensure_column(connection, "loads", "route_reversed", "route_reversed INTEGER DEFAULT 0")
         _ensure_column(connection, "loads", "draft_sequence", "draft_sequence INTEGER")
         _ensure_column(connection, "loads", "standalone_cost", "standalone_cost REAL")
         _ensure_column(connection, "loads", "consolidation_savings", "consolidation_savings REAL")
@@ -3046,6 +3054,10 @@ def _decode_load_route_fields(load):
         return load
     load["route_legs"] = _safe_json_loads(load.get("route_legs_json"), [])
     load["route_geometry"] = _safe_json_loads(load.get("route_geometry_json"), [])
+    try:
+        load["route_reversed"] = 1 if int(load.get("route_reversed") or 0) else 0
+    except (TypeError, ValueError):
+        load["route_reversed"] = 0
     return load
 
 
@@ -3079,6 +3091,7 @@ def list_loads(origin_plant=None, session_id=None):
                 route_legs_json,
                 route_geometry_json,
                 route_fallback,
+                route_reversed,
                 standalone_cost,
                 consolidation_savings,
                 fragility_score,
@@ -3486,6 +3499,8 @@ def list_load_lines_for_load_ids(load_ids):
                 order_lines.city,
                 order_lines.state,
                 order_lines.zip,
+                order_lines.address1,
+                order_lines.address2,
                 order_lines.sku,
                 order_lines.unit_length_ft,
                 order_lines.total_length_ft,
@@ -3554,6 +3569,17 @@ def update_load_route_data(load_id, route_data):
                 1 if route_data.get("route_fallback") else 0,
                 load_id,
             ),
+        )
+        connection.commit()
+
+
+def update_load_route_reversed(load_id, route_reversed):
+    if not load_id:
+        return
+    with get_connection() as connection:
+        connection.execute(
+            "UPDATE loads SET route_reversed = ? WHERE id = ?",
+            (1 if route_reversed else 0, load_id),
         )
         connection.commit()
 
@@ -4864,3 +4890,4 @@ def list_replay_eval_load_metrics(run_id, scenario=None):
             params,
         ).fetchall()
         return [dict(row) for row in rows]
+

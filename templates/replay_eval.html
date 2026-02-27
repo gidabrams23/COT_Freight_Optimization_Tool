@@ -27,7 +27,7 @@
               <span class="meta-chip">Run #{{ active_run.id }}</span>
               <span class="meta-chip">{{ active_run.filename or 'Uploaded file' }}</span>
               <span class="meta-chip">Status {{ active_run.status }}</span>
-              <span class="meta-chip">{{ active_run.created_at }}</span>
+              <span class="meta-chip">{{ active_run.created_at | est_datetime }}</span>
               <span class="meta-chip">Ops Parity {% if active_ops_parity_enabled %}ON{% else %}OFF{% endif %}</span>
               {% if active_summary.ops_parity_enabled %}
                 <span class="meta-chip">

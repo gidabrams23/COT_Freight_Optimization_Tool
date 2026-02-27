@@ -88,7 +88,7 @@
             {% if entries %}
               {% for entry in entries %}
                 <tr>
-                  <td>{{ entry.created_at }}</td>
+                  <td>{{ entry.created_at | est_datetime }}</td>
                   <td>{{ (entry.planner_id or "Unknown") | title }}</td>
                   <td>{{ entry.category }}</td>
                   <td>{{ entry.page or "-" }}</td>

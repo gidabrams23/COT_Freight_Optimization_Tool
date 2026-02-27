@@ -6,7 +6,7 @@
       <div class="settings-title">
         <h1>Replay Run #{{ run.id }}</h1>
         <p class="muted">
-          {{ run.filename or 'Uploaded file' }} &middot; {{ run.created_at }} &middot; Status {{ run.status }}
+          {{ run.filename or 'Uploaded file' }} &middot; {{ run.created_at | est_datetime }} &middot; Status {{ run.status }}
         </p>
       </div>
       <div class="panel-actions">

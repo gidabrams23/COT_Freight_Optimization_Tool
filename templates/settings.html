@@ -152,8 +152,8 @@
                     <tr data-id="{{ plant.id }}">
                       <td><input class="table-input" data-field="plant_code" value="{{ plant.plant_code }}" {% if not is_admin %}disabled{% endif %}></td>
                       <td><input class="table-input" data-field="name" value="{{ plant.name }}" {% if not is_admin %}disabled{% endif %}></td>
-                      <td><input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ plant.lat }}" {% if not is_admin %}disabled{% endif %}></td>
-                      <td><input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ plant.lng }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lat) if plant.lat is not none else '' }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lng) if plant.lng is not none else '' }}" {% if not is_admin %}disabled{% endif %}></td>
                       <td><input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not is_admin %}disabled{% endif %}></td>
                     </tr>
                   {% endfor %}
@@ -235,6 +235,31 @@
                       <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_two_across_max_length_ft" value="{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}" {% if not is_admin %}disabled{% endif %}></td>
                       <td class="settings-default-note">For step decks, items at or below this length can be treated as 2-across on upper deck to add capacity. Upper deck stacking still uses flatbed max stack values.</td>
                     </tr>
+                    <tr>
+                      <td>Upper Deck Exception Max Length (ft)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_deck_exception_max_length_ft" value="{{ optimizer_defaults.upper_deck_exception_max_length_ft or 16 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Selected categories can be placed on step-deck upper deck up to this length.</td>
+                    </tr>
+                    <tr>
+                      <td>Upper Deck Exception Overhang Allowance (ft)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_deck_exception_overhang_allowance_ft" value="{{ optimizer_defaults.upper_deck_exception_overhang_allowance_ft or 6 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Maximum upper-deck back overhang allowed for exception-eligible stacks.</td>
+                    </tr>
+                    <tr>
+                      <td>Upper Deck Exception Categories</td>
+                      <td>
+                        {% set selected_exception_categories = optimizer_defaults.upper_deck_exception_categories or ['USA', 'UTA'] %}
+                        <div class="settings-inline-checkboxes">
+                          {% for category in optimizer_exception_category_options %}
+                            <label class="settings-inline-check">
+                              <input type="checkbox" name="upper_deck_exception_categories" value="{{ category }}" {% if category in selected_exception_categories %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                              <span>{{ category }}</span>
+                            </label>
+                          {% endfor %}
+                        </div>
+                      </td>
+                      <td class="settings-default-note">Upper-deck exception applies only when all items in a stack are in selected categories.</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -252,7 +277,7 @@
               </div>
             </div>
             <div class="table-container table-container-compact settings-table-shell">
-              <table class="settings-table settings-defaults-table">
+              <table class="settings-table settings-defaults-table settings-trailer-types-table">
                 <thead>
                   <tr>
                     <th>Trailer</th>
@@ -347,8 +372,8 @@
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">star</span>
                 <div>
-                  <h2>Strategic Customers</h2>
-                  <p class="muted">Customer-level default rules for optimization and load shaping.</p>
+                  <h2>Customer Specific Rules</h2>
+                  <p class="muted">Customer-level defaults for optimization and load shaping.</p>
                 </div>
               </div>
               {% if is_admin %}
@@ -362,7 +387,7 @@
               <textarea class="settings-textarea-hidden" name="strategic_customers" data-strategic-hidden hidden>{{ strategic_customers_raw or '' }}</textarea>
               <div class="strategic-editor">
                 <div class="strategic-editor-head">
-                  <span class="muted">Pattern matching is case-insensitive substring logic. Customer Flex Days overrides global optimizer flex for that customer (leave blank to use global). Return Trip means carrier route is planned back to origin plant. Ignore for Optimization excludes matching customers from auto optimize runs only.</span>
+                  <span class="muted">Pattern matching is case-insensitive substring logic. Customer Flex Days overrides global optimizer flex for that customer (leave blank to use global). Tractor Supply orders with 16ft+ cargo are auto-assigned to 51' Wedge.</span>
                   {% if is_admin %}
                     <button class="settings-card-btn settings-card-btn-secondary settings-inline-btn" type="button" data-strategic-add>
                       <span class="material-symbols-outlined">add</span>
@@ -486,7 +511,61 @@
             </div>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-wide settings-card-registry" style="order: 6;">
+          <article class="content-block settings-command-card settings-command-card-wide settings-card-trailer-rules" style="order: 6;">
+            <div class="content-header settings-content-header settings-panel-header">
+              <div class="settings-panel-title">
+                <span class="material-symbols-outlined">local_shipping</span>
+                <div>
+                  <h2>Trailer Assignment Rules</h2>
+                  <p class="muted">Global trailer logic used by the planner and auto-assignment flow.</p>
+                </div>
+              </div>
+              {% if is_admin %}
+                <div class="settings-card-actions">
+                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="trailer-rules-form">Save Trailer Rules</button>
+                </div>
+              {% endif %}
+            </div>
+            <form class="settings-defaults-form" id="trailer-rules-form" method="post" action="{{ url_for('save_planning_tools') }}">
+              <input type="hidden" name="tab" value="overview">
+              <input type="hidden" name="trailer_rules_form" value="1">
+              <div class="table-container table-container-compact settings-table-shell">
+                <table class="settings-table settings-defaults-table">
+                  <thead>
+                    <tr>
+                      <th>Trailer Rule</th>
+                      <th>Setting</th>
+                      <th>Operational Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>LIVESTOCK Uses 51' Wedge</td>
+                      <td>
+                        <label class="checkbox-pill">
+                          <input type="checkbox" name="livestock_wedge_enabled" value="1" {% if trailer_assignment_rules.livestock_wedge_enabled %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                          <span>Enabled for all customers</span>
+                        </label>
+                      </td>
+                      <td class="settings-default-note">Any order with SKU category matching LIVESTOCK will be assigned to a WEDGE trailer profile.</td>
+                    </tr>
+                    <tr>
+                      <td>Auto Assign HOTSHOT</td>
+                      <td>
+                        <label class="checkbox-pill">
+                          <input type="checkbox" name="auto_assign_hotshot_enabled" value="1" {% if trailer_assignment_rules.auto_assign_hotshot_enabled %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                          <span>Enabled</span>
+                        </label>
+                      </td>
+                      <td class="settings-default-note">When enabled, any non-wedge load that fits on HOTSHOT is auto-assigned to HOTSHOT.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </form>
+          </article>
+
+          <article class="content-block settings-command-card settings-command-card-wide settings-card-registry" style="order: 7;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">inventory_2</span>
@@ -522,7 +601,7 @@
                         <td><input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not is_admin %}disabled{% endif %}></td>
                         <td><input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not is_admin %}disabled{% endif %}></td>
                         <td><input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not is_admin %}disabled{% endif %}></td>
-                        <td><span class="muted">{{ spec.added_at or spec.created_at or '' }}</span></td>
+                        <td><span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span></td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -544,6 +623,31 @@
               <span class="meta-chip">{{ rate_plants | length }} Plants</span>
               <span class="meta-chip">{{ rate_states | length }} Destinations</span>
               <span class="meta-chip">{{ rates | length }} Lanes</span>
+            </div>
+          </div>
+          <div class="rate-context-shell" id="rate-context-shell">
+            <div class="rate-context-header">
+              <span class="meta-label">Rate Table Contexts</span>
+              <span class="muted">Use the context tabs to preview planned rate-table modes. All contexts currently use the live DEFAULT matrix.</span>
+            </div>
+            <div class="settings-defaults-form">
+              <div class="rate-context-tabs" role="tablist" aria-label="Rate table contexts">
+                <button class="rate-context-tab is-active" type="button" role="tab" aria-selected="true" data-rate-context-target="default">System Default</button>
+                <button class="rate-context-tab" type="button" role="tab" aria-selected="false" data-rate-context-target="ryder">Dedicated Ryder Fleet</button>
+                <button class="rate-context-tab" type="button" role="tab" aria-selected="false" data-rate-context-target="hotshot">Hotshot Trailer</button>
+              </div>
+              <div class="rate-context-panel is-active" data-rate-context-panel="default">
+                <span class="meta-chip">Using: DEFAULT</span>
+                <p class="settings-default-note">Current production matrix. Cost logic uses this table today.</p>
+              </div>
+              <div class="rate-context-panel" data-rate-context-panel="ryder" hidden>
+                <span class="meta-chip">Planned Table: DEDICATED RYDER FLEET</span>
+                <p class="settings-default-note">Placeholder context for dedicated fleet rating. Wiring to cost engine comes later.</p>
+              </div>
+              <div class="rate-context-panel" data-rate-context-panel="hotshot" hidden>
+                <span class="meta-chip">Planned Table: HOTSHOT TRAILER TYPES</span>
+                <p class="settings-default-note">Placeholder context for future hotshot-specific rate tables.</p>
+              </div>
             </div>
           </div>
           <div class="rates-toolbar">
@@ -644,18 +748,97 @@
         <div class="content-block settings-skus-tab">
           <div class="content-header sku-header-row">
             <div class="sku-header-title">
-              <h2>SKU Specifications</h2>
+              <h2>SKU Mapping & Specifications</h2>
               <a class="sku-export-btn" href="{{ url_for('export_sku_cheat_sheet') }}">
                 <span class="material-symbols-outlined" aria-hidden="true">download</span>
                 Download SKU Cheat Sheet (.xlsx)
               </a>
             </div>
           </div>
+          <div class="content-header settings-content-header">
+            <div>
+              <h3>Source-Led Cheat Sheet</h3>
+              <p class="muted">Open-orders item numbers and descriptions first, then mapped canonical cheat-sheet specifications.</p>
+            </div>
+            <div class="settings-header-chips">
+              <span class="meta-chip">{{ source_led_specs | length }} Item/BIN Profiles</span>
+              <span class="meta-chip">{{ source_led_unique_sku_count }} Unique Mapped SKUs</span>
+              <span class="meta-chip">{{ source_led_mapped_count }} Mapped</span>
+              <span class="meta-chip">{{ source_led_unmapped_count }} Unmapped</span>
+              <span class="meta-chip">{{ source_led_missing_spec_count }} Missing Spec</span>
+            </div>
+          </div>
+          <div class="rates-toolbar">
+            <div class="search-field">
+              <span class="material-symbols-outlined">search</span>
+              <input id="source-led-search" type="text" data-source-led-search placeholder="Search item num, description, or mapped SKU..." />
+            </div>
+            <div style="display: inline-flex; align-items: center; gap: 0.6rem;">
+              <button class="btn-ghost btn-xs" type="button" data-source-column-toggle aria-expanded="false" title="Show mapping columns">+ Columns</button>
+              <div class="muted">This table is read-only and driven by open orders + lookup mapping.</div>
+            </div>
+          </div>
+          {% if source_led_specs %}
+            <div class="table-container">
+              <table class="settings-table" id="source-led-table">
+                <thead>
+                  <tr>
+                    <th>Item Num</th>
+                    <th>Item Desc</th>
+                    <th data-source-extra-col hidden>BIN</th>
+                    <th data-source-extra-col hidden>Mapped SKU</th>
+                    <th data-source-extra-col hidden>Mapped Description</th>
+                    <th>Category</th>
+                    <th>Length (ft)</th>
+                    <th>Step Deck</th>
+                    <th>Flat Bed</th>
+                    <th>Status</th>
+                    <th>Lines</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in source_led_specs %}
+                    <tr data-source-row
+                        data-item-num="{{ row.item_num or '' }}"
+                        data-item-desc="{{ row.item_desc or '' }}"
+                        data-mapped-sku="{{ row.mapped_sku or '' }}"
+                        data-category="{{ row.category or '' }}">
+                      <td><strong>{{ row.item_num }}</strong></td>
+                      <td>{{ row.item_desc or '-' }}</td>
+                      <td data-source-extra-col hidden>{{ row.bin or '-' }}</td>
+                      <td data-source-extra-col hidden>{{ row.mapped_sku or '-' }}</td>
+                      <td data-source-extra-col hidden>{{ row.mapped_description or '-' }}</td>
+                      <td>{{ row.category or '-' }}</td>
+                      <td>
+                        {% if row.length_with_tongue_ft is not none %}
+                          {{ '%.1f' | format(row.length_with_tongue_ft | float) }}
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>{{ row.max_stack_step_deck if row.max_stack_step_deck is not none else '-' }}</td>
+                      <td>{{ row.max_stack_flat_bed if row.max_stack_flat_bed is not none else '-' }}</td>
+                      <td>{{ row.mapping_status }}</td>
+                      <td>{{ row.line_count }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p>No observed open-order items available yet. Upload orders to populate the source-led view.</p>
+          {% endif %}
+          <div class="content-header settings-content-header">
+            <div>
+              <h3>Canonical SKU Specifications</h3>
+              <p class="muted">Editable canonical specs used by stack and utilization calculations.</p>
+            </div>
+          </div>
           <div class="sku-filter-shell">
             <div class="sku-filter-bar" id="sku-filter-panel">
               <label class="sku-filter-field sku-filter-search">
                 <span>Search</span>
-                <input class="select-field" type="search" data-sku-search placeholder="Search SKU or description">
+                <input class="select-field" type="search" data-sku-search placeholder="Search canonical SKU or description">
               </label>
               <label class="sku-filter-field">
                 <span>Length (ft)</span>
@@ -781,7 +964,7 @@
                         <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not is_admin %}disabled{% endif %}>
                       </td>
                       <td>
-                        <span class="muted">{{ spec.added_at or spec.created_at or '' }}</span>
+                        <span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span>
                       </td>
                       <td>
                         {% if is_admin %}
@@ -834,7 +1017,7 @@
                         <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not is_admin %}disabled{% endif %}>
                       </td>
                       <td>
-                        <span class="muted">{{ spec.added_at or spec.created_at or '' }}</span>
+                        <span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span>
                       </td>
                       <td>
                         {% if is_admin %}
@@ -960,10 +1143,10 @@
                       <input class="table-input" data-field="name" value="{{ plant.name }}" {% if not is_admin %}disabled{% endif %}>
                     </td>
                     <td>
-                      <input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ plant.lat }}" {% if not is_admin %}disabled{% endif %}>
+                      <input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lat) if plant.lat is not none else '' }}" {% if not is_admin %}disabled{% endif %}>
                     </td>
                     <td>
-                      <input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ plant.lng }}" {% if not is_admin %}disabled{% endif %}>
+                      <input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lng) if plant.lng is not none else '' }}" {% if not is_admin %}disabled{% endif %}>
                     </td>
                     <td>
                       <input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not is_admin %}disabled{% endif %}>
@@ -990,7 +1173,7 @@
               </div>
             </div>
             <div class="panel-body">
-              <p class="muted">Strategic customers appear at the top of the Orders grid (first 15 shown, expandable).</p>
+              <p class="muted">Strategic customers appear at the top of the Orders grid (first 5 shown, expandable).</p>
               <p class="muted">Format: one per line. Use <code>Label|PATTERN1,PATTERN2</code> (case-insensitive substring matches).</p>
               <form class="form-grid" method="post" action="{{ url_for('save_planning_tools') }}">
                 <label style="grid-column: 1 / -1;">
@@ -1075,6 +1258,21 @@
                       <td>Upper Deck Two-Across Max Length (ft)</td>
                       <td>{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}</td>
                       <td>Step deck upper-deck stacks at or below this length can be modeled 2-across. Upper deck stack height still follows flatbed max-stack per SKU.</td>
+                    </tr>
+                    <tr>
+                      <td>Upper Deck Exception Max Length (ft)</td>
+                      <td>{{ optimizer_defaults.upper_deck_exception_max_length_ft or 16 }}</td>
+                      <td>Selected categories can be placed on the upper deck up to this length.</td>
+                    </tr>
+                    <tr>
+                      <td>Upper Deck Exception Overhang Allowance (ft)</td>
+                      <td>{{ optimizer_defaults.upper_deck_exception_overhang_allowance_ft or 6 }}</td>
+                      <td>Allowed upper-deck overhang for exception-eligible stacks.</td>
+                    </tr>
+                    <tr>
+                      <td>Upper Deck Exception Categories</td>
+                      <td>{{ (optimizer_defaults.upper_deck_exception_categories or ['USA', 'UTA']) | join(', ') }}</td>
+                      <td>Exception applies only to stacks where all categories are in this list.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1196,6 +1394,33 @@
                 event.preventDefault();
                 input.blur();
               }
+            });
+          });
+        }
+
+        function setupRateContextTabs() {
+          const shell = document.getElementById('rate-context-shell');
+          if (!shell) return;
+
+          const tabs = Array.from(shell.querySelectorAll('[data-rate-context-target]'));
+          const panels = Array.from(shell.querySelectorAll('[data-rate-context-panel]'));
+
+          const activateTab = (target) => {
+            tabs.forEach((tab) => {
+              const active = tab.dataset.rateContextTarget === target;
+              tab.classList.toggle('is-active', active);
+              tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            panels.forEach((panel) => {
+              const active = panel.dataset.rateContextPanel === target;
+              panel.classList.toggle('is-active', active);
+              panel.hidden = !active;
+            });
+          };
+
+          tabs.forEach((tab) => {
+            tab.addEventListener('click', () => {
+              activateTab(tab.dataset.rateContextTarget || 'default');
             });
           });
         }
@@ -1570,7 +1795,10 @@
         }
 
 
-        if (tab === 'rates') setupRatesMatrix();
+        if (tab === 'rates') {
+          setupRateContextTabs();
+          setupRatesMatrix();
+        }
         if (tab === 'overview') {
           setupStrategicEditor();
           setupUtilGradeSync();
@@ -1587,6 +1815,7 @@
   <script>
     (function () {
       const tab = "{{ tab }}";
+      if (tab === 'rates') return;
       if (tab !== 'skus') return;
       const addSkuToggle = document.querySelector('[data-sku-add-toggle]');
       const addSkuPanel = document.getElementById('sku-add-form-panel');
@@ -1603,6 +1832,52 @@
           addSkuPanel.hidden = !addSkuPanel.hidden;
           syncAddSkuToggle();
         });
+      }
+
+      const sourceTable = document.getElementById('source-led-table');
+      const sourceSearchInput = document.querySelector('[data-source-led-search]');
+      const sourceColumnToggle = document.querySelector('[data-source-column-toggle]');
+      if (sourceTable && sourceSearchInput) {
+        const sourceExtraColumns = Array.from(sourceTable.querySelectorAll('[data-source-extra-col]'));
+        const sourceRows = Array.from(sourceTable.querySelectorAll('tbody tr[data-source-row]'));
+        const normalizeSource = (value) => (value || '').trim().toUpperCase();
+        const setSourceColumnsVisible = (visible) => {
+          sourceExtraColumns.forEach((cell) => {
+            cell.hidden = !visible;
+          });
+          if (sourceColumnToggle) {
+            sourceColumnToggle.setAttribute('aria-expanded', visible ? 'true' : 'false');
+            sourceColumnToggle.textContent = visible ? '- Columns' : '+ Columns';
+            sourceColumnToggle.title = visible ? 'Hide mapping columns' : 'Show mapping columns';
+          }
+        };
+
+        if (sourceColumnToggle) {
+          sourceColumnToggle.addEventListener('click', () => {
+            const expanded = sourceColumnToggle.getAttribute('aria-expanded') === 'true';
+            setSourceColumnsVisible(!expanded);
+          });
+        }
+
+        const applySourceSearch = () => {
+          const term = normalizeSource(sourceSearchInput.value);
+          sourceRows.forEach((row) => {
+            const haystack = [
+              row.dataset.itemNum || '',
+              row.dataset.itemDesc || '',
+              row.dataset.mappedSku || '',
+              row.dataset.category || '',
+            ]
+              .map((value) => normalizeSource(value))
+              .join(' ');
+            row.style.display = !term || haystack.includes(term) ? '' : 'none';
+          });
+        };
+        sourceSearchInput.addEventListener('input', applySourceSearch);
+        setSourceColumnsVisible(false);
+        applySourceSearch();
+      } else if (sourceColumnToggle) {
+        sourceColumnToggle.disabled = true;
       }
 
       const table = document.getElementById('sku-table');

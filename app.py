@@ -4,9 +4,12 @@ import math
 import os
 import re
 import secrets
+import subprocess
 import threading
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from flask import (
     Flask,
@@ -59,6 +62,69 @@ from services.optimizer_engine import OptimizerEngine
 from services.order_importer import OrderImporter
 
 logger = logging.getLogger(__name__)
+ROOT_DIR = Path(__file__).resolve().parent
+
+
+def _coerce_iso_date(raw_value):
+    text = (raw_value or "").strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        return None
+
+
+def _git_last_updated_date():
+    try:
+        output = subprocess.check_output(
+            ["git", "log", "-1", "--format=%cs"],
+            cwd=str(ROOT_DIR),
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return None
+    return _coerce_iso_date(output)
+
+
+def _source_last_updated_date():
+    latest_ts = 0.0
+    tracked_paths = [
+        ROOT_DIR / "app.py",
+        ROOT_DIR / "db.py",
+        ROOT_DIR / "templates" / "login.html",
+        ROOT_DIR / "static" / "styles.css",
+    ]
+    for path in tracked_paths:
+        try:
+            if path.exists():
+                latest_ts = max(latest_ts, path.stat().st_mtime)
+        except OSError:
+            continue
+    if latest_ts <= 0:
+        return None
+    return datetime.fromtimestamp(latest_ts).date().isoformat()
+
+
+def _resolve_app_updated_on():
+    return (
+        _coerce_iso_date(os.environ.get("APP_UPDATED_ON"))
+        or _git_last_updated_date()
+        or _source_last_updated_date()
+        or date.today().isoformat()
+    )
+
+
+APP_UPDATED_ON = _resolve_app_updated_on()
+APP_VERSION = (os.environ.get("APP_VERSION") or "").strip() or f"v{APP_UPDATED_ON.replace('-', '.')}"
+APP_RELEASE_LABEL = f"{APP_VERSION} | Updated {APP_UPDATED_ON}"
+
+
+class UploadValidationError(Exception):
+    def __init__(self, message, summary=None):
+        super().__init__(message)
+        self.summary = summary or {}
 
 
 def _is_local_dev_mode():
@@ -143,6 +209,11 @@ def short_date(value):
 
     return f"{parsed.strftime('%b')} {parsed.day}"
 
+
+@app.template_filter("est_datetime")
+def est_datetime(value):
+    return _format_est_datetime_label(value)
+
 PLANT_CODES = ["GA", "TX", "VA", "IA", "OR", "NV", "CL"]
 PLANT_NAMES = {
     "GA": "Lavonia",
@@ -162,6 +233,7 @@ OPTIMIZER_V2_ENABLED = (
 )
 ROLE_ADMIN = "admin"
 ROLE_PLANNER = "planner"
+APP_TIMEZONE = ZoneInfo("America/New_York")
 SESSION_PROFILE_ID_KEY = "profile_id"
 SESSION_PROFILE_NAME_KEY = "profile_name"
 SESSION_PROFILE_DEFAULT_PLANTS_KEY = "profile_default_plants"
@@ -185,10 +257,31 @@ OPTIMIZER_DEFAULTS_SETTING_KEY = "optimizer_defaults"
 UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY = "utilization_grade_thresholds"
 REPLAY_EVAL_PRESET_SETTING_KEY = "replay_eval_preset"
 STOP_COLOR_PALETTE_SETTING_KEY = "stop_color_palette"
+TRAILER_ASSIGNMENT_RULES_SETTING_KEY = "trailer_assignment_rules"
+RATE_TABLE_CONTEXTS_SETTING_KEY = "rate_table_contexts"
 DEFAULT_UTILIZATION_GRADE_THRESHOLDS = {"A": 85, "B": 70, "C": 55, "D": 40}
+DEFAULT_TRAILER_ASSIGNMENT_RULES = {
+    "livestock_wedge_enabled": True,
+    "livestock_category_tokens": ["LIVESTOCK"],
+    "auto_assign_hotshot_enabled": True,
+    "auto_assign_hotshot_utilization_threshold_pct": 45.0,
+}
+DEFAULT_RATE_TABLE_CONTEXTS = {
+    "default_rate_table_key": "DEFAULT",
+    "carrier_dedicated_ryder_rate_table_key": "DEDICATED_RYDER_FLEET",
+    "trailer_hotshot_rate_table_key": "HOTSHOT_TRAILER_TYPES",
+}
+RATE_TABLE_KEY_OPTIONS = [
+    {"key": "DEFAULT", "label": "DEFAULT"},
+    {"key": "DEDICATED_RYDER_FLEET", "label": "DEDICATED RYDER FLEET (Placeholder)"},
+    {"key": "HOTSHOT_TRAILER_TYPES", "label": "HOTSHOT TRAILER TYPES (Placeholder)"},
+]
 DEFAULT_STACK_OVERFLOW_MAX_HEIGHT = 5
 DEFAULT_MAX_BACK_OVERHANG_FT = 4.0
 DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT = 7.0
+DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT = 16.0
+DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT = 6.0
+DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES = ["USA", "UTA"]
 DEFAULT_STOP_COLOR_PALETTE = [
     "#6FAD47",
     "#01B0F0",
@@ -224,6 +317,31 @@ REOPT_JOB_RETENTION_SEC = 60 * 60
 REOPT_JOB_MAX_ENTRIES = 200
 _REOPT_JOB_LOCK = threading.Lock()
 _REOPT_JOBS = {}
+ACCESS_PROFILES_SEED_PATH = Path(
+    os.environ.get("ACCESS_PROFILES_SEED_PATH", str(ROOT_DIR / "data" / "seed" / "access_profiles.csv"))
+)
+ACCESS_PROFILES_SEED_COLUMNS = ["name", "is_admin", "allowed_plants", "default_plants", "created_at"]
+
+
+def _sync_access_profiles_seed_snapshot():
+    try:
+        profiles = db.list_access_profiles()
+        ACCESS_PROFILES_SEED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with ACCESS_PROFILES_SEED_PATH.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=ACCESS_PROFILES_SEED_COLUMNS)
+            writer.writeheader()
+            for profile in profiles:
+                writer.writerow(
+                    {
+                        "name": (profile.get("name") or "").strip(),
+                        "is_admin": 1 if profile.get("is_admin") else 0,
+                        "allowed_plants": profile.get("allowed_plants") or "ALL",
+                        "default_plants": profile.get("default_plants") or "ALL",
+                        "created_at": profile.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                )
+    except Exception:
+        logger.warning("Unable to sync access profile seed snapshot at %s", ACCESS_PROFILES_SEED_PATH)
 
 
 db.init_db()
@@ -273,6 +391,7 @@ db.ensure_default_access_profiles(
         },
     ]
 )
+_sync_access_profiles_seed_snapshot()
 db.ensure_default_planning_settings(
     {
         "strategic_customers": json.dumps(
@@ -285,6 +404,7 @@ db.ensure_default_planning_settings(
                 {
                     "label": "Tractor Supply",
                     "patterns": ["TRACTOR SUPPLY", "TRACTORSUPPLY"],
+                    "wedge_min_item_length_ft": 16,
                     "include_in_optimizer_workbench": True,
                 },
                 {
@@ -343,11 +463,31 @@ db.ensure_default_planning_settings(
                     )
                     or DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT
                 ),
+                "upper_deck_exception_max_length_ft": float(
+                    load_builder.DEFAULT_BUILD_PARAMS.get(
+                        "upper_deck_exception_max_length_ft",
+                        DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
+                    )
+                    or DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT
+                ),
+                "upper_deck_exception_overhang_allowance_ft": float(
+                    load_builder.DEFAULT_BUILD_PARAMS.get(
+                        "upper_deck_exception_overhang_allowance_ft",
+                        DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+                    )
+                    or DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT
+                ),
+                "upper_deck_exception_categories": stack_calculator.normalize_upper_deck_exception_categories(
+                    load_builder.DEFAULT_BUILD_PARAMS.get("upper_deck_exception_categories"),
+                    default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+                ),
             }
         ),
         REPLAY_EVAL_PRESET_SETTING_KEY: json.dumps(replay_evaluator.DEFAULT_REPLAY_PRESET),
         UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY: json.dumps(DEFAULT_UTILIZATION_GRADE_THRESHOLDS),
         STOP_COLOR_PALETTE_SETTING_KEY: json.dumps(DEFAULT_STOP_COLOR_PALETTE),
+        TRAILER_ASSIGNMENT_RULES_SETTING_KEY: json.dumps(DEFAULT_TRAILER_ASSIGNMENT_RULES),
+        RATE_TABLE_CONTEXTS_SETTING_KEY: json.dumps(DEFAULT_RATE_TABLE_CONTEXTS),
     }
 )
 
@@ -404,8 +544,19 @@ def session_reset():
 def login():
     next_url = _safe_next_url(request.values.get("next")) or ""
     profiles = db.list_access_profiles()
-    admin_profile = next((p for p in profiles if p.get("is_admin")), None)
-    planner_profiles = [p for p in profiles if not p.get("is_admin")]
+    login_profiles = []
+    for profile in profiles:
+        is_admin = bool(profile.get("is_admin"))
+        login_profiles.append(
+            {
+                "id": profile.get("id"),
+                "name": (profile.get("name") or "Unnamed").strip() or "Unnamed",
+                "is_admin": is_admin,
+                "role_label": "Administrator Account" if is_admin else "Planner Account",
+                "focus_plants": _profile_focus_plants(profile),
+            }
+        )
+    selected_profile_id = None
     error = None
 
     if request.method == "POST":
@@ -414,6 +565,7 @@ def login():
             profile_id = int(profile_id)
         except (TypeError, ValueError):
             profile_id = None
+        selected_profile_id = profile_id
 
         profile = db.get_access_profile(profile_id) if profile_id else None
         if not profile:
@@ -436,10 +588,19 @@ def login():
             _apply_profile_to_session(profile, reset_filters=True)
             return redirect(next_url or url_for("orders"))
 
+    if selected_profile_id is None and login_profiles:
+        selected_profile_id = login_profiles[0]["id"]
+    selected_profile = next(
+        (profile for profile in login_profiles if profile["id"] == selected_profile_id),
+        None,
+    )
+
     return render_template(
         "login.html",
-        admin_profile=admin_profile,
-        planner_profiles=planner_profiles,
+        profiles=login_profiles,
+        selected_profile=selected_profile,
+        selected_profile_id=selected_profile_id,
+        plant_names=PLANT_NAMES,
         error=error,
         next_url=next_url,
     )
@@ -623,6 +784,15 @@ def _build_unmapped_suggestions(unmapped_items):
 def _handle_order_upload(file):
     importer = OrderImporter()
     summary = importer.parse_csv(file)
+    unmapped_items = summary.get("unmapped_items") or []
+    if unmapped_items:
+        raise UploadValidationError(
+            (
+                "Upload blocked: some SKUs are unmapped or missing required dimensions/stack limits. "
+                "Add SKU specs, then re-upload."
+            ),
+            summary=summary,
+        )
 
     orders = summary.get("orders") or []
     so_nums = []
@@ -817,6 +987,7 @@ def access_manage():
                     db.create_access_profile(name, True, "ALL", "ALL")
                 else:
                     db.update_access_profile(profile_id, name, True, "ALL", "ALL")
+                _sync_access_profiles_seed_snapshot()
                 return redirect(url_for("access_manage"))
             except Exception:
                 error = "Unable to save profile. Profile names must be unique."
@@ -833,6 +1004,7 @@ def access_manage():
                         db.create_access_profile(name, False, allowed_csv, default_csv)
                     else:
                         db.update_access_profile(profile_id, name, False, allowed_csv, default_csv)
+                    _sync_access_profiles_seed_snapshot()
                     return redirect(url_for("access_manage"))
                 except Exception:
                     error = "Unable to save profile. Profile names must be unique."
@@ -886,6 +1058,7 @@ def access_delete():
                 _apply_profile_to_session(other, reset_filters=True)
 
     db.delete_access_profile(profile_id)
+    _sync_access_profiles_seed_snapshot()
     return redirect(url_for("access_manage"))
 
 
@@ -905,6 +1078,22 @@ def _default_optimize_form():
     )
     form_data["upper_two_across_max_length_ft"] = str(
         optimizer_defaults.get("upper_two_across_max_length_ft", DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT)
+    )
+    form_data["upper_deck_exception_max_length_ft"] = str(
+        optimizer_defaults.get(
+            "upper_deck_exception_max_length_ft",
+            DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
+        )
+    )
+    form_data["upper_deck_exception_overhang_allowance_ft"] = str(
+        optimizer_defaults.get(
+            "upper_deck_exception_overhang_allowance_ft",
+            DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+        )
+    )
+    form_data["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+        optimizer_defaults.get("upper_deck_exception_categories"),
+        default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
     )
     form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
     if not form_data.get("orders_start_date"):
@@ -1034,6 +1223,81 @@ def _get_rates_overview_metrics():
     }
 
 
+def _normalize_rate_table_key(value, default="DEFAULT"):
+    key = str(value or "").strip().upper()
+    valid_keys = {option["key"] for option in RATE_TABLE_KEY_OPTIONS}
+    if key in valid_keys:
+        return key
+    return default if default in valid_keys else "DEFAULT"
+
+
+def _get_rate_table_contexts():
+    defaults = dict(DEFAULT_RATE_TABLE_CONTEXTS)
+    setting = db.get_planning_setting(RATE_TABLE_CONTEXTS_SETTING_KEY) or {}
+    raw_text = (setting.get("value_text") or "").strip()
+    parsed = None
+    if raw_text:
+        try:
+            parsed = json.loads(raw_text)
+        except json.JSONDecodeError:
+            parsed = None
+    if isinstance(parsed, dict):
+        defaults["default_rate_table_key"] = _normalize_rate_table_key(
+            parsed.get("default_rate_table_key"),
+            defaults["default_rate_table_key"],
+        )
+        defaults["carrier_dedicated_ryder_rate_table_key"] = _normalize_rate_table_key(
+            parsed.get("carrier_dedicated_ryder_rate_table_key"),
+            defaults["carrier_dedicated_ryder_rate_table_key"],
+        )
+        defaults["trailer_hotshot_rate_table_key"] = _normalize_rate_table_key(
+            parsed.get("trailer_hotshot_rate_table_key"),
+            defaults["trailer_hotshot_rate_table_key"],
+        )
+    return defaults
+
+
+def _get_trailer_assignment_rules():
+    defaults = dict(DEFAULT_TRAILER_ASSIGNMENT_RULES)
+    setting = db.get_planning_setting(TRAILER_ASSIGNMENT_RULES_SETTING_KEY) or {}
+    raw_text = (setting.get("value_text") or "").strip()
+    parsed = None
+    if raw_text:
+        try:
+            parsed = json.loads(raw_text)
+        except json.JSONDecodeError:
+            parsed = None
+    if isinstance(parsed, dict):
+        if "livestock_wedge_enabled" in parsed:
+            defaults["livestock_wedge_enabled"] = _coerce_bool_value(
+                parsed.get("livestock_wedge_enabled")
+            )
+        tokens = parsed.get("livestock_category_tokens")
+        if isinstance(tokens, str):
+            tokens = [tokens]
+        if isinstance(tokens, (list, tuple, set)):
+            normalized_tokens = []
+            for token in tokens:
+                text = str(token or "").strip().upper()
+                if text and text not in normalized_tokens:
+                    normalized_tokens.append(text)
+            if normalized_tokens:
+                defaults["livestock_category_tokens"] = normalized_tokens
+        if "auto_assign_hotshot_enabled" in parsed:
+            defaults["auto_assign_hotshot_enabled"] = _coerce_bool_value(
+                parsed.get("auto_assign_hotshot_enabled")
+            )
+        if "auto_assign_hotshot_utilization_threshold_pct" in parsed:
+            defaults["auto_assign_hotshot_utilization_threshold_pct"] = round(
+                _coerce_non_negative_float(
+                    parsed.get("auto_assign_hotshot_utilization_threshold_pct"),
+                    defaults["auto_assign_hotshot_utilization_threshold_pct"],
+                ),
+                1,
+            )
+    return defaults
+
+
 def _build_freight_breakdown(load, stop_fee_amount, fuel_surcharge_per_mile, load_minimum_amount):
     def _as_float(value, default=0.0):
         try:
@@ -1115,6 +1379,18 @@ def _get_optimizer_default_settings():
             load_builder.DEFAULT_BUILD_PARAMS.get("upper_two_across_max_length_ft"),
             DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
         ),
+        "upper_deck_exception_max_length_ft": _coerce_non_negative_float(
+            load_builder.DEFAULT_BUILD_PARAMS.get("upper_deck_exception_max_length_ft"),
+            DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
+        ),
+        "upper_deck_exception_overhang_allowance_ft": _coerce_non_negative_float(
+            load_builder.DEFAULT_BUILD_PARAMS.get("upper_deck_exception_overhang_allowance_ft"),
+            DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+        ),
+        "upper_deck_exception_categories": stack_calculator.normalize_upper_deck_exception_categories(
+            load_builder.DEFAULT_BUILD_PARAMS.get("upper_deck_exception_categories"),
+            default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+        ),
     }
     setting = db.get_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY) or {}
     raw_text = (setting.get("value_text") or "").strip()
@@ -1147,8 +1423,32 @@ def _get_optimizer_default_settings():
                 parsed.get("upper_two_across_max_length_ft"),
                 defaults["upper_two_across_max_length_ft"],
             )
+            defaults["upper_deck_exception_max_length_ft"] = _coerce_non_negative_float(
+                parsed.get("upper_deck_exception_max_length_ft"),
+                defaults["upper_deck_exception_max_length_ft"],
+            )
+            defaults["upper_deck_exception_overhang_allowance_ft"] = _coerce_non_negative_float(
+                parsed.get("upper_deck_exception_overhang_allowance_ft"),
+                defaults["upper_deck_exception_overhang_allowance_ft"],
+            )
+            defaults["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+                parsed.get("upper_deck_exception_categories"),
+                default=defaults["upper_deck_exception_categories"],
+            )
     defaults["max_back_overhang_ft"] = round(defaults["max_back_overhang_ft"], 2)
     defaults["upper_two_across_max_length_ft"] = round(defaults["upper_two_across_max_length_ft"], 2)
+    defaults["upper_deck_exception_max_length_ft"] = round(
+        defaults["upper_deck_exception_max_length_ft"],
+        2,
+    )
+    defaults["upper_deck_exception_overhang_allowance_ft"] = round(
+        defaults["upper_deck_exception_overhang_allowance_ft"],
+        2,
+    )
+    defaults["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+        defaults.get("upper_deck_exception_categories"),
+        default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+    )
     return defaults
 
 
@@ -1172,6 +1472,24 @@ def _get_stack_capacity_assumptions():
                 DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
             ),
             2,
+        ),
+        "upper_deck_exception_max_length_ft": round(
+            _coerce_non_negative_float(
+                defaults.get("upper_deck_exception_max_length_ft"),
+                DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
+            ),
+            2,
+        ),
+        "upper_deck_exception_overhang_allowance_ft": round(
+            _coerce_non_negative_float(
+                defaults.get("upper_deck_exception_overhang_allowance_ft"),
+                DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+            ),
+            2,
+        ),
+        "upper_deck_exception_categories": stack_calculator.normalize_upper_deck_exception_categories(
+            defaults.get("upper_deck_exception_categories"),
+            default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
         ),
     }
 
@@ -1198,6 +1516,22 @@ def _get_replay_eval_preset():
         optimizer_defaults.get("upper_two_across_max_length_ft")
         or defaults.get("upper_two_across_max_length_ft")
         or DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT
+    )
+    defaults["upper_deck_exception_max_length_ft"] = float(
+        optimizer_defaults.get("upper_deck_exception_max_length_ft")
+        or defaults.get("upper_deck_exception_max_length_ft")
+        or DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT
+    )
+    defaults["upper_deck_exception_overhang_allowance_ft"] = float(
+        optimizer_defaults.get("upper_deck_exception_overhang_allowance_ft")
+        or defaults.get("upper_deck_exception_overhang_allowance_ft")
+        or DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT
+    )
+    defaults["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+        optimizer_defaults.get("upper_deck_exception_categories")
+        or defaults.get("upper_deck_exception_categories")
+        or DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+        default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
     )
 
     setting = db.get_planning_setting(REPLAY_EVAL_PRESET_SETTING_KEY) or {}
@@ -1237,12 +1571,23 @@ def _get_replay_eval_preset():
         ),
         2,
     )
-    defaults["upper_two_across_max_length_ft"] = round(
+    defaults["upper_deck_exception_max_length_ft"] = round(
         _coerce_non_negative_float(
-            defaults.get("upper_two_across_max_length_ft"),
-            DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
+            defaults.get("upper_deck_exception_max_length_ft"),
+            DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
         ),
         2,
+    )
+    defaults["upper_deck_exception_overhang_allowance_ft"] = round(
+        _coerce_non_negative_float(
+            defaults.get("upper_deck_exception_overhang_allowance_ft"),
+            DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+        ),
+        2,
+    )
+    defaults["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+        defaults.get("upper_deck_exception_categories"),
+        default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
     )
     defaults["ops_parity_enabled"] = _coerce_bool_value(defaults.get("ops_parity_enabled"))
     defaults["ops_parity_max_utilization_pct"] = _coerce_non_negative_float(
@@ -1322,13 +1667,24 @@ def _parse_datetime(value):
     return None
 
 
-def _format_datetime_label(value):
+def _to_est_datetime(value):
     parsed = _parse_datetime(value)
     if not parsed:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(APP_TIMEZONE)
+
+
+def _format_est_datetime_label(value):
+    parsed = _to_est_datetime(value)
+    if not parsed:
         return ""
-    hour = parsed.hour % 12 or 12
-    ampm = "AM" if parsed.hour < 12 else "PM"
-    return f"{parsed.strftime('%b')} {parsed.day}, {parsed.year} • {hour}:{parsed.minute:02d} {ampm}"
+    return f"{parsed.strftime('%b')} {parsed.day}, {parsed.year} {parsed.strftime('%I:%M %p')} ET"
+
+
+def _format_datetime_label(value):
+    return _format_est_datetime_label(value)
 
 
 def _resolve_today_override(value):
@@ -1503,6 +1859,147 @@ def _parse_strategic_customers(value_text):
     return customer_rules.parse_strategic_customers(value_text)
 
 
+def _line_category_for_trailer_rules(line, sku_specs):
+    sku = (line or {}).get("sku")
+    spec = (sku_specs or {}).get(sku) if sku else None
+    for value in (
+        (spec or {}).get("category"),
+        (line or {}).get("category"),
+        (line or {}).get("bin"),
+    ):
+        text = str(value or "").strip().upper()
+        if text:
+            return text
+    return ""
+
+
+def _line_max_unit_length_for_trailer_rules(line, sku_specs):
+    sku = (line or {}).get("sku")
+    spec = (sku_specs or {}).get(sku) if sku else None
+    lengths = [
+        (line or {}).get("unit_length_ft"),
+        (line or {}).get("length_with_tongue_ft"),
+        (spec or {}).get("length_with_tongue_ft"),
+    ]
+    max_length = 0.0
+    for value in lengths:
+        parsed = _coerce_non_negative_float(value, 0.0)
+        max_length = max(max_length, parsed)
+    return max_length
+
+
+def _auto_trailer_rule_annotation(
+    load,
+    lines,
+    trailer_type,
+    schematic,
+    sku_specs,
+    stop_sequence_map=None,
+    assumptions=None,
+    trailer_assignment_rules=None,
+    strategic_customers=None,
+):
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    rules = trailer_assignment_rules or _get_trailer_assignment_rules()
+    strategic_entries = strategic_customers if strategic_customers is not None else []
+    exceeds_capacity = bool((schematic or {}).get("exceeds_capacity"))
+    build_source = str((load or {}).get("build_source") or "").strip().upper()
+    load_status = str((load or {}).get("status") or "").strip().upper()
+    is_manual_build = build_source == "MANUAL"
+    is_active_draft = load_status in {STATUS_PROPOSED, STATUS_DRAFT, ""}
+
+    if trailer_key == "FLATBED":
+        step_schematic, _, _ = _calculate_load_schematic(
+            lines,
+            sku_specs,
+            "STEP_DECK",
+            stop_sequence_map=stop_sequence_map,
+            assumptions=assumptions,
+        )
+        if step_schematic.get("exceeds_capacity"):
+            return (
+                "Auto Trailer Rule",
+                "Changed from 53' Step Deck to 53' Flatbed because the load does not fit on the 43' / 10' split.",
+            )
+
+    if trailer_key == "HOTSHOT" and not exceeds_capacity and bool(rules.get("auto_assign_hotshot_enabled")):
+        return (
+            "Auto Trailer Rule",
+            "Changed from 53' Step Deck to 40' Hotshot because the load fits on a hotshot trailer.",
+        )
+
+    if (
+        trailer_key in {"FLATBED", "HOTSHOT"}
+        and is_active_draft
+        and not is_manual_build
+    ):
+        return (
+            "Auto Trailer Rule",
+            "Trailer was auto-selected by draft fit/rule logic for this load.",
+        )
+
+    if trailer_key != "WEDGE":
+        return "", ""
+
+    categories = {
+        _line_category_for_trailer_rules(line, sku_specs)
+        for line in (lines or [])
+    }
+    categories.discard("")
+    max_unit_length_ft = max(
+        (_line_max_unit_length_for_trailer_rules(line, sku_specs) for line in (lines or [])),
+        default=0.0,
+    )
+    customer_names = {
+        str((line or {}).get("cust_name") or "").strip()
+        for line in (lines or [])
+        if str((line or {}).get("cust_name") or "").strip()
+    }
+    matching_rules = [
+        customer_rules.find_matching_strategic_customer(name, strategic_entries)
+        for name in customer_names
+    ]
+    matching_rules = [entry for entry in matching_rules if entry]
+
+    if any(bool((entry or {}).get("default_wedge_51")) for entry in matching_rules):
+        return (
+            "Auto Trailer Rule",
+            "Changed from 53' Step Deck to 51' Wedge due to strategic customer wedge default.",
+        )
+
+    for entry in matching_rules:
+        threshold_ft = _coerce_non_negative_float((entry or {}).get("wedge_min_item_length_ft"), 0.0)
+        if threshold_ft > 0 and max_unit_length_ft >= threshold_ft:
+            return (
+                "Auto Trailer Rule",
+                f"Changed from 53' Step Deck to 51' Wedge due to customer length rule ({threshold_ft:.0f} ft+).",
+            )
+
+    livestock_tokens = {
+        str(token or "").strip().upper()
+        for token in (rules.get("livestock_category_tokens") or [])
+        if str(token or "").strip()
+    }
+    if bool(rules.get("livestock_wedge_enabled")) and categories.intersection(livestock_tokens):
+        return (
+            "Auto Trailer Rule",
+            "Changed from 53' Step Deck to 51' Wedge because load includes LIVESTOCK-category items.",
+        )
+
+    has_tractor_supply = any(customer_rules.is_tractor_supply_customer(name) for name in customer_names)
+    has_cargo_category = any(
+        category == "CARGO" or category.startswith("CARGO-")
+        for category in categories
+    )
+    if has_tractor_supply and has_cargo_category and max_unit_length_ft >= 16.0:
+        return (
+            "Auto Trailer Rule",
+            "Changed from 53' Step Deck to 51' Wedge for Tractor Supply cargo with 16+ ft units.",
+        )
+
+    return "", ""
+
+
 def _parse_manual_so_nums(raw_text):
     text = str(raw_text or "").strip()
     if not text:
@@ -1536,6 +2033,263 @@ def _sku_source_label(spec):
     return "Planner Input" if _sku_is_planner_input(spec) else "Cheat Sheet"
 
 
+def _build_source_led_cheat_sheet_rows(specs):
+    spec_by_sku = {}
+    for spec in specs or []:
+        sku_key = (spec.get("sku") or "").strip().upper()
+        if sku_key and sku_key not in spec_by_sku:
+            spec_by_sku[sku_key] = spec
+
+    importer = OrderImporter()
+    rows = []
+    with db.get_connection() as connection:
+        observed = connection.execute(
+            """
+            WITH totals AS (
+                SELECT
+                    UPPER(TRIM(COALESCE(plant, ''))) AS plant,
+                    UPPER(TRIM(COALESCE(bin, ''))) AS bin_raw,
+                    UPPER(TRIM(COALESCE(item, ''))) AS item_num,
+                    COUNT(*) AS line_count,
+                    COUNT(DISTINCT COALESCE(NULLIF(TRIM(so_num), ''), printf('ROW_%d', id))) AS order_count
+                FROM order_lines
+                WHERE TRIM(COALESCE(item, '')) <> ''
+                  AND TRIM(COALESCE(plant, '')) <> ''
+                GROUP BY 1, 2, 3
+            ),
+            ranked_desc AS (
+                SELECT
+                    UPPER(TRIM(COALESCE(plant, ''))) AS plant,
+                    UPPER(TRIM(COALESCE(bin, ''))) AS bin_raw,
+                    UPPER(TRIM(COALESCE(item, ''))) AS item_num,
+                    TRIM(COALESCE(item_desc, '')) AS item_desc,
+                    COUNT(*) AS desc_count,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY
+                            UPPER(TRIM(COALESCE(plant, ''))),
+                            UPPER(TRIM(COALESCE(bin, ''))),
+                            UPPER(TRIM(COALESCE(item, '')))
+                        ORDER BY COUNT(*) DESC, TRIM(COALESCE(item_desc, '')) ASC
+                    ) AS rn
+                FROM order_lines
+                WHERE TRIM(COALESCE(item, '')) <> ''
+                  AND TRIM(COALESCE(plant, '')) <> ''
+                GROUP BY 1, 2, 3, 4
+            )
+            SELECT
+                t.plant,
+                t.bin_raw,
+                t.item_num,
+                COALESCE(d.item_desc, '') AS item_desc,
+                t.line_count,
+                t.order_count
+            FROM totals t
+            LEFT JOIN ranked_desc d
+                ON d.plant = t.plant
+               AND d.bin_raw = t.bin_raw
+               AND d.item_num = t.item_num
+               AND d.rn = 1
+            ORDER BY t.item_num ASC, t.plant ASC, t.bin_raw ASC
+            """
+        ).fetchall()
+
+    for row in observed:
+        plant = (row["plant"] or "").strip().upper()
+        bin_raw = (row["bin_raw"] or "").strip().upper()
+        item_num = (row["item_num"] or "").strip().upper()
+        item_desc = (row["item_desc"] or "").strip()
+        bin_code = importer._extract_code(bin_raw)
+        mapped_sku = importer.lookup_sku(
+            item_num,
+            plant=plant,
+            bin_code=bin_code,
+            bin_raw=bin_raw,
+        )
+
+        spec = None
+        if mapped_sku:
+            spec = spec_by_sku.get(str(mapped_sku).strip().upper())
+
+        category = (spec.get("category") or "").strip() if spec else ""
+        mapped_description = ""
+        length_with_tongue_ft = None
+        max_stack_step_deck = None
+        max_stack_flat_bed = None
+        mapped_source = ""
+
+        if spec:
+            mapped_description = (spec.get("description") or spec.get("notes") or "").strip()
+            length_with_tongue_ft = spec.get("length_with_tongue_ft")
+            max_stack_step_deck = spec.get("max_stack_step_deck")
+            max_stack_flat_bed = spec.get("max_stack_flat_bed")
+            mapped_source = _sku_source_label(spec)
+            mapping_status = "Mapped"
+        elif mapped_sku:
+            cargo_length = importer._cargo_length_from_item(item_num, mapped_sku)
+            if cargo_length:
+                mapped_description = "Derived from cargo length rule"
+                category = bin_code or bin_raw or "CARGO"
+                length_with_tongue_ft = cargo_length
+                max_stack_step_deck = 1
+                max_stack_flat_bed = 1
+                mapping_status = "Mapped (Cargo Rule)"
+            else:
+                mapping_status = "Mapped SKU Missing Spec"
+        else:
+            mapping_status = "Unmapped"
+
+        rows.append(
+            {
+                "plant": plant,
+                "bin": bin_raw,
+                "item_num": item_num,
+                "item_desc": item_desc,
+                "mapped_sku": mapped_sku or "",
+                "mapped_description": mapped_description,
+                "category": category,
+                "length_with_tongue_ft": length_with_tongue_ft,
+                "max_stack_step_deck": max_stack_step_deck,
+                "max_stack_flat_bed": max_stack_flat_bed,
+                "mapped_source": mapped_source,
+                "mapping_status": mapping_status,
+                "line_count": int(row["line_count"] or 0),
+                "order_count": int(row["order_count"] or 0),
+            }
+        )
+
+    collapsed = {}
+    for row in rows:
+        key = (row.get("item_num") or "", row.get("bin") or "")
+        group = collapsed.setdefault(
+            key,
+            {
+                "item_num": row.get("item_num") or "",
+                "bin": row.get("bin") or "",
+                "line_count": 0,
+                "order_count": 0,
+                "desc_weights": {},
+                "mapped_variants": {},
+            },
+        )
+        group["line_count"] += int(row.get("line_count") or 0)
+        group["order_count"] += int(row.get("order_count") or 0)
+
+        item_desc = (row.get("item_desc") or "").strip()
+        if item_desc:
+            group["desc_weights"][item_desc] = group["desc_weights"].get(item_desc, 0) + int(
+                row.get("line_count") or 0
+            )
+
+        mapped_sku = (row.get("mapped_sku") or "").strip()
+        variant_key = mapped_sku or "__UNMAPPED__"
+        variant = group["mapped_variants"].get(variant_key)
+        if not variant:
+            variant = {
+                "mapped_sku": mapped_sku,
+                "mapped_description": row.get("mapped_description") or "",
+                "category": row.get("category") or "",
+                "length_with_tongue_ft": row.get("length_with_tongue_ft"),
+                "max_stack_step_deck": row.get("max_stack_step_deck"),
+                "max_stack_flat_bed": row.get("max_stack_flat_bed"),
+                "mapped_source": row.get("mapped_source") or "",
+                "mapping_status": row.get("mapping_status") or "Unmapped",
+                "weight": 0,
+            }
+            group["mapped_variants"][variant_key] = variant
+        variant["weight"] += int(row.get("line_count") or 0)
+
+    deduped_rows = []
+    for group in collapsed.values():
+        item_desc = ""
+        if group["desc_weights"]:
+            item_desc = max(
+                group["desc_weights"].items(),
+                key=lambda pair: (pair[1], pair[0]),
+            )[0]
+
+        mapped_variants = [
+            payload
+            for key, payload in group["mapped_variants"].items()
+            if key != "__UNMAPPED__"
+        ]
+
+        if not mapped_variants:
+            row = {
+                "item_num": group["item_num"],
+                "item_desc": item_desc,
+                "bin": group["bin"],
+                "mapped_sku": "",
+                "mapped_sku_list": [],
+                "mapped_description": "",
+                "category": "",
+                "length_with_tongue_ft": None,
+                "max_stack_step_deck": None,
+                "max_stack_flat_bed": None,
+                "mapped_source": "",
+                "mapping_status": "Unmapped",
+                "mapping_conflict": False,
+                "line_count": group["line_count"],
+                "order_count": group["order_count"],
+            }
+            deduped_rows.append(row)
+            continue
+
+        if len(mapped_variants) == 1:
+            winner = mapped_variants[0]
+            row = {
+                "item_num": group["item_num"],
+                "item_desc": item_desc,
+                "bin": group["bin"],
+                "mapped_sku": winner.get("mapped_sku") or "",
+                "mapped_sku_list": [winner.get("mapped_sku")] if winner.get("mapped_sku") else [],
+                "mapped_description": winner.get("mapped_description") or "",
+                "category": winner.get("category") or "",
+                "length_with_tongue_ft": winner.get("length_with_tongue_ft"),
+                "max_stack_step_deck": winner.get("max_stack_step_deck"),
+                "max_stack_flat_bed": winner.get("max_stack_flat_bed"),
+                "mapped_source": winner.get("mapped_source") or "",
+                "mapping_status": winner.get("mapping_status") or "Mapped",
+                "mapping_conflict": False,
+                "line_count": group["line_count"],
+                "order_count": group["order_count"],
+            }
+            deduped_rows.append(row)
+            continue
+
+        mapped_skus = sorted(
+            [
+                variant.get("mapped_sku")
+                for variant in mapped_variants
+                if (variant.get("mapped_sku") or "").strip()
+            ]
+        )
+        conflict_label = ", ".join(mapped_skus[:3])
+        if len(mapped_skus) > 3:
+            conflict_label += f" +{len(mapped_skus) - 3} more"
+        deduped_rows.append(
+            {
+                "item_num": group["item_num"],
+                "item_desc": item_desc,
+                "bin": group["bin"],
+                "mapped_sku": conflict_label,
+                "mapped_sku_list": mapped_skus,
+                "mapped_description": "Multiple mapped SKUs across plants. Review lookup scope rules.",
+                "category": "",
+                "length_with_tongue_ft": None,
+                "max_stack_step_deck": None,
+                "max_stack_flat_bed": None,
+                "mapped_source": "",
+                "mapping_status": "Plant Mapping Conflict",
+                "mapping_conflict": True,
+                "line_count": group["line_count"],
+                "order_count": group["order_count"],
+            }
+        )
+
+    deduped_rows.sort(key=lambda row: (row.get("item_num") or "", row.get("bin") or ""))
+    return deduped_rows
+
+
 def _sync_legacy_plant_filter(selected, allowed):
     if not selected or len(selected) >= len(allowed):
         session["plant_filter"] = "ALL"
@@ -1567,6 +2321,12 @@ def _profile_default_plants(profile, allowed):
     if not filtered or len(filtered) >= len(allowed):
         return []
     return filtered
+
+
+def _profile_focus_plants(profile):
+    allowed = _profile_allowed_plants(profile)
+    defaults = _profile_default_plants(profile, allowed)
+    return defaults or allowed or list(PLANT_CODES)
 
 
 def _apply_profile_to_session(profile, *, reset_filters=False):
@@ -1785,6 +2545,10 @@ def _serialize_session_config(form_data, params):
             "geo_radius": params.get("geo_radius"),
             "stack_overflow_max_height": params.get("stack_overflow_max_height"),
             "max_back_overhang_ft": params.get("max_back_overhang_ft"),
+            "upper_two_across_max_length_ft": params.get("upper_two_across_max_length_ft"),
+            "upper_deck_exception_max_length_ft": params.get("upper_deck_exception_max_length_ft"),
+            "upper_deck_exception_overhang_allowance_ft": params.get("upper_deck_exception_overhang_allowance_ft"),
+            "upper_deck_exception_categories": params.get("upper_deck_exception_categories") or [],
             "enforce_time_window": params.get("enforce_time_window"),
             "batch_horizon_enabled": params.get("batch_horizon_enabled"),
             "batch_end_date": form_data.get("batch_end_date") or "",
@@ -1865,6 +2629,7 @@ def _build_load_thumbnail(load, sku_specs, stop_color_palette=None, max_blocks=4
     trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
         lines,
@@ -2063,12 +2828,26 @@ def _ordered_stops_for_lines(lines, origin_plant, zip_coords, return_to_origin=N
     return stops
 
 
-def _load_route_display_metrics(load, route_nodes):
+def _is_load_route_reversed(load):
+    return bool(_coerce_int_value((load or {}).get("route_reversed"), 0))
+
+
+def _apply_load_route_direction(ordered_stops, load=None, reverse_route=None):
+    stops = list(ordered_stops or [])
+    if reverse_route is None:
+        reverse_route = _is_load_route_reversed(load)
+    if reverse_route and len(stops) > 1:
+        stops.reverse()
+    return stops
+
+
+def _load_route_display_metrics(load, route_nodes, use_cached_route=True):
     expected_leg_count = max(len(route_nodes) - 1, 0)
     stored_legs = load.get("route_legs") or []
     route_legs = []
+    use_cached_route = bool(use_cached_route)
 
-    if isinstance(stored_legs, list) and len(stored_legs) == expected_leg_count:
+    if use_cached_route and isinstance(stored_legs, list) and len(stored_legs) == expected_leg_count:
         for value in stored_legs:
             try:
                 route_legs.append(round(float(value)))
@@ -2084,18 +2863,20 @@ def _load_route_display_metrics(load, route_nodes):
                 route_legs.append(None)
 
     stored_total = load.get("route_total_miles")
-    if stored_total is None:
-        stored_total = load.get("route_distance")
-    try:
-        total_route_distance = float(stored_total) if stored_total is not None else None
-    except (TypeError, ValueError):
-        total_route_distance = None
+    total_route_distance = None
+    if use_cached_route:
+        if stored_total is None:
+            stored_total = load.get("route_distance")
+        try:
+            total_route_distance = float(stored_total) if stored_total is not None else None
+        except (TypeError, ValueError):
+            total_route_distance = None
     if total_route_distance is None:
         total_route_distance = sum(leg for leg in route_legs if leg is not None)
 
     stored_geometry = load.get("route_geometry") or []
     route_geometry = []
-    if isinstance(stored_geometry, list):
+    if use_cached_route and isinstance(stored_geometry, list):
         for point in stored_geometry:
             if (
                 isinstance(point, (list, tuple))
@@ -2216,6 +2997,9 @@ def _calculate_load_schematic(
         stack_overflow_max_height=assumptions.get("stack_overflow_max_height"),
         max_back_overhang_ft=assumptions.get("max_back_overhang_ft"),
         upper_two_across_max_length_ft=assumptions.get("upper_two_across_max_length_ft"),
+        upper_deck_exception_max_length_ft=assumptions.get("upper_deck_exception_max_length_ft"),
+        upper_deck_exception_overhang_allowance_ft=assumptions.get("upper_deck_exception_overhang_allowance_ft"),
+        upper_deck_exception_categories=assumptions.get("upper_deck_exception_categories"),
     )
     return schematic, line_items, order_numbers
 
@@ -2555,6 +3339,24 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
         ),
         2,
     )
+    upper_deck_exception_max_length_ft = round(
+        _coerce_non_negative_float(
+            assumptions.get("upper_deck_exception_max_length_ft"),
+            DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
+        ),
+        2,
+    )
+    upper_deck_exception_overhang_allowance_ft = round(
+        _coerce_non_negative_float(
+            assumptions.get("upper_deck_exception_overhang_allowance_ft"),
+            DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+        ),
+        2,
+    )
+    upper_deck_exception_categories = stack_calculator.normalize_upper_deck_exception_categories(
+        assumptions.get("upper_deck_exception_categories"),
+        default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+    )
     max_stack_utilization_multiplier = (
         1.0 + (1.0 / stack_overflow_max_height)
         if stack_overflow_max_height > 0
@@ -2568,6 +3370,7 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
 
     positions = []
     warnings = []
+    upper_deck_length_exceeds = []
     effective_units_by_position = {}
 
     def _effective_unit_max_stack(unit, deck_name):
@@ -2610,17 +3413,24 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
         effective_units_by_position[position_id] = effective_units
 
         if deck == "upper":
+            position_probe = {
+                "length_ft": length_ft,
+                "items": [{"category": unit.get("category")} for unit in units],
+            }
+            upper_length_limit = stack_calculator.upper_deck_position_length_limit_ft(
+                position_probe,
+                trailer_config,
+                upper_deck_exception_max_length_ft,
+                upper_deck_exception_categories,
+            )
             too_long_units = [
-                unit for unit in units if _coerce_float_value(unit.get("unit_length_ft"), 0.0) > (upper_length + 1e-6)
+                unit
+                for unit in units
+                if _coerce_float_value(unit.get("unit_length_ft"), 0.0) > (upper_length_limit + 1e-6)
             ]
             if too_long_units:
-                warnings.append(
-                    _warning(
-                        "ITEM_TOO_BIG_FOR_UPPER_DECK",
-                        f"Position {idx}: one or more items exceed {upper_length:.1f} ft upper deck limit.",
-                        position_id=position_id,
-                        deck="upper",
-                    )
+                upper_deck_length_exceeds.append(
+                    (position_id, upper_length_limit)
                 )
 
         aggregated_items = _aggregate_position_items(units)
@@ -2654,10 +3464,27 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
         trailer_config,
         upper_two_across_max_length_ft,
     )
+    stack_index_by_position_id = stack_calculator.stack_display_index_map(
+        positions,
+        trailer_config=trailer_config,
+    )
+
+    for idx, (position_id, upper_length_limit) in enumerate(upper_deck_length_exceeds, start=1):
+        stack_idx = int(stack_index_by_position_id.get(position_id, idx))
+        warnings.append(
+            _warning(
+                "ITEM_TOO_BIG_FOR_UPPER_DECK",
+                f"Stack {stack_idx}: one or more items exceed {upper_length_limit:.1f} ft upper deck limit.",
+                position_id=position_id,
+                deck="upper",
+            )
+        )
 
     for idx, pos in enumerate(positions, start=1):
         position_id = pos.get("position_id") or f"p{idx}"
+        stack_idx = int(stack_index_by_position_id.get(position_id, idx))
         deck = (pos.get("deck") or "lower").strip().lower() or "lower"
+        two_across_applied = bool(pos.get("two_across_applied")) and deck == "upper"
         capacity_used = _coerce_float_value(pos.get("capacity_used"), 0.0)
         effective_units = effective_units_by_position.get(position_id) or []
         overflow_applied = _position_allows_single_overflow(
@@ -2667,13 +3494,17 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
             capacity_used=capacity_used,
         )
         overflow_note = None
+        if two_across_applied:
+            pos["overflow_applied"] = False
+            pos["overflow_note"] = None
+            continue
         if capacity_used > (max_stack_utilization_multiplier + 1e-6):
             warnings.append(
                 _warning(
                     "STACK_TOO_HIGH",
                     (
-                        f"Position {idx}: stack fill is {capacity_used:.2f}x, above allowed "
-                        f"{max_stack_utilization_multiplier:.2f}x."
+                        f"Stack {stack_idx} is {capacity_used * 100:.0f}% overfilled relative "
+                        "to SKU-specific stacking maximums."
                     ),
                     position_id=position_id,
                     deck=deck,
@@ -2682,8 +3513,8 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
         elif capacity_used > (1.0 + 1e-6):
             if overflow_applied:
                 overflow_note = (
-                    f"Stack {idx} was overutilized to allow for additional space "
-                    f"({capacity_used:.2f}x, allowed up to {max_stack_utilization_multiplier:.2f}x)."
+                    f"Stack {stack_idx} is {capacity_used * 100:.0f}% overfilled relative to "
+                    "SKU-specific stacking maximums."
                 )
                 warnings.append(
                     _warning(
@@ -2697,10 +3528,7 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
                 warnings.append(
                     _warning(
                         "STACK_TOO_HIGH",
-                        (
-                            f"Position {idx}: stack fill is {capacity_used:.2f}x and is not "
-                            "eligible for overflow allowance."
-                        ),
+                        f"Stack {stack_idx} is {capacity_used * 100:.0f}% overfilled relative to SKU-specific stacking maximums.",
                         position_id=position_id,
                         deck=deck,
                     )
@@ -2724,16 +3552,16 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
         if (pos.get("deck") or "lower") == "upper"
     )
 
-    def _append_overhang_warning(deck_name, overhang_ft, deck_key):
+    def _append_overhang_warning(deck_name, overhang_ft, allowance_ft, deck_key):
         if overhang_ft <= 0.05:
             return
-        if overhang_ft <= (max_back_overhang_ft + 1e-6):
+        if overhang_ft <= (allowance_ft + 1e-6):
             warnings.append(
                 _warning(
                     "BACK_OVERHANG_IN_ALLOWANCE",
                     (
                         f"{deck_name} deck back overhang is {overhang_ft:.1f} ft "
-                        f"(allowance {max_back_overhang_ft:.1f} ft)."
+                        f"(allowance {allowance_ft:.1f} ft)."
                     ),
                     deck=deck_key,
                 )
@@ -2744,15 +3572,33 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
                 "ITEM_HANGS_OVER_DECK",
                 (
                     f"{deck_name} deck back overhang is {overhang_ft:.1f} ft, "
-                    f"exceeding allowance by {overhang_ft - max_back_overhang_ft:.1f} ft."
+                    f"exceeding allowance by {overhang_ft - allowance_ft:.1f} ft."
                 ),
                 deck=deck_key,
             )
         )
 
-    _append_overhang_warning("Lower", max(lower_total - lower_length, 0.0), "lower")
+    _append_overhang_warning(
+        "Lower",
+        max(lower_total - lower_length, 0.0),
+        max_back_overhang_ft,
+        "lower",
+    )
     if upper_length > 0:
-        _append_overhang_warning("Upper", max(upper_total_effective - upper_length, 0.0), "upper")
+        upper_eval = stack_calculator.evaluate_upper_deck_overhang(
+            positions,
+            trailer_config,
+            max_back_overhang_ft=max_back_overhang_ft,
+            upper_deck_exception_max_length_ft=upper_deck_exception_max_length_ft,
+            upper_deck_exception_overhang_allowance_ft=upper_deck_exception_overhang_allowance_ft,
+            upper_deck_exception_categories=upper_deck_exception_categories,
+        )
+        _append_overhang_warning(
+            "Upper",
+            upper_eval["upper_overhang_ft"],
+            upper_eval["allowed_overhang_ft"],
+            "upper",
+        )
 
     for pos in positions:
         deck_length = upper_length if pos.get("deck") == "upper" else lower_length
@@ -2805,15 +3651,22 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
     total_credit_feet = lower_credit + upper_credit
     utilization_pct = (total_credit_feet / capacity) * 100 if capacity > 0 else 0.0
     max_stack_height = max((pos.get("units_count") or 0 for pos in positions), default=0)
-    compatibility_issues = stack_calculator.check_stacking_compatibility(positions)
-    exceeds_capacity = (
-        total_linear_feet > (lower_length + max_back_overhang_ft)
-        if upper_length <= 0
-        else (
-            lower_total > (lower_length + max_back_overhang_ft)
-            or upper_total_effective > (upper_length + max_back_overhang_ft)
-        )
+    compatibility_issues = stack_calculator.check_stacking_compatibility(
+        positions,
+        trailer_config=trailer_config,
     )
+    exceeds_capacity = stack_calculator.capacity_overflow_feet(
+        {
+            "positions": positions,
+            "trailer_type": trailer_config["type"],
+            "lower_deck_length": lower_length,
+            "upper_deck_length": upper_length,
+            "max_back_overhang_ft": max_back_overhang_ft,
+            "upper_deck_exception_max_length_ft": upper_deck_exception_max_length_ft,
+            "upper_deck_exception_overhang_allowance_ft": upper_deck_exception_overhang_allowance_ft,
+            "upper_deck_exception_categories": upper_deck_exception_categories,
+        }
+    ) > 0.0
     utilization_grade = _utilization_grade(utilization_pct)
 
     for issue in compatibility_issues:
@@ -2846,6 +3699,9 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
             ),
             "stack_overflow_max_height": stack_overflow_max_height,
             "max_back_overhang_ft": max_back_overhang_ft,
+            "upper_deck_exception_max_length_ft": upper_deck_exception_max_length_ft,
+            "upper_deck_exception_overhang_allowance_ft": upper_deck_exception_overhang_allowance_ft,
+            "upper_deck_exception_categories": list(upper_deck_exception_categories),
             "max_stack_utilization_multiplier": round(
                 max_stack_utilization_multiplier,
                 4,
@@ -2909,6 +3765,7 @@ def _build_load_schematic_edit_payload(load_id):
 
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
         lines,
@@ -3048,6 +3905,30 @@ def _require_session():
 def _require_admin():
     if _get_session_role() != ROLE_ADMIN:
         abort(403)
+
+
+def _can_access_planning_session(planning_session):
+    if not planning_session:
+        return False
+    plant_code = _normalize_plant_code(planning_session.get("plant_code"))
+    allowed_plants = set(_get_allowed_plants())
+    if plant_code and plant_code not in allowed_plants:
+        return False
+    if _get_session_role() == ROLE_ADMIN:
+        return True
+
+    profile_name = (_get_session_profile_name() or "").strip()
+    created_by = (planning_session.get("created_by") or "").strip()
+    if not profile_name:
+        return False
+    return created_by.casefold() == profile_name.casefold()
+
+
+def _get_scoped_planning_session_or_404(session_id):
+    planning_session = db.get_planning_session(session_id)
+    if not planning_session or not _can_access_planning_session(planning_session):
+        abort(404)
+    return planning_session
 
 
 def _year_suffix(value=None):
@@ -3305,6 +4186,17 @@ def _reoptimize_form_data(plant_code, session_id=None):
         form_data["max_back_overhang_ft"] = str(settings.get("max_back_overhang_ft"))
     if settings.get("upper_two_across_max_length_ft") is not None:
         form_data["upper_two_across_max_length_ft"] = str(settings.get("upper_two_across_max_length_ft"))
+    if settings.get("upper_deck_exception_max_length_ft") is not None:
+        form_data["upper_deck_exception_max_length_ft"] = str(settings.get("upper_deck_exception_max_length_ft"))
+    if settings.get("upper_deck_exception_overhang_allowance_ft") is not None:
+        form_data["upper_deck_exception_overhang_allowance_ft"] = str(
+            settings.get("upper_deck_exception_overhang_allowance_ft")
+        )
+    if settings.get("upper_deck_exception_categories") is not None:
+        form_data["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+            settings.get("upper_deck_exception_categories"),
+            default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+        )
 
     if not session_id:
         return form_data
@@ -3337,6 +4229,19 @@ def _reoptimize_form_data(plant_code, session_id=None):
         form_data["max_back_overhang_ft"] = str(session_config.get("max_back_overhang_ft"))
     if session_config.get("upper_two_across_max_length_ft") is not None:
         form_data["upper_two_across_max_length_ft"] = str(session_config.get("upper_two_across_max_length_ft"))
+    if session_config.get("upper_deck_exception_max_length_ft") is not None:
+        form_data["upper_deck_exception_max_length_ft"] = str(
+            session_config.get("upper_deck_exception_max_length_ft")
+        )
+    if session_config.get("upper_deck_exception_overhang_allowance_ft") is not None:
+        form_data["upper_deck_exception_overhang_allowance_ft"] = str(
+            session_config.get("upper_deck_exception_overhang_allowance_ft")
+        )
+    if session_config.get("upper_deck_exception_categories") is not None:
+        form_data["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+            session_config.get("upper_deck_exception_categories"),
+            default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+        )
 
     form_data["opt_toggles"] = "1"
     if session_config.get("enforce_time_window", True):
@@ -3565,6 +4470,7 @@ def inject_session_context():
         "is_admin": role == ROLE_ADMIN,
         "show_tutorial_nav": TUTORIAL_NAV_ENABLED,
         "trailer_profile_options": TRAILER_PROFILE_OPTIONS,
+        "app_release_label": APP_RELEASE_LABEL,
     }
 
 
@@ -4246,6 +5152,25 @@ def api_orders_upload():
         return jsonify({"error": "Please choose a CSV file to upload."}), 400
     try:
         summary = _handle_order_upload(file)
+    except UploadValidationError as exc:
+        blocked_summary = exc.summary or {}
+        unmapped_items = blocked_summary.get("unmapped_items") or []
+        unmapped_suggestions = _build_unmapped_suggestions(unmapped_items)
+        response = {
+            "error": str(exc),
+            "blocked": True,
+            "total_rows": blocked_summary.get("total_rows") or 0,
+            "total_orders": 0,
+            "mapping_rate": round(blocked_summary.get("mapping_rate") or 0, 2),
+            "unmapped_count": len(unmapped_items),
+            "new_orders": 0,
+            "changed_orders": 0,
+            "unchanged_orders": 0,
+            "reopened_orders": 0,
+            "dropped_orders": 0,
+            "unmapped_items": unmapped_suggestions,
+        }
+        return jsonify(response), 400
     except Exception as exc:
         return jsonify({"error": f"Upload failed: {exc}"}), 400
     unmapped_items = summary.get("unmapped_items") or []
@@ -4468,6 +5393,26 @@ def orders():
                 config.get("upper_two_across_max_length_ft")
                 or optimize_defaults.get("upper_two_across_max_length_ft", DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT)
             )
+            optimize_defaults["upper_deck_exception_max_length_ft"] = str(
+                config.get("upper_deck_exception_max_length_ft")
+                or optimize_defaults.get(
+                    "upper_deck_exception_max_length_ft",
+                    DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
+                )
+            )
+            optimize_defaults["upper_deck_exception_overhang_allowance_ft"] = str(
+                config.get("upper_deck_exception_overhang_allowance_ft")
+                or optimize_defaults.get(
+                    "upper_deck_exception_overhang_allowance_ft",
+                    DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+                )
+            )
+            optimize_defaults["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+                config.get("upper_deck_exception_categories")
+                or optimize_defaults.get("upper_deck_exception_categories")
+                or DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+                default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+            )
             optimize_defaults["enforce_time_window"] = bool(config.get("enforce_time_window", True))
             optimize_defaults["batch_horizon_enabled"] = bool(config.get("batch_horizon_enabled", False))
             optimize_defaults["batch_end_date"] = config.get("batch_end_date") or optimize_defaults["batch_end_date"]
@@ -4501,9 +5446,10 @@ def orders():
     strategic_customers_raw = strategic_setting.get("value_text") or ""
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
     strategic_customer_groups = []
-    for entry in strategic_customers:
-        if not entry.get("include_in_optimizer_workbench", True):
-            continue
+    eligible_strategic_customers = [
+        entry for entry in strategic_customers if entry.get("include_in_optimizer_workbench", True)
+    ]
+    for entry in eligible_strategic_customers:
         matching_customers = [
             cust
             for cust in customers
@@ -4517,12 +5463,12 @@ def orders():
                     "customers": matching_customers,
                 }
             )
-    strategic_orders = {entry["key"]: [] for entry in strategic_customers}
+    strategic_orders = {entry["key"]: [] for entry in eligible_strategic_customers}
     other_orders = []
     for order in orders_list:
         cust_name = order.get("cust_name") or ""
         matched_key = None
-        for entry in strategic_customers:
+        for entry in eligible_strategic_customers:
             if customer_rules.matches_any_customer_pattern(cust_name, entry.get("patterns")):
                 matched_key = entry["key"]
                 break
@@ -4564,15 +5510,15 @@ def orders():
         }
 
     order_sections = []
-    for entry in strategic_customers:
+    for entry in eligible_strategic_customers:
         section_orders = strategic_orders.get(entry["key"]) or []
         if not section_orders:
             continue
         order_sections.append(
-            _build_section(entry["key"], entry["label"], section_orders, default_limit=15)
+            _build_section(entry["key"], entry["label"], section_orders, default_limit=5)
         )
     order_sections.append(
-        _build_section("other", "Other Customers", other_orders, default_limit=15)
+        _build_section("other", "Other Customers", other_orders, default_limit=5)
     )
 
     show_more_plants = False
@@ -4792,6 +5738,26 @@ def orders_optimize():
                 str(DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT),
             ),
         )
+        form_data["upper_deck_exception_max_length_ft"] = optimize_form.get(
+            "upper_deck_exception_max_length_ft",
+            form_data.get(
+                "upper_deck_exception_max_length_ft",
+                str(DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT),
+            ),
+        )
+        form_data["upper_deck_exception_overhang_allowance_ft"] = optimize_form.get(
+            "upper_deck_exception_overhang_allowance_ft",
+            form_data.get(
+                "upper_deck_exception_overhang_allowance_ft",
+                str(DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT),
+            ),
+        )
+        form_data["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+            optimize_form.getlist("upper_deck_exception_categories")
+            or form_data.get("upper_deck_exception_categories")
+            or DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+            default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+        )
         form_data["state_filters"] = [
             value.strip().upper()
             for value in optimize_form.getlist("opt_states")
@@ -4987,9 +5953,10 @@ def orders_optimize():
     strategic_customers_raw = strategic_setting.get("value_text") or ""
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
     strategic_customer_groups = []
-    for entry in strategic_customers:
-        if not entry.get("include_in_optimizer_workbench", True):
-            continue
+    eligible_strategic_customers = [
+        entry for entry in strategic_customers if entry.get("include_in_optimizer_workbench", True)
+    ]
+    for entry in eligible_strategic_customers:
         matching_customers = [
             cust
             for cust in customers
@@ -5003,12 +5970,12 @@ def orders_optimize():
                     "customers": matching_customers,
                 }
             )
-    strategic_orders = {entry["key"]: [] for entry in strategic_customers}
+    strategic_orders = {entry["key"]: [] for entry in eligible_strategic_customers}
     other_orders = []
     for order in orders_list:
         cust_name = order.get("cust_name") or ""
         matched_key = None
-        for entry in strategic_customers:
+        for entry in eligible_strategic_customers:
             if customer_rules.matches_any_customer_pattern(cust_name, entry.get("patterns")):
                 matched_key = entry["key"]
                 break
@@ -5050,15 +6017,15 @@ def orders_optimize():
         }
 
     order_sections = []
-    for entry in strategic_customers:
+    for entry in eligible_strategic_customers:
         section_orders = strategic_orders.get(entry["key"]) or []
         if not section_orders:
             continue
         order_sections.append(
-            _build_section(entry["key"], entry["label"], section_orders, default_limit=15)
+            _build_section(entry["key"], entry["label"], section_orders, default_limit=5)
         )
     order_sections.append(
-        _build_section("other", "Other Customers", other_orders, default_limit=15)
+        _build_section("other", "Other Customers", other_orders, default_limit=5)
     )
 
     show_more_plants = False
@@ -5359,9 +6326,9 @@ def loads():
             plant_filters = list(plant_scope)
     tab = (request.args.get("tab") or "").strip().lower()
     status_filter = (request.args.get("status") or "").strip().upper()
-    sort_mode = (request.args.get("sort") or "util").strip().lower()
+    sort_mode = (request.args.get("sort") or "flow").strip().lower()
     if sort_mode not in {"flow", "util"}:
-        sort_mode = "util"
+        sort_mode = "flow"
     today_override = _resolve_today_override(request.args.get("today"))
     today = today_override or date.today()
     reopt_status = request.args.get("reopt", "")
@@ -5444,6 +6411,9 @@ def loads():
     stop_fee_amount = _get_stop_fee_amount()
     fuel_surcharge_per_mile = _get_fuel_surcharge_per_mile()
     load_minimum_amount = _get_load_minimum_amount()
+    trailer_assignment_rules = _get_trailer_assignment_rules()
+    strategic_setting = db.get_planning_setting("strategic_customers") or {}
+    strategic_customers = _parse_strategic_customers(strategic_setting.get("value_text") or "")
 
     for load in loads_data:
         lines = load.get("lines", [])
@@ -5563,6 +6533,7 @@ def loads():
         origin_code = load.get("origin_plant")
         origin_coords = geo_utils.plant_coords_for_code(origin_code)
         requires_return_to_origin = _requires_return_to_origin(lines)
+        reverse_route = _is_load_route_reversed(load)
         ordered_stops = (
             tsp_solver.solve_route(
                 origin_coords,
@@ -5572,6 +6543,7 @@ def loads():
             if origin_coords
             else list(stops)
         )
+        ordered_stops = _apply_load_route_direction(ordered_stops, reverse_route=reverse_route)
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         order_colors = _build_order_colors_for_lines(
             lines,
@@ -5596,9 +6568,32 @@ def loads():
                 group.get("order_id") or "",
             )
         )
+        origin_name = plant_names.get(origin_code, PLANT_NAMES.get(origin_code, origin_code))
+        if requires_return_to_origin and ordered_stops:
+            return_stop_sequence = len(ordered_stops) + 1
+            manifest_groups.append(
+                {
+                    "order_id": "RETURN",
+                    "due_date": "",
+                    "cust_name": origin_name or origin_code or "Plant",
+                    "city": "",
+                    "state": origin_code or "",
+                    "zip": "",
+                    "total_qty": 0,
+                    "status_label": "",
+                    "sku_set": set(),
+                    "lines": [],
+                    "sku_list": [],
+                    "due_status": "",
+                    "early_days": 0,
+                    "stop_sequence": return_stop_sequence,
+                    "color": _color_for_stop_sequence(return_stop_sequence, stop_color_palette),
+                    "is_terminal_stop": True,
+                    "terminal_label": "Return to Plant",
+                }
+            )
         load["manifest_groups"] = manifest_groups
 
-        origin_name = plant_names.get(origin_code, PLANT_NAMES.get(origin_code, origin_code))
         route_nodes = [
             {
                 "type": "origin",
@@ -5656,7 +6651,11 @@ def loads():
             node["color"] = color
             node["bg"] = f"{color}22"
 
-        route_metrics = _load_route_display_metrics(load, route_nodes)
+        route_metrics = _load_route_display_metrics(
+            load,
+            route_nodes,
+            use_cached_route=not reverse_route,
+        )
         route_legs = route_metrics["route_legs"]
         total_route_distance = route_metrics["route_distance"]
         route_geometry = route_metrics["route_geometry"]
@@ -5667,18 +6666,18 @@ def loads():
             trailer_type,
             stop_sequence_map=stop_sequence_map,
         )
-        load["auto_trailer_label"] = ""
-        load["auto_trailer_reason"] = ""
-        if trailer_type == "FLATBED" and not schematic.get("exceeds_capacity"):
-            step_schematic, _, _ = _calculate_load_schematic(
-                lines,
-                sku_specs,
-                "STEP_DECK",
-                stop_sequence_map=stop_sequence_map,
-            )
-            if step_schematic.get("exceeds_capacity"):
-                load["auto_trailer_label"] = "Auto Flatbed"
-                load["auto_trailer_reason"] = "Assigned a flatbed because the load does not fit on the 43' / 10' step deck split."
+        auto_label, auto_reason = _auto_trailer_rule_annotation(
+            load=load,
+            lines=lines,
+            trailer_type=trailer_type,
+            schematic=schematic,
+            sku_specs=sku_specs,
+            stop_sequence_map=stop_sequence_map,
+            trailer_assignment_rules=trailer_assignment_rules,
+            strategic_customers=strategic_customers,
+        )
+        load["auto_trailer_label"] = auto_label
+        load["auto_trailer_reason"] = auto_reason
         sku_colors = {}
         for idx, item in enumerate(line_items):
             sku = item.get("sku") or f"item-{idx}"
@@ -5708,6 +6707,7 @@ def loads():
         load["route_legs"] = route_legs
         load["route_distance"] = total_route_distance
         load["route_geometry"] = route_geometry
+        load["route_reversed"] = bool(reverse_route)
         load["freight_breakdown"] = _build_freight_breakdown(
             load,
             stop_fee_amount=stop_fee_amount,
@@ -5917,6 +6917,9 @@ def loads():
             )
         )
 
+    for idx, load in enumerate(loads_data, start=1):
+        load["display_sequence"] = idx
+
     full_truckloads = []
     manual_loads = []
     other_loads = list(loads_data)
@@ -6056,19 +7059,22 @@ def planning_sessions():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
 
     plant_code = (request.args.get("plant") or "").strip().upper()
     planner = (request.args.get("planner") or "").strip()
     start_date = (request.args.get("start") or "").strip()
     end_date = (request.args.get("end") or "").strip()
-    deleted_session_param = (request.args.get("deleted_session_id") or "").strip()
+    role = _get_session_role()
+    can_manage_sessions = role == ROLE_ADMIN
+    allowed_plants = set(_get_allowed_plants())
+    profile_name = (_get_session_profile_name() or "").strip()
+    scoped_planner = planner if can_manage_sessions else profile_name
+
+    if plant_code and plant_code not in allowed_plants:
+        abort(403)
+
     archived_session_param = (request.args.get("archived_session_id") or "").strip()
     archived_all_param = (request.args.get("archived_all_count") or "").strip()
-    try:
-        deleted_session_id = int(deleted_session_param) if deleted_session_param else None
-    except ValueError:
-        deleted_session_id = None
     try:
         archived_session_id = int(archived_session_param) if archived_session_param else None
     except ValueError:
@@ -6081,13 +7087,21 @@ def planning_sessions():
     sessions = db.list_planning_sessions(
         {
             "plant_code": plant_code or None,
-            "created_by": planner or None,
+            "created_by": scoped_planner or None,
             "start_date": start_date or None,
             "end_date": end_date or None,
         }
     )
 
+    visible_sessions = []
     for session in sessions:
+        session_plant = _normalize_plant_code(session.get("plant_code"))
+        if session_plant and session_plant not in allowed_plants:
+            continue
+        if not can_manage_sessions:
+            owner = (session.get("created_by") or "").strip()
+            if owner.casefold() != profile_name.casefold():
+                continue
         config = {}
         if session.get("config_json"):
             try:
@@ -6096,6 +7110,10 @@ def planning_sessions():
                 config = {}
         session["config"] = config
         session["status"] = _normalize_session_status(session.get("status"))
+        session["created_at_label"] = _format_est_datetime_label(session.get("created_at"))
+        visible_sessions.append(session)
+
+    sessions = visible_sessions
 
     total_sessions = len(sessions)
     avg_efficiency = 0.0
@@ -6111,11 +7129,16 @@ def planning_sessions():
     if active_session_id:
         active = next((session for session in sessions if session.get("id") == active_session_id), None)
         if not active:
-            active = db.get_planning_session(active_session_id)
-        if active:
+            fetched = db.get_planning_session(active_session_id)
+            active = fetched if _can_access_planning_session(fetched) else None
+        if active and _can_access_planning_session(active):
             active_session_label = f"{active.get('plant_code') or ''} - {active.get('session_code') or ''}".strip(" -")
 
-    planner_options = sorted({session.get("created_by") for session in sessions if session.get("created_by")})
+    planner_options = (
+        sorted({session.get("created_by") for session in sessions if session.get("created_by")})
+        if can_manage_sessions
+        else ([profile_name] if profile_name else [])
+    )
     plant_options = sorted({session.get("plant_code") for session in sessions if session.get("plant_code")})
 
     return render_template(
@@ -6128,12 +7151,12 @@ def planning_sessions():
         active_session_id=active_session_id,
         planner_options=planner_options,
         plant_options=plant_options,
-        deleted_session_id=deleted_session_id,
         archived_session_id=archived_session_id,
         archived_all_count=archived_all_count,
+        can_manage_sessions=can_manage_sessions,
         filters={
             "plant": plant_code,
-            "planner": planner,
+            "planner": planner if can_manage_sessions else profile_name,
             "start": start_date,
             "end": end_date,
         },
@@ -6968,6 +7991,7 @@ def _build_load_report_rows(loads):
         lines = load.get("lines") or []
         trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
         ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+        ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         schematic, _, _ = _calculate_load_schematic(
             lines,
@@ -7378,6 +8402,425 @@ def _build_excel_schematic_image(load):
     return excel_image
 
 
+def _hex_to_excel_argb(hex_color, fallback="#94A3B8"):
+    normalized = _normalize_hex_color(hex_color, fallback)
+    return f"FF{normalized.lstrip('#')}"
+
+
+def _lighten_hex_color(hex_color, ratio=0.84):
+    base_rgb = _hex_to_rgb_tuple(_normalize_hex_color(hex_color, "#94A3B8"), (148, 163, 184))
+    lighter = _blend_rgb(base_rgb, (255, 255, 255), ratio)
+    return "#{:02X}{:02X}{:02X}".format(*lighter)
+
+
+def _format_street_address(line):
+    address1 = str(line.get("address1") or "").strip()
+    address2 = str(line.get("address2") or "").strip()
+    if address1 and address2:
+        return f"{address1} {address2}".strip()
+    return address1 or address2
+
+
+def _build_load_sheet_stops(load):
+    lines = load.get("lines") or []
+    if not lines:
+        return []
+
+    stops_by_key = {}
+    for line in lines:
+        key = _line_stop_key(line.get("state"), line.get("zip"))
+        if key not in stops_by_key:
+            stops_by_key[key] = {
+                "stop_key": key,
+                "stop_order": None,
+                "state": (line.get("state") or "").strip().upper(),
+                "zip": (line.get("zip") or "").strip(),
+                "city": (line.get("city") or "").strip(),
+                "address": _format_street_address(line),
+                "customers": [],
+                "sku_entries": [],
+            }
+
+        stop = stops_by_key[key]
+        customer = (line.get("cust_name") or "").strip()
+        if customer and customer not in stop["customers"]:
+            stop["customers"].append(customer)
+        if not stop.get("city"):
+            stop["city"] = (line.get("city") or "").strip()
+        if not stop.get("address"):
+            stop["address"] = _format_street_address(line)
+
+        so_num = (line.get("so_num") or "").strip()
+        sku = (line.get("sku") or "").strip()
+        item = (line.get("item") or "").strip()
+        qty_value = float(line.get("qty") or 0)
+        qty_text = "{:,.0f}".format(qty_value) if qty_value.is_integer() else "{:,.1f}".format(qty_value)
+        descriptor = sku or item or "SKU"
+        entry = f"{so_num} / {descriptor} x{qty_text}" if so_num else f"{descriptor} x{qty_text}"
+        if entry not in stop["sku_entries"]:
+            stop["sku_entries"].append(entry)
+
+    order_stops = {}
+    for order in load.get("orders") or []:
+        order_key = _line_stop_key(order.get("state"), order.get("zip"))
+        raw_sequence = order.get("stop_order")
+        if raw_sequence:
+            order_stops[order_key] = int(raw_sequence)
+
+    stop_rows = []
+    for stop in stops_by_key.values():
+        stop_order = order_stops.get(stop["stop_key"])
+        stop["stop_order"] = stop_order or 999
+        stop_rows.append(stop)
+
+    stop_rows.sort(
+        key=lambda entry: (
+            int(entry.get("stop_order") or 999),
+            entry.get("city") or "",
+            entry.get("zip") or "",
+        )
+    )
+    return stop_rows
+
+
+def _color_luminance(hex_color):
+    raw = _normalize_hex_color(hex_color, "#94A3B8").lstrip("#")
+    r = int(raw[0:2], 16)
+    g = int(raw[2:4], 16)
+    b = int(raw[4:6], 16)
+    return (0.299 * r) + (0.587 * g) + (0.114 * b)
+
+
+def _expand_schematic_units_for_position(position):
+    expanded = []
+    for item in position.get("items") or []:
+        units = max(_coerce_int_value(item.get("units"), 0), 0)
+        if units <= 0:
+            continue
+        label = (item.get("sku") or item.get("item") or "SKU").strip() or "SKU"
+        stop_sequence = _coerce_int_value(item.get("stop_sequence"), 0)
+        for _ in range(units):
+            expanded.append(
+                {
+                    "label": label,
+                    "stop_sequence": stop_sequence,
+                }
+            )
+    return expanded
+
+
+def _write_load_sheet_schematic_grid(
+    ws,
+    start_row,
+    load,
+    stop_palette,
+    medium_side,
+    thin_side,
+):
+    schematic = load.get("schematic") or {}
+    positions = list(schematic.get("positions") or [])
+    if not positions:
+        return start_row
+
+    deck_groups = [
+        ("upper", "Upper Deck"),
+        ("lower", "Lower Deck"),
+    ]
+    columns = list(range(1, 9))
+    chunk_size = len(columns)
+    row_cursor = start_row
+
+    for deck_key, deck_label in deck_groups:
+        deck_positions = [pos for pos in positions if (pos.get("deck") or "lower") == deck_key]
+        if not deck_positions:
+            continue
+
+        ws.merge_cells(start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=8)
+        title_cell = ws.cell(row=row_cursor, column=1, value=f"{deck_label} Stacking Schematic")
+        title_cell.font = Font(bold=True, color="FF334155")
+        title_cell.alignment = Alignment(horizontal="left", vertical="center")
+        row_cursor += 1
+
+        position_chunks = [deck_positions[idx : idx + chunk_size] for idx in range(0, len(deck_positions), chunk_size)]
+        for chunk in position_chunks:
+            expanded_columns = [_expand_schematic_units_for_position(pos) for pos in chunk]
+            max_stack = max((len(column_units) for column_units in expanded_columns), default=1)
+            max_stack = max(max_stack, 1)
+
+            # Stack/position row
+            ws.row_dimensions[row_cursor].height = 20
+            for col_idx in columns:
+                cell = ws.cell(row=row_cursor, column=col_idx, value="")
+                if col_idx <= len(chunk):
+                    cell.value = f"Stack {col_idx}"
+                cell.font = Font(bold=True, color="FF475569")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                cell.fill = PatternFill(fill_type="solid", fgColor="FFF8FAFC")
+                cell.border = Border(
+                    left=medium_side if col_idx == 1 else thin_side,
+                    right=medium_side if col_idx == columns[-1] else thin_side,
+                    top=thin_side,
+                    bottom=thin_side,
+                )
+            row_cursor += 1
+
+            # Unit cells (one SKU per cell), bottom-aligned within each stack.
+            for stack_row in range(max_stack):
+                excel_row = row_cursor + stack_row
+                ws.row_dimensions[excel_row].height = 22
+                for col_idx in columns:
+                    cell = ws.cell(row=excel_row, column=col_idx, value="")
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.border = Border(
+                        left=medium_side if col_idx == 1 else thin_side,
+                        right=medium_side if col_idx == columns[-1] else thin_side,
+                        top=thin_side,
+                        bottom=thin_side,
+                    )
+                    if col_idx > len(expanded_columns):
+                        continue
+                    col_units = expanded_columns[col_idx - 1]
+                    blank_lead = max_stack - len(col_units)
+                    unit_idx = stack_row - blank_lead
+                    if unit_idx < 0 or unit_idx >= len(col_units):
+                        continue
+                    unit = col_units[unit_idx]
+                    stop_sequence = _coerce_int_value(unit.get("stop_sequence"), 0)
+                    stop_color = _color_for_stop_sequence(stop_sequence, stop_palette)
+                    cell.value = unit.get("label") or "SKU"
+                    cell.fill = PatternFill(fill_type="solid", fgColor=_hex_to_excel_argb(stop_color, fallback="#94A3B8"))
+                    text_color = "FFFFFFFF" if _color_luminance(stop_color) < 138 else "FF0F172A"
+                    cell.font = Font(bold=True, color=text_color)
+            row_cursor += max_stack
+
+            # Stop-sequence legend row aligned to stacks.
+            ws.row_dimensions[row_cursor].height = 19
+            for col_idx in columns:
+                legend = ws.cell(row=row_cursor, column=col_idx, value="")
+                legend.alignment = Alignment(horizontal="center", vertical="center")
+                legend.border = Border(
+                    left=medium_side if col_idx == 1 else thin_side,
+                    right=medium_side if col_idx == columns[-1] else thin_side,
+                    top=thin_side,
+                    bottom=medium_side,
+                )
+                legend.fill = PatternFill(fill_type="solid", fgColor="FFF8FAFC")
+                if col_idx > len(expanded_columns):
+                    continue
+                col_units = expanded_columns[col_idx - 1]
+                top_sequence = _coerce_int_value((col_units[-1] if col_units else {}).get("stop_sequence"), 0)
+                if top_sequence > 0:
+                    legend.value = f"Stop {top_sequence}"
+                    legend.font = Font(bold=True, color="FF334155")
+            row_cursor += 1
+            row_cursor += 1
+    return row_cursor
+
+
+def _write_load_sheet_block(
+    ws,
+    start_row,
+    load,
+    stop_palette,
+    medium_side,
+    thin_side,
+    header_font,
+    body_font,
+):
+    columns = list(range(1, 9))
+    has_medium_right_col = columns[-1]
+    route_stops = _build_load_sheet_stops(load)
+
+    start_zip = route_stops[0].get("zip") if route_stops else ""
+    stop_zip = route_stops[-1].get("zip") if route_stops else ""
+    ship_budget = round(float(load.get("estimated_cost") or 0), 2)
+    ship_date = load.get("ship_date") or ""
+
+    trailer_label = str(load.get("trailer_type") or "").replace("_", " ").title() or "Trailer"
+    load_title_values = [
+        "COT Loadsheet",
+        load.get("origin_plant") or "",
+        load.get("load_number") or load.get("display_load_id") or "",
+        trailer_label,
+        "",
+        "",
+        "",
+        "",
+    ]
+    meta_headers = [
+        "Start ZIP",
+        "Stop ZIP",
+        "Carrier",
+        "Trailer Type",
+        "Trailer Count",
+        "Total Miles",
+        "Ship Budget",
+        "Must Ship By",
+    ]
+    meta_values = [
+        start_zip or "",
+        stop_zip or "",
+        "TBD",
+        trailer_label,
+        1,
+        round(float(load.get("estimated_miles") or 0), 1),
+        ship_budget,
+        ship_date,
+    ]
+
+    for col_idx in columns:
+        cell = ws.cell(row=start_row, column=col_idx, value=load_title_values[col_idx - 1])
+        cell.font = Font(bold=True, color="FF1F2937")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = PatternFill(fill_type="solid", fgColor="FFE5E7EB")
+        cell.border = Border(
+            left=medium_side if col_idx == 1 else thin_side,
+            right=medium_side if col_idx == has_medium_right_col else thin_side,
+            top=medium_side,
+            bottom=medium_side,
+        )
+
+    for col_idx in columns:
+        header = ws.cell(row=start_row + 1, column=col_idx, value=meta_headers[col_idx - 1])
+        header.font = header_font
+        header.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        header.fill = PatternFill(fill_type="solid", fgColor="FFF8FAFC")
+        header.border = Border(
+            left=medium_side if col_idx == 1 else thin_side,
+            right=medium_side if col_idx == has_medium_right_col else thin_side,
+            top=thin_side,
+            bottom=thin_side,
+        )
+        value_cell = ws.cell(row=start_row + 2, column=col_idx, value=meta_values[col_idx - 1])
+        value_cell.font = body_font
+        value_cell.alignment = Alignment(horizontal="center", vertical="center")
+        value_cell.border = Border(
+            left=medium_side if col_idx == 1 else thin_side,
+            right=medium_side if col_idx == has_medium_right_col else thin_side,
+            top=thin_side,
+            bottom=thin_side,
+        )
+        if col_idx == 7:
+            value_cell.number_format = "$#,##0.00"
+        if col_idx == 8:
+            header.fill = PatternFill(fill_type="solid", fgColor="FFFFEB99")
+            value_cell.fill = PatternFill(fill_type="solid", fgColor="FFFFF3BF")
+
+    ws.merge_cells(start_row=start_row + 3, start_column=1, end_row=start_row + 3, end_column=8)
+    instructions_cell = ws.cell(
+        row=start_row + 3,
+        column=1,
+        value="Check Special Instructions",
+    )
+    instructions_cell.font = Font(bold=True, color="FFB91C1C")
+    instructions_cell.alignment = Alignment(horizontal="center", vertical="center")
+    instructions_cell.fill = PatternFill(fill_type="solid", fgColor="FFFEF2F2")
+    instructions_cell.border = Border(left=medium_side, right=medium_side, top=thin_side, bottom=thin_side)
+
+    chunk_size = 8
+    route_rows_per_chunk = 10
+    route_start_row = start_row + 4
+    stop_chunks = [route_stops[i : i + chunk_size] for i in range(0, len(route_stops), chunk_size)] or [[]]
+
+    for chunk_idx, stop_chunk in enumerate(stop_chunks):
+        chunk_row = route_start_row + (chunk_idx * route_rows_per_chunk)
+        row_labels = [
+            "Route",
+            "Stop #",
+            "Customer",
+            "Address",
+            "City",
+            "State",
+            "ZIP",
+            "Phone",
+            "Group",
+            "SKU / SO",
+        ]
+        for offset, label in enumerate(row_labels):
+            row_number = chunk_row + offset
+            ws.row_dimensions[row_number].height = 26
+            if offset in {8, 9}:
+                ws.row_dimensions[row_number].height = 42
+            for col_idx in columns:
+                cell = ws.cell(row=row_number, column=col_idx)
+                stop_data = stop_chunk[col_idx - 1] if col_idx <= len(stop_chunk) else None
+                stop_sequence = (stop_data or {}).get("stop_order") or 0
+                color_hex = _color_for_stop_sequence(stop_sequence, stop_palette)
+                light_hex = _lighten_hex_color(color_hex, ratio=0.7 if offset == 1 else 0.84)
+                cell.fill = PatternFill(fill_type="solid", fgColor=_hex_to_excel_argb(light_hex, fallback="#EEF2FF"))
+                cell.border = Border(
+                    left=medium_side if col_idx == 1 else thin_side,
+                    right=medium_side if col_idx == has_medium_right_col else thin_side,
+                    top=thin_side,
+                    bottom=medium_side if offset == len(row_labels) - 1 else thin_side,
+                )
+                cell.font = body_font
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+                if not stop_data:
+                    continue
+                if offset == 0:
+                    cell.value = f"Stop {int(stop_sequence)}"
+                    cell.font = Font(bold=True, color="FF1E293B")
+                elif offset == 1:
+                    cell.value = int(stop_sequence)
+                    cell.font = header_font
+                elif offset == 2:
+                    customers = stop_data.get("customers") or []
+                    cell.value = ", ".join(customers[:2]) + (f" (+{len(customers)-2})" if len(customers) > 2 else "")
+                elif offset == 3:
+                    cell.value = stop_data.get("address") or "(address unavailable)"
+                elif offset == 4:
+                    cell.value = stop_data.get("city") or ""
+                elif offset == 5:
+                    cell.value = stop_data.get("state") or ""
+                elif offset == 6:
+                    cell.value = stop_data.get("zip") or ""
+                elif offset == 7:
+                    cell.value = "(blank)"
+                elif offset == 8:
+                    cell.value = "COT Stickers"
+                    cell.font = header_font
+                elif offset in {8, 9}:
+                    sku_entries = stop_data.get("sku_entries") or []
+                    if offset == 9:
+                        cell.value = "\n".join(sku_entries[:8])
+
+    after_routes_row = route_start_row + (len(stop_chunks) * route_rows_per_chunk) + 1
+    row_after_schematic = _write_load_sheet_schematic_grid(
+        ws,
+        start_row=after_routes_row,
+        load=load,
+        stop_palette=stop_palette,
+        medium_side=medium_side,
+        thin_side=thin_side,
+    )
+    return max(row_after_schematic + 1, after_routes_row + 3)
+
+
+def _build_single_load_sheet_workbook(load):
+    workbook = Workbook()
+    sheet_name = (load.get("load_number") or "Load Sheet")[:31]
+    ws = workbook.active
+    ws.title = sheet_name
+
+    for col_letter in ("A", "B", "C", "D", "E", "F", "G", "H"):
+        ws.column_dimensions[col_letter].width = 26
+    ws.sheet_view.showGridLines = True
+
+    _write_load_sheet_block(
+        ws,
+        start_row=1,
+        load=load,
+        stop_palette=_get_stop_color_palette(),
+        medium_side=Side(style="medium", color="FF475569"),
+        thin_side=Side(style="thin", color="FFCBD5E1"),
+        header_font=Font(bold=True, color="FF1F2937"),
+        body_font=Font(color="FF111827"),
+    )
+    return workbook
+
+
 def _build_load_report_workbook(planning_session, report_rows):
     workbook = Workbook()
     summary = workbook.active
@@ -7635,24 +9078,43 @@ def _build_load_report_workbook(planning_session, report_rows):
     sku_breakdown.column_dimensions["H"].width = 15
     sku_breakdown.freeze_panes = "A2"
 
+    load_sheets = workbook.create_sheet(title="Load Sheets")
+    for col_letter in ("A", "B", "C", "D", "E", "F", "G", "H"):
+        load_sheets.column_dimensions[col_letter].width = 26
+    load_sheets.sheet_view.showGridLines = True
+
+    row_pointer = 1
+    stop_palette = _get_stop_color_palette()
+    medium_side = Side(style="medium", color="FF475569")
+    thin_side = Side(style="thin", color="FFCBD5E1")
+    for load in report_rows or []:
+        row_pointer = _write_load_sheet_block(
+            load_sheets,
+            row_pointer,
+            load,
+            stop_palette=stop_palette,
+            medium_side=medium_side,
+            thin_side=thin_side,
+            header_font=header_font,
+            body_font=body_font,
+        )
+        row_pointer += 1
+
     return workbook
 
 
-def _get_completed_session_report_data(session_id):
-    planning_session = db.get_planning_session(session_id)
-    if not planning_session:
-        abort(404)
-    if planning_session.get("plant_code") and planning_session.get("plant_code") not in _get_allowed_plants():
-        abort(403)
+def _get_session_report_data(session_id):
+    planning_session = _get_scoped_planning_session_or_404(session_id)
 
     loads = load_builder.list_loads(None, session_id=session_id)
     session_status = _sync_planning_session_status(session_id, loads=loads)
     session_status = _normalize_session_status(session_status or planning_session.get("status"))
     planning_session["status"] = session_status
-    if session_status != "COMPLETED":
-        abort(409, description="Load report is available only after all session loads are approved.")
-
-    report_rows = _build_load_report_rows(loads)
+    approved_loads = [
+        load for load in loads
+        if (load.get("status") or "").strip().upper() == STATUS_APPROVED
+    ]
+    report_rows = _build_load_report_rows(approved_loads)
     return planning_session, report_rows
 
 
@@ -7662,7 +9124,7 @@ def load_report(session_id):
     if session_redirect:
         return session_redirect
 
-    planning_session, report_rows = _get_completed_session_report_data(session_id)
+    planning_session, report_rows = _get_session_report_data(session_id)
     total_miles = round(sum((row.get("estimated_miles") or 0) for row in report_rows), 1)
     total_cost = round(sum((row.get("estimated_cost") or 0) for row in report_rows), 2)
     early_count = sum(1 for row in report_rows if row.get("has_early_delivery"))
@@ -7701,7 +9163,7 @@ def load_report_export(session_id):
     if session_redirect:
         return session_redirect
 
-    planning_session, report_rows = _get_completed_session_report_data(session_id)
+    planning_session, report_rows = _get_session_report_data(session_id)
     workbook = _build_load_report_workbook(planning_session, report_rows)
     output = io.BytesIO()
     workbook.save(output)
@@ -7716,16 +9178,40 @@ def load_report_export(session_id):
     )
 
 
+@app.route("/load-report/<int:session_id>/load/<int:load_id>/sheet.xlsx")
+def load_report_load_sheet_export(session_id, load_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    planning_session, report_rows = _get_session_report_data(session_id)
+    matched = next((row for row in (report_rows or []) if int(row.get("id") or 0) == int(load_id)), None)
+    if not matched:
+        abort(404)
+
+    workbook = _build_single_load_sheet_workbook(matched)
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    raw_load_number = str(matched.get("load_number") or f"load_{load_id}").strip()
+    safe_load_number = re.sub(r"[^A-Za-z0-9_-]+", "_", raw_load_number).strip("_") or f"load_{load_id}"
+    safe_code = (planning_session.get("session_code") or f"session_{session_id}").replace(" ", "_")
+    filename = f"load_sheet_{safe_code}_{safe_load_number}_{date.today().isoformat()}.xlsx"
+
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @app.route("/planning-sessions/<int:session_id>")
 def planning_session_detail(session_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    planning_session = db.get_planning_session(session_id)
-    if not planning_session:
-        abort(404)
+    planning_session = _get_scoped_planning_session_or_404(session_id)
     planning_session["status"] = _normalize_session_status(planning_session.get("status"))
 
     session_config = {}
@@ -7738,7 +9224,6 @@ def planning_session_detail(session_id):
     loads = load_builder.list_loads(None, session_id=session_id)
     session_status = _sync_planning_session_status(session_id, loads=loads)
     planning_session["status"] = _normalize_session_status(session_status or planning_session.get("status"))
-    report_available = planning_session["status"] == "COMPLETED"
     rollup = _build_planning_session_rollup(loads)
     avg_util = round(
         sum((load.get("utilization_pct") or 0) for load in loads) / len(loads), 1
@@ -7753,7 +9238,7 @@ def planning_session_detail(session_id):
         load_count=len(rollup["loads"]),
         order_count=len(rollup["orders"]),
         avg_utilization=avg_util,
-        report_available=report_available,
+        can_manage_sessions=_get_session_role() == ROLE_ADMIN,
     )
 
 
@@ -7762,10 +9247,8 @@ def planning_session_summary(session_id):
     session_redirect = _require_session()
     if session_redirect:
         return jsonify({"error": "Session expired"}), 401
-    _require_admin()
-
     planning_session = db.get_planning_session(session_id)
-    if not planning_session:
+    if not planning_session or not _can_access_planning_session(planning_session):
         return jsonify({"error": "Session not found"}), 404
 
     loads = load_builder.list_loads(None, session_id=session_id)
@@ -7795,7 +9278,7 @@ def planning_session_archive(session_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _get_scoped_planning_session_or_404(session_id)
     filters = _planning_session_filter_values(request.form)
     if not _archive_session_and_release_loads(session_id):
         abort(404)
@@ -7809,19 +9292,25 @@ def planning_sessions_archive_all():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
 
     filters = _planning_session_filter_values(request.form)
+    role = _get_session_role()
+    profile_name = (_get_session_profile_name() or "").strip()
+    created_by_filter = filters.get("planner") or None
+    if role != ROLE_ADMIN:
+        created_by_filter = profile_name
     sessions = db.list_planning_sessions(
         {
             "plant_code": filters.get("plant") or None,
-            "created_by": filters.get("planner") or None,
+            "created_by": created_by_filter,
             "start_date": filters.get("start") or None,
             "end_date": filters.get("end") or None,
         }
     )
     archived_count = 0
     for entry in sessions:
+        if not _can_access_planning_session(entry):
+            continue
         status = _normalize_session_status(entry.get("status"))
         if status == "ARCHIVED":
             continue
@@ -7836,19 +9325,7 @@ def planning_sessions_archive_all():
 
 @app.route("/planning-sessions/<int:session_id>/delete", methods=["POST"])
 def planning_session_delete(session_id):
-    session_redirect = _require_session()
-    if session_redirect:
-        return session_redirect
-    _require_admin()
-
-    planning_session = db.get_planning_session(session_id)
-    if not planning_session:
-        abort(404)
-
-    db.delete_planning_session(session_id, clear_loads=True)
-    if _get_active_planning_session_id() == session_id:
-        _set_active_planning_session_id(None)
-    return redirect(url_for("planning_sessions", deleted_session_id=session_id))
+    abort(404)
 
 
 @app.route("/planning-sessions/<int:session_id>/revise")
@@ -7856,7 +9333,7 @@ def planning_session_revise(session_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _get_scoped_planning_session_or_404(session_id)
     return redirect(url_for("orders", session_template_id=session_id))
 
 
@@ -7865,13 +9342,7 @@ def planning_session_resume(session_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    planning_session = db.get_planning_session(session_id)
-    if not planning_session:
-        abort(404)
-    if planning_session.get("plant_code") not in _get_allowed_plants():
-        abort(403)
+    _get_scoped_planning_session_or_404(session_id)
     _set_active_planning_session_id(session_id)
     return redirect(url_for("loads", session_id=session_id))
 
@@ -8503,6 +9974,8 @@ def load_detail(load_id):
     if session_redirect:
         return session_redirect
 
+    route_error = (request.args.get("route_error") or "").strip().lower()
+
     with db.get_connection() as connection:
         load = connection.execute(
             "SELECT * FROM loads WHERE id = ?",
@@ -8561,6 +10034,7 @@ def load_detail(load_id):
     origin_code = load_data.get("origin_plant")
     origin_coords = geo_utils.plant_coords_for_code(origin_code)
     requires_return_to_origin = _requires_return_to_origin(lines)
+    reverse_route = _is_load_route_reversed(load_data)
     ordered_stops = (
         tsp_solver.solve_route(
             origin_coords,
@@ -8570,6 +10044,7 @@ def load_detail(load_id):
         if origin_coords
         else list(stops)
     )
+    ordered_stops = _apply_load_route_direction(ordered_stops, reverse_route=reverse_route)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
 
     origin_name = plant_names.get(origin_code, PLANT_NAMES.get(origin_code, origin_code))
@@ -8624,7 +10099,11 @@ def load_detail(load_id):
         node["color"] = color
         node["bg"] = f"{color}22"
 
-    route_metrics = _load_route_display_metrics(load_data, route_nodes)
+    route_metrics = _load_route_display_metrics(
+        load_data,
+        route_nodes,
+        use_cached_route=not reverse_route,
+    )
     route_legs = route_metrics["route_legs"]
     route_geometry = route_metrics["route_geometry"]
 
@@ -8696,6 +10175,7 @@ def load_detail(load_id):
     load_data["route_distance"] = route_metrics["route_distance"]
     load_data["route_geometry"] = route_geometry
     load_data["map_stops"] = map_stops
+    load_data["route_reversed"] = bool(reverse_route)
 
     due_dates = [ _parse_date(line.get("due_date")) for line in lines ]
     due_dates = [value for value in due_dates if value]
@@ -8759,6 +10239,7 @@ def load_detail(load_id):
         utilization_pct=utilization_pct,
         utilization_grade=utilization_grade,
         utilization_credit_ft=schematic.get("utilization_credit_ft", 0),
+        route_error=route_error,
     )
 
 
@@ -8775,6 +10256,19 @@ def load_route_geometry(load_id):
     allowed_plants = _get_allowed_plants()
     if load.get("origin_plant") not in allowed_plants:
         return jsonify({"error": "Not authorized for this plant"}), 403
+
+    if _is_load_route_reversed(load):
+        return jsonify(
+            {
+                "load_id": load_id,
+                "route_provider": "manual",
+                "route_profile": "",
+                "route_fallback": True,
+                "route_total_miles": load.get("route_total_miles") or load.get("estimated_miles") or 0.0,
+                "route_legs": [],
+                "route_geometry": [],
+            }
+        )
 
     existing_geometry = load.get("route_geometry") or []
     existing_provider = (load.get("route_provider") or "").strip().lower()
@@ -8891,6 +10385,7 @@ def update_load_trailer(load_id):
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load["origin_plant"], zip_coords)
+    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
         lines,
@@ -9045,6 +10540,56 @@ def update_load_trailer(load_id):
     return ("", 204)
 
 
+@app.route("/loads/<int:load_id>/reverse-order", methods=["POST"])
+def reverse_load_order(load_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    next_url = _safe_next_url(request.form.get("next") or request.args.get("next")) or ""
+    load = db.get_load(load_id)
+    if not load:
+        wants_json = request.is_json or request.accept_mimetypes.best == "application/json"
+        if wants_json:
+            return jsonify({"error": "Load not found"}), 404
+        fallback = url_for("loads", session_id=_get_active_planning_session_id())
+        return redirect(next_url or fallback)
+
+    allowed_plants = _get_allowed_plants()
+    if load.get("origin_plant") not in allowed_plants:
+        wants_json = request.is_json or request.accept_mimetypes.best == "application/json"
+        if wants_json:
+            return jsonify({"error": "Not authorized for this plant"}), 403
+        fallback = url_for(
+            "loads",
+            session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+        )
+        return redirect(next_url or fallback)
+
+    status = (load.get("status") or STATUS_PROPOSED).upper()
+    if status == STATUS_APPROVED:
+        wants_json = request.is_json or request.accept_mimetypes.best == "application/json"
+        if wants_json:
+            return jsonify({"error": "Approved loads cannot be modified."}), 400
+        fallback = url_for(
+            "loads",
+            session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+        )
+        return redirect(next_url or fallback)
+
+    next_value = not _is_load_route_reversed(load)
+    db.update_load_route_reversed(load_id, next_value)
+
+    wants_json = request.is_json or request.accept_mimetypes.best == "application/json"
+    if wants_json:
+        return jsonify({"ok": True, "route_reversed": bool(next_value)})
+    fallback = url_for(
+        "loads",
+        session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+    )
+    return redirect(next_url or fallback)
+
+
 def _build_load_schematic_payload(load_id):
     load = db.get_load(load_id)
     if not load:
@@ -9058,6 +10603,7 @@ def _build_load_schematic_payload(load_id):
 
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
         lines,
@@ -9110,19 +10656,22 @@ def _build_load_schematic_payload(load_id):
         if isinstance(parsed_warnings, list):
             schematic_warnings = parsed_warnings
 
-    load["auto_trailer_label"] = ""
-    load["auto_trailer_reason"] = ""
-    if trailer_type == "FLATBED" and not schematic.get("exceeds_capacity"):
-        step_schematic, _, _ = _calculate_load_schematic(
-            lines,
-            sku_specs,
-            "STEP_DECK",
-            stop_sequence_map=stop_sequence_map,
-            assumptions=assumptions,
-        )
-        if step_schematic.get("exceeds_capacity"):
-            load["auto_trailer_label"] = "Auto Flatbed"
-            load["auto_trailer_reason"] = "Assigned a flatbed because the load does not fit on the 43' / 10' step deck split."
+    trailer_assignment_rules = _get_trailer_assignment_rules()
+    strategic_setting = db.get_planning_setting("strategic_customers") or {}
+    strategic_customers = _parse_strategic_customers(strategic_setting.get("value_text") or "")
+    auto_label, auto_reason = _auto_trailer_rule_annotation(
+        load=load,
+        lines=lines,
+        trailer_type=trailer_type,
+        schematic=schematic,
+        sku_specs=sku_specs,
+        stop_sequence_map=stop_sequence_map,
+        assumptions=assumptions,
+        trailer_assignment_rules=trailer_assignment_rules,
+        strategic_customers=strategic_customers,
+    )
+    load["auto_trailer_label"] = auto_label
+    load["auto_trailer_reason"] = auto_reason
     utilization_pct = schematic.get("utilization_pct", load.get("utilization_pct", 0)) or 0
     exceeds_capacity = schematic.get("exceeds_capacity", False)
     over_capacity = exceeds_capacity and len(order_numbers) <= 1
@@ -9469,6 +11018,7 @@ def update_load_status(load_id):
         return redirect(redirect_target)
 
     if action == "approve_lock":
+        should_redirect_to_report = False
         if not load_number:
             if planning_session:
                 start_value = (request.form.get("load_number_start") or "").strip()
@@ -9507,7 +11057,10 @@ def update_load_status(load_id):
                 load_number = normalized[:-2] if normalized.endswith("-D") else normalized
         db.update_load_status(load_id, STATUS_APPROVED, load_number)
         if planning_session_id:
-            _sync_planning_session_status(planning_session_id)
+            next_session_status = _normalize_session_status(
+                _sync_planning_session_status(planning_session_id)
+            )
+            should_redirect_to_report = next_session_status == "COMPLETED"
         if is_async:
             snapshot_loads = (
                 load_builder.list_loads(
@@ -9528,6 +11081,12 @@ def update_load_status(load_id):
                     "status": STATUS_APPROVED,
                     "load_id": load_id,
                     "load_number": load_number,
+                    "redirect_to_report": bool(should_redirect_to_report and planning_session_id),
+                    "session_report_url": (
+                        url_for("load_report", session_id=planning_session_id)
+                        if should_redirect_to_report and planning_session_id
+                        else ""
+                    ),
                     "progress": {
                         "approved_orders": snapshot["approved_orders"],
                         "total_orders": snapshot["total_orders"],
@@ -9539,6 +11098,8 @@ def update_load_status(load_id):
                     },
                 }
             )
+        if should_redirect_to_report and planning_session_id:
+            return redirect(url_for("load_report", session_id=planning_session_id))
         return redirect(redirect_target)
 
     return redirect(redirect_target)
@@ -9810,6 +11371,7 @@ def approve_all_loads():
 
     if session_id:
         _sync_planning_session_status(session_id)
+        return redirect(url_for("load_report", session_id=session_id))
 
     return redirect(
         url_for(
@@ -10020,13 +11582,21 @@ def settings():
     sku_lengths = []
     sku_step_decks = []
     sku_flat_beds = []
+    optimizer_exception_category_options = []
     planner_specs = []
     system_specs = []
+    source_led_specs = []
+    source_led_mapped_count = 0
+    source_led_unmapped_count = 0
+    source_led_missing_spec_count = 0
+    source_led_unique_sku_count = 0
     lookups_data = []
     plants_data = []
     strategic_customers_raw = ""
     strategic_customers = []
     stop_color_rows = []
+    trailer_assignment_rules = _get_trailer_assignment_rules()
+    rate_table_contexts = _get_rate_table_contexts()
     optimizer_defaults = _default_optimize_form()
     optimizer_defaults.update(_get_optimizer_default_settings())
     util_grade_thresholds = []
@@ -10038,6 +11608,19 @@ def settings():
         rate_plants, rate_states, rate_matrix = _build_rate_matrix_records(rates_data)
     if tab in {"overview", "skus", "lookups"}:
         specs = db.list_sku_specs()
+        category_source = {
+            (spec.get("category") or "").strip().upper()
+            for spec in specs
+            if (spec.get("category") or "").strip()
+        }
+        category_source.update(DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES)
+        category_source.update(
+            stack_calculator.normalize_upper_deck_exception_categories(
+                optimizer_defaults.get("upper_deck_exception_categories"),
+                default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+            )
+        )
+        optimizer_exception_category_options = sorted(category_source)
     if tab == "overview":
         recent_specs = sorted(
             specs,
@@ -10071,6 +11654,24 @@ def settings():
         sku_lengths = _collect_numeric_filters("length_with_tongue_ft", cast=float)
         sku_step_decks = _collect_numeric_filters("max_stack_step_deck", cast=int)
         sku_flat_beds = _collect_numeric_filters("max_stack_flat_bed", cast=int)
+        source_led_specs = _build_source_led_cheat_sheet_rows(specs)
+        source_led_mapped_count = sum(
+            1 for row in source_led_specs if row.get("mapping_status") in {"Mapped", "Mapped (Cargo Rule)"}
+        )
+        source_led_unmapped_count = sum(
+            1 for row in source_led_specs if row.get("mapping_status") == "Unmapped"
+        )
+        source_led_missing_spec_count = sum(
+            1 for row in source_led_specs if row.get("mapping_status") == "Mapped SKU Missing Spec"
+        )
+        source_led_unique_sku_count = len(
+            {
+                sku
+                for row in source_led_specs
+                for sku in (row.get("mapped_sku_list") or [])
+                if str(sku or "").strip()
+            }
+        )
     elif tab == "lookups":
         lookups_data = db.list_item_lookups()
     if tab in {"overview", "plants"}:
@@ -10101,14 +11702,23 @@ def settings():
         plants_data=plants_data,
         strategic_customers_raw=strategic_customers_raw,
         strategic_customers=strategic_customers,
+        trailer_assignment_rules=trailer_assignment_rules,
+        rate_table_contexts=rate_table_contexts,
+        rate_table_key_options=RATE_TABLE_KEY_OPTIONS,
         optimizer_defaults=optimizer_defaults,
         util_grade_thresholds=util_grade_thresholds,
         sku_categories=sku_categories,
         sku_lengths=sku_lengths,
         sku_step_decks=sku_step_decks,
         sku_flat_beds=sku_flat_beds,
+        source_led_specs=source_led_specs,
+        source_led_mapped_count=source_led_mapped_count,
+        source_led_unmapped_count=source_led_unmapped_count,
+        source_led_missing_spec_count=source_led_missing_spec_count,
+        source_led_unique_sku_count=source_led_unique_sku_count,
         fuel_surcharge_per_mile=fuel_surcharge_per_mile,
         stop_color_rows=stop_color_rows,
+        optimizer_exception_category_options=optimizer_exception_category_options,
         is_admin=_get_session_role() == ROLE_ADMIN,
     )
 
@@ -10120,10 +11730,32 @@ def save_planning_tools():
         return session_redirect
     _require_admin()
 
-    strategic_customers_raw = request.form.get("strategic_customers") or ""
-    parsed = customer_rules.parse_strategic_customers(strategic_customers_raw)
-    serialized = customer_rules.serialize_strategic_customers(parsed)
-    db.upsert_planning_setting("strategic_customers", serialized)
+    if "strategic_customers" in request.form:
+        strategic_customers_raw = request.form.get("strategic_customers") or ""
+        parsed = customer_rules.parse_strategic_customers(strategic_customers_raw)
+        serialized = customer_rules.serialize_strategic_customers(parsed)
+        db.upsert_planning_setting("strategic_customers", serialized)
+
+    has_trailer_rules_payload = request.form.get("trailer_rules_form") == "1"
+    if has_trailer_rules_payload:
+        trailer_rules = _get_trailer_assignment_rules()
+        trailer_rules["livestock_wedge_enabled"] = _coerce_bool_value(
+            request.form.get("livestock_wedge_enabled")
+        )
+        trailer_rules["auto_assign_hotshot_enabled"] = _coerce_bool_value(
+            request.form.get("auto_assign_hotshot_enabled")
+        )
+        trailer_rules["auto_assign_hotshot_utilization_threshold_pct"] = round(
+            _coerce_non_negative_float(
+                request.form.get("auto_assign_hotshot_utilization_threshold_pct"),
+                trailer_rules.get("auto_assign_hotshot_utilization_threshold_pct", 45.0),
+            ),
+            1,
+        )
+        db.upsert_planning_setting(
+            TRAILER_ASSIGNMENT_RULES_SETTING_KEY,
+            json.dumps(trailer_rules),
+        )
     target_tab = (request.form.get("tab") or "overview").strip().lower()
     if target_tab != "overview":
         target_tab = "overview"
@@ -10168,6 +11800,37 @@ def save_fuel_surcharge():
 
     if request.is_json:
         return jsonify({"fuel_surcharge_per_mile": value})
+    target_tab = (payload.get("tab") or request.form.get("tab") or "rates").strip().lower()
+    if target_tab not in {"overview", "rates"}:
+        target_tab = "rates"
+    return redirect(url_for("settings", tab=target_tab))
+
+
+@app.route("/settings/rates/contexts/save", methods=["POST"])
+def save_rate_table_contexts():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_admin()
+
+    payload = request.get_json(silent=True) or request.form
+    contexts = _get_rate_table_contexts()
+    contexts["default_rate_table_key"] = _normalize_rate_table_key(
+        payload.get("default_rate_table_key"),
+        contexts.get("default_rate_table_key", "DEFAULT"),
+    )
+    contexts["carrier_dedicated_ryder_rate_table_key"] = _normalize_rate_table_key(
+        payload.get("carrier_dedicated_ryder_rate_table_key"),
+        contexts.get("carrier_dedicated_ryder_rate_table_key", "DEDICATED_RYDER_FLEET"),
+    )
+    contexts["trailer_hotshot_rate_table_key"] = _normalize_rate_table_key(
+        payload.get("trailer_hotshot_rate_table_key"),
+        contexts.get("trailer_hotshot_rate_table_key", "HOTSHOT_TRAILER_TYPES"),
+    )
+    db.upsert_planning_setting(RATE_TABLE_CONTEXTS_SETTING_KEY, json.dumps(contexts))
+
+    if request.is_json:
+        return jsonify({"rate_table_contexts": contexts})
     target_tab = (payload.get("tab") or request.form.get("tab") or "rates").strip().lower()
     if target_tab not in {"overview", "rates"}:
         target_tab = "rates"
@@ -10232,6 +11895,11 @@ def save_optimizer_defaults():
 
     payload = request.get_json(silent=True) or request.form
     current = _get_optimizer_default_settings()
+    raw_exception_categories = payload.get("upper_deck_exception_categories")
+    if not request.is_json and hasattr(request.form, "getlist"):
+        form_categories = request.form.getlist("upper_deck_exception_categories")
+        if form_categories:
+            raw_exception_categories = form_categories
     trailer_type = (payload.get("trailer_type") or current["trailer_type"]).strip().upper()
     if not stack_calculator.is_valid_trailer_type(trailer_type):
         trailer_type = stack_calculator.normalize_trailer_type(current["trailer_type"], default="STEP_DECK")
@@ -10273,6 +11941,33 @@ def save_optimizer_defaults():
                 ),
             ),
             2,
+        ),
+        "upper_deck_exception_max_length_ft": round(
+            _coerce_non_negative_float(
+                payload.get("upper_deck_exception_max_length_ft"),
+                current.get(
+                    "upper_deck_exception_max_length_ft",
+                    DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
+                ),
+            ),
+            2,
+        ),
+        "upper_deck_exception_overhang_allowance_ft": round(
+            _coerce_non_negative_float(
+                payload.get("upper_deck_exception_overhang_allowance_ft"),
+                current.get(
+                    "upper_deck_exception_overhang_allowance_ft",
+                    DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
+                ),
+            ),
+            2,
+        ),
+        "upper_deck_exception_categories": stack_calculator.normalize_upper_deck_exception_categories(
+            raw_exception_categories,
+            default=current.get(
+                "upper_deck_exception_categories",
+                DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+            ),
         ),
     }
 
@@ -10830,3 +12525,4 @@ def get_optimization_loads(run_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+

@@ -24,7 +24,7 @@
                       <div class="tooltip-title">{{ active_session.session_code }}</div>
                       <div class="tooltip-row"><span>Planner</span><strong>{{ active_session.created_by or 'Planner' }}</strong></div>
                       <div class="tooltip-row"><span>Plant</span><strong>{{ active_session.plant_code }}</strong></div>
-                      <div class="tooltip-row"><span>Created</span><strong>{{ active_session.created_at }}</strong></div>
+                      <div class="tooltip-row"><span>Created</span><strong>{{ active_session.created_at | est_datetime }}</strong></div>
                       <div class="tooltip-row"><span>Status</span><strong>{{ (active_session.status or 'DRAFT') | upper }}</strong></div>
                       <div class="tooltip-row"><span>Trailer</span><strong>{{ active_session_config.trailer_type or 'STEP_DECK' }}</strong></div>
                       <div class="tooltip-row"><span>Algorithm</span><strong>{{ (active_session_config.algorithm_version or 'v2') | upper }}</strong></div>
@@ -313,16 +313,16 @@
                         </a>
                       {% endif %}
                       <div class="loads-sort-wrap">
-                        <button class="btn-secondary loads-sort-toggle" type="button" data-sort-toggle aria-expanded="false" aria-controls="loads-sort-panel">
+                        <button class="btn-secondary btn-muted-action loads-sort-toggle" type="button" data-sort-toggle aria-expanded="false" aria-controls="loads-sort-panel">
                           <span class="material-symbols-outlined">sort</span>
                           Sort
                         </button>
                         <div class="loads-sort-panel hidden" id="loads-sort-panel" data-sort-panel>
                           <div class="loads-sort-options">
-                            <a class="loads-sort-option{% if sort_mode == 'flow' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='flow', today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
+                            <a class="loads-sort-option{% if sort_mode == 'flow' %} active{% endif %}" data-sort-help="Flow: default review priority. Draft loads are ordered for approval flow (simple/high-util first, then less fragile consolidations). Final loads keep optimizer ranking." href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='flow', today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
                               Flow
                             </a>
-                            <a class="loads-sort-option{% if sort_mode == 'util' %} active{% endif %}" href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='util', today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
+                            <a class="loads-sort-option{% if sort_mode == 'util' %} active{% endif %}" data-sort-help="Util: ranks loads by highest utilization first." href="{{ url_for('loads', plants=plant_filter_param or None, tab=tab or None, sort='util', today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
                               Util
                             </a>
                           </div>
@@ -418,7 +418,7 @@
                             {% for load in section.loads %}
                       {% set status = load.status or 'PROPOSED' %}
                       {% set panel_open = feedback_target.startswith('load-return-' ~ load.id) or feedback_target.startswith('order-' ~ load.id ~ '-') %}
-                      {% set display_label = load.load_number if ((is_replay and load.load_number) or (status == 'APPROVED' and load.load_number)) else 'Load #' ~ (load.draft_sequence if load.draft_sequence else load.id) %}
+                      {% set display_label = load.load_number if ((is_replay and load.load_number) or (status == 'APPROVED' and load.load_number)) else 'Load #' ~ (load.display_sequence if load.display_sequence else (load.draft_sequence if load.draft_sequence else load.id)) %}
                       {% set util_source = load.display_utilization_pct if load.display_utilization_pct is not none else load.utilization_pct %}
                       {% set util_raw = (util_source or 0) | float %}
                       {% set util_value = util_raw | round(0) | int %}
@@ -461,6 +461,9 @@
                                   <span class="badge badge-success load-status-badge">Approved</span>
                                 {% elif status == 'DRAFT' %}
                                   <span class="badge badge-warning load-status-badge">Draft</span>
+                                {% endif %}
+                                {% if load.route_reversed %}
+                                  <span class="badge badge-warning load-status-badge">Reversed</span>
                                 {% endif %}
                               </div>
                               <div class="subtext">
@@ -653,6 +656,21 @@
                               <span class="meta-chip">Ship Date {{ load.ship_date }}</span>
                             {% endif %}
                           </div>
+                          {% if tab != 'final' and not is_replay %}
+                            <div class="card-header-right">
+                              <form method="post" action="{{ url_for('reverse_load_order', load_id=load.id) }}">
+                                <input type="hidden" name="next" value="{{ request.full_path }}">
+                                <button class="btn-secondary btn-xs btn-muted-action" type="submit" {% if status == 'APPROVED' or (load.stop_count or 0) <= 1 %}disabled{% endif %}>
+                                  <span class="material-symbols-outlined">swap_vert</span>
+                                  {% if load.route_reversed %}
+                                    Restore Sequence
+                                  {% else %}
+                                    Reverse Sequence
+                                  {% endif %}
+                                </button>
+                              </form>
+                            </div>
+                          {% endif %}
                         </div>
                         <div class="table-container">
                           <table class="manifest-table manifest-grouped">
@@ -665,23 +683,36 @@
                             <tbody>
                               {% for group in load.manifest_groups %}
                                 {% set row_id = 'manifest-' ~ load.id ~ '-' ~ loop.index0 %}
-                                <tr class="manifest-order-row" data-target="{{ row_id }}">
+                                <tr class="manifest-order-row"{% if not group.is_terminal_stop %} data-target="{{ row_id }}"{% endif %}>
                                   <td>
                                     <div class="manifest-order-cell">
                                       <div class="manifest-order-top">
-                                        <button class="manifest-toggle" type="button">+</button>
-                                        <span class="order-color-dot" style="background: {{ group.color }};"></span>
-                                        <span class="manifest-order-id">#{{ group.order_id }}</span>
+                                        {% if group.is_terminal_stop %}
+                                          <span class="manifest-toggle-placeholder" aria-hidden="true"></span>
+                                        {% else %}
+                                          <button class="manifest-toggle" type="button">+</button>
+                                        {% endif %}
+                                        <span class="order-color-dot manifest-stop-dot" style="background: {{ group.color }};" title="Stop {{ group.stop_sequence or '--' }}">{{ group.stop_sequence or '' }}</span>
+                                        {% if group.is_terminal_stop %}
+                                          <span class="manifest-order-id">{{ group.terminal_label or 'Final Stop' }}</span>
+                                          <span class="badge badge-neutral">End</span>
+                                        {% else %}
+                                          <span class="manifest-order-id">#{{ group.order_id }}</span>
+                                        {% endif %}
                                       </div>
                                       <div class="due-cell">
-                                        <span class="due-date">{{ group.due_date }}</span>
-                                        {% if group.due_status == 'PAST_DUE' %}
-                                          <span class="badge badge-danger">Past Due</span>
-                                        {% elif group.due_status == 'DUE_SOON' %}
-                                          <span class="badge badge-warning">Due Soon</span>
-                                        {% endif %}
-                                        {% if group.early_days and group.early_days > 0 and group.due_status != 'PAST_DUE' %}
-                                          <span class="badge badge-info">Early {{ group.early_days }}d</span>
+                                        {% if group.is_terminal_stop %}
+                                          <span class="badge badge-neutral">No items</span>
+                                        {% else %}
+                                          <span class="due-date">{{ group.due_date }}</span>
+                                          {% if group.due_status == 'PAST_DUE' %}
+                                            <span class="badge badge-danger">Past Due</span>
+                                          {% elif group.due_status == 'DUE_SOON' %}
+                                            <span class="badge badge-warning">Due Soon</span>
+                                          {% endif %}
+                                          {% if group.early_days and group.early_days > 0 and group.due_status != 'PAST_DUE' %}
+                                            <span class="badge badge-info">Early {{ group.early_days }}d</span>
+                                          {% endif %}
                                         {% endif %}
                                       </div>
                                     </div>
@@ -689,34 +720,42 @@
                                   <td>
                                     <div class="manifest-customer-cell">
                                       <div class="manifest-customer-name">{{ group.cust_name }}</div>
-                                      <div class="manifest-customer-location">{% if group.city %}{{ group.city }}, {% endif %}{{ group.state }}</div>
+                                      <div class="manifest-customer-location">
+                                        {% if group.is_terminal_stop %}
+                                          {{ group.state }} plant
+                                        {% else %}
+                                          {% if group.city %}{{ group.city }}, {% endif %}{{ group.state }}
+                                        {% endif %}
+                                      </div>
                                     </div>
                                   </td>
                                 </tr>
-                                <tr class="manifest-item-row hidden" id="{{ row_id }}">
-                                  <td colspan="2">
-                                    <table class="manifest-subtable">
-                                      <thead>
-                                        <tr>
-                                          <th>Item</th>
-                                          <th>Description</th>
-                                          <th>Qty</th>
-                                          <th>Length</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {% for line in group.lines %}
+                                {% if not group.is_terminal_stop %}
+                                  <tr class="manifest-item-row hidden" id="{{ row_id }}">
+                                    <td colspan="2">
+                                      <table class="manifest-subtable">
+                                        <thead>
                                           <tr>
-                                            <td>{{ line.item or line.sku }}</td>
-                                            <td>{{ line.item_desc or line.sku }}</td>
-                                            <td>{{ line.qty }}</td>
-                                            <td>{{ (line.unit_length_ft or 0) | round(1) }} ft</td>
+                                            <th>Item</th>
+                                            <th>Description</th>
+                                            <th>Qty</th>
+                                            <th>Length</th>
                                           </tr>
-                                        {% endfor %}
-                                      </tbody>
-                                    </table>
-                                  </td>
-                                </tr>
+                                        </thead>
+                                        <tbody>
+                                          {% for line in group.lines %}
+                                            <tr>
+                                              <td>{{ line.item or line.sku }}</td>
+                                              <td>{{ line.item_desc or line.sku }}</td>
+                                              <td>{{ line.qty }}</td>
+                                              <td>{{ (line.unit_length_ft or 0) | round(1) }} ft</td>
+                                            </tr>
+                                          {% endfor %}
+                                        </tbody>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                {% endif %}
                               {% endfor %}
                             </tbody>
                           </table>
@@ -724,7 +763,7 @@
                       </div>
 
                       <div class="map-card">
-                        <div class="load-map" id="load-map-{{ load.id }}" data-load-id="{{ load.id }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}'></div>
+                        <div class="load-map" id="load-map-{{ load.id }}" data-load-id="{{ load.id }}" data-route-reversed="{{ 1 if load.route_reversed else 0 }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}'></div>
                       </div>
                     </div>
                   </div>
@@ -853,7 +892,7 @@
 
   {% if tab != 'final' and not is_replay %}
     <div class="modal-backdrop hidden" id="manual-load-modal" data-manual-load-modal>
-      <div class="modal-card">
+      <div class="modal-card manual-load-modal-card">
         <div class="modal-header">
           <div class="modal-title">
             <h3>Build Manual Load</h3>
@@ -864,7 +903,7 @@
           </button>
         </div>
         <form id="manual-load-form" method="post" action="{{ url_for('manual_load_create') }}" onsubmit="return confirm('Create this manual load and re-optimize the remaining orders?');">
-          <div class="modal-body">
+          <div class="modal-body manual-load-modal-body">
             <input type="hidden" name="plant" id="manual-load-plant" value="{% if plant_filters|length == 1 %}{{ plant_filters[0] }}{% elif plants|length %}{{ plants[0] }}{% endif %}">
             {% if active_session_id %}
               <input type="hidden" name="session_id" value="{{ active_session_id }}">
@@ -889,6 +928,10 @@
                   <div class="manual-column-header">
                     <span class="metric-label">Suggested Orders</span>
                     <span class="subtext" id="manual-load-suggest-meta"></span>
+                  </div>
+                  <div class="manual-base-search manual-suggest-search">
+                    <span class="material-symbols-outlined">search</span>
+                    <input class="select-field" type="text" id="manual-load-suggest-lookup" placeholder="Lookup SO # (draft scope)..." autocomplete="off" aria-label="Lookup suggested order by SO number">
                   </div>
                   <div class="manual-suggest-table" id="manual-load-suggest-list">
                     <div class="subtext">Select a base order to see suggestions.</div>
@@ -943,7 +986,7 @@
       </div>
     </div>
     <div class="modal-backdrop hidden" id="manual-add-modal" data-manual-add-modal>
-      <div class="modal-card">
+      <div class="modal-card manual-add-modal-card">
           <div class="modal-header">
             <div class="modal-title">
               <h3>Manually Add Orders</h3>
@@ -954,7 +997,7 @@
           </button>
         </div>
         <form id="manual-add-form">
-          <div class="modal-body">
+          <div class="modal-body manual-add-modal-body">
             <div class="manual-util-card manual-add-capacity-card">
               <div class="manual-util-header">
                 <span class="metric-label">Load Footprint Schematic</span>
@@ -1235,6 +1278,7 @@
       }).addTo(map);
 
       const storedRoute = JSON.parse(container.dataset.route || '[]');
+      const routeReversed = container.dataset.routeReversed === '1';
       const routeCoords = (Array.isArray(storedRoute) ? storedRoute : [])
         .map((point) => [Number(point[0]), Number(point[1])])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
@@ -1281,6 +1325,10 @@
       mapInstances.set(container.id, map);
 
       if (!hasDetailedRoadGeometry) {
+        if (routeReversed) {
+          drawRoutePolyline(lineCoords, true);
+          return;
+        }
         const loadId = container.dataset.loadId;
         if (loadId) {
           fetch(`/api/loads/${encodeURIComponent(loadId)}/route-geometry`)
@@ -2036,6 +2084,10 @@
               removeLoadFromView(payload.load_id);
               updateApprovalTracker(payload.progress);
               updateTabCounts(payload.tab_counts);
+              if (payload.redirect_to_report && payload.session_report_url) {
+                window.location.href = payload.session_report_url;
+                return;
+              }
               return;
             }
             throw new Error('Unable to set a starting load number. Please try again.');
@@ -2318,6 +2370,7 @@
       const resultsContainer = document.getElementById('manual-load-search-results');
       const suggestMeta = document.getElementById('manual-load-suggest-meta');
       const suggestList = document.getElementById('manual-load-suggest-list');
+      const suggestLookupInput = document.getElementById('manual-load-suggest-lookup');
       const submitBtn = document.getElementById('manual-load-submit');
       const selectedInputs = document.getElementById('manual-load-selected-inputs');
       const utilMeta = document.getElementById('manual-load-util-meta');
@@ -2335,18 +2388,35 @@
       let cachedParams = {};
       let activeSearchController = null;
       let activeSuggestController = null;
+      let activeLookupController = null;
+      let lookupTerm = '';
+      let lookupResults = [];
+      let lookupLoading = false;
+      let lookupHasResponse = false;
+      let isSubmitting = false;
 
       const closeModal = () => {
         modal.classList.add('hidden');
       };
 
       const resetState = () => {
+        if (activeSearchController) activeSearchController.abort();
+        if (activeSuggestController) activeSuggestController.abort();
+        if (activeLookupController) activeLookupController.abort();
+        activeSearchController = null;
+        activeSuggestController = null;
+        activeLookupController = null;
         seedOrder = null;
         seedOrderData = null;
         selectedOrders = new Map();
         cachedSuggestions = [];
         cachedParams = {};
+        lookupTerm = '';
+        lookupResults = [];
+        lookupLoading = false;
+        lookupHasResponse = false;
         if (searchInput) searchInput.value = '';
+        if (suggestLookupInput) suggestLookupInput.value = '';
         if (resultsContainer) resultsContainer.innerHTML = '';
         if (suggestMeta) suggestMeta.textContent = '';
         if (suggestList) {
@@ -2589,9 +2659,16 @@
             seedOrderData = normalized;
             selectedOrders = new Map();
             selectedOrders.set(seedOrder, normalized);
+            lookupTerm = '';
+            lookupResults = [];
+            lookupLoading = false;
+            lookupHasResponse = false;
+            if (activeLookupController) activeLookupController.abort();
+            activeLookupController = null;
+            if (suggestLookupInput) suggestLookupInput.value = '';
             document.querySelectorAll('.manual-order-item.active').forEach((node) => node.classList.remove('active'));
             button.classList.add('active');
-              updateSelectedState();
+            updateSelectedState();
             loadSuggestions();
           });
 
@@ -2615,15 +2692,41 @@
         const capacity = getCapacity();
         const used = getSelectedTotalFt();
         const remaining = Math.max(capacity - used, 0);
+        const lookupQueryRaw = (lookupTerm || '').trim();
+        const lookupQuery = lookupQueryRaw.toLowerCase();
+
+        const matchesLookup = (item, query) => {
+          if (!query) return true;
+          const soNum = (item.so_num || '').toString().trim();
+          const cust = (item.cust_name || '').toString().trim();
+          const city = (item.city || '').toString().trim();
+          const state = (item.state || '').toString().trim();
+          const due = (item.due_date || '').toString().trim();
+          const haystack = [soNum, cust, city, state, due].join(' ').toLowerCase();
+          return haystack.includes(query);
+        };
 
         const metaBits = [`Remaining ${remaining.toFixed(1)} ft`];
         if (cachedParams.geo_radius) metaBits.push(`Radius ${Math.round(cachedParams.geo_radius)} mi`);
         if (cachedParams.time_window_days) metaBits.push(`Window +/-${cachedParams.time_window_days}d`);
-        if (suggestMeta) {
-          suggestMeta.textContent = metaBits.join(' | ');
+        const source = lookupQuery
+          ? (lookupHasResponse ? lookupResults : cachedSuggestions)
+          : cachedSuggestions;
+        const sourceBySo = new Map();
+        source.forEach((item) => {
+          const soNum = (item.so_num || '').toString().trim();
+          if (!soNum) return;
+          sourceBySo.set(soNum, item);
+        });
+        if (lookupQuery) {
+          selectedOrders.forEach((order) => {
+            if (!matchesLookup(order, lookupQuery)) return;
+            sourceBySo.set(order.so_num, order);
+          });
         }
 
-        const visible = cachedSuggestions.filter((item) => {
+        const visible = Array.from(sourceBySo.values()).filter((item) => {
+          if (!matchesLookup(item, lookupQuery)) return false;
           const soNum = (item.so_num || '').toString().trim();
           if (!soNum) return false;
           const length = Number(item.total_length_ft || 0);
@@ -2631,8 +2734,25 @@
           return length <= remaining;
         });
 
+        if (lookupQuery) {
+          if (lookupLoading) {
+            metaBits.unshift(`Lookup "${lookupQueryRaw}" (searching...)`);
+          } else {
+            const suffix = visible.length === 1 ? '' : 's';
+            metaBits.unshift(`Lookup "${lookupQueryRaw}" | ${visible.length} match${suffix}`);
+          }
+        }
+        if (suggestMeta) {
+          suggestMeta.textContent = metaBits.join(' | ');
+        }
+
         if (!visible.length) {
-          renderEmpty(suggestList, 'No nearby draft-scope orders fit in the remaining trailer space.');
+          renderEmpty(
+            suggestList,
+            lookupQuery
+              ? 'No draft-scope orders match this lookup.'
+              : 'No nearby draft-scope orders fit in the remaining trailer space.',
+          );
           updateSubmitState();
           updateUtilizationUI();
           updateMetrics();
@@ -2641,8 +2761,16 @@
 
         const header = document.createElement('div');
         header.className = 'manual-suggest-row head';
-        ['Order', 'Customer', 'Due', 'Stop', 'Length', 'Action'].forEach((label) => {
+        [
+          { key: 'order', label: 'Order' },
+          { key: 'customer', label: 'Customer' },
+          { key: 'due', label: 'Due' },
+          { key: 'stop', label: 'Stop' },
+          { key: 'length', label: 'Length' },
+          { key: 'action', label: 'Action' },
+        ].forEach(({ key, label }) => {
           const cell = document.createElement('div');
+          cell.className = `manual-suggest-cell ${key}`;
           cell.textContent = label;
           header.appendChild(cell);
         });
@@ -2656,27 +2784,38 @@
           row.className = 'manual-suggest-row';
 
           const orderCell = document.createElement('div');
+          orderCell.className = 'manual-suggest-cell order';
           orderCell.textContent = `#${soNum}`;
 
           const custCell = document.createElement('div');
+          custCell.className = 'manual-suggest-cell customer';
           custCell.textContent = (item.cust_name || '').toString().trim() || 'Customer';
 
           const dueCell = document.createElement('div');
+          dueCell.className = 'manual-suggest-cell due';
           const due = (item.due_date || '').toString().trim();
           dueCell.textContent = due || '--';
 
           const stopCell = document.createElement('div');
+          stopCell.className = 'manual-suggest-cell stop';
           const city = (item.city || '').toString().trim();
           const state = (item.state || '').toString().trim();
           stopCell.textContent = `${city || ''}${city && state ? ', ' : ''}${state || ''}`.trim();
 
           const lengthCell = document.createElement('div');
+          lengthCell.className = 'manual-suggest-cell length';
           const length = Number(item.total_length_ft || 0);
           lengthCell.textContent = `${length.toFixed(1)} ft`;
 
           const actionCell = document.createElement('div');
+          actionCell.className = 'manual-suggest-cell action';
           const button = document.createElement('button');
-          if (selectedOrders.has(soNum)) {
+          if (soNum === seedOrder) {
+            const basePill = document.createElement('span');
+            basePill.className = 'manual-suggest-base-pill';
+            basePill.textContent = 'Base';
+            actionCell.appendChild(basePill);
+          } else if (selectedOrders.has(soNum)) {
             button.type = 'button';
             button.className = 'btn-ghost btn-xs manual-suggest-action';
             button.textContent = 'Remove';
@@ -2685,6 +2824,7 @@
               updateSelectedState();
               renderSuggestionList();
             });
+            actionCell.appendChild(button);
           } else {
             button.type = 'button';
             button.className = 'btn-secondary btn-xs manual-suggest-action';
@@ -2698,8 +2838,8 @@
               updateSelectedState();
               renderSuggestionList();
             });
+            actionCell.appendChild(button);
           }
-          actionCell.appendChild(button);
 
           [orderCell, custCell, dueCell, stopCell, lengthCell, actionCell].forEach((cell) => row.appendChild(cell));
           suggestList.appendChild(row);
@@ -2735,6 +2875,55 @@
 
       if (searchInput) {
         searchInput.addEventListener('input', loadSearchResults);
+      }
+
+      const loadLookupResults = debounce(() => {
+        if (!suggestLookupInput) return;
+        lookupTerm = (suggestLookupInput.value || '').trim();
+        if (!lookupTerm) {
+          lookupResults = [];
+          lookupLoading = false;
+          lookupHasResponse = false;
+          if (activeLookupController) activeLookupController.abort();
+          activeLookupController = null;
+          renderSuggestionList();
+          return;
+        }
+
+        const plant = (plantSelect && plantSelect.value ? plantSelect.value : '').trim();
+        if (!plant || !seedOrderData) {
+          lookupResults = [];
+          lookupLoading = false;
+          lookupHasResponse = false;
+          renderSuggestionList();
+          return;
+        }
+
+        if (activeLookupController) activeLookupController.abort();
+        activeLookupController = new AbortController();
+        lookupLoading = true;
+        lookupHasResponse = false;
+        renderSuggestionList();
+        const url = `/loads/manual/search?plant=${encodeURIComponent(plant)}&q=${encodeURIComponent(lookupTerm)}`;
+        fetch(url, { signal: activeLookupController.signal })
+          .then((response) => response.json())
+          .then((payload) => {
+            lookupResults = Array.isArray(payload.orders) ? payload.orders : [];
+            lookupLoading = false;
+            lookupHasResponse = true;
+            renderSuggestionList();
+          })
+          .catch((err) => {
+            if (err && err.name === 'AbortError') return;
+            lookupResults = [];
+            lookupLoading = false;
+            lookupHasResponse = true;
+            renderSuggestionList();
+          });
+      }, 250);
+
+      if (suggestLookupInput) {
+        suggestLookupInput.addEventListener('input', loadLookupResults);
       }
 
       function renderSuggestions(seed, suggestions, params) {
@@ -2993,19 +3182,16 @@
           track.className = 'manual-schematic-track';
 
           const safeRows = Array.isArray(rows) ? rows : [];
-          const totalLen = safeRows.reduce((sum, row) => sum + toFeet(row.display_length_ft || row.length_ft), 0);
-          const widthBase = deckLength > 0.02 ? deckLength : (totalLen > 0.02 ? totalLen : 1);
           safeRows.forEach((row) => {
             const displayLength = toFeet(row.display_length_ft || row.length_ft);
             if (displayLength <= 0.02) return;
-            const widthPct = Math.max((displayLength / widthBase) * 100, 7);
             const verticalOpenRatio = Math.max(0, Math.min(Number(row.vertical_open_ratio || 0), 1));
             const verticalOpenPct = Math.round(verticalOpenRatio * 100);
             const verticalFillPct = Math.max(100 - verticalOpenPct, 0);
 
             const stack = document.createElement('div');
             stack.className = 'manual-schematic-stack';
-            stack.style.width = `${widthPct}%`;
+            stack.style.flex = `${Math.max(displayLength, 0.5)} 1 0`;
 
             const body = document.createElement('div');
             body.className = 'manual-schematic-stack-body';
@@ -3038,10 +3224,9 @@
           });
 
           if (remainingFt > 0.05) {
-            const remainingWidthPct = Math.max((remainingFt / widthBase) * 100, 8);
             const empty = document.createElement('div');
             empty.className = 'manual-schematic-stack is-remaining';
-            empty.style.width = `${remainingWidthPct}%`;
+            empty.style.flex = `${Math.max(remainingFt, 0.5)} 1 0`;
             empty.innerHTML = `
               <div class="manual-schematic-stack-body empty">
                 <div class="manual-schematic-empty-text">${remainingFt.toFixed(1)} ft remaining</div>
@@ -3063,23 +3248,41 @@
         const upperDeckLength = toFeet(schematic.upper_deck_length);
         const lowerDeckLength = toFeet(schematic.lower_deck_length);
         if (upperDeckLength > 0.02) {
+          const stepDeckRow = document.createElement('div');
+          stepDeckRow.className = 'manual-schematic-stepdeck-row';
+          const lowerDeckCap = lowerDeckLength > 0.02
+            ? lowerDeckLength
+            : Math.max(capacity - upperDeckLength, 1);
+
+          const upperDeck = buildDeck(
+            'Upper Deck',
+            upperDeckLength,
+            toFeet(schematic.upper_remaining_ft),
+            decks.upper || [],
+          );
+          upperDeck.style.flex = `${Math.max(upperDeckLength, 1)} 1 0`;
+
+          const lowerDeck = buildDeck(
+            'Lower Deck',
+            lowerDeckCap,
+            toFeet(schematic.lower_remaining_ft),
+            decks.lower || [],
+          );
+          lowerDeck.style.flex = `${Math.max(lowerDeckCap, 1)} 1 0`;
+
+          stepDeckRow.appendChild(upperDeck);
+          stepDeckRow.appendChild(lowerDeck);
+          capacityVisual.appendChild(stepDeckRow);
+        } else {
           capacityVisual.appendChild(
             buildDeck(
-              'Upper Deck',
-              upperDeckLength,
-              toFeet(schematic.upper_remaining_ft),
-              decks.upper || [],
+              'Lower Deck',
+              lowerDeckLength || capacity,
+              toFeet(schematic.lower_remaining_ft),
+              decks.lower || [],
             ),
           );
         }
-        capacityVisual.appendChild(
-          buildDeck(
-            'Lower Deck',
-            lowerDeckLength || capacity,
-            toFeet(schematic.lower_remaining_ft),
-            decks.lower || [],
-          ),
-        );
 
         const overflowByOrder = {};
         let remainingWithin = Math.max(capacity - baseWithin, 0);
@@ -3611,6 +3814,9 @@
           stack_overflow_max_height: 5,
           max_back_overhang_ft: 4,
           upper_two_across_max_length_ft: 7,
+          upper_deck_exception_max_length_ft: 16,
+          upper_deck_exception_overhang_allowance_ft: 6,
+          upper_deck_exception_categories: ['USA', 'UTA'],
         },
         draggingUnitId: null,
       };
@@ -3792,6 +3998,32 @@
           Number(assumptions.upper_two_across_max_length_ft || 0),
           0,
         );
+        const upperDeckExceptionMaxLengthFt = Math.max(
+          Number(assumptions.upper_deck_exception_max_length_ft || 0),
+          0,
+        );
+        const upperDeckExceptionOverhangAllowanceFt = Math.max(
+          Number(assumptions.upper_deck_exception_overhang_allowance_ft || 0),
+          0,
+        );
+        const normalizeExceptionCategories = (value) => {
+          const source = Array.isArray(value)
+            ? value
+            : (typeof value === 'string' ? value.split(',') : []);
+          const cleaned = [];
+          const seen = new Set();
+          source.forEach((entry) => {
+            const normalized = String(entry || '').trim().toUpperCase();
+            if (!normalized || seen.has(normalized)) return;
+            seen.add(normalized);
+            cleaned.push(normalized);
+          });
+          return cleaned.length ? cleaned : ['USA', 'UTA'];
+        };
+        const upperDeckExceptionCategories = normalizeExceptionCategories(
+          assumptions.upper_deck_exception_categories
+        );
+        const upperDeckExceptionCategorySet = new Set(upperDeckExceptionCategories);
         const trailerKey = String(state.trailerType || '').trim().toUpperCase();
         const isStepDeckProfile = trailerKey.startsWith('STEP_DECK');
         const maxStackUtilizationMultiplier = stackOverflowMaxHeight > 0
@@ -3800,6 +4032,7 @@
         const warnings = [];
         let lowerTotal = 0;
         let upperTotal = 0;
+        let eligibleUpperTotal = 0;
         let totalLinear = 0;
         let credit = 0;
         const unitFraction = (maxStack) => 1 / Math.max(Number(maxStack || 1), 1);
@@ -3820,11 +4053,29 @@
           });
         };
 
+        const positionsForLabels = Array.isArray(state.layout.positions) ? state.layout.positions : [];
+        const warningStackIndexByPositionId = {};
+        const orderedWarningPositions = cfg.upper > 0
+          ? [
+            ...positionsForLabels.filter((pos) => (pos.deck || 'lower') === 'upper'),
+            ...positionsForLabels.filter((pos) => (pos.deck || 'lower') !== 'upper'),
+          ]
+          : positionsForLabels;
+        orderedWarningPositions.forEach((pos, idx) => {
+          if (pos && pos.position_id) warningStackIndexByPositionId[pos.position_id] = idx + 1;
+        });
+
         (state.layout.positions || []).forEach((pos, idx) => {
           const ids = pos.unit_ids || [];
           const units = ids.map((id) => state.unitsById[id]).filter(Boolean);
           if (!units.length) return;
+          const stackNumber = Number(warningStackIndexByPositionId[pos.position_id] || (idx + 1));
           const deck = (pos.deck || 'lower') === 'upper' ? 'upper' : 'lower';
+          const categories = units
+            .map((unit) => String(unit.category || '').trim().toUpperCase())
+            .filter(Boolean);
+          const hasOnlyEligibleCategories = categories.length > 0
+            && categories.every((category) => upperDeckExceptionCategorySet.has(category));
           const unitsForCapacity = units.map((unit) => {
             const effectiveMax = Math.max(
               Number(
@@ -3859,6 +4110,20 @@
                 : (requiredUpperStacks * length)
             )
             : length;
+          const upperLengthLimit = (
+            isStepDeckProfile
+            && deck === 'upper'
+            && hasOnlyEligibleCategories
+          )
+            ? Math.max(cfg.upper, upperDeckExceptionMaxLengthFt)
+            : cfg.upper;
+          const exceptionEligibleUpperPosition = (
+            isStepDeckProfile
+            && deck === 'upper'
+            && hasOnlyEligibleCategories
+            && length > (cfg.upper + 0.000001)
+            && length <= (upperLengthLimit + 0.000001)
+          );
 
           totalLinear += effectiveLength;
           credit += effectiveLength * (overflowApplied
@@ -3866,12 +4131,17 @@
             : Math.min(capUsed, 1));
           if (deck === 'upper') {
             upperTotal += effectiveLength;
+            if (exceptionEligibleUpperPosition) {
+              eligibleUpperTotal += effectiveLength;
+            }
             if (cfg.upper > 0) {
-              const tooLong = units.some((unit) => Number(unit.unit_length_ft || 0) > cfg.upper);
+              const tooLong = units.some(
+                (unit) => Number(unit.unit_length_ft || 0) > (upperLengthLimit + 0.000001)
+              );
               if (tooLong) {
                 warnings.push({
                   code: 'ITEM_TOO_BIG_FOR_UPPER_DECK',
-                  message: `Position ${idx + 1}: one or more items exceed upper deck limit.`,
+                  message: `Stack ${stackNumber}: one or more items exceed ${upperLengthLimit.toFixed(1)} ft upper deck limit.`,
                 });
               }
             }
@@ -3886,47 +4156,44 @@
             ? `items less than ${upperTwoAcrossMaxLengthFt.toFixed(1).replace(/\.0$/, '')} ft stacked 2 across to allow for additional capacity`
             : '';
           pos.effective_length_ft = effectiveLength;
-
-          if (capUsed > (maxStackUtilizationMultiplier + 0.000001)) {
-            warnings.push({
-              code: 'STACK_TOO_HIGH',
-              message: `Position ${idx + 1}: stack fill is ${capUsed.toFixed(2)}x, above allowed ${maxStackUtilizationMultiplier.toFixed(2)}x.`,
-            });
-          } else if (capUsed > 1.000001) {
-            if (overflowApplied) {
-              overflowNote = `Stack ${idx + 1} was overutilized to allow for additional space (${capUsed.toFixed(2)}x, allowed up to ${maxStackUtilizationMultiplier.toFixed(2)}x).`;
-              warnings.push({
-                code: 'STACK_OVERFLOW_ALLOWANCE_USED',
-                message: overflowNote,
-              });
-            } else {
+          if (pos.two_across_applied) {
+            pos.overflow_applied = false;
+            pos.overflow_note = '';
+          } else {
+            if (capUsed > (maxStackUtilizationMultiplier + 0.000001)) {
               warnings.push({
                 code: 'STACK_TOO_HIGH',
-                message: `Position ${idx + 1}: stack fill is ${capUsed.toFixed(2)}x and is not eligible for overflow allowance.`,
+                message: `Stack ${stackNumber} is ${(capUsed * 100).toFixed(0)}% overfilled relative to SKU-specific stacking maximums.`,
               });
+            } else if (capUsed > 1.000001) {
+              if (overflowApplied) {
+                overflowNote = `Stack ${stackNumber} is ${(capUsed * 100).toFixed(0)}% overfilled relative to SKU-specific stacking maximums.`;
+                warnings.push({
+                  code: 'STACK_OVERFLOW_ALLOWANCE_USED',
+                  message: overflowNote,
+                });
+              } else {
+                warnings.push({
+                  code: 'STACK_TOO_HIGH',
+                  message: `Stack ${stackNumber} is ${(capUsed * 100).toFixed(0)}% overfilled relative to SKU-specific stacking maximums.`,
+                });
+              }
             }
+            pos.overflow_applied = !!overflowApplied;
+            pos.overflow_note = overflowNote;
           }
-          pos.overflow_applied = !!overflowApplied;
-          pos.overflow_note = overflowNote;
 
           const lengths = units.map((unit) => Number(unit.unit_length_ft || 0));
           for (let i = 1; i < lengths.length; i += 1) {
             if (lengths[i] > lengths[i - 1] + 0.0001) {
               warnings.push({
                 code: 'COMPATIBILITY_ISSUE',
-                message: `Position ${idx + 1}: invalid stack (longer item above shorter item).`,
+                message: `Stack ${stackNumber}: invalid stack (longer item above shorter item).`,
               });
               break;
             }
           }
 
-          const categories = units.map((unit) => String(unit.category || '').toUpperCase()).filter(Boolean);
-          if (categories.includes('DUMP') && new Set(categories).size > 1) {
-            warnings.push({
-              code: 'COMPATIBILITY_ISSUE',
-              message: `Position ${idx + 1}: DUMP items cannot mix with other categories.`,
-            });
-          }
         });
 
         const lowerOverhang = Math.max(lowerTotal - cfg.lower, 0);
@@ -3941,14 +4208,21 @@
           });
         }
         const upperOverhang = Math.max(upperTotal - cfg.upper, 0);
+        const upperExceptionExtraCap = Math.max(
+          upperDeckExceptionOverhangAllowanceFt - maxBackOverhangFt,
+          0,
+        );
+        const eligibleOverhangPotential = Math.max(eligibleUpperTotal - cfg.upper, 0);
+        const eligibleExtraAllowance = Math.min(eligibleOverhangPotential, upperExceptionExtraCap);
+        const upperAllowedOverhang = maxBackOverhangFt + eligibleExtraAllowance;
         if (cfg.upper > 0 && upperOverhang > 0.05) {
           warnings.push({
-            code: upperOverhang <= (maxBackOverhangFt + 0.000001)
+            code: upperOverhang <= (upperAllowedOverhang + 0.000001)
               ? 'BACK_OVERHANG_IN_ALLOWANCE'
               : 'ITEM_HANGS_OVER_DECK',
-            message: upperOverhang <= (maxBackOverhangFt + 0.000001)
-              ? `Upper deck back overhang is ${upperOverhang.toFixed(1)} ft (allowance ${maxBackOverhangFt.toFixed(1)} ft).`
-              : `Upper deck back overhang is ${upperOverhang.toFixed(1)} ft, exceeding allowance by ${(upperOverhang - maxBackOverhangFt).toFixed(1)} ft.`,
+            message: upperOverhang <= (upperAllowedOverhang + 0.000001)
+              ? `Upper deck back overhang is ${upperOverhang.toFixed(1)} ft (allowance ${upperAllowedOverhang.toFixed(1)} ft).`
+              : `Upper deck back overhang is ${upperOverhang.toFixed(1)} ft, exceeding allowance by ${(upperOverhang - upperAllowedOverhang).toFixed(1)} ft.`,
           });
         }
 
@@ -3972,7 +4246,7 @@
           exceeds_capacity: cfg.upper > 0
             ? (
               lowerTotal > (cfg.lower + maxBackOverhangFt)
-              || upperTotal > (cfg.upper + maxBackOverhangFt)
+              || upperTotal > (cfg.upper + upperAllowedOverhang)
             )
             : (totalLinear > (cfg.lower + maxBackOverhangFt)),
         };
@@ -3997,6 +4271,106 @@
             return sum + getPositionLengthFt(pos);
           }, 0)
       );
+
+      const twoAcrossGroupKey = (unit) => {
+        if (!unit) return '';
+        const stopSequence = Number(unit.stop_sequence);
+        if (Number.isFinite(stopSequence)) return `stop:${stopSequence}`;
+        const orderId = String(unit.order_id || '').trim();
+        if (orderId) return `order:${orderId}`;
+        const sku = String(unit.sku || '').trim();
+        if (sku) return `sku:${sku}`;
+        return 'misc';
+      };
+
+      const buildTwoAcrossColumns = (ids) => {
+        const groups = [];
+        (ids || []).forEach((unitId) => {
+          const unit = state.unitsById[unitId];
+          if (!unit) return;
+          const key = twoAcrossGroupKey(unit);
+          const last = groups[groups.length - 1];
+          if (last && last.key === key) {
+            last.ids.push(unitId);
+          } else {
+            groups.push({ key, ids: [unitId] });
+          }
+        });
+
+        const totalUnits = groups.reduce((sum, group) => sum + group.ids.length, 0);
+        const leftTarget = Math.floor(totalUnits / 2);
+        const rightTarget = totalUnits - leftTarget;
+        let leftRemaining = leftTarget;
+        let rightRemaining = rightTarget;
+        const preferredSideByGroup = new Map();
+        const leftIds = [];
+        const rightIds = [];
+
+        groups.forEach((group) => {
+          const count = group.ids.length;
+          if (!count) return;
+
+          let preferredSide = preferredSideByGroup.get(group.key);
+          if (preferredSide !== 'left' && preferredSide !== 'right') {
+            preferredSide = rightRemaining >= leftRemaining ? 'right' : 'left';
+          }
+          let secondarySide = preferredSide === 'right' ? 'left' : 'right';
+
+          let preferredRemaining = preferredSide === 'right' ? rightRemaining : leftRemaining;
+          let secondaryRemaining = preferredSide === 'right' ? leftRemaining : rightRemaining;
+
+          let preferredCount = 0;
+          let secondaryCount = 0;
+          if (count <= preferredRemaining) {
+            preferredCount = count;
+          } else if (count <= secondaryRemaining) {
+            preferredSide = secondarySide;
+            secondarySide = preferredSide === 'right' ? 'left' : 'right';
+            preferredRemaining = preferredSide === 'right' ? rightRemaining : leftRemaining;
+            secondaryRemaining = preferredSide === 'right' ? leftRemaining : rightRemaining;
+            preferredCount = count;
+          } else {
+            preferredCount = Math.min(count, preferredRemaining);
+            secondaryCount = count - preferredCount;
+            if (secondaryCount > secondaryRemaining) {
+              const overflow = secondaryCount - secondaryRemaining;
+              secondaryCount = secondaryRemaining;
+              preferredCount += overflow;
+            }
+          }
+
+          let leftCount = preferredSide === 'left' ? preferredCount : secondaryCount;
+          let rightCount = preferredSide === 'right' ? preferredCount : secondaryCount;
+
+          leftCount = Math.max(Math.min(leftCount, leftRemaining), 0);
+          rightCount = Math.max(Math.min(rightCount, rightRemaining), 0);
+          let assigned = leftCount + rightCount;
+          if (assigned < count) {
+            let deficit = count - assigned;
+            const rightSpace = Math.max(rightRemaining - rightCount, 0);
+            const leftSpace = Math.max(leftRemaining - leftCount, 0);
+            if (rightSpace >= leftSpace && rightSpace > 0) {
+              const add = Math.min(deficit, rightSpace);
+              rightCount += add;
+              deficit -= add;
+            }
+            if (deficit > 0 && leftSpace > 0) {
+              leftCount += Math.min(deficit, leftSpace);
+            }
+          }
+
+          const rightSlice = group.ids.slice(0, rightCount);
+          const leftSlice = group.ids.slice(rightCount, rightCount + leftCount);
+          rightIds.push(...rightSlice);
+          leftIds.push(...leftSlice);
+
+          leftRemaining -= leftCount;
+          rightRemaining -= rightCount;
+          preferredSideByGroup.set(group.key, rightCount >= leftCount ? 'right' : 'left');
+        });
+
+        return { leftIds, rightIds };
+      };
 
       const renderDeck = (deckKey, options = {}) => {
         const showUpperVoid = !!options.showUpperVoid;
@@ -4033,7 +4407,7 @@
 
         const positions = (state.layout.positions || [])
           .filter((pos) => (pos.deck || 'lower') === deckKey);
-        const allowLeftInsertSlots = deckKey !== 'upper';
+        const allowLeftInsertSlots = true;
 
         const createStackSlot = (insertIdx) => {
           const slot = document.createElement('div');
@@ -4143,12 +4517,9 @@
             return drop;
           };
 
-          if (!isTwoAcross) {
-            stackBody.appendChild(createDropSlot(0));
-          }
-          ids.forEach((unitId, idx) => {
+          const createUnitElement = (unitId) => {
             const unit = state.unitsById[unitId];
-            if (!unit) return;
+            if (!unit) return null;
             const unitEl = document.createElement('div');
             unitEl.className = 'schematic-edit-unit';
             unitEl.draggable = true;
@@ -4172,19 +4543,44 @@
               state.draggingUnitId = null;
               unitEl.classList.remove('dragging');
             });
-            if (isTwoAcross) {
-              unitEl.style.gridColumn = ((idx % 2) + 1).toString();
-            }
-            stackBody.appendChild(unitEl);
-            if (!isTwoAcross) {
+            return unitEl;
+          };
+
+          if (!isTwoAcross) {
+            stackBody.appendChild(createDropSlot(0));
+            ids.forEach((unitId, idx) => {
+              const unitEl = createUnitElement(unitId);
+              if (!unitEl) return;
+              stackBody.appendChild(unitEl);
               stackBody.appendChild(createDropSlot(idx + 1));
-            }
-          });
-          if (isTwoAcross) {
+            });
+          } else {
+            const { leftIds, rightIds } = buildTwoAcrossColumns(ids);
+            const leftColumn = document.createElement('div');
+            leftColumn.className = 'schematic-edit-two-across-column left';
+            const rightColumn = document.createElement('div');
+            rightColumn.className = 'schematic-edit-two-across-column right';
+
+            leftIds.forEach((unitId) => {
+              const unitEl = createUnitElement(unitId);
+              if (unitEl) leftColumn.appendChild(unitEl);
+            });
+            rightIds.forEach((unitId) => {
+              const unitEl = createUnitElement(unitId);
+              if (unitEl) rightColumn.appendChild(unitEl);
+            });
+
+            stackBody.appendChild(leftColumn);
+            stackBody.appendChild(rightColumn);
+
             const marker = document.createElement('span');
             marker.className = 'schematic-edit-stack-two-across-icon material-symbols-outlined';
             marker.textContent = 'view_week';
-            marker.dataset.tooltip = 'items less than 7 ft stacked 2 across to allow for additional capacity';
+            const thresholdFt = Number((state.assumptions || {}).upper_two_across_max_length_ft || 7);
+            const thresholdLabel = Number.isFinite(thresholdFt)
+              ? thresholdFt.toFixed(1).replace(/\.0$/, '')
+              : '7';
+            marker.dataset.tooltip = `items less than ${thresholdLabel} ft stacked 2 across to allow for additional capacity`;
             stackBody.appendChild(marker);
           }
 
@@ -4207,7 +4603,13 @@
         if (!canvas) return;
         canvas.innerHTML = '';
         const cfg = trailerConfig(state.trailerType);
-        const orderedPositions = Array.isArray(state.layout.positions) ? state.layout.positions : [];
+        const allPositions = Array.isArray(state.layout.positions) ? state.layout.positions : [];
+        const orderedPositions = cfg.upper > 0
+          ? [
+            ...allPositions.filter((pos) => (pos.deck || 'lower') === 'upper'),
+            ...allPositions.filter((pos) => (pos.deck || 'lower') !== 'upper'),
+          ]
+          : allPositions;
         const stackIndexByPositionId = {};
         orderedPositions.forEach((pos, idx) => {
           if (pos && pos.position_id) stackIndexByPositionId[pos.position_id] = idx + 1;
@@ -4243,6 +4645,9 @@
           stack_overflow_max_height: 5,
           max_back_overhang_ft: 4,
           upper_two_across_max_length_ft: 7,
+          upper_deck_exception_max_length_ft: 16,
+          upper_deck_exception_overhang_allowance_ft: 6,
+          upper_deck_exception_categories: ['USA', 'UTA'],
         };
         state.draggingUnitId = null;
         setError('');
@@ -4297,10 +4702,14 @@
             state.layout = cloneLayout(payload.layout);
             state.originalLayout = cloneLayout(payload.layout);
             state.baseLayout = cloneLayout(payload.base_layout || payload.layout);
-            state.assumptions = payload.assumptions || {
+            state.assumptions = {
               stack_overflow_max_height: 5,
               max_back_overhang_ft: 4,
               upper_two_across_max_length_ft: 7,
+              upper_deck_exception_max_length_ft: 16,
+              upper_deck_exception_overhang_allowance_ft: 6,
+              upper_deck_exception_categories: ['USA', 'UTA'],
+              ...(payload.assumptions || {}),
             };
             computeClientPreview();
             render();

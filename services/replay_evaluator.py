@@ -21,6 +21,9 @@ DEFAULT_REPLAY_PRESET = {
     "stack_overflow_max_height": 5,
     "max_back_overhang_ft": 4.0,
     "upper_two_across_max_length_ft": 7.0,
+    "upper_deck_exception_max_length_ft": 16.0,
+    "upper_deck_exception_overhang_allowance_ft": 6.0,
+    "upper_deck_exception_categories": ["USA", "UTA"],
     "enforce_time_window": True,
     "algorithm_version": "v2",
     "v2_low_util_threshold": 70.0,
@@ -376,6 +379,18 @@ def _build_optimizer_params(plant_code, preset):
     params["upper_two_across_max_length_ft"] = max(
         float(params.get("upper_two_across_max_length_ft") or 0.0),
         0.0,
+    )
+    params["upper_deck_exception_max_length_ft"] = max(
+        float(params.get("upper_deck_exception_max_length_ft") or 0.0),
+        0.0,
+    )
+    params["upper_deck_exception_overhang_allowance_ft"] = max(
+        float(params.get("upper_deck_exception_overhang_allowance_ft") or 0.0),
+        0.0,
+    )
+    params["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
+        params.get("upper_deck_exception_categories"),
+        default=DEFAULT_REPLAY_PRESET.get("upper_deck_exception_categories", ["USA", "UTA"]),
     )
     params["enforce_time_window"] = bool(params.get("enforce_time_window", True))
     params["algorithm_version"] = "v2"

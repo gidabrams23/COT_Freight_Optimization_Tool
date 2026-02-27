@@ -89,7 +89,7 @@
             {% if entries %}
               {% for entry in entries %}
                 <tr>
-                  <td>{{ entry.created_at }}</td>
+                  <td>{{ entry.created_at | est_datetime }}</td>
                   <td>{{ (entry.planner_id or "Unknown") | title }}</td>
                   <td>
                     {% if entry.action_type == 'order_removed' %}

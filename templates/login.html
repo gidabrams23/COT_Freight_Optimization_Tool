@@ -15,64 +15,75 @@
       <div class="login-alert">{{ error }}</div>
     {% endif %}
 
-    <div class="login-card">
+    <div class="login-card login-card-single">
       <div class="login-column login-admin">
         <div class="login-section-label">System Access</div>
-        {% if admin_profile %}
-          <form method="post" class="login-admin-form">
-            <input type="hidden" name="profile_id" value="{{ admin_profile.id }}">
+        {% if profiles %}
+          <form method="post" class="login-admin-form" id="login-account-form">
             <input type="hidden" name="next" value="{{ next_url }}">
-            <div class="login-account-card active">
-              <div class="login-account-icon">
-                <span class="material-symbols-outlined">shield</span>
+            <div class="login-field login-account-select-field">
+              <label for="profile_id">Select Account</label>
+              <select class="select-field login-account-select" name="profile_id" id="profile_id" required>
+                {% for profile in profiles %}
+                  <option value="{{ profile.id }}" {% if profile.id == selected_profile_id %}selected{% endif %}>
+                    {{ profile.name }} - {{ 'Admin' if profile.is_admin else 'Planner' }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="login-account-card active" id="login-selected-card">
+              <div class="login-account-icon" id="login-selected-icon-wrap">
+                <span class="material-symbols-outlined" id="login-selected-icon">
+                  {{ 'shield' if selected_profile and selected_profile.is_admin else 'person' }}
+                </span>
               </div>
-              <div>
-                <div class="login-account-title">Administrator</div>
-                <div class="login-account-subtitle">Global system & user management</div>
+              <div class="login-account-meta">
+                <div class="login-account-title" id="login-selected-title">
+                  {{ selected_profile.name if selected_profile else 'Select an account' }}
+                </div>
+                <div class="login-account-subtitle" id="login-selected-subtitle">
+                  {{ selected_profile.role_label if selected_profile else 'Account access' }}
+                </div>
+                <div class="login-focus-plants" id="login-selected-focus">
+                  {% if selected_profile and not selected_profile.is_admin %}
+                    {% for plant in selected_profile.focus_plants %}
+                      <span class="login-focus-chip" title="{{ plant }} - {{ plant_names.get(plant, plant) }}">{{ plant }}</span>
+                    {% endfor %}
+                  {% endif %}
+                </div>
               </div>
             </div>
 
-            <div class="login-field">
-              <label>Password Required</label>
+            <div class="login-field" id="login-auth-field">
+              <label id="login-password-label">Password Required</label>
               <div class="login-input-row">
-                <input type="password" name="password" placeholder="Enter admin password" required>
-                <button class="btn-primary" type="submit">
+                <input
+                  type="password"
+                  id="login-password-input"
+                  name="password"
+                  placeholder="Enter admin password"
+                  {% if selected_profile and selected_profile.is_admin %}required{% endif %}
+                >
+                <button class="btn-primary" id="login-submit-button" type="submit">
                   <span class="material-symbols-outlined">login</span>
                 </button>
               </div>
               <div class="login-note">
                 <span class="material-symbols-outlined">verified_user</span>
-                Standard security protocols active
+                <span id="login-auth-note-text">
+                  {% if selected_profile and selected_profile.is_admin %}
+                    Standard security protocols active
+                  {% else %}
+                    Planner profile ready for sign in
+                  {% endif %}
+                </span>
               </div>
             </div>
           </form>
         {% else %}
-          <div class="empty-state">No admin profile configured.</div>
+          <div class="empty-state">No access profiles configured.</div>
         {% endif %}
-      </div>
-
-      <div class="login-column login-planners">
-        <div class="login-section-label">Select Planner Account</div>
-        <div class="login-planner-list">
-          {% if planner_profiles %}
-            {% for profile in planner_profiles %}
-              <form method="post" class="login-planner-item">
-                <input type="hidden" name="profile_id" value="{{ profile.id }}">
-                <input type="hidden" name="next" value="{{ next_url }}">
-                <button class="login-planner-button" type="submit">
-                  <div class="login-planner-badge">{{ (profile.name or 'P')[:2] | upper }}</div>
-                  <div class="login-planner-info">
-                    <div class="login-planner-title">{{ profile.name }}</div>
-                    <div class="login-planner-subtitle">Planner Account</div>
-                  </div>
-                  <span class="material-symbols-outlined">chevron_right</span>
-                </button>
-              </form>
-            {% endfor %}
-          {% else %}
-            <div class="empty-state">No planner profiles configured.</div>
-          {% endif %}
-        </div>
       </div>
     </div>
 
@@ -81,11 +92,83 @@
         <span class="status-dot"></span>
         System Online
       </div>
-      <div class="login-version">v4.2.0 - Production</div>
-      <div class="login-links">
-        <span>Privacy Policy</span>
-        <span>Support</span>
-      </div>
+      <div class="login-version">{{ app_release_label }}</div>
     </div>
+
+    <script>
+      (() => {
+        const profiles = {{ profiles | tojson }};
+        const plantNames = {{ plant_names | tojson }};
+        const form = document.getElementById("login-account-form");
+        const select = document.getElementById("profile_id");
+        const title = document.getElementById("login-selected-title");
+        const subtitle = document.getElementById("login-selected-subtitle");
+        const icon = document.getElementById("login-selected-icon");
+        const focus = document.getElementById("login-selected-focus");
+        const passwordInput = document.getElementById("login-password-input");
+        const passwordLabel = document.getElementById("login-password-label");
+        const note = document.getElementById("login-auth-note-text");
+        const submitButton = document.getElementById("login-submit-button");
+
+        if (!form || !select || !profiles.length) {
+          return;
+        }
+
+        const profileById = new Map(profiles.map((profile) => [String(profile.id), profile]));
+
+        function renderFocusChips(codes) {
+          if (!focus) {
+            return;
+          }
+          const values = Array.isArray(codes) ? codes : [];
+          focus.innerHTML = "";
+          values.forEach((code) => {
+            const chip = document.createElement("span");
+            chip.className = "login-focus-chip";
+            chip.textContent = code;
+            chip.title = `${code} - ${plantNames[code] || code}`;
+            focus.appendChild(chip);
+          });
+        }
+
+        function syncSelectedProfile() {
+          const profile = profileById.get(String(select.value));
+          if (!profile) {
+            return;
+          }
+
+          const isAdmin = !!profile.is_admin;
+          const name = profile.name || "Unnamed";
+
+          if (title) title.textContent = name;
+          if (subtitle) subtitle.textContent = isAdmin ? "Administrator Account" : "Planner Account";
+          if (icon) icon.textContent = isAdmin ? "shield" : "person";
+          renderFocusChips(isAdmin ? [] : profile.focus_plants);
+
+          form.classList.toggle("planner-mode", !isAdmin);
+          if (passwordInput) {
+            passwordInput.required = isAdmin;
+            passwordInput.disabled = !isAdmin;
+            if (!isAdmin) {
+              passwordInput.value = "";
+            }
+          }
+          if (passwordLabel) {
+            passwordLabel.textContent = isAdmin ? "Password Required" : "Quick Access";
+          }
+          if (note) {
+            note.textContent = isAdmin
+              ? "Standard security protocols active"
+              : "Planner profile ready for sign in";
+          }
+          if (submitButton) {
+            submitButton.setAttribute("aria-label", isAdmin ? "Sign in as admin" : "Sign in as planner");
+          }
+        }
+
+        select.addEventListener("change", syncSelectedProfile);
+        syncSelectedProfile();
+      })();
+    </script>
   </section>
 {% endblock %}

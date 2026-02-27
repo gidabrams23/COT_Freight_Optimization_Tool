@@ -121,7 +121,12 @@ class OrderImporter:
                 return None, "Missing plant or item value.", context
             return None
 
-        sku = self.lookup_sku(item)
+        sku = self.lookup_sku(
+            item,
+            plant=plant,
+            bin_code=bin_code,
+            bin_raw=context.get("bin_raw"),
+        )
         context["sku"] = sku
         if not sku:
             if return_reason:
@@ -256,34 +261,94 @@ class OrderImporter:
 
         return orders
 
-    def lookup_sku(self, item):
+    def lookup_sku(self, item, plant="", bin_code="", bin_raw=""):
         if not item:
             return None
         normalized = str(item).strip().upper()
         if normalized in self.sku_specs:
             return normalized
-        exact = self.sku_lookup.get("exact", {})
-        if normalized in exact:
-            return exact[normalized]
-        for prefix, sku in self.sku_lookup.get("patterns", []):
-            if normalized.startswith(prefix):
-                return sku
+
+        # Backward-compatible fallback for older flat lookup payloads.
+        legacy_exact = self.sku_lookup.get("exact", {})
+        if legacy_exact and all(isinstance(key, str) for key in legacy_exact.keys()):
+            if normalized in legacy_exact:
+                return legacy_exact[normalized]
+        legacy_patterns = self.sku_lookup.get("patterns", [])
+        if isinstance(legacy_patterns, list):
+            for prefix, sku in legacy_patterns:
+                if normalized.startswith(prefix):
+                    return sku
+
+        exact_by_scope = self.sku_lookup.get("exact", {})
+        patterns_by_scope = self.sku_lookup.get("patterns", {})
+        for scope in self._lookup_scope_sequence(plant, bin_code, bin_raw):
+            scoped_exact = exact_by_scope.get(scope, {})
+            if normalized in scoped_exact:
+                return scoped_exact[normalized]
+
+        for scope in self._lookup_scope_sequence(plant, bin_code, bin_raw):
+            for prefix, sku in patterns_by_scope.get(scope, []):
+                if normalized.startswith(prefix):
+                    return sku
         return None
 
     def _load_sku_lookup(self):
         entries = db.list_item_lookups()
-        lookup = {"exact": {}, "patterns": []}
+        lookup = {"exact": {}, "patterns": {}}
         for entry in entries:
             pattern = (entry.get("item_pattern") or "").strip()
             sku = entry.get("sku")
             if not pattern or not sku:
                 continue
+            scope = (
+                self._normalize_lookup_scope(entry.get("plant")),
+                self._normalize_lookup_scope(entry.get("bin")),
+            )
             normalized = pattern.upper()
-            if normalized.endswith("%"):
-                lookup["patterns"].append((normalized[:-1], sku))
+            if normalized.endswith("%") or normalized.endswith("*"):
+                prefix = normalized.rstrip("%*").strip()
+                if not prefix:
+                    continue
+                lookup["patterns"].setdefault(scope, []).append((prefix, sku))
             else:
-                lookup["exact"][normalized] = sku
+                scoped_exact = lookup["exact"].setdefault(scope, {})
+                if normalized not in scoped_exact:
+                    scoped_exact[normalized] = sku
+
+        for scope in lookup["patterns"]:
+            lookup["patterns"][scope].sort(key=lambda entry: (-len(entry[0]), entry[0]))
         return lookup
+
+    def _lookup_scope_sequence(self, plant, bin_code, bin_raw):
+        plant_value = self._normalize_lookup_scope(plant)
+        bins = []
+        for candidate in (bin_raw, bin_code):
+            normalized = self._normalize_lookup_scope(candidate)
+            if normalized != "*" and normalized not in bins:
+                bins.append(normalized)
+        bins.append("*")
+
+        scopes = []
+        if plant_value != "*":
+            for bin_value in bins:
+                scopes.append((plant_value, bin_value))
+        for bin_value in bins:
+            scopes.append(("*", bin_value))
+
+        ordered = []
+        seen = set()
+        for scope in scopes:
+            if scope in seen:
+                continue
+            seen.add(scope)
+            ordered.append(scope)
+        return ordered
+
+    def _normalize_lookup_scope(self, value):
+        normalized = self._clean_value(value).upper()
+        if not normalized or normalized in {"*", "ANY", "ALL"}:
+            return "*"
+        return normalized
 
     def _load_sku_specs(self):
         specs = {}

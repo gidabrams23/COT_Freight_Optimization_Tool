@@ -47,6 +47,11 @@
                   <input type="hidden" name="stack_overflow_max_height" value="{{ optimize_defaults.stack_overflow_max_height or 5 }}">
                   <input type="hidden" name="max_back_overhang_ft" value="{{ optimize_defaults.max_back_overhang_ft or 4 }}">
                   <input type="hidden" name="upper_two_across_max_length_ft" value="{{ optimize_defaults.upper_two_across_max_length_ft or 7 }}">
+                  <input type="hidden" name="upper_deck_exception_max_length_ft" value="{{ optimize_defaults.upper_deck_exception_max_length_ft or 16 }}">
+                  <input type="hidden" name="upper_deck_exception_overhang_allowance_ft" value="{{ optimize_defaults.upper_deck_exception_overhang_allowance_ft or 6 }}">
+                  {% for category in (optimize_defaults.upper_deck_exception_categories or ['USA', 'UTA']) %}
+                    <input type="hidden" name="upper_deck_exception_categories" value="{{ category }}">
+                  {% endfor %}
                   <input type="hidden" name="enforce_time_window" value="1">
                   <input type="hidden" name="batch_horizon_enabled" value="{% if optimize_defaults.batch_horizon_enabled %}1{% endif %}" id="optimize-batch-toggle">
                   <input type="hidden" name="algorithm_version" value="v2">
@@ -2315,6 +2320,7 @@
       };
       let activeRequest = null;
       let processingTimer = null;
+      let lastUploadedFile = null;
 
       const setProgress = (pct) => {
         const safe = Math.max(0, Math.min(100, pct));
@@ -2639,51 +2645,8 @@
         }
       });
 
-      if (refreshButton) {
-        refreshButton.addEventListener('click', () => {
-          window.location.reload();
-        });
-      }
-
-      if (unmappedSaveButton) {
-        unmappedSaveButton.addEventListener('click', async () => {
-          const specs = collectUnmappedSpecs();
-          if (!specs.length) {
-            if (unmappedStatus) unmappedStatus.textContent = 'No unmapped SKUs to save.';
-            return;
-          }
-          const invalid = specs.filter((entry) => !(Number(entry.length_with_tongue_ft) > 0));
-          if (invalid.length) {
-            if (unmappedStatus) unmappedStatus.textContent = 'Please enter a length for each SKU before saving.';
-            return;
-          }
-          if (unmappedStatus) unmappedStatus.textContent = 'Saving SKU specs...';
-          try {
-            const response = await fetch('/api/skus/bulk-add', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ items: specs }),
-            });
-            const payload = await response.json();
-            if (!response.ok) {
-              throw new Error((payload && payload.error) || 'Failed to save SKU specs.');
-            }
-            if (unmappedStatus) {
-              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Re-upload to apply mapping.`;
-            }
-          } catch (err) {
-            if (unmappedStatus) unmappedStatus.textContent = err.message || 'Failed to save SKU specs.';
-          }
-        });
-      }
-
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-      });
-
-      input.addEventListener('change', () => {
-        const file = input.files && input.files[0];
-        if (!file) return;
+      const runUpload = (file) => {
+        if (!file || activeRequest) return;
 
         if (filenameEl) filenameEl.textContent = file.name || 'Selected file';
         if (refreshButton) refreshButton.classList.add('hidden');
@@ -2745,8 +2708,14 @@
               }
               setProgress(100);
               setStatus(errorMessage);
-              hideSummary();
-              hideUnmapped();
+              if (payload && Object.keys(payload).length) {
+                showSummary(payload);
+                renderUnmappedItems(payload.unmapped_items || []);
+                if (payload.blocked && refreshButton) refreshButton.classList.remove('hidden');
+              } else {
+                hideSummary();
+                hideUnmapped();
+              }
             }
           };
           window.setTimeout(finalize, 350);
@@ -2760,6 +2729,60 @@
         });
 
         xhr.send(formData);
+      };
+
+      if (refreshButton) {
+        refreshButton.addEventListener('click', () => {
+          if (lastUploadedFile) {
+            runUpload(lastUploadedFile);
+            return;
+          }
+          window.location.reload();
+        });
+      }
+
+      if (unmappedSaveButton) {
+        unmappedSaveButton.addEventListener('click', async () => {
+          const specs = collectUnmappedSpecs();
+          if (!specs.length) {
+            if (unmappedStatus) unmappedStatus.textContent = 'No unmapped SKUs to save.';
+            return;
+          }
+          const invalid = specs.filter((entry) => !(Number(entry.length_with_tongue_ft) > 0));
+          if (invalid.length) {
+            if (unmappedStatus) unmappedStatus.textContent = 'Please enter a length for each SKU before saving.';
+            return;
+          }
+          if (unmappedStatus) unmappedStatus.textContent = 'Saving SKU specs...';
+          try {
+            const response = await fetch('/api/skus/bulk-add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: specs }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              throw new Error((payload && payload.error) || 'Failed to save SKU specs.');
+            }
+            if (unmappedStatus) {
+              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Click Refresh to continue processing this file.`;
+            }
+            if (refreshButton) refreshButton.classList.remove('hidden');
+          } catch (err) {
+            if (unmappedStatus) unmappedStatus.textContent = err.message || 'Failed to save SKU specs.';
+          }
+        });
+      }
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+      });
+
+      input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        lastUploadedFile = file;
+        runUpload(file);
         input.value = '';
       });
     }

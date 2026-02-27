@@ -14,6 +14,19 @@
       </div>
       <div class="header-actions">
         <a class="btn-secondary" href="{{ url_for('loads') }}">Back to Loads</a>
+        <form method="post" action="{{ url_for('reverse_load_order', load_id=load.id) }}">
+          <button
+            class="btn-secondary"
+            type="submit"
+            {% if (load.status or 'PROPOSED') == 'APPROVED' or (load.stops | length) <= 1 %}disabled{% endif %}
+          >
+            {% if load.route_reversed %}
+              Restore Sequence
+            {% else %}
+              Reverse Sequence
+            {% endif %}
+          </button>
+        </form>
       </div>
     </div>
 
@@ -22,12 +35,22 @@
         <strong>Over Capacity:</strong> This is a single-order load that exceeds trailer capacity. Review before dispatch.
       </div>
     {% endif %}
+    {% if route_error == 'approved_locked' %}
+      <div class="alert-message warning">
+        <strong>Route Locked:</strong> Approved loads cannot be modified.
+      </div>
+    {% endif %}
 
     <div class="load-detail-content">
       <div class="load-main">
         <div class="load-route-grid">
           <div class="route-timeline">
-            <h3>Route Timeline</h3>
+            <h3>
+              Route Timeline
+              {% if load.route_reversed %}
+                <span class="badge badge-warning">Reversed</span>
+              {% endif %}
+            </h3>
             <div class="route-track">
               {% for node in load.route_nodes %}
                 <div class="route-node {{ node.type }}">
@@ -49,7 +72,7 @@
           </div>
 
           <div class="map-card">
-            <div class="load-map" id="load-detail-map" data-load-id="{{ load.id }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}'></div>
+            <div class="load-map" id="load-detail-map" data-load-id="{{ load.id }}" data-route-reversed="{{ 1 if load.route_reversed else 0 }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}'></div>
           </div>
         </div>
 
@@ -249,6 +272,7 @@
       if (!container) return;
       const stops = JSON.parse(container.dataset.stops || '[]');
       const storedRoute = JSON.parse(container.dataset.route || '[]');
+      const routeReversed = container.dataset.routeReversed === '1';
       const validStops = stops.filter((stop) => stop.lat !== null && stop.lng !== null);
       if (!validStops.length) {
         container.innerHTML = '<div class="empty">No map coordinates available for stops.</div>';
@@ -315,6 +339,10 @@
       }
 
       if (!hasDetailedRoadGeometry) {
+        if (routeReversed) {
+          drawRoutePolyline(lineCoords);
+          return;
+        }
         const loadId = container.dataset.loadId;
         if (loadId) {
           fetch(`/api/loads/${encodeURIComponent(loadId)}/route-geometry`)

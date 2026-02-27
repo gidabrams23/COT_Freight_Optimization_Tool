@@ -73,6 +73,7 @@ ROUTING_ENABLED=false
    - `FLASK_SECRET_KEY`: a long random string.
    - `ADMIN_PASSWORD`: required for admin login in non-development environments.
    - `APP_DB_PATH`: set to `/var/data/app.db` if you attach a Render disk.
+   - Optional: `ACCESS_PROFILES_SEED_PATH` (defaults to `data/seed/access_profiles.csv`).
    - Optional Gunicorn tuning:
      - `WEB_CONCURRENCY` (default `1`, recommended for SQLite + in-process reoptimization jobs)
      - `GUNICORN_THREADS` (default `2`)
@@ -83,3 +84,8 @@ ROUTING_ENABLED=false
 5. Deploy. Render sets `PORT` automatically; the container binds to it.
 
 On first boot with an empty DB, app defaults (SKU specs, rate matrix, lookup tables, plants, and planning defaults) are seeded from `data/seed/`.
+Access profiles are also seeded from `data/seed/access_profiles.csv` when the `access_profiles` table is empty.
+
+Profile persistence notes:
+- On Render, account changes persist across deploys when `APP_DB_PATH` points to a mounted disk (`/var/data/app.db`).
+- The app also snapshots access profiles to `data/seed/access_profiles.csv` on profile create/update/delete, so you can commit that file to GitHub and preserve accounts for fresh environments.

@@ -10,8 +10,9 @@
             <span class="lsr-code-pill">#{{ planning_session.session_code }}</span>
           </div>
           <p class="lsr-subtitle">
-            Optimization completed {{ completion_label or planning_session.created_at }}
+            Optimization completed {{ completion_label or (planning_session.created_at | est_datetime) }}
           </p>
+          <p class="lsr-subtitle">Showing approved loads only (draft/proposed loads are excluded).</p>
         </div>
         <div class="lsr-actions">
           <a class="btn-success btn-xs" href="{{ url_for('load_report_export', session_id=planning_session.id) }}">
@@ -53,12 +54,19 @@
     </div>
 
     <div class="lsr-cards">
+      {% if not report_rows %}
+        <div class="session-alert">No approved loads yet for this session.</div>
+      {% endif %}
       {% for load in report_rows %}
         <article class="lsr-card">
           <div class="lsr-card-left">
             <div class="lsr-card-top">
               <div class="lsr-card-title">
                 <div class="lsr-load-pill">{{ load.load_number or ('Load #' ~ load.id) }}</div>
+                <a class="btn-ghost btn-xs lsr-loadsheet-btn" href="{{ url_for('load_report_load_sheet_export', session_id=planning_session.id, load_id=load.id) }}">
+                  <span class="material-symbols-outlined">description</span>
+                  Load Sheet
+                </a>
                 <div class="lsr-route">{{ load.route_label }}</div>
               </div>
               <div class="lsr-load-metrics">

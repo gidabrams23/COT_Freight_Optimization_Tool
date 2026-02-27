@@ -57,6 +57,19 @@ def _coerce_optional_non_negative_int(value):
     return max(parsed, 0)
 
 
+def _coerce_optional_non_negative_float(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "":
+        return None
+    try:
+        parsed = float(text)
+    except (TypeError, ValueError):
+        return None
+    return max(parsed, 0.0)
+
+
 def _normalize_patterns(raw_patterns, fallback_label=""):
     if isinstance(raw_patterns, str):
         values = [part.strip() for part in raw_patterns.split(",")]
@@ -135,6 +148,12 @@ def parse_strategic_customers(value_text):
                         )
                     else:
                         requires_return = _default_requires_return_to_origin(label, patterns)
+                    wedge_min_item_length_ft = _coerce_optional_non_negative_float(
+                        row.get(
+                            "wedge_min_item_length_ft",
+                            row.get("default_wedge_min_item_length_ft"),
+                        )
+                    )
                     due_flex_days = None
                     if has_due_flex_flag:
                         due_flex_days = _coerce_optional_non_negative_int(
@@ -152,6 +171,7 @@ def parse_strategic_customers(value_text):
                             "default_wedge_51": _coerce_bool(
                                 row.get("default_wedge_51", row.get("prefer_wedge_51", False))
                             ),
+                            "wedge_min_item_length_ft": wedge_min_item_length_ft,
                             "requires_return_to_origin": requires_return,
                             "ignore_for_optimization": _coerce_bool(
                                 row.get(
@@ -202,6 +222,7 @@ def parse_strategic_customers(value_text):
                 "default_due_date_flex_days": None,
                 "no_mix": False,
                 "default_wedge_51": False,
+                "wedge_min_item_length_ft": None,
                 "requires_return_to_origin": _default_requires_return_to_origin(
                     label,
                     patterns,
@@ -230,6 +251,9 @@ def serialize_strategic_customers(entries):
                 ),
                 "no_mix": _coerce_bool((entry or {}).get("no_mix")),
                 "default_wedge_51": _coerce_bool((entry or {}).get("default_wedge_51")),
+                "wedge_min_item_length_ft": _coerce_optional_non_negative_float(
+                    (entry or {}).get("wedge_min_item_length_ft")
+                ),
                 "requires_return_to_origin": _coerce_bool(
                     (entry or {}).get("requires_return_to_origin")
                 ),

@@ -15,6 +15,9 @@ DEFAULT_BUILD_PARAMS = {
     "stack_overflow_max_height": "5",
     "max_back_overhang_ft": "4",
     "upper_two_across_max_length_ft": "7",
+    "upper_deck_exception_max_length_ft": "16",
+    "upper_deck_exception_overhang_allowance_ft": "6",
+    "upper_deck_exception_categories": ["USA", "UTA"],
     "orders_start_date": "",
     "algorithm_version": "v2",
     "compare_algorithms": False,
@@ -255,6 +258,23 @@ def build_loads(
                 DEFAULT_BUILD_PARAMS.get("upper_two_across_max_length_ft", "7"),
             )
         ),
+        "upper_deck_exception_max_length_ft": _clean_value(
+            form.get(
+                "upper_deck_exception_max_length_ft",
+                DEFAULT_BUILD_PARAMS.get("upper_deck_exception_max_length_ft", "16"),
+            )
+        ),
+        "upper_deck_exception_overhang_allowance_ft": _clean_value(
+            form.get(
+                "upper_deck_exception_overhang_allowance_ft",
+                DEFAULT_BUILD_PARAMS.get("upper_deck_exception_overhang_allowance_ft", "6"),
+            )
+        ),
+        "upper_deck_exception_categories": stack_calculator.normalize_upper_deck_exception_categories(
+            _get_list(form, "upper_deck_exception_categories")
+            or form.get("upper_deck_exception_categories")
+            or DEFAULT_BUILD_PARAMS.get("upper_deck_exception_categories", ["USA", "UTA"])
+        ),
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": _clean_value(form.get("batch_end_date", "")),
@@ -325,6 +345,31 @@ def build_loads(
             DEFAULT_BUILD_PARAMS.get("upper_two_across_max_length_ft", 7) or 7
         )
     upper_two_across_max_length_ft = max(upper_two_across_max_length_ft, 0.0)
+    try:
+        upper_deck_exception_max_length_ft = float(form_data["upper_deck_exception_max_length_ft"] or 0)
+    except (TypeError, ValueError):
+        upper_deck_exception_max_length_ft = float(
+            DEFAULT_BUILD_PARAMS.get("upper_deck_exception_max_length_ft", 16) or 16
+        )
+    upper_deck_exception_max_length_ft = max(upper_deck_exception_max_length_ft, 0.0)
+
+    try:
+        upper_deck_exception_overhang_allowance_ft = float(
+            form_data["upper_deck_exception_overhang_allowance_ft"] or 0
+        )
+    except (TypeError, ValueError):
+        upper_deck_exception_overhang_allowance_ft = float(
+            DEFAULT_BUILD_PARAMS.get("upper_deck_exception_overhang_allowance_ft", 6) or 6
+        )
+    upper_deck_exception_overhang_allowance_ft = max(
+        upper_deck_exception_overhang_allowance_ft,
+        0.0,
+    )
+
+    upper_deck_exception_categories = stack_calculator.normalize_upper_deck_exception_categories(
+        form_data.get("upper_deck_exception_categories")
+        or DEFAULT_BUILD_PARAMS.get("upper_deck_exception_categories", ["USA", "UTA"])
+    )
 
     params = {
         "origin_plant": form_data["origin_plant"],
@@ -336,6 +381,12 @@ def build_loads(
         "stack_overflow_max_height": stack_overflow_max_height,
         "max_back_overhang_ft": round(max_back_overhang_ft, 2),
         "upper_two_across_max_length_ft": round(upper_two_across_max_length_ft, 2),
+        "upper_deck_exception_max_length_ft": round(upper_deck_exception_max_length_ft, 2),
+        "upper_deck_exception_overhang_allowance_ft": round(
+            upper_deck_exception_overhang_allowance_ft,
+            2,
+        ),
+        "upper_deck_exception_categories": upper_deck_exception_categories,
         "enforce_time_window": enforce_time_window,
         "batch_horizon_enabled": batch_horizon_enabled,
         "batch_end_date": batch_end_date,
@@ -487,6 +538,16 @@ def build_loads(
         )
 
     sorted_loads = sorted(optimized_loads, key=approval_sort_key)
+    util_ranked_loads = sorted(
+        optimized_loads,
+        key=lambda load: (
+            -(load.get("utilization_pct") or 0),
+            -(load.get("estimated_cost") or 0),
+        ),
+    )
+    draft_sequence_by_ref = {
+        id(load): idx for idx, load in enumerate(util_ranked_loads, start=1)
+    }
 
     if reset_proposed:
         if session_id:
@@ -495,7 +556,7 @@ def build_loads(
             db.clear_draft_loads(params["origin_plant"])
     with db.get_connection() as connection:
         for idx, load in enumerate(sorted_loads, start=1):
-            load["draft_sequence"] = idx
+            load["draft_sequence"] = draft_sequence_by_ref.get(id(load), idx)
             if created_by:
                 load["created_by"] = created_by
             if session_id:

@@ -116,7 +116,7 @@
                         <button class="btn-danger btn-xs" type="submit">Delete</button>
                       </form>
                     </td>
-                    <td>{{ profile.created_at }}</td>
+                    <td>{{ profile.created_at | est_datetime }}</td>
                   </tr>
                 {% endfor %}
               </tbody>

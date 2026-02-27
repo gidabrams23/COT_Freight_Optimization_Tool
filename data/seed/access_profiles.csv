@@ -1,0 +1,11 @@
+name,is_admin,allowed_plants,default_plants,created_at
+Admin,1,ALL,ALL,2026-02-03 14:22:28
+Russell,1,ALL,ALL,2026-02-26 22:19:21
+Basil,0,ALL,IA,2026-02-03 14:22:28
+Brittany,0,ALL,GA,2026-02-26 22:20:47
+Chris,0,ALL,OR,2026-02-03 14:22:28
+Ed,0,ALL,"GA,VA,NV",2026-02-03 14:22:28
+Faithe,0,ALL,GA,2026-02-26 22:20:40
+Judy,0,ALL,"GA,VA,NV",2026-02-20 19:50:47
+Kissaryn,0,ALL,"GA,VA,NV",2026-02-20 19:50:30
+Mario,0,ALL,TX,2026-02-03 14:22:28

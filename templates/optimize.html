@@ -78,6 +78,11 @@
           <input type="hidden" name="stack_overflow_max_height" value="{{ form_data.stack_overflow_max_height or 5 }}">
           <input type="hidden" name="max_back_overhang_ft" value="{{ form_data.max_back_overhang_ft or 4 }}">
           <input type="hidden" name="upper_two_across_max_length_ft" value="{{ form_data.upper_two_across_max_length_ft or 7 }}">
+          <input type="hidden" name="upper_deck_exception_max_length_ft" value="{{ form_data.upper_deck_exception_max_length_ft or 16 }}">
+          <input type="hidden" name="upper_deck_exception_overhang_allowance_ft" value="{{ form_data.upper_deck_exception_overhang_allowance_ft or 6 }}">
+          {% for category in (form_data.upper_deck_exception_categories or ['USA', 'UTA']) %}
+            <input type="hidden" name="upper_deck_exception_categories" value="{{ category }}">
+          {% endfor %}
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">
               <span class="material-symbols-outlined">tune</span>

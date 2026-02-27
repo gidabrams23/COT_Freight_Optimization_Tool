@@ -46,6 +46,10 @@ TABLES = {
         "columns": ["key", "value_text", "updated_at"],
         "order_by": "key ASC",
     },
+    "access_profiles": {
+        "columns": ["name", "is_admin", "allowed_plants", "default_plants", "created_at"],
+        "order_by": "is_admin DESC, name ASC",
+    },
     "zip_coordinates": {
         "columns": ["zip", "lat", "lng", "city", "state", "created_at"],
         "order_by": "zip ASC",

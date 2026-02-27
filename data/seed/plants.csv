@@ -1,8 +1,8 @@
 plant_code,name,lat,lng,address,created_at
-GA,Lavonia,34.43611,-83.10639,,2026-01-23 14:33:20
-CL,Callao,37.97216,-76.57288,,2026-01-23 14:33:20
-IA,Missouri Valley,41.55944,-95.9025,,2026-01-23 14:33:20
-NV,Winnemucca,40.96833,-117.72667,,2026-01-23 14:33:20
-OR,Coburg,44.13944,-123.05889,,2026-01-23 14:33:20
-TX,Mexia,31.66222,-96.49722,,2026-01-23 14:33:20
-VA,Montross,38.09389,-76.82611,,2026-01-23 14:33:20
+CL,Callao,37.97216,-76.57288,,2026-02-25 21:06:03
+GA,Lavonia,34.4361,-83.1064,"101 Joe Harvey St, Lavonia, GA 30553",2026-01-23 14:33:20
+IA,Missouri Valley,41.5594,-95.9025,"1965 US-30, Missouri Valley, IA 51555",2026-01-23 14:33:20
+NV,Winnemucca,40.9683,-117.7267,"5300 Westmoreland Rd, Winnemucca, NV 89445",2026-01-23 14:33:20
+OR,Coburg,44.1394,-123.0589,"91218 Coburg Industrial Way, Coburg, OR 97408",2026-01-23 14:33:20
+TX,Mexia,31.6622,-96.4972,"931 Industrial Blvd, Mexia, TX 76667",2026-01-23 14:33:20
+VA,Montross,38.0939,-76.8261,"159 Industrial Park Dr, Montross, VA 22520",2026-01-23 14:33:20
