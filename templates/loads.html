@@ -437,6 +437,8 @@
                         {% set util_class = 'util-f' %}
                       {% endif %}
                       {% set miles = (load.route_distance if load.route_distance is not none else (load.estimated_miles or 0)) | round(0) %}
+                      {% set last_customer_stop = (load.stops[-1] if load.stops and (load.stops | length) > 0 else {}) %}
+                      {% set destination_state_display = last_customer_stop.state or load.destination_state or '--' %}
                       <div
                         class="load-row{% if panel_open %} selected{% endif %}"
                         data-load-id="{{ load.id }}"
@@ -479,7 +481,7 @@
                                 <span class="route-sep" aria-hidden="true">&middot;</span>
                                 {{ load.origin_plant }}
                                 <span class="route-arrow" aria-hidden="true">&rarr;</span>
-                                {{ load.destination_state }}
+                                {{ destination_state_display }}
                               </div>
                             </div>
                           </div>
@@ -535,6 +537,12 @@
                                 data-subtotal-before-floor="{{ freight.subtotal_before_floor or 0 }}"
                                 data-min-load-cost="{{ freight.min_load_cost or 0 }}"
                                 data-total-cost="{{ freight.total_cost or 0 }}"
+                                data-carrier-key="{{ freight.carrier_key or load.carrier_key or 'fls' }}"
+                                data-carrier-label="{{ freight.carrier_label or load.carrier_label or 'FLS' }}"
+                                data-rate-source="{{ freight.rate_source_label or load.carrier_source_label or '' }}"
+                                data-selection-reason="{{ freight.selection_reason or load.carrier_selection_reason or '' }}"
+                                data-pricing-note="{{ freight.pricing_note or '' }}"
+                                data-return-required="{{ 1 if freight.requires_return_miles else 0 }}"
                               >${{ "{:,.0f}".format((load.estimated_cost or 0) | float) }}</span>
                             </div>
                           </div>
@@ -649,33 +657,40 @@
                       {% include 'partials/load_schematic_card.html' %}
 
                       <div class="manifest-card">
-                        <div class="card-header-row">
-                          <div class="card-header-left">
-                            <h3>Freight Manifest</h3>
-                            {% if load.ship_date %}
-                              <span class="meta-chip">Ship Date {{ load.ship_date }}</span>
-                            {% endif %}
-                          </div>
-                          {% if tab != 'final' and not is_replay %}
-                            <div class="card-header-right">
-                              <form method="post" action="{{ url_for('reverse_load_order', load_id=load.id) }}">
-                                <input type="hidden" name="next" value="{{ request.full_path }}">
-                                <button class="btn-secondary btn-xs btn-muted-action" type="submit" {% if status == 'APPROVED' or (load.stop_count or 0) <= 1 %}disabled{% endif %}>
-                                  <span class="material-symbols-outlined">swap_vert</span>
-                                  {% if load.route_reversed %}
-                                    Restore Sequence
-                                  {% else %}
-                                    Reverse Sequence
-                                  {% endif %}
-                                </button>
-                              </form>
-                            </div>
-                          {% endif %}
-                        </div>
+                        {% set manifest_total_miles = (load.route_distance if load.route_distance is not none else (load.estimated_miles or 0)) | round(0) | int %}
+                        {% set manifest_stop_count = load.stop_count or 0 %}
                         <div class="table-container">
                           <table class="manifest-table manifest-grouped">
                             <thead>
+                              <tr class="manifest-toolbar-row">
+                                <th colspan="3">
+                                  <div class="manifest-toolbar">
+                                    <div class="manifest-toolbar-left">
+                                      <h3>Freight Manifest</h3>
+                                      {% if load.ship_date %}
+                                        <span class="meta-chip">Ship Date {{ load.ship_date }}</span>
+                                      {% endif %}
+                                    </div>
+                                    {% if tab != 'final' and not is_replay %}
+                                      <div class="manifest-toolbar-right">
+                                        <form method="post" action="{{ url_for('reverse_load_order', load_id=load.id) }}">
+                                          <input type="hidden" name="next" value="{{ request.full_path }}">
+                                          <button class="btn-secondary btn-xs btn-muted-action manifest-reverse-btn" type="submit" {% if status == 'APPROVED' or (load.stop_count or 0) <= 1 %}disabled{% endif %}>
+                                            <span class="material-symbols-outlined">swap_vert</span>
+                                            {% if load.route_reversed %}
+                                              Restore Sequence
+                                            {% else %}
+                                              Reverse Sequence
+                                            {% endif %}
+                                          </button>
+                                        </form>
+                                      </div>
+                                    {% endif %}
+                                  </div>
+                                </th>
+                              </tr>
                               <tr>
+                                <th>Dist</th>
                                 <th>Order</th>
                                 <th>Customer Info</th>
                               </tr>
@@ -683,7 +698,36 @@
                             <tbody>
                               {% for group in load.manifest_groups %}
                                 {% set row_id = 'manifest-' ~ load.id ~ '-' ~ loop.index0 %}
-                                <tr class="manifest-order-row"{% if not group.is_terminal_stop %} data-target="{{ row_id }}"{% endif %}>
+                                {% set prev_group = load.manifest_groups[loop.index0 - 1] if loop.index0 > 0 else none %}
+                                {% set current_stop_sequence = (group.stop_sequence or 0) | int %}
+                                {% set prev_same_stop = (
+                                  prev_group
+                                  and not group.is_terminal_stop
+                                  and not prev_group.is_terminal_stop
+                                  and (prev_group.stop_sequence or 0) == (group.stop_sequence or 0)
+                                ) %}
+                                {% set incoming_leg_index = current_stop_sequence - 1 %}
+                                {% set incoming_leg_miles = (
+                                  (
+                                    load.route_legs[incoming_leg_index]
+                                    if load.route_legs
+                                    and incoming_leg_index >= 0
+                                    and incoming_leg_index < (load.route_legs | length)
+                                    else 0
+                                  ) or 0
+                                ) | round(0) | int %}
+                                {% set show_incoming_leg = incoming_leg_miles > 0 and not prev_same_stop %}
+                                <tr class="manifest-order-row{% if group.is_terminal_stop %} is-terminal{% endif %}"{% if not group.is_terminal_stop %} data-target="{{ row_id }}"{% endif %}>
+                                  <td class="manifest-dist-cell">
+                                    {% if show_incoming_leg %}
+                                      <span class="manifest-inline-leg{% if group.is_terminal_stop %} is-return{% endif %}">
+                                        <span class="manifest-leg-arrow" aria-hidden="true">&darr;</span>
+                                        {{ incoming_leg_miles }} mi
+                                      </span>
+                                    {% else %}
+                                      <span class="manifest-inline-leg-placeholder" aria-hidden="true"></span>
+                                    {% endif %}
+                                  </td>
                                   <td>
                                     <div class="manifest-order-cell">
                                       <div class="manifest-order-top">
@@ -692,26 +736,26 @@
                                         {% else %}
                                           <button class="manifest-toggle" type="button">+</button>
                                         {% endif %}
-                                        <span class="order-color-dot manifest-stop-dot" style="background: {{ group.color }};" title="Stop {{ group.stop_sequence or '--' }}">{{ group.stop_sequence or '' }}</span>
                                         {% if group.is_terminal_stop %}
-                                          <span class="manifest-order-id">{{ group.terminal_label or 'Final Stop' }}</span>
-                                          <span class="badge badge-neutral">End</span>
+                                          <span class="manifest-stop-terminal" aria-hidden="true">
+                                            <span class="material-symbols-outlined">trip_origin</span>
+                                          </span>
+                                          <span class="manifest-order-id terminal-title">{{ group.terminal_label or 'Final Stop' }}</span>
                                         {% else %}
+                                          <span class="order-color-dot manifest-stop-dot" style="background: {{ group.color }};" title="Stop {{ group.stop_sequence or '--' }}">{{ group.stop_sequence or '' }}</span>
                                           <span class="manifest-order-id">#{{ group.order_id }}</span>
                                         {% endif %}
                                       </div>
                                       <div class="due-cell">
                                         {% if group.is_terminal_stop %}
-                                          <span class="badge badge-neutral">No items</span>
+                                          <span class="manifest-due-inline is-empty">No items</span>
                                         {% else %}
-                                          <span class="due-date">{{ group.due_date }}</span>
-                                          {% if group.due_status == 'PAST_DUE' %}
-                                            <span class="badge badge-danger">Past Due</span>
-                                          {% elif group.due_status == 'DUE_SOON' %}
-                                            <span class="badge badge-warning">Due Soon</span>
-                                          {% endif %}
+                                          <span class="manifest-due-inline">
+                                            <span class="manifest-due-label">Due</span>
+                                            <span class="manifest-due-date">{{ group.due_date | short_date }}</span>
+                                          </span>
                                           {% if group.early_days and group.early_days > 0 and group.due_status != 'PAST_DUE' %}
-                                            <span class="badge badge-info">Early {{ group.early_days }}d</span>
+                                            <span class="badge badge-info manifest-early-pill">Early {{ group.early_days }}d</span>
                                           {% endif %}
                                         {% endif %}
                                       </div>
@@ -719,7 +763,12 @@
                                   </td>
                                   <td>
                                     <div class="manifest-customer-cell">
-                                      <div class="manifest-customer-name">{{ group.cust_name }}</div>
+                                      <div class="manifest-customer-head">
+                                        <div class="manifest-customer-name">{{ group.cust_name }}</div>
+                                        {% if group.is_terminal_stop %}
+                                          <span class="manifest-end-tag">End</span>
+                                        {% endif %}
+                                      </div>
                                       <div class="manifest-customer-location">
                                         {% if group.is_terminal_stop %}
                                           {{ group.state }} plant
@@ -732,7 +781,7 @@
                                 </tr>
                                 {% if not group.is_terminal_stop %}
                                   <tr class="manifest-item-row hidden" id="{{ row_id }}">
-                                    <td colspan="2">
+                                    <td colspan="3">
                                       <table class="manifest-subtable">
                                         <thead>
                                           <tr>
@@ -760,10 +809,24 @@
                             </tbody>
                           </table>
                         </div>
+                        <div class="manifest-route-summary">
+                          <span class="manifest-route-summary-label">Total Route Distance</span>
+                          <strong class="manifest-route-summary-value">{{ "{:,.0f}".format((manifest_total_miles or 0) | float) }} mi</strong>
+                          <span class="manifest-route-summary-meta">
+                            {{ manifest_stop_count }} stop{% if manifest_stop_count != 1 %}s{% endif %}
+                            {% if load.origin_plant or destination_state_display %}
+                              &middot;
+                              {{ load.origin_plant or '--' }}
+                              {% if destination_state_display and destination_state_display != '--' %}
+                                &rarr; {{ destination_state_display }}
+                              {% endif %}
+                            {% endif %}
+                          </span>
+                        </div>
                       </div>
 
                       <div class="map-card">
-                        <div class="load-map" id="load-map-{{ load.id }}" data-load-id="{{ load.id }}" data-route-reversed="{{ 1 if load.route_reversed else 0 }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}'></div>
+                        <div class="load-map" id="load-map-{{ load.id }}" data-load-id="{{ load.id }}" data-route-reversed="{{ 1 if load.route_reversed else 0 }}" data-stops='{{ load.map_stops | tojson }}' data-route='{{ (load.route_geometry or []) | tojson }}' data-route-legs='{{ (load.route_legs or []) | tojson }}'></div>
                       </div>
                     </div>
                   </div>
@@ -1098,17 +1161,24 @@
       return response.json().catch(() => null);
     }
 
+    function syncReviewLayoutHeightSoon() {
+      syncReviewLayoutHeight();
+      requestAnimationFrame(syncReviewLayoutHeight);
+    }
+
     function openTodayPanel() {
       if (!todayPanel || !todayToggle) return;
       todayPanel.classList.remove('hidden');
       todayToggle.setAttribute('aria-expanded', 'true');
       if (todayInput) todayInput.focus();
+      syncReviewLayoutHeightSoon();
     }
 
     function closeTodayPanel() {
       if (!todayPanel || !todayToggle) return;
       todayPanel.classList.add('hidden');
       todayToggle.setAttribute('aria-expanded', 'false');
+      syncReviewLayoutHeightSoon();
     }
 
     function applyTodayOverride(value) {
@@ -1163,12 +1233,14 @@
       if (!sortPanel || !sortToggle) return;
       sortPanel.classList.remove('hidden');
       sortToggle.setAttribute('aria-expanded', 'true');
+      syncReviewLayoutHeightSoon();
     }
 
     function closeSortPanel() {
       if (!sortPanel || !sortToggle) return;
       sortPanel.classList.add('hidden');
       sortToggle.setAttribute('aria-expanded', 'false');
+      syncReviewLayoutHeightSoon();
     }
 
     if (sortToggle) {
@@ -1219,7 +1291,7 @@
       });
     }
 
-    function addRouteArrows(map, coords) {
+    function addRouteArrows(map, coords, layers = []) {
       coords.forEach((point, idx) => {
         if (idx >= coords.length - 1) return;
         const next = coords[idx + 1];
@@ -1231,7 +1303,8 @@
           iconSize: [20, 20],
           iconAnchor: [10, 10],
         });
-        L.marker(mid, { icon, interactive: false }).addTo(map);
+        const marker = L.marker(mid, { icon, interactive: false }).addTo(map);
+        layers.push(marker);
       });
     }
 
@@ -1276,18 +1349,31 @@
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 18,
       }).addTo(map);
+      fitMapToStops(map, validStops);
 
       const storedRoute = JSON.parse(container.dataset.route || '[]');
+      const storedRouteLegs = JSON.parse(container.dataset.routeLegs || '[]');
       const routeReversed = container.dataset.routeReversed === '1';
       const routeCoords = (Array.isArray(storedRoute) ? storedRoute : [])
         .map((point) => [Number(point[0]), Number(point[1])])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      let routeLegMiles = (Array.isArray(storedRouteLegs) ? storedRouteLegs : [])
+        .map((value) => Number(value))
+        .map((value) => (Number.isFinite(value) ? Math.max(value, 0) : 0));
 
       const lineCoords = validStops.map((stop) => {
         return [stop.lat, stop.lng];
       });
       let routeLineLayer = null;
+      let routeArrowLayers = [];
       const hasDetailedRoadGeometry = routeCoords.length > lineCoords.length;
+
+      const clearOverlayLayers = (layers) => {
+        layers.forEach((layer) => {
+          try { map.removeLayer(layer); } catch (_) {}
+        });
+        layers.length = 0;
+      };
 
       const drawRoutePolyline = (coords, addArrows = false) => {
         const normalized = (Array.isArray(coords) ? coords : [])
@@ -1297,13 +1383,14 @@
         if (routeLineLayer) {
           try { map.removeLayer(routeLineLayer); } catch (_) {}
         }
+        clearOverlayLayers(routeArrowLayers);
         routeLineLayer = L.polyline(normalized, {
           color: '#38bdf8',
           weight: 3,
           opacity: 0.85,
         }).addTo(map);
         if (addArrows && lineCoords.length > 1) {
-          addRouteArrows(map, lineCoords);
+          addRouteArrows(map, lineCoords, routeArrowLayers);
         }
         return true;
       };
@@ -1312,16 +1399,28 @@
         drawRoutePolyline(routeCoords);
       }
 
-      validStops.forEach((stop) => {
+      validStops.forEach((stop, stopIndex) => {
         const coords = [stop.lat, stop.lng];
         const icon = createStopIcon(stop);
         const marker = L.marker(coords, { icon }).addTo(map);
         const label = stop.label || 'Stop';
-        marker.bindPopup(label);
+        let popupLabel = label;
+        const legMilesRaw = routeLegMiles[stopIndex];
+        const legMiles = Number(legMilesRaw);
+        if (
+          Number.isFinite(legMiles)
+          && legMiles > 0
+          && stopIndex < (validStops.length - 1)
+        ) {
+          const nextStop = validStops[stopIndex + 1] || {};
+          const isReturnLeg = (nextStop.type || '') === 'final';
+          const legLabel = `${Math.round(legMiles).toLocaleString()} mi`;
+          popupLabel = `${label} - ${isReturnLeg ? 'Return leg' : 'Next leg'} ${legLabel}`;
+        }
+        marker.bindPopup(popupLabel);
       });
 
       map.__routeStops = validStops;
-      fitMapToStops(map, validStops);
       mapInstances.set(container.id, map);
 
       if (!hasDetailedRoadGeometry) {
@@ -1341,6 +1440,13 @@
               const fetched = (Array.isArray(payload.route_geometry) ? payload.route_geometry : [])
                 .map((point) => [Number(point[0]), Number(point[1])])
                 .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+              const fetchedLegs = (Array.isArray(payload.route_legs) ? payload.route_legs : [])
+                .map((value) => Number(value))
+                .map((value) => (Number.isFinite(value) ? Math.max(value, 0) : 0));
+              if (fetchedLegs.length) {
+                routeLegMiles = fetchedLegs;
+                container.dataset.routeLegs = JSON.stringify(payload.route_legs || []);
+              }
               if (fetched.length > 1) {
                 container.dataset.route = JSON.stringify(payload.route_geometry || []);
                 drawRoutePolyline(fetched);
@@ -1678,7 +1784,10 @@
       const top = layout.getBoundingClientRect().top;
       const available = window.innerHeight - top - 16;
       const clamped = Math.max(0, Math.floor(available));
-      layout.style.setProperty('--loads-review-height', `${clamped}px`);
+      const next = `${clamped}px`;
+      if (layout.style.getPropertyValue('--loads-review-height') !== next) {
+        layout.style.setProperty('--loads-review-height', next);
+      }
     }
 
     function initLoadsViewportLayoutMode() {
@@ -1723,6 +1832,23 @@
       }
 
       window.addEventListener('resize', onViewportChange);
+      window.addEventListener('load', onViewportChange);
+
+      const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
+      if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+          onViewportChange();
+          window.setTimeout(onViewportChange, 220);
+        });
+      }
+
+      if (typeof MutationObserver === 'function') {
+        const bodyObserver = new MutationObserver((mutations) => {
+          if (!Array.isArray(mutations) || !mutations.length) return;
+          onViewportChange();
+        });
+        bodyObserver.observe(body, { attributes: true, attributeFilter: ['class'] });
+      }
     }
 
     function showReviewEmpty(message) {
@@ -2114,6 +2240,20 @@
       });
     });
 
+    document.querySelectorAll('form.feedback-form-inline').forEach((form) => {
+      if (form.dataset.submitBound === 'true') return;
+      form.dataset.submitBound = 'true';
+      form.addEventListener('submit', (event) => {
+        if (form.dataset.submitting === 'true') {
+          event.preventDefault();
+          return;
+        }
+        form.dataset.submitting = 'true';
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) submitButton.setAttribute('disabled', 'true');
+      });
+    });
+
     document.querySelectorAll('.load-row').forEach((row) => {
       row.addEventListener('click', (event) => {
         if (event.target.closest('button')) return;
@@ -2259,10 +2399,18 @@
         const subtotalBeforeFloor = toNumber(target.dataset.subtotalBeforeFloor, 0);
         const minLoadCost = toNumber(target.dataset.minLoadCost, 0);
         const totalCost = toNumber(target.dataset.totalCost, 0);
+        const carrierLabel = (target.dataset.carrierLabel || 'FLS').trim() || 'FLS';
+        const rateSource = (target.dataset.rateSource || '').trim();
+        const selectionReason = (target.dataset.selectionReason || '').trim();
+        const pricingNote = (target.dataset.pricingNote || '').trim();
+        const returnRequired = target.dataset.returnRequired === '1';
 
         if (subtitle) {
           const idLabel = loadLabel || (loadId ? `Load ${loadId}` : 'Selected load');
-          subtitle.textContent = `${idLabel} freight estimate formula`;
+          const sourceSuffix = rateSource ? ` (${rateSource})` : '';
+          const returnSuffix = returnRequired ? ' • Return miles required' : '';
+          const noteSuffix = selectionReason || pricingNote;
+          subtitle.textContent = `${idLabel} • ${carrierLabel}${sourceSuffix}${returnSuffix}${noteSuffix ? ` • ${noteSuffix}` : ''}`;
         }
         if (stopsFormula) stopsFormula.textContent = `${stopCount} stops x ${formatMoney(stopFee)} each`;
         if (stopsTotal) stopsTotal.textContent = formatMoney(stopCost);
@@ -3819,6 +3967,7 @@
           upper_deck_exception_categories: ['USA', 'UTA'],
         },
         draggingUnitId: null,
+        draggingStackPositionId: null,
       };
 
       const cloneLayout = (layout) => JSON.parse(JSON.stringify(layout || { positions: [] }));
@@ -3854,16 +4003,22 @@
 
       const removeUnitFromLayout = (unitId) => {
         let removed = false;
+        let fromPositionId = '';
+        let fromIndex = -1;
         state.layout.positions = (state.layout.positions || [])
           .map((pos) => {
-            const nextIds = (pos.unit_ids || []).filter((id) => id !== unitId);
-            if (nextIds.length !== (pos.unit_ids || []).length) {
+            const original = [...(pos.unit_ids || [])];
+            const idx = original.indexOf(unitId);
+            if (idx >= 0) {
               removed = true;
+              fromPositionId = pos.position_id || '';
+              fromIndex = idx;
             }
+            const nextIds = original.filter((id) => id !== unitId);
             return { ...pos, unit_ids: nextIds };
           })
           .filter((pos) => (pos.unit_ids || []).length > 0 || !!pos.allow_empty);
-        return removed;
+        return { removed, fromPositionId, fromIndex };
       };
 
       const ensurePositionIds = () => {
@@ -3883,10 +4038,62 @@
         if (pos.allow_empty) pos.allow_empty = false;
       };
 
-      const moveUnitToPosition = (unitId, positionId, index) => {
+      const unitStopSequenceValue = (unitId) => {
+        const unit = state.unitsById[unitId];
+        if (!unit) return Number.POSITIVE_INFINITY;
+        const stopSequence = Number(unit.stop_sequence);
+        if (!Number.isFinite(stopSequence) || stopSequence <= 0) {
+          return Number.POSITIVE_INFINITY;
+        }
+        return stopSequence;
+      };
+
+      const applySequencingRule = (positionId) => {
+        const pos = findPosition(positionId);
+        if (!pos || !Array.isArray(pos.unit_ids) || pos.unit_ids.length <= 1) return;
+        const indexed = pos.unit_ids.map((unitId, idx) => ({ unitId, idx }));
+        indexed.sort((a, b) => {
+          const seqA = unitStopSequenceValue(a.unitId);
+          const seqB = unitStopSequenceValue(b.unitId);
+          if (seqA !== seqB) return seqA - seqB;
+          return a.idx - b.idx;
+        });
+        pos.unit_ids = indexed.map((entry) => entry.unitId);
+      };
+
+      const moveStackToDeckIndex = (positionId, deck, insertIndex) => {
+        if (!positionId) return;
+        const targetDeck = (deck || 'lower') === 'upper' ? 'upper' : 'lower';
+        const positions = [...(state.layout.positions || [])];
+        const sourceIndex = positions.findIndex((pos) => (pos.position_id || '') === positionId);
+        if (sourceIndex < 0) return;
+        const [stack] = positions.splice(sourceIndex, 1);
+        const nextStack = { ...stack, deck: targetDeck };
+        const deckIndices = positions
+          .map((pos, idx) => ({ pos, idx }))
+          .filter((entry) => (entry.pos.deck || 'lower') === targetDeck)
+          .map((entry) => entry.idx);
+        const boundedInsert = Math.max(0, Math.min(Number(insertIndex || 0), deckIndices.length));
+        const insertAt =
+          boundedInsert >= deckIndices.length
+            ? (deckIndices.length ? (deckIndices[deckIndices.length - 1] + 1) : positions.length)
+            : deckIndices[boundedInsert];
+        positions.splice(insertAt, 0, nextStack);
+        state.layout.positions = positions;
+        ensurePositionIds();
+        computeClientPreview();
+        render();
+      };
+
+      const moveUnitToPosition = (unitId, positionId, index, options = {}) => {
         if (!unitId || !positionId) return;
-        removeUnitFromLayout(unitId);
+        const source = removeUnitFromLayout(unitId);
         insertUnitInPosition(unitId, positionId, index);
+        const isManualReorder = !!options.manualReorder;
+        const movedAcrossStacks = !source.removed || source.fromPositionId !== positionId;
+        if (!isManualReorder && movedAcrossStacks) {
+          applySequencingRule(positionId);
+        }
         ensurePositionIds();
         computeClientPreview();
         render();
@@ -3914,6 +4121,7 @@
           positions.splice(insertAt, 0, newPos);
           state.layout.positions = positions;
         }
+        applySequencingRule(newPos.position_id);
         ensurePositionIds();
         computeClientPreview();
         render();
@@ -4407,7 +4615,7 @@
 
         const positions = (state.layout.positions || [])
           .filter((pos) => (pos.deck || 'lower') === deckKey);
-        const allowLeftInsertSlots = true;
+        const allowLeftInsertSlots = deckKey !== 'upper';
 
         const createStackSlot = (insertIdx) => {
           const slot = document.createElement('div');
@@ -4430,6 +4638,11 @@
           slot.addEventListener('drop', (event) => {
             event.preventDefault();
             slot.classList.remove('dragover');
+            const stackId = event.dataTransfer.getData('application/x-schematic-stack');
+            if (stackId) {
+              moveStackToDeckIndex(stackId, deckKey, insertIdx);
+              return;
+            }
             const unitId = state.draggingUnitId || event.dataTransfer.getData('text/plain');
             if (!unitId) return;
             moveUnitToNewStack(unitId, deckKey, insertIdx);
@@ -4474,10 +4687,33 @@
           const stackHeader = document.createElement('div');
           stackHeader.className = 'schematic-edit-stack-header';
           const stackLabelNumber = Number(stackIndexByPositionId[pos.position_id] || (posIdx + 1));
-          stackHeader.innerHTML = `
-            <span>Stack ${stackLabelNumber}</span>
-            <span class="schematic-edit-stack-length">${Number(positionLengthFt || 0).toFixed(1)} ft</span>
-          `;
+          const stackLabel = document.createElement('span');
+          stackLabel.textContent = `Stack ${stackLabelNumber}`;
+          const stackLength = document.createElement('span');
+          stackLength.className = 'schematic-edit-stack-length';
+          stackLength.textContent = `${Number(positionLengthFt || 0).toFixed(1)} ft`;
+          const stackHandle = document.createElement('button');
+          stackHandle.type = 'button';
+          stackHandle.className = 'schematic-edit-stack-handle';
+          stackHandle.title = 'Drag to move whole stack';
+          stackHandle.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">open_with</span>';
+          stackHandle.draggable = true;
+          stackHandle.addEventListener('dragstart', (event) => {
+            state.draggingStackPositionId = pos.position_id;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('application/x-schematic-stack', pos.position_id || '');
+            stackCol.classList.add('dragging-stack');
+          });
+          stackHandle.addEventListener('dragend', () => {
+            state.draggingStackPositionId = null;
+            stackCol.classList.remove('dragging-stack');
+          });
+          const headerRight = document.createElement('div');
+          headerRight.className = 'schematic-edit-stack-header-right';
+          headerRight.appendChild(stackLength);
+          headerRight.appendChild(stackHandle);
+          stackHeader.appendChild(stackLabel);
+          stackHeader.appendChild(headerRight);
           stackCol.appendChild(stackHeader);
 
           const stackBody = document.createElement('div');
@@ -4517,7 +4753,7 @@
             return drop;
           };
 
-          const createUnitElement = (unitId) => {
+          const createUnitElement = (unitId, positionId, itemIndex, totalItems) => {
             const unit = state.unitsById[unitId];
             if (!unit) return null;
             const unitEl = document.createElement('div');
@@ -4549,7 +4785,7 @@
           if (!isTwoAcross) {
             stackBody.appendChild(createDropSlot(0));
             ids.forEach((unitId, idx) => {
-              const unitEl = createUnitElement(unitId);
+              const unitEl = createUnitElement(unitId, pos.position_id, idx, ids.length);
               if (!unitEl) return;
               stackBody.appendChild(unitEl);
               stackBody.appendChild(createDropSlot(idx + 1));
@@ -4562,11 +4798,13 @@
             rightColumn.className = 'schematic-edit-two-across-column right';
 
             leftIds.forEach((unitId) => {
-              const unitEl = createUnitElement(unitId);
+              const sourceIndex = Math.max(ids.indexOf(unitId), 0);
+              const unitEl = createUnitElement(unitId, pos.position_id, sourceIndex, ids.length);
               if (unitEl) leftColumn.appendChild(unitEl);
             });
             rightIds.forEach((unitId) => {
-              const unitEl = createUnitElement(unitId);
+              const sourceIndex = Math.max(ids.indexOf(unitId), 0);
+              const unitEl = createUnitElement(unitId, pos.position_id, sourceIndex, ids.length);
               if (unitEl) rightColumn.appendChild(unitEl);
             });
 
@@ -4585,9 +4823,14 @@
           }
 
           track.appendChild(stackCol);
+          if (!allowLeftInsertSlots) {
+            track.appendChild(createStackSlot(posIdx + 1));
+          }
         });
 
-        track.appendChild(createStackSlot(positions.length));
+        if (allowLeftInsertSlots) {
+          track.appendChild(createStackSlot(positions.length));
+        }
         appendDeckUsage();
         return wrapper;
       };
@@ -4650,6 +4893,7 @@
           upper_deck_exception_categories: ['USA', 'UTA'],
         };
         state.draggingUnitId = null;
+        state.draggingStackPositionId = null;
         setError('');
         if (canvas) canvas.innerHTML = '<div class="subtext">Loading schematic editor...</div>';
         if (warningHost) warningHost.innerHTML = '<div class="subtext">No warnings.</div>';

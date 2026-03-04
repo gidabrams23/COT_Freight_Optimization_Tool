@@ -235,9 +235,9 @@
                         </p>
                         <div class="optimize-manual-callout hidden" data-manual-validate>
                           <div class="optimize-manual-callout-summary" data-manual-summary></div>
-                          <div class="optimize-manual-callout-detail" data-manual-detail></div>
+                          <div class="optimize-manual-callout-detail hidden" data-manual-detail></div>
                           <div class="optimize-manual-callout-missing hidden" data-manual-missing-wrap>
-                            <div class="meta-label">Orders Not Found</div>
+                            <div class="meta-label">Missing Orders</div>
                             <div class="optimize-manual-missing-list" data-manual-missing-list></div>
                           </div>
                         </div>
@@ -1001,8 +1001,12 @@
 
       function clearManualValidation() {
         if (!manualValidateCallout || !manualValidateSummary || !manualMissingWrap || !manualMissingList) return;
+        manualValidateCallout.classList.remove('is-ok', 'is-warning');
         manualValidateSummary.textContent = '';
-        if (manualValidateDetail) manualValidateDetail.textContent = '';
+        if (manualValidateDetail) {
+          manualValidateDetail.textContent = '';
+          manualValidateDetail.classList.add('hidden');
+        }
         manualValidateCallout.classList.add('hidden');
         manualMissingWrap.classList.add('hidden');
         manualMissingList.innerHTML = '';
@@ -1014,11 +1018,16 @@
         const matchedCount = Number(payload.matched_count || 0);
         const notFound = Array.isArray(payload.not_found_so_nums) ? payload.not_found_so_nums : [];
         const notFoundCount = Number(payload.not_found_count || notFound.length || 0);
+        const allFound = pastedCount > 0 && notFoundCount === 0 && matchedCount === pastedCount;
         manualValidateCallout.classList.remove('hidden');
-        manualValidateSummary.textContent = `${notFoundCount} / ${pastedCount} not found`;
-        if (manualValidateDetail) {
-          manualValidateDetail.textContent = `${matchedCount} matched open orders`;
+        manualValidateCallout.classList.toggle('is-ok', allFound);
+        manualValidateCallout.classList.toggle('is-warning', !allFound);
+        if (allFound) {
+          manualValidateSummary.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">check_circle</span><span>All orders found</span>';
+        } else {
+          manualValidateSummary.textContent = `${notFoundCount} / ${pastedCount} orders missing`;
         }
+        if (manualValidateDetail) manualValidateDetail.classList.add('hidden');
         manualMissingList.innerHTML = '';
         if (notFound.length) {
           manualMissingWrap.classList.remove('hidden');
@@ -1042,7 +1051,10 @@
         }
         manualValidateCallout.classList.remove('hidden');
         manualValidateSummary.textContent = 'Checking pasted orders...';
-        if (manualValidateDetail) manualValidateDetail.textContent = '';
+        if (manualValidateDetail) {
+          manualValidateDetail.textContent = '';
+          manualValidateDetail.classList.add('hidden');
+        }
         const requestId = ++manualValidateRequestId;
         fetch('/api/orders/manual-validate', {
           method: 'POST',
@@ -1063,8 +1075,13 @@
           .catch(() => {
             if (requestId !== manualValidateRequestId) return;
             manualValidateCallout.classList.remove('hidden');
+            manualValidateCallout.classList.remove('is-ok');
+            manualValidateCallout.classList.add('is-warning');
             manualValidateSummary.textContent = 'Unable to validate pasted orders right now.';
-            if (manualValidateDetail) manualValidateDetail.textContent = '';
+            if (manualValidateDetail) {
+              manualValidateDetail.textContent = '';
+              manualValidateDetail.classList.add('hidden');
+            }
             if (manualMissingWrap) manualMissingWrap.classList.add('hidden');
             if (manualMissingList) manualMissingList.innerHTML = '';
           });
@@ -1814,8 +1831,9 @@
               : null;
             const tooltipParts = [
               itemLabel,
+              item.sku ? `SKU: ${item.sku}` : '',
               item.item_desc || '',
-              itemLength ? `${itemLength.toFixed(1)} ft` : '',
+              itemLength ? `Length: ${itemLength.toFixed(1)} ft` : '',
               maxStack ? `Max stack: ${maxStack}` : '',
               stopSequence ? `Stop: ${stopSequence}` : '',
             ].filter((value) => value);
@@ -2787,6 +2805,100 @@
       });
     }
 
+    function initSchematicHoverTooltips() {
+      if (window.__schematicHoverTooltipsBound) return;
+      window.__schematicHoverTooltipsBound = true;
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'schematic-hover-tooltip hidden';
+      tooltip.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(tooltip);
+
+      let activeTarget = null;
+
+      const escapeTooltipHtml = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+      function formatTooltipHtml(text) {
+        const rawParts = String(text || '')
+          .split('|')
+          .map((part) => part.trim())
+          .filter(Boolean);
+        if (!rawParts.length) return '';
+
+        const isSkuUnitTooltip = rawParts.some((part) => /^SKU\s*:/i.test(part));
+        if (!isSkuUnitTooltip) {
+          return rawParts
+            .map((part) => `<div class="schematic-hover-tooltip-row">${escapeTooltipHtml(part)}</div>`)
+            .join('');
+        }
+
+        const parts = rawParts.slice(1);
+        const nonStop = parts.filter((part) => !/^Stop\s*:/i.test(part));
+        const lengthPart = nonStop.find((part) => /^Length\s*:/i.test(part));
+        const maxStackPart = nonStop.find((part) => /^Max stack\s*:/i.test(part));
+        const core = nonStop.filter(
+          (part) => !/^Length\s*:/i.test(part) && !/^Max stack\s*:/i.test(part)
+        );
+        if (lengthPart || maxStackPart) {
+          core.push([lengthPart, maxStackPart].filter(Boolean).join(' | '));
+        }
+        return core
+          .map((part) => `<div class="schematic-hover-tooltip-row">${escapeTooltipHtml(part)}</div>`)
+          .join('');
+      }
+
+      function positionTooltip(evt) {
+        if (!activeTarget) return;
+        const pad = 14;
+        const rect = tooltip.getBoundingClientRect();
+        let left = evt.clientX + pad;
+        let top = evt.clientY + pad;
+        if (left + rect.width > window.innerWidth - 10) left = Math.max(10, evt.clientX - rect.width - pad);
+        if (top + rect.height > window.innerHeight - 10) top = Math.max(10, evt.clientY - rect.height - pad);
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+      }
+
+      function hideTooltip() {
+        activeTarget = null;
+        tooltip.classList.add('hidden');
+        tooltip.innerHTML = '';
+      }
+
+      document.addEventListener('mouseover', (evt) => {
+        const target = evt.target && evt.target.closest ? evt.target.closest('[data-tooltip]') : null;
+        if (!target) return;
+        const text = target.getAttribute('data-tooltip');
+        if (!text) return;
+        activeTarget = target;
+        tooltip.innerHTML = formatTooltipHtml(text);
+        tooltip.classList.remove('hidden');
+      });
+
+      document.addEventListener('mousemove', (evt) => {
+        if (!activeTarget) return;
+        positionTooltip(evt);
+      });
+
+      document.addEventListener('mouseout', (evt) => {
+        if (!activeTarget) return;
+        const leaving = evt.target && evt.target.closest ? evt.target.closest('[data-tooltip]') : null;
+        if (!leaving || leaving !== activeTarget) return;
+        const entering = evt.relatedTarget && evt.relatedTarget.closest ? evt.relatedTarget.closest('[data-tooltip]') : null;
+        if (entering === activeTarget) return;
+        hideTooltip();
+      });
+
+      document.addEventListener('scroll', hideTooltip, true);
+      window.addEventListener('blur', hideTooltip);
+      window.addEventListener('resize', hideTooltip);
+    }
+
     syncOrdersReviewLayoutHeight();
     syncIntakeHubHeight();
     window.addEventListener('resize', syncOrdersReviewLayoutHeight);
@@ -2794,6 +2906,7 @@
     window.addEventListener('load', syncIntakeHubHeight);
 
     initOrderUploadModal();
+    initSchematicHoverTooltips();
     bindOrderRows();
     const initialOrderRow = document.querySelector('.order-row:not(.group-hidden)') || document.querySelector('.order-row');
     if (initialOrderRow) {

@@ -1,5 +1,6 @@
 import json
 import math
+import re
 import time
 
 import db
@@ -19,6 +20,7 @@ TRAILER_PROFILE_OPTIONS = [
     {"value": "HOTSHOT", "label": "40' Hotshot", "capacity": 40.0, "lower": 40.0, "upper": 0.0},
 ]
 TRAILER_TYPE_SET = set(TRAILER_CONFIGS.keys())
+FIXED_CAPACITY_TRAILER_TYPES = {"STEP_DECK_48", "HOTSHOT", "WEDGE"}
 
 UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY = "utilization_grade_thresholds"
 OPTIMIZER_DEFAULTS_SETTING_KEY = "optimizer_defaults"
@@ -34,6 +36,8 @@ DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT = 7.0
 DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT = 16.0
 DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT = 6.0
 DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES = ("USA", "UTA")
+DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED = True
+_SKU_DIMENSION_PATTERN = re.compile(r"(?<!\d)(\d+(?:\.\d+)?)\s*[Xx]\s*(\d+(?:\.\d+)?)")
 _UTILIZATION_GRADE_CACHE = {
     "thresholds": dict(DEFAULT_UTILIZATION_GRADE_THRESHOLDS),
     "expires_at": 0.0,
@@ -46,6 +50,7 @@ _STACK_ASSUMPTIONS_CACHE = {
         "upper_deck_exception_max_length_ft": DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
         "upper_deck_exception_overhang_allowance_ft": DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
         "upper_deck_exception_categories": list(DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES),
+        "equal_length_deck_length_order_enabled": DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
     },
     "expires_at": 0.0,
 }
@@ -84,6 +89,52 @@ def _coerce_non_negative_float(value, default):
     except (TypeError, ValueError):
         parsed = float(default)
     return max(parsed, 0.0)
+
+
+def _coerce_bool(value, default=False):
+    if value is None:
+        return bool(default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value).strip().lower()
+    if not text:
+        return bool(default)
+    if text in {"1", "true", "yes", "on", "y"}:
+        return True
+    if text in {"0", "false", "no", "off", "n"}:
+        return False
+    return bool(default)
+
+
+def _deck_length_from_sku_text(value):
+    text = str(value or "").strip()
+    if not text:
+        return None
+    match = _SKU_DIMENSION_PATTERN.search(text)
+    if not match:
+        return None
+    try:
+        return max(float(match.group(2)), 0.0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _item_deck_length_ft(item, fallback_length_ft=0.0):
+    fallback = _coerce_non_negative_float(
+        fallback_length_ft,
+        _coerce_non_negative_float((item or {}).get("unit_length_ft"), 0.0),
+    )
+    for key in ("sku", "item", "item_desc"):
+        parsed = _deck_length_from_sku_text((item or {}).get(key))
+        if parsed is not None:
+            return parsed
+    return fallback
+
+
+def item_deck_length_ft(item, fallback_length_ft=0.0):
+    return _item_deck_length_ft(item, fallback_length_ft=fallback_length_ft)
 
 
 def _normalize_upper_deck_exception_categories(raw_value, default=None):
@@ -126,6 +177,7 @@ def _normalize_stack_assumptions(raw_value):
         "upper_deck_exception_max_length_ft": DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
         "upper_deck_exception_overhang_allowance_ft": DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
         "upper_deck_exception_categories": list(DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES),
+        "equal_length_deck_length_order_enabled": DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
     }
     if not isinstance(raw_value, dict):
         return defaults
@@ -165,6 +217,10 @@ def _normalize_stack_assumptions(raw_value):
         "upper_deck_exception_categories": _normalize_upper_deck_exception_categories(
             raw_value.get("upper_deck_exception_categories"),
             default=defaults["upper_deck_exception_categories"],
+        ),
+        "equal_length_deck_length_order_enabled": _coerce_bool(
+            raw_value.get("equal_length_deck_length_order_enabled"),
+            defaults["equal_length_deck_length_order_enabled"],
         ),
     }
 
@@ -219,6 +275,7 @@ def get_stack_capacity_assumptions(force_refresh=False):
         "upper_deck_exception_max_length_ft": DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT,
         "upper_deck_exception_overhang_allowance_ft": DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT,
         "upper_deck_exception_categories": list(DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES),
+        "equal_length_deck_length_order_enabled": DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
     }
     setting = db.get_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY) or {}
     raw_text = (setting.get("value_text") or "").strip()
@@ -273,13 +330,39 @@ def _stop_access_compatible(position, incoming_sequence):
     return incoming_sequence <= top_sequence
 
 
-def _length_stack_compatible(position, incoming_length_ft):
+def _position_top_item(position):
+    items = list((position or {}).get("items") or [])
+    for item in reversed(items):
+        if max(_coerce_non_negative_int(item.get("units"), 0), 0) > 0:
+            return item
+    return items[-1] if items else {}
+
+
+def _length_stack_compatible(
+    position,
+    incoming_length_ft,
+    incoming_deck_length_ft=None,
+    equal_length_deck_length_order_enabled=True,
+):
     if incoming_length_ft is None:
         incoming_length_ft = 0
     top_length = position.get("top_length_ft")
     if top_length is None:
         top_length = position.get("length_ft") or 0
-    return incoming_length_ft <= top_length + 1e-6
+    if incoming_length_ft > (top_length + 1e-6):
+        return False
+    if not equal_length_deck_length_order_enabled:
+        return True
+    if abs(float(incoming_length_ft) - float(top_length)) > 1e-6:
+        return True
+
+    top_deck_length = position.get("top_deck_length_ft")
+    if top_deck_length is None:
+        top_item = _position_top_item(position)
+        top_deck_length = _item_deck_length_ft(top_item, fallback_length_ft=top_length)
+    if incoming_deck_length_ft is None:
+        incoming_deck_length_ft = incoming_length_ft
+    return float(incoming_deck_length_ft) <= (float(top_deck_length) + 1e-6)
 
 
 def _position_stop_priority(position):
@@ -324,7 +407,7 @@ def _position_order_priority(position, order_rank):
 def _resolve_trailer_config(trailer_type, capacity_feet=None):
     trailer_key = normalize_trailer_type(trailer_type, default="STEP_DECK")
     base = dict(TRAILER_CONFIGS.get(trailer_key, TRAILER_CONFIGS["STEP_DECK"]))
-    if capacity_feet:
+    if capacity_feet and trailer_key not in FIXED_CAPACITY_TRAILER_TYPES:
         try:
             capacity = float(capacity_feet)
         except (TypeError, ValueError):
@@ -387,10 +470,13 @@ def _promote_high_side_items_within_equal_length(position):
 
     buckets = {}
     for idx, item in enumerate(items):
-        length_key = round(float(item.get("unit_length_ft") or 0.0), 6)
+        length_ft = _coerce_non_negative_float(item.get("unit_length_ft"), 0.0)
+        deck_length_ft = _item_deck_length_ft(item, fallback_length_ft=length_ft)
+        length_key = round(length_ft, 6)
+        deck_key = round(deck_length_ft, 6)
         stop_key = _coerce_stop_sequence(item.get("stop_sequence"))
-        # Never reorder across stop layers; stop accessibility/customer order has priority.
-        buckets.setdefault((length_key, stop_key), []).append((idx, item))
+        # Never reorder across stop or deck-length layers; physical compatibility has priority.
+        buckets.setdefault((length_key, deck_key, stop_key), []).append((idx, item))
 
     for entries in buckets.values():
         if len(entries) <= 1:
@@ -424,6 +510,8 @@ def _eligible_singleton_overflow_item(position, stack_overflow_max_height):
 
 
 def _append_single_unit_item(target, source_item):
+    unit_length_ft = _coerce_non_negative_float(source_item.get("unit_length_ft"), 0.0)
+    deck_length_ft = _item_deck_length_ft(source_item, fallback_length_ft=unit_length_ft)
     payload = {
         "item": source_item.get("item"),
         "sku": source_item.get("sku"),
@@ -438,7 +526,8 @@ def _append_single_unit_item(target, source_item):
             ),
             1,
         ),
-        "unit_length_ft": source_item.get("unit_length_ft") or 0,
+        "unit_length_ft": unit_length_ft,
+        "deck_length_ft": deck_length_ft,
         "order_id": source_item.get("order_id"),
         "stop_sequence": _coerce_stop_sequence(source_item.get("stop_sequence")),
     }
@@ -459,6 +548,15 @@ def _append_single_unit_item(target, source_item):
                 1,
             ) == payload["upper_max_stack"]
             and abs(float(last.get("unit_length_ft") or 0) - float(payload.get("unit_length_ft") or 0)) <= 1e-6
+            and abs(
+                float(
+                    last.get(
+                        "deck_length_ft",
+                        _item_deck_length_ft(last, fallback_length_ft=last.get("unit_length_ft") or 0),
+                    )
+                    or 0
+                ) - float(payload.get("deck_length_ft") or 0)
+            ) <= 1e-6
             and (last.get("order_id") or "") == (payload.get("order_id") or "")
             and _coerce_stop_sequence(last.get("stop_sequence")) == payload.get("stop_sequence")
         )
@@ -473,6 +571,7 @@ def _apply_singleton_overflow_allowance(
     positions,
     stack_overflow_max_height,
     max_stack_utilization_multiplier,
+    equal_length_deck_length_order_enabled=True,
 ):
     threshold = _coerce_non_negative_int(stack_overflow_max_height, 0)
     if threshold <= 0 or not positions:
@@ -487,6 +586,7 @@ def _apply_singleton_overflow_allowance(
             continue
 
         source_length = float(source.get("length_ft") or 0.0)
+        source_deck_length = _item_deck_length_ft(source_item, fallback_length_ft=source_length)
         source_stop = _coerce_stop_sequence(source_item.get("stop_sequence"))
         source_max_stack = max(_coerce_non_negative_int(source_item.get("max_stack"), 1), 1)
         source_fraction = _unit_capacity_fraction(source_max_stack)
@@ -502,7 +602,12 @@ def _apply_singleton_overflow_allowance(
             # Only allow overflow on stacks that were already mixed-height before adding the overflow unit.
             if not _position_has_mixed_stack_heights(target):
                 continue
-            if not _length_stack_compatible(target, source_length):
+            if not _length_stack_compatible(
+                target,
+                source_length,
+                incoming_deck_length_ft=source_deck_length,
+                equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+            ):
                 continue
             if not _stop_access_compatible(target, source_stop):
                 continue
@@ -542,6 +647,7 @@ def _apply_singleton_overflow_allowance(
             float(target.get("top_length_ft") or target.get("length_ft") or source_length),
             source_length,
         )
+        target["top_deck_length_ft"] = source_deck_length
 
         positions.pop(idx)
 
@@ -1204,6 +1310,7 @@ def calculate_stack_configuration(
     upper_deck_exception_max_length_ft=None,
     upper_deck_exception_overhang_allowance_ft=None,
     upper_deck_exception_categories=None,
+    equal_length_deck_length_order_enabled=None,
 ):
     defaults = get_stack_capacity_assumptions()
     stack_overflow_max_height = _coerce_non_negative_int(
@@ -1254,6 +1361,12 @@ def calculate_stack_configuration(
         else upper_deck_exception_categories,
         default=defaults["upper_deck_exception_categories"],
     )
+    equal_length_deck_length_order_enabled = _coerce_bool(
+        defaults["equal_length_deck_length_order_enabled"]
+        if equal_length_deck_length_order_enabled is None
+        else equal_length_deck_length_order_enabled,
+        DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
+    )
     max_stack_utilization_multiplier = _max_stack_utilization_multiplier(
         stack_overflow_max_height
     )
@@ -1275,6 +1388,7 @@ def calculate_stack_configuration(
             "upper_deck_exception_max_length_ft": upper_deck_exception_max_length_ft,
             "upper_deck_exception_overhang_allowance_ft": upper_deck_exception_overhang_allowance_ft,
             "upper_deck_exception_categories": list(upper_deck_exception_categories),
+            "equal_length_deck_length_order_enabled": bool(equal_length_deck_length_order_enabled),
             "max_stack_utilization_multiplier": round(
                 max_stack_utilization_multiplier, 4
             ),
@@ -1288,9 +1402,12 @@ def calculate_stack_configuration(
             stop_sequence = _coerce_stop_sequence(item.get("stop_sequence"))
             if stop_sequence is None:
                 stop_sequence = 0
+            unit_length_ft = _coerce_non_negative_float(item.get("unit_length_ft"), 0.0)
+            deck_length_ft = _item_deck_length_ft(item, fallback_length_ft=unit_length_ft)
             return (
                 stop_sequence,
-                item.get("unit_length_ft") or 0,
+                unit_length_ft,
+                deck_length_ft,
                 item.get("max_stack_height") or 0,
             )
 
@@ -1305,6 +1422,7 @@ def calculate_stack_configuration(
             max_stack = item["max_stack_height"] or 1
             upper_max_stack = item.get("upper_deck_max_stack_height") or max_stack
             length_ft = item["unit_length_ft"] or 0
+            deck_length_ft = _item_deck_length_ft(item, fallback_length_ft=length_ft)
             item_stop_sequence = _coerce_stop_sequence(item.get("stop_sequence"))
 
             while qty_remaining > 0:
@@ -1312,7 +1430,12 @@ def calculate_stack_configuration(
                 for pos_idx, pos in enumerate(positions):
                     if (
                         pos["length_ft"] >= length_ft
-                        and _length_stack_compatible(pos, length_ft)
+                        and _length_stack_compatible(
+                            pos,
+                            length_ft,
+                            incoming_deck_length_ft=deck_length_ft,
+                            equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+                        )
                         and pos["capacity_used"] < (1.0 - 1e-6)
                         and _stop_access_compatible(pos, item_stop_sequence)
                     ):
@@ -1337,6 +1460,7 @@ def calculate_stack_configuration(
                         "units_count": 0,
                         "top_stop_sequence": None,
                         "top_length_ft": length_ft,
+                        "top_deck_length_ft": deck_length_ft,
                     }
                     positions.append(target)
 
@@ -1361,6 +1485,7 @@ def calculate_stack_configuration(
                         "max_stack": max_stack,
                         "upper_max_stack": max(_coerce_non_negative_int(upper_max_stack, max_stack), 1),
                         "unit_length_ft": length_ft,
+                        "deck_length_ft": deck_length_ft,
                         "order_id": item.get("order_id"),
                         "stop_sequence": item_stop_sequence,
                     }
@@ -1375,6 +1500,7 @@ def calculate_stack_configuration(
                     target.get("top_length_ft") or target.get("length_ft") or length_ft,
                     length_ft,
                 )
+                target["top_deck_length_ft"] = deck_length_ft
                 qty_remaining -= units_to_add
     else:
         order_buckets = {}
@@ -1388,7 +1514,14 @@ def calculate_stack_configuration(
         for order_id, items in order_buckets.items():
             sorted_items = sorted(
                 items,
-                key=lambda x: (x.get("unit_length_ft") or 0, x.get("max_stack_height") or 0),
+                key=lambda x: (
+                    _coerce_non_negative_float(x.get("unit_length_ft"), 0.0),
+                    _item_deck_length_ft(
+                        x,
+                        fallback_length_ft=_coerce_non_negative_float(x.get("unit_length_ft"), 0.0),
+                    ),
+                    x.get("max_stack_height") or 0,
+                ),
                 reverse=True,
             )
             for item in sorted_items:
@@ -1396,6 +1529,7 @@ def calculate_stack_configuration(
                 max_stack = item["max_stack_height"] or 1
                 upper_max_stack = item.get("upper_deck_max_stack_height") or max_stack
                 length_ft = item["unit_length_ft"] or 0
+                deck_length_ft = _item_deck_length_ft(item, fallback_length_ft=length_ft)
                 item_stop_sequence = _coerce_stop_sequence(item.get("stop_sequence"))
 
                 while qty_remaining > 0:
@@ -1410,6 +1544,7 @@ def calculate_stack_configuration(
                                 "units_count": 0,
                                 "top_stop_sequence": None,
                                 "top_length_ft": length_ft,
+                                "top_deck_length_ft": deck_length_ft,
                             }
                         )
 
@@ -1417,7 +1552,12 @@ def calculate_stack_configuration(
                     if target["length_ft"] < length_ft:
                         cursor += 1
                         continue
-                    if not _length_stack_compatible(target, length_ft):
+                    if not _length_stack_compatible(
+                        target,
+                        length_ft,
+                        incoming_deck_length_ft=deck_length_ft,
+                        equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+                    ):
                         cursor += 1
                         continue
                     if not _stop_access_compatible(target, item_stop_sequence):
@@ -1446,6 +1586,7 @@ def calculate_stack_configuration(
                             "max_stack": max_stack,
                             "upper_max_stack": max(_coerce_non_negative_int(upper_max_stack, max_stack), 1),
                             "unit_length_ft": length_ft,
+                            "deck_length_ft": deck_length_ft,
                             "order_id": order_id,
                             "stop_sequence": item_stop_sequence,
                         }
@@ -1460,6 +1601,7 @@ def calculate_stack_configuration(
                         target.get("top_length_ft") or target.get("length_ft") or length_ft,
                         length_ft,
                     )
+                    target["top_deck_length_ft"] = deck_length_ft
                     qty_remaining -= units_to_add
 
                     if (1.0 - target["capacity_used"]) < 0.01:
@@ -1470,6 +1612,7 @@ def calculate_stack_configuration(
         positions,
         stack_overflow_max_height=stack_overflow_max_height,
         max_stack_utilization_multiplier=max_stack_utilization_multiplier,
+        equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
     )
 
     # Keep schematic columns deterministic by earliest accessible stop first.
@@ -1553,7 +1696,7 @@ def calculate_stack_configuration(
             return (
                 two_across_gain,
                 required_stacks,
-                length_ft,
+                -length_ft,
             )
 
         upper_candidates.sort(key=_upper_candidate_priority, reverse=True)
@@ -1617,7 +1760,7 @@ def calculate_stack_configuration(
                     and _coerce_non_negative_float(pos.get("length_ft"), 0.0)
                     <= (_upper_candidate_length_limit(pos) + 1e-6)
                 ],
-                key=lambda pos: _coerce_non_negative_float(pos.get("length_ft"), 0.0),
+                key=_upper_candidate_priority,
                 reverse=True,
             )
             for pos in promotable:
@@ -1639,7 +1782,7 @@ def calculate_stack_configuration(
                     trailer_config,
                     upper_two_across_max_length_ft,
                 )
-        upper_usage_meta = _enforce_upper_two_across_exclusive_deck_usage(
+        upper_usage_meta = _apply_upper_usage_metadata(
             positions,
             trailer_config,
             upper_two_across_max_length_ft,
@@ -1683,7 +1826,11 @@ def calculate_stack_configuration(
     )
     utilization_pct = (total_credit_feet / capacity) * 100 if total_credit_feet else 0
     max_stack_height = max((pos["units_count"] for pos in positions), default=0)
-    compatibility_issues = check_stacking_compatibility(positions, trailer_config=trailer_config)
+    compatibility_issues = check_stacking_compatibility(
+        positions,
+        trailer_config=trailer_config,
+        equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+    )
     exceeds_capacity = _exceeds_capacity(
         positions,
         trailer_config,
@@ -1738,6 +1885,7 @@ def calculate_stack_configuration(
         "upper_deck_exception_max_length_ft": upper_deck_exception_max_length_ft,
         "upper_deck_exception_overhang_allowance_ft": upper_deck_exception_overhang_allowance_ft,
         "upper_deck_exception_categories": list(upper_deck_exception_categories),
+        "equal_length_deck_length_order_enabled": bool(equal_length_deck_length_order_enabled),
         "max_stack_utilization_multiplier": round(
             max_stack_utilization_multiplier,
             4,
@@ -1765,21 +1913,49 @@ def stack_display_index_map(positions, trailer_config=None):
     return mapping
 
 
-def check_stacking_compatibility(positions, trailer_config=None):
+def check_stacking_compatibility(
+    positions,
+    trailer_config=None,
+    equal_length_deck_length_order_enabled=None,
+):
     issues = []
+    if equal_length_deck_length_order_enabled is None:
+        assumptions = get_stack_capacity_assumptions()
+        equal_length_deck_length_order_enabled = _coerce_bool(
+            assumptions.get("equal_length_deck_length_order_enabled"),
+            DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
+        )
+    else:
+        equal_length_deck_length_order_enabled = _coerce_bool(
+            equal_length_deck_length_order_enabled,
+            DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
+        )
+
     stack_index_by_position_id = stack_display_index_map(positions, trailer_config)
     for idx, pos in enumerate(positions):
         position_id = (pos or {}).get("position_id")
         stack_idx = int(stack_index_by_position_id.get(position_id, idx + 1))
-        item_lengths = [
-            float(item.get("unit_length_ft") or 0)
-            for item in pos.get("items", [])
-            if (item.get("unit_length_ft") or 0) > 0
-        ]
-        for prev_len, current_len in zip(item_lengths, item_lengths[1:]):
+        item_layers = []
+        for item in pos.get("items", []):
+            length_ft = float(item.get("unit_length_ft") or 0)
+            if length_ft <= 0:
+                continue
+            deck_length_ft = _item_deck_length_ft(item, fallback_length_ft=length_ft)
+            item_layers.append((length_ft, deck_length_ft))
+
+        for (prev_len, prev_deck), (current_len, current_deck) in zip(item_layers, item_layers[1:]):
             if current_len > prev_len + 1e-6:
                 issues.append(
                     f"Stack {stack_idx}: Invalid stack (longer item above shorter item)."
+                )
+                break
+            if (
+                equal_length_deck_length_order_enabled
+                and abs(current_len - prev_len) <= 1e-6
+                and current_deck > (prev_deck + 1e-6)
+            ):
+                issues.append(
+                    f"Stack {stack_idx}: Invalid stack (larger deck-length item above smaller deck-length item)."
                 )
                 break
 

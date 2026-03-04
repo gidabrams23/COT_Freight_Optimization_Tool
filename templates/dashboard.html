@@ -1,299 +1,286 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="command-center-page" data-command-center>
-    <header class="command-center-hero loads-header orders-header">
-      <div class="command-center-hero-left">
-        <div class="command-center-title-row">
-          <h1>Performance Command Center</h1>
-          <span class="badge badge-info">Live Ops</span>
-        </div>
-        <p class="command-center-subtitle">
-          <span class="meta-label">Scope</span>
-          {{ plant_scope_label }} •
-          <span class="meta-label">Range</span>
-          {{ period_label }} ({{ date_range_label }})
+  <section class="dashboard-page performance-dashboard" data-performance-dashboard>
+    <header class="perf-topbar">
+      <div class="perf-topbar-title">
+        <p class="perf-eyebrow">Performance Dashboard</p>
+        <h1>Network Performance Reporting</h1>
+        <p class="perf-topbar-meta">
+          <span>{{ plant_scope_label }}</span>
+          <span>{{ period_label }}</span>
+          <span>{{ date_range_label }}</span>
         </p>
       </div>
 
-      <div class="command-center-hero-right">
-        <div class="command-center-health">
-          <span class="meta-label">Global Network Health</span>
-          <span class="command-center-health-value {{ network_health.class }}">{{ network_health.label }}</span>
+      <div class="perf-topbar-actions">
+        {% set _topbar_status = topbar_status if topbar_status is defined and topbar_status else {"label": "Live", "detail": "Awaiting refresh"} %}
+        <div class="perf-live-status">
+          <span class="perf-live-dot" aria-hidden="true"></span>
+          <div>
+            <strong>{{ _topbar_status.label }}</strong>
+            <span>{{ _topbar_status.detail }}</span>
+          </div>
         </div>
 
-        <form class="command-center-period" method="get">
+        <form class="perf-date-toggle" method="get">
           {% if plant_filter_param %}
             <input type="hidden" name="plants" value="{{ plant_filter_param }}">
           {% endif %}
-          <label class="inline-select">
-            <span class="meta-label">Date Range</span>
-            <select name="period" onchange="this.form.submit()">
-              {% for value, label in period_options %}
-                <option value="{{ value }}" {% if period == value %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-          </label>
+          {% for value, label in period_options %}
+            <button
+              type="submit"
+              name="period"
+              value="{{ value }}"
+              class="perf-date-btn{% if period == value %} is-active{% endif %}"
+            >
+              {{ label }}
+            </button>
+          {% endfor %}
         </form>
       </div>
     </header>
 
-    <div class="command-center-kpis">
-      {% for kpi in kpis %}
-        <div class="kpi-card command-center-kpi">
-          <div class="kpi-header">
-            <span class="kpi-label">{{ kpi.label }}</span>
-            <span class="material-symbols-outlined kpi-icon">{{ kpi.icon }}</span>
-          </div>
-          <div class="command-center-kpi-main">
-            <div class="kpi-value-row">
-              <span class="kpi-value">{{ kpi.value }}</span>
-              {% if kpi.unit %}
-                <span class="kpi-unit">{{ kpi.unit }}</span>
-              {% endif %}
-            </div>
-            {% if kpi.delta_display %}
-              <div class="kpi-trend {{ kpi.delta_class }}">
-                <span class="material-symbols-outlined">{{ kpi.delta_icon }}</span>
-                {{ kpi.delta_display }}
-              </div>
-            {% else %}
-              <div class="kpi-trend neutral">—</div>
-            {% endif %}
-          </div>
-          <div class="kpi-footer">{{ kpi.footer }}</div>
-        </div>
-      {% endfor %}
-    </div>
-
-    <div class="command-center-section-head">
-      <div class="section-heading">
-        <h2>Plant Snapshot</h2>
-        <p>Open orders, draft pipeline, and cost efficiency by plant.</p>
-      </div>
-      {% if plant_filter_param %}
-        <a class="btn-ghost btn-xs" href="{{ url_for('dashboard', period=period) }}">
-          <span class="material-symbols-outlined">filter_alt_off</span>
-          All Plants
-        </a>
-      {% endif %}
-    </div>
-
-    <div class="command-center-plants" data-command-center-plants>
-      {% for plant in plant_cards %}
+    {% set visible_plant_cards = plant_cards | rejectattr('code', 'equalto', 'CL') | list %}
+    <div class="perf-plant-strip" data-perf-plants style="--perf-plant-columns: {{ visible_plant_cards|length if visible_plant_cards else 1 }};">
+      {% for plant in visible_plant_cards %}
         <button
           type="button"
-          class="plant-stat-card{% if plant.selected %} is-selected{% endif %}"
+          class="perf-plant-card{% if plant.selected %} is-selected{% endif %}{% if plant.inactive %} is-inactive{% endif %}"
           data-plant="{{ plant.code }}"
+          style="--plant-color: {{ plant.color }};"
+          {% if not plant.interactive %}disabled{% endif %}
           aria-pressed="{% if plant.selected %}true{% else %}false{% endif %}"
-          title="Toggle plant filter"
         >
-          <div class="plant-stat-card-head">
-            <div class="plant-stat-card-title">
-              <span class="plant-stat-code">{{ plant.code }}</span>
-              <span class="plant-stat-name">{{ plant.name }}</span>
-            </div>
-            <span class="status-dot {{ plant.status }}" aria-hidden="true"></span>
-          </div>
-          <div class="plant-stat-card-body">
-            <div class="plant-stat">
-              <span class="plant-stat-label">Open</span>
-              <span class="plant-stat-value">{{ plant.open_orders }}</span>
-            </div>
-            <div class="plant-stat">
-              <span class="plant-stat-label">Planned</span>
-              <span class="plant-stat-value">{{ plant.planned_loads }}</span>
-            </div>
-            <div class="plant-stat">
-              <span class="plant-stat-label">Cost/Unit</span>
-              <span class="plant-stat-value plant-stat-value-mono">{{ plant.cost_per_unit_display }}</span>
-            </div>
-          </div>
+          <span class="perf-plant-code">{{ plant.code }}</span>
+          <span class="perf-plant-name">{{ plant.name }}</span>
+          <span class="perf-plant-metric">{{ plant.load_count }} loads</span>
+          <span class="perf-plant-sub">{{ plant.avg_util_display }} avg util</span>
         </button>
       {% endfor %}
     </div>
 
-    <div class="command-center-charts">
-      <div class="card-widget chart-card">
-        <div class="widget-header">
-          <div>
-            <h3>Spend vs. Volume Trend</h3>
-            <p class="muted">{{ period_label }} • {{ plant_scope_label }}</p>
-          </div>
-          <div class="chart-legend" aria-label="Chart legend">
-            <div class="legend-item">
-              <span class="legend-swatch legend-volume"></span>
-              <span class="legend-label">Volume</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-swatch legend-spend"></span>
-              <span class="legend-label">Spend</span>
-            </div>
-          </div>
-        </div>
+    <div class="perf-kpi-strip">
+      {% for kpi in kpis %}
+        <article class="perf-kpi-card">
+          <p class="perf-eyebrow">{{ kpi.label }}</p>
+          <strong class="perf-kpi-value">{{ kpi.value }}</strong>
+          {% if kpi.delta and kpi.delta.available %}
+            <span class="perf-delta-pill {{ kpi.delta.class }}">{{ kpi.delta.display }}</span>
+          {% endif %}
+          <p class="perf-kpi-subtext">{{ kpi.subtext }}</p>
+        </article>
+      {% endfor %}
+    </div>
 
-        <div class="trend-bars" aria-label="Spend vs Volume bars">
-          {% if trend_buckets and trend_buckets|length %}
-            {% for bucket in trend_buckets %}
-              <div class="trend-bucket" title="Qty: {{ bucket.qty | round(0) }} • Spend: ${{ bucket.spend | round(0) }}">
-                <div class="trend-stack">
-                  <div class="trend-bar trend-bar-volume" style="height: {{ bucket.volume_height }}%"></div>
-                  <div class="trend-bar trend-bar-spend" style="height: {{ bucket.spend_height }}%"></div>
+    <div class="perf-body">
+      <div class="perf-row perf-row-top">
+        <article class="perf-panel perf-panel-trend">
+          <div class="perf-panel-head">
+            <div>
+              <p class="perf-eyebrow">YoY Trend</p>
+              <h2>{{ trend_chart.metric_label }}</h2>
+              <p class="perf-panel-sub">{{ trend_chart.current_month_label }} {{ trend_chart.compare_label }}</p>
+            </div>
+            <div class="perf-trend-chips">
+              {% for chip in trend_chart.delta_chips %}
+                <div class="perf-trend-chip">
+                  <span>{{ chip.label }}</span>
+                  <strong>{{ chip.value }}</strong>
+                  {% if chip.delta.available %}
+                    <em class="{{ chip.delta.class }}">{{ chip.delta.display }}</em>
+                  {% else %}
+                    <em class="neutral">PY n/a</em>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="perf-trend-chart-wrap">
+            {% if trend_chart.current_path or trend_chart.prior_path %}
+              <div class="perf-trend-y-axis">
+                <span>{{ trend_chart.y_max_label }}</span>
+                <span>{{ trend_chart.y_mid_label }}</span>
+                <span>{{ trend_chart.y_min_label }}</span>
+              </div>
+              <div class="perf-trend-chart">
+                <svg viewBox="0 0 {{ trend_chart.width }} {{ trend_chart.height }}" preserveAspectRatio="none" aria-label="Cost per unit trend">
+                  <path d="{{ trend_chart.prior_path }}" class="perf-trend-line perf-trend-line-prior"></path>
+                  <path d="{{ trend_chart.current_path }}" class="perf-trend-line perf-trend-line-current" style="--line-color: {{ trend_chart.color }};"></path>
+                </svg>
+                <div class="perf-trend-x-axis">
+                  {% for label in trend_chart.labels %}
+                    <span>{{ label }}</span>
+                  {% endfor %}
+                </div>
+              </div>
+            {% else %}
+              <p class="perf-empty-state">No monthly data available for the selected plant scope.</p>
+            {% endif %}
+          </div>
+        </article>
+
+        <article class="perf-panel">
+          <div class="perf-panel-head">
+            <div>
+              <p class="perf-eyebrow">Utilization Bands</p>
+              <h2>Load Distribution</h2>
+            </div>
+          </div>
+          <div class="perf-band-list">
+            {% for band in utilization_bands %}
+              <div class="perf-bar-row">
+                <div class="perf-bar-label">
+                  <span>{{ band.label }}</span>
+                  <strong>{{ band.count }}</strong>
+                </div>
+                <div class="perf-bar-track">
+                  <span class="perf-bar-fill {{ band.class }}" style="width: {{ band.width }}%;"></span>
                 </div>
               </div>
             {% endfor %}
-          {% else %}
-            <div class="trend-empty muted">No approved loads found for this range.</div>
-          {% endif %}
-        </div>
+          </div>
+        </article>
 
-        <div class="trend-axis" aria-label="Trend axis labels">
-          <span>{{ trend_axis.start }}</span>
-          <span>{{ trend_axis.mid1 }}</span>
-          <span>{{ trend_axis.mid2 }}</span>
-          <span>{{ trend_axis.end }}</span>
-        </div>
+        <article class="perf-panel">
+          <div class="perf-panel-head">
+            <div>
+              <p class="perf-eyebrow">Efficiency Grades</p>
+              <h2>A/B/C/D-F Mix</h2>
+            </div>
+          </div>
+          <div class="perf-band-list">
+            {% for grade in efficiency_grades %}
+              <div class="perf-bar-row">
+                <div class="perf-bar-label">
+                  <span>{{ grade.label }}</span>
+                  <strong>{{ grade.count }}</strong>
+                </div>
+                <div class="perf-bar-track">
+                  <span class="perf-bar-fill {{ grade.class }}" style="width: {{ grade.width }}%;"></span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
       </div>
 
-      <div class="card-widget chart-card">
-        <div class="widget-header">
-          <div>
-            <h3>Load Efficiency Distribution</h3>
-            <p class="muted">Approved loads in range.</p>
+      <div class="perf-row perf-row-bottom{% if not savings %} no-savings{% endif %}">
+        <article class="perf-panel perf-panel-table">
+          <div class="perf-panel-head">
+            <div>
+              <p class="perf-eyebrow">Top Load Review</p>
+              <h2>Highest Utilization Loads</h2>
+            </div>
           </div>
-        </div>
-        <div class="efficiency-list">
-          {% for row in efficiency_rows %}
-            <div class="efficiency-row">
-              <div class="efficiency-row-head">
-                <span class="efficiency-label">{{ row.label }}</span>
-                <span class="efficiency-count {{ row['class'] }}">{{ row.count }} loads</span>
+          <div class="perf-table-wrap">
+            <table class="data-table perf-table">
+              <thead><tr><th>Load</th><th>Plant</th><th>Util</th><th>Date</th><th>Schematic</th></tr></thead>
+              <tbody>
+                {% for load in top_loads %}
+                  <tr>
+                    <td>{{ load.load_number }}</td>
+                    <td>{{ load.origin_plant }}</td>
+                    <td class="{{ load.utilization_class }}">{{ load.utilization_pct }}%</td>
+                    <td>{{ load.ship_date }}</td>
+                    <td>
+                      {% if load.has_schematic %}
+                        <span class="perf-schematic-mini">
+                          {% for segment in load.schematic_segments %}
+                            <span style="width: {{ segment.width_pct }}%; background: {{ segment.color }};"></span>
+                          {% endfor %}
+                        </span>
+                      {% else %}
+                        <span class="perf-fallback-bar"><span style="width: {{ load.fallback_width }}%;"></span></span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="5" class="muted">No loads in this period.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="perf-panel perf-panel-table">
+          <div class="perf-panel-head">
+            <div>
+              <p class="perf-eyebrow">Problem Load Review</p>
+              <h2>Lowest Utilization (&lt;70%)</h2>
+            </div>
+          </div>
+          <div class="perf-table-wrap">
+            <table class="data-table perf-table">
+              <thead><tr><th>Load</th><th>Plant</th><th>Util</th><th>Date</th><th>Schematic</th></tr></thead>
+              <tbody>
+                {% for load in problem_loads %}
+                  <tr>
+                    <td>{{ load.load_number }}</td>
+                    <td>{{ load.origin_plant }}</td>
+                    <td class="{{ load.utilization_class }}">{{ load.utilization_pct }}%</td>
+                    <td>{{ load.ship_date }}</td>
+                    <td>
+                      {% if load.has_schematic %}
+                        <span class="perf-schematic-mini">
+                          {% for segment in load.schematic_segments %}
+                            <span style="width: {{ segment.width_pct }}%; background: {{ segment.color }};"></span>
+                          {% endfor %}
+                        </span>
+                      {% else %}
+                        <span class="perf-fallback-bar"><span style="width: {{ load.fallback_width }}%;"></span></span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="5" class="muted">No sub-70% loads in this period.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        {% if savings %}
+          <article class="perf-panel perf-panel-savings">
+            <div class="perf-panel-head">
+              <div>
+                <p class="perf-eyebrow">Savings</p>
+                <h2>Year over Year Impact</h2>
               </div>
-              <div class="efficiency-bar">
-                <span class="efficiency-fill {{ row['class'] }}" style="width: {{ row.width }}%"></span>
+              <span class="perf-delta-pill {{ savings.tone }}">{{ savings.total_display }}</span>
+            </div>
+            <div class="perf-savings-grid">
+              <div class="perf-savings-item">
+                <span>Utilization Gains</span>
+                <strong>{{ savings.utilization_gains_display }}</strong>
+                <p>{{ savings.utilization_formula }}</p>
+              </div>
+              <div class="perf-savings-item">
+                <span>Rate &amp; Routing Efficiency</span>
+                <strong>{{ savings.rate_routing_efficiency_display }}</strong>
+                <p>{{ savings.rate_formula }}</p>
               </div>
             </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    <div class="command-center-reviews">
-      <div class="card-widget">
-        <div class="widget-header">
-          <div>
-            <h3>Top Load Review</h3>
-            <p class="muted">Highest utilization loads in range.</p>
-          </div>
-        </div>
-        <div class="table-container">
-          <table class="data-table table-compact">
-            <thead>
-              <tr>
-                <th>Load ID</th>
-                <th>Plant</th>
-                <th>Util %</th>
-                <th>Shipped</th>
-                <th>Schematic</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% if top_loads %}
-                {% for load in top_loads %}
-                  <tr class="table-row">
-                    <td><a class="table-link" href="{{ url_for('load_detail', load_id=load.id) }}">{{ load.load_number }}</a></td>
-                    <td>{{ load.origin_plant }}</td>
-                    <td>{{ load.utilization_pct }}%</td>
-                    <td>{{ load.ship_date }}</td>
-                    <td>
-                      <a class="schematic-thumb" href="{{ url_for('load_detail', load_id=load.id) }}">
-                        {% for pos in load.thumbnail %}
-                          <span class="thumb-col" style="flex-basis: {{ pos.width_pct }}%;">
-                            {% for color in pos.colors %}
-                              <span class="thumb-block" style="background: {{ color }};"></span>
-                            {% endfor %}
-                          </span>
-                        {% endfor %}
-                      </a>
-                    </td>
-                  </tr>
-                {% endfor %}
-              {% else %}
-                <tr>
-                  <td colspan="5" class="muted">No loads found for this period.</td>
-                </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card-widget">
-        <div class="widget-header">
-          <div>
-            <h3>Problem Load Review</h3>
-            <p class="muted">Lowest utilization loads (&lt;70%) in range.</p>
-          </div>
-        </div>
-        <div class="table-container">
-          <table class="data-table table-compact">
-            <thead>
-              <tr>
-                <th>Load ID</th>
-                <th>Plant</th>
-                <th>Util %</th>
-                <th>Shipped</th>
-                <th>Schematic</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% if problem_loads %}
-                {% for load in problem_loads %}
-                  <tr class="table-row">
-                    <td><a class="table-link" href="{{ url_for('load_detail', load_id=load.id) }}">{{ load.load_number }}</a></td>
-                    <td>{{ load.origin_plant }}</td>
-                    <td class="text-danger">{{ load.utilization_pct }}%</td>
-                    <td>{{ load.ship_date }}</td>
-                    <td>
-                      <a class="schematic-thumb" href="{{ url_for('load_detail', load_id=load.id) }}">
-                        {% for pos in load.thumbnail %}
-                          <span class="thumb-col" style="flex-basis: {{ pos.width_pct }}%;">
-                            {% for color in pos.colors %}
-                              <span class="thumb-block" style="background: {{ color }};"></span>
-                            {% endfor %}
-                          </span>
-                        {% endfor %}
-                      </a>
-                    </td>
-                  </tr>
-                {% endfor %}
-              {% else %}
-                <tr>
-                  <td colspan="5" class="muted">No low-utilization loads found.</td>
-                </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
+          </article>
+        {% endif %}
       </div>
     </div>
   </section>
 
   <script>
     (function() {
-      const container = document.querySelector('[data-command-center-plants]');
+      const container = document.querySelector('[data-perf-plants]');
       if (!container) return;
 
       container.querySelectorAll('[data-plant]').forEach((card) => {
         card.addEventListener('click', () => {
+          if (card.disabled) return;
           const plant = (card.dataset.plant || '').trim().toUpperCase();
           if (!plant) return;
 
           const url = new URL(window.location.href);
           const params = url.searchParams;
-          const currentPlantsParam = (params.get('plants') || '').trim().toUpperCase();
-          const isAllMode = !currentPlantsParam || currentPlantsParam === 'ALL';
-
           const selected = new Set(
             (params.get('plants') || '')
               .split(',')
@@ -301,18 +288,20 @@
               .filter(Boolean)
           );
 
-          if (isAllMode) selected.clear();
-
-          if (selected.has(plant)) {
-            selected.delete(plant);
-          } else {
-            selected.add(plant);
-          }
-
-          if (!selected.size) {
+          if (plant === 'ALL') {
             params.delete('plants');
           } else {
-            params.set('plants', Array.from(selected).join(','));
+            selected.delete('ALL');
+            if (selected.has(plant)) {
+              selected.delete(plant);
+            } else {
+              selected.add(plant);
+            }
+            if (selected.size) {
+              params.set('plants', Array.from(selected).join(','));
+            } else {
+              params.delete('plants');
+            }
           }
 
           url.search = params.toString();

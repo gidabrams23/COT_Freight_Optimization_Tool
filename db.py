@@ -639,6 +639,7 @@ def _seed_reference_data(connection):
                 "max_detour_pct",
                 "time_window_days",
                 "geo_radius",
+                "auto_hotshot_enabled",
                 "baseline_cost",
                 "baseline_set_at",
                 "updated_at",
@@ -901,6 +902,7 @@ def init_db():
                 max_detour_pct REAL,
                 time_window_days INTEGER,
                 geo_radius REAL,
+                auto_hotshot_enabled INTEGER,
                 baseline_cost REAL,
                 baseline_set_at TEXT,
                 updated_at TEXT NOT NULL
@@ -1280,6 +1282,7 @@ def init_db():
         _ensure_column(connection, "planning_sessions", "next_load_sequence", "next_load_sequence INTEGER")
         _ensure_column(connection, "optimizer_settings", "baseline_cost", "baseline_cost REAL")
         _ensure_column(connection, "optimizer_settings", "baseline_set_at", "baseline_set_at TEXT")
+        _ensure_column(connection, "optimizer_settings", "auto_hotshot_enabled", "auto_hotshot_enabled INTEGER")
         _ensure_column(connection, "replay_eval_day_plant", "optimized_strategy", "optimized_strategy TEXT")
         _ensure_column(connection, "replay_eval_load_metrics", "load_json", "load_json TEXT")
         _ensure_column(connection, "upload_history", "new_orders", "new_orders INTEGER")
@@ -2155,7 +2158,13 @@ def list_orders(filters=None, sort_key="due_date"):
             SELECT 1
             FROM order_lines ol
             JOIN load_lines ll ON ll.order_line_id = ol.id
+            JOIN loads l ON l.id = ll.load_id
+            LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
             WHERE ol.so_num = orders.so_num
+              AND (
+                COALESCE(UPPER(l.status), '') = 'APPROVED'
+                OR COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+              )
             LIMIT 1
         )
     """
@@ -2324,9 +2333,11 @@ def filter_eligible_manual_so_nums(origin_plant, so_nums):
             FROM loads l
             JOIN load_lines ll ON ll.load_id = l.id
             JOIN order_lines ol ON ol.id = ll.order_line_id
+            LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
             WHERE l.origin_plant = ?
               AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT')
               AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'OPTIMIZED'
+              AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
               AND ol.so_num IN ({placeholders})
             """,
             params,
@@ -2348,10 +2359,12 @@ def list_eligible_manual_orders(origin_plant, search=None, limit=25):
             FROM order_lines ol
             JOIN load_lines ll ON ll.order_line_id = ol.id
             JOIN loads l ON l.id = ll.load_id
+            LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
             WHERE ol.so_num = orders.so_num
               AND l.origin_plant = orders.plant
               AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT')
               AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'OPTIMIZED'
+              AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
             LIMIT 1
         )
         """.strip(),
@@ -2939,24 +2952,30 @@ def upsert_optimizer_settings(settings):
                 max_detour_pct,
                 time_window_days,
                 geo_radius,
+                auto_hotshot_enabled,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(plant_code) DO UPDATE SET
                 capacity_feet = excluded.capacity_feet,
                 trailer_type = excluded.trailer_type,
                 max_detour_pct = excluded.max_detour_pct,
                 time_window_days = excluded.time_window_days,
                 geo_radius = excluded.geo_radius,
+                auto_hotshot_enabled = COALESCE(
+                    excluded.auto_hotshot_enabled,
+                    optimizer_settings.auto_hotshot_enabled
+                ),
                 updated_at = excluded.updated_at
             """,
             (
-                settings.get("origin_plant"),
+                settings.get("origin_plant") or settings.get("plant_code"),
                 settings.get("capacity_feet"),
                 settings.get("trailer_type"),
                 settings.get("max_detour_pct"),
                 settings.get("time_window_days"),
                 settings.get("geo_radius"),
+                settings.get("auto_hotshot_enabled"),
                 updated_at,
             ),
         )
@@ -2974,6 +2993,7 @@ def get_optimizer_settings(plant_code):
                 max_detour_pct,
                 time_window_days,
                 geo_radius,
+                auto_hotshot_enabled,
                 baseline_cost,
                 baseline_set_at,
                 updated_at

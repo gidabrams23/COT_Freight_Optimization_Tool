@@ -57,6 +57,7 @@ from services.cost_calculator import (
     DEFAULT_STOP_FEE,
     MIN_LOAD_COST_SETTING_KEY,
     DEFAULT_MIN_LOAD_COST,
+    DEFAULT_RATE_PER_MILE,
 )
 from services.optimizer_engine import OptimizerEngine
 from services.order_importer import OrderImporter
@@ -215,6 +216,7 @@ def est_datetime(value):
     return _format_est_datetime_label(value)
 
 PLANT_CODES = ["GA", "TX", "VA", "IA", "OR", "NV", "CL"]
+RATE_MATRIX_PLANT_DISPLAY_ORDER = ["GA", "OR", "TX", "IA", "VA", "NV"]
 PLANT_NAMES = {
     "GA": "Lavonia",
     "IA": "Missouri Valley",
@@ -224,6 +226,11 @@ PLANT_NAMES = {
     "OR": "Coburg",
     "NV": "Winnemucca",
 }
+PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES = {
+    "NV": "STEP_DECK_48",
+}
+PLANT_DEFAULT_AUTO_HOTSHOT_OVERRIDES = {}
+FIXED_CAPACITY_TRAILER_TYPES = {"STEP_DECK_48", "HOTSHOT", "WEDGE"}
 STATUS_PROPOSED = "PROPOSED"
 STATUS_DRAFT = "DRAFT"
 STATUS_APPROVED = "APPROVED"
@@ -258,30 +265,91 @@ UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY = "utilization_grade_thresholds"
 REPLAY_EVAL_PRESET_SETTING_KEY = "replay_eval_preset"
 STOP_COLOR_PALETTE_SETTING_KEY = "stop_color_palette"
 TRAILER_ASSIGNMENT_RULES_SETTING_KEY = "trailer_assignment_rules"
+STRATEGIC_CUSTOMERS_SETTING_KEY = "strategic_customers"
+PLANNER_SETTING_OVERRIDE_SETTING_PREFIX = "planner_setting_override::"
+PLANNER_TRAILER_RULES_OVERRIDE_SETTING_PREFIX = "planner_trailer_assignment_rules_override::"
 RATE_TABLE_CONTEXTS_SETTING_KEY = "rate_table_contexts"
+RYDER_DEDICATED_RATE_TABLE_SETTING_KEY = "ryder_dedicated_rate_table"
+LST_RATE_TABLE_SETTING_KEY = "lst_rate_matrix"
+ALTERNATE_TRAILER_RATES_SETTING_KEY = "alternate_trailer_rates"
+DEFAULT_RATE_CHANGE_METADATA_SETTING_KEY = "default_rate_change_metadata"
 DEFAULT_UTILIZATION_GRADE_THRESHOLDS = {"A": 85, "B": 70, "C": 55, "D": 40}
 DEFAULT_TRAILER_ASSIGNMENT_RULES = {
     "livestock_wedge_enabled": True,
     "livestock_category_tokens": ["LIVESTOCK"],
-    "auto_assign_hotshot_enabled": True,
-    "auto_assign_hotshot_utilization_threshold_pct": 45.0,
 }
+DEFAULT_TRACTOR_SUPPLY_CARGO_WEDGE_MIN_ITEM_LENGTH_FT = 20.0
+DEFAULT_TRACTOR_SUPPLY_UTA_WEDGE_MIN_ITEM_LENGTH_FT = 22.0
 DEFAULT_RATE_TABLE_CONTEXTS = {
-    "default_rate_table_key": "DEFAULT",
-    "carrier_dedicated_ryder_rate_table_key": "DEDICATED_RYDER_FLEET",
-    "trailer_hotshot_rate_table_key": "HOTSHOT_TRAILER_TYPES",
+    "default_rate_table_key": "FLS",
+    "carrier_dedicated_ryder_rate_table_key": "LST",
+    "trailer_hotshot_rate_table_key": "ALTERNATE_TRAILERS",
 }
 RATE_TABLE_KEY_OPTIONS = [
-    {"key": "DEFAULT", "label": "DEFAULT"},
-    {"key": "DEDICATED_RYDER_FLEET", "label": "DEDICATED RYDER FLEET (Placeholder)"},
-    {"key": "HOTSHOT_TRAILER_TYPES", "label": "HOTSHOT TRAILER TYPES (Placeholder)"},
+    {"key": "FLS", "label": "FLS (DEFAULT MATRIX)"},
+    {"key": "RYDER_DEDICATED", "label": "RYDER DEDICATED"},
+    {"key": "LST", "label": "LST (CARRIER MATRIX)"},
+    {"key": "ALTERNATE_TRAILERS", "label": "ALTERNATE TRAILERS"},
 ]
+ALTERNATE_TRAILER_SECTION_DEFINITIONS = [
+    {"code": "HOT_SHOT", "label": "Hot Shot"},
+    {"code": "WEDGE", "label": "Wedge"},
+    {"code": "FLAT_BED", "label": "Flat Bed"},
+]
+DEFAULT_RYDER_DEDICATED_RATE_TABLE = {
+    "name": "Ryder Dedicated",
+    "applies_to": "ALL_STATES",
+    "notes": "Round-trip rates include fuel surcharge and stop-off.",
+    "plants": list(RATE_MATRIX_PLANT_DISPLAY_ORDER),
+    "rates_by_plant": {
+        "GA": 3.68,
+        "OR": None,
+        "TX": 4.18,
+        "IA": 4.60,
+        "VA": 5.00,
+        "NV": None,
+    },
+    "fuel_surcharge": 0.0,
+    "per_stop": 0.0,
+    "load_minimum": 0.0,
+}
+DEFAULT_LST_RATE_TABLE_SETTINGS = {
+    "carrier": "LST",
+    "plants": list(RATE_MATRIX_PLANT_DISPLAY_ORDER),
+    "states": [],
+    "state_lane_labels": {},
+    "matrix": {},
+    "fuel_surcharge": 0.0,
+    "per_stop": 0.0,
+    "load_minimum": 0.0,
+}
+DEFAULT_ALTERNATE_TRAILER_RATES = {
+    "sections": [
+        {
+            "code": section["code"],
+            "label": section["label"],
+            "plants": list(RATE_MATRIX_PLANT_DISPLAY_ORDER),
+            "rates_by_plant": {plant: None for plant in RATE_MATRIX_PLANT_DISPLAY_ORDER},
+            "placeholders_by_plant": {
+                plant: {
+                    "per_stop": 0.0,
+                    "load_minimum": 0.0,
+                    "apply_fuel_surcharge": True,
+                    "requires_return_miles": True,
+                }
+                for plant in RATE_MATRIX_PLANT_DISPLAY_ORDER
+            },
+        }
+        for section in ALTERNATE_TRAILER_SECTION_DEFINITIONS
+    ],
+}
 DEFAULT_STACK_OVERFLOW_MAX_HEIGHT = 5
 DEFAULT_MAX_BACK_OVERHANG_FT = 4.0
 DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT = 7.0
 DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT = 16.0
 DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT = 6.0
 DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES = ["USA", "UTA"]
+DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED = True
 DEFAULT_STOP_COLOR_PALETTE = [
     "#6FAD47",
     "#01B0F0",
@@ -404,7 +472,7 @@ db.ensure_default_planning_settings(
                 {
                     "label": "Tractor Supply",
                     "patterns": ["TRACTOR SUPPLY", "TRACTORSUPPLY"],
-                    "wedge_min_item_length_ft": 16,
+                    "wedge_min_item_length_ft": 20,
                     "include_in_optimizer_workbench": True,
                 },
                 {
@@ -481,6 +549,7 @@ db.ensure_default_planning_settings(
                     load_builder.DEFAULT_BUILD_PARAMS.get("upper_deck_exception_categories"),
                     default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
                 ),
+                "equal_length_deck_length_order_enabled": DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
             }
         ),
         REPLAY_EVAL_PRESET_SETTING_KEY: json.dumps(replay_evaluator.DEFAULT_REPLAY_PRESET),
@@ -488,6 +557,10 @@ db.ensure_default_planning_settings(
         STOP_COLOR_PALETTE_SETTING_KEY: json.dumps(DEFAULT_STOP_COLOR_PALETTE),
         TRAILER_ASSIGNMENT_RULES_SETTING_KEY: json.dumps(DEFAULT_TRAILER_ASSIGNMENT_RULES),
         RATE_TABLE_CONTEXTS_SETTING_KEY: json.dumps(DEFAULT_RATE_TABLE_CONTEXTS),
+        RYDER_DEDICATED_RATE_TABLE_SETTING_KEY: json.dumps(DEFAULT_RYDER_DEDICATED_RATE_TABLE),
+        LST_RATE_TABLE_SETTING_KEY: json.dumps(DEFAULT_LST_RATE_TABLE_SETTINGS),
+        ALTERNATE_TRAILER_RATES_SETTING_KEY: json.dumps(DEFAULT_ALTERNATE_TRAILER_RATES),
+        DEFAULT_RATE_CHANGE_METADATA_SETTING_KEY: json.dumps({}),
     }
 )
 
@@ -1062,7 +1135,7 @@ def access_delete():
     return redirect(url_for("access_manage"))
 
 
-def _default_optimize_form():
+def _default_optimize_form(plant_code=None):
     form_data = dict(load_builder.DEFAULT_BUILD_PARAMS)
     optimizer_defaults = _get_optimizer_default_settings()
     form_data["trailer_type"] = optimizer_defaults["trailer_type"]
@@ -1098,8 +1171,17 @@ def _default_optimize_form():
     form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
     if not form_data.get("orders_start_date"):
         form_data["orders_start_date"] = date.today().strftime("%Y-%m-%d")
-    if not form_data["origin_plant"] and PLANT_CODES:
-        form_data["origin_plant"] = PLANT_CODES[0]
+    resolved_plant = _normalize_plant_code(plant_code) or _normalize_plant_code(form_data.get("origin_plant"))
+    if not resolved_plant and PLANT_CODES:
+        resolved_plant = PLANT_CODES[0]
+    if resolved_plant:
+        plant_defaults = _get_optimizer_settings_for_plant(
+            resolved_plant,
+            optimizer_defaults=optimizer_defaults,
+        )
+        form_data["origin_plant"] = resolved_plant
+        form_data["trailer_type"] = plant_defaults["trailer_type"]
+        form_data["capacity_feet"] = str(plant_defaults["capacity_feet"])
     return form_data
 
 
@@ -1107,7 +1189,7 @@ def _distinct(values):
     return sorted({value for value in values if value})
 
 
-_HIDDEN_RATE_MATRIX_ROWS = {"DETENTION", "MIN", "NY ZIP 100", "TONU"}
+_HIDDEN_RATE_MATRIX_ROWS = {"DETENTION", "MIN", "NY ZIP 100", "TONU", "STOP"}
 
 
 def _is_rate_matrix_display_state(state):
@@ -1115,8 +1197,22 @@ def _is_rate_matrix_display_state(state):
     return bool(normalized) and normalized not in _HIDDEN_RATE_MATRIX_ROWS
 
 
+def _order_rate_matrix_plants(plants):
+    normalized = [str(plant or "").strip().upper() for plant in plants if str(plant or "").strip()]
+    unique = list(dict.fromkeys(normalized))
+    preferred = [plant for plant in RATE_MATRIX_PLANT_DISPLAY_ORDER if plant in unique]
+    remaining = sorted([plant for plant in unique if plant not in RATE_MATRIX_PLANT_DISPLAY_ORDER])
+    return preferred + remaining
+
+
+def _context_plants():
+    return list(RATE_MATRIX_PLANT_DISPLAY_ORDER)
+
+
 def _build_rate_matrix(rates):
-    plants = sorted({rate["origin_plant"] for rate in rates if rate.get("origin_plant")})
+    plants = _order_rate_matrix_plants(
+        {rate["origin_plant"] for rate in rates if rate.get("origin_plant")}
+    )
     states = sorted(
         {
             rate["destination_state"]
@@ -1134,7 +1230,9 @@ def _build_rate_matrix(rates):
 
 
 def _build_rate_matrix_records(rates):
-    plants = sorted({rate["origin_plant"] for rate in rates if rate.get("origin_plant")})
+    plants = _order_rate_matrix_plants(
+        {rate["origin_plant"] for rate in rates if rate.get("origin_plant")}
+    )
     states = sorted(
         {
             rate["destination_state"]
@@ -1152,6 +1250,30 @@ def _build_rate_matrix_records(rates):
         if not current or (rate.get("effective_year") or 0) > (current.get("effective_year") or 0):
             matrix[state][plant] = rate
     return plants, states, matrix
+
+
+def _serialize_rate_record(record):
+    if not isinstance(record, dict):
+        return None
+    rate_per_mile = _coerce_optional_non_negative_float(record.get("rate_per_mile"))
+    if rate_per_mile is None:
+        return None
+    return {
+        "id": record.get("id"),
+        "rate_per_mile": round(rate_per_mile, 2),
+        "effective_year": int(record.get("effective_year") or datetime.now().year),
+    }
+
+
+def _build_serialized_rate_matrix(plants, states, matrix_records):
+    serialized = {}
+    for state in states:
+        row = {}
+        row_records = matrix_records.get(state) or {}
+        for plant in plants:
+            row[plant] = _serialize_rate_record(row_records.get(plant))
+        serialized[state] = row
+    return serialized
 
 
 def _coerce_non_negative_float(value, default):
@@ -1196,7 +1318,7 @@ def _coerce_utilization_grade_thresholds(raw_value):
 
 
 def _get_planning_float_setting(setting_key, default_value):
-    setting = db.get_planning_setting(setting_key) or {}
+    setting = _get_effective_planning_setting(setting_key)
     return round(_coerce_non_negative_float(setting.get("value_text"), default_value), 2)
 
 
@@ -1223,17 +1345,17 @@ def _get_rates_overview_metrics():
     }
 
 
-def _normalize_rate_table_key(value, default="DEFAULT"):
+def _normalize_rate_table_key(value, default="FLS"):
     key = str(value or "").strip().upper()
     valid_keys = {option["key"] for option in RATE_TABLE_KEY_OPTIONS}
     if key in valid_keys:
         return key
-    return default if default in valid_keys else "DEFAULT"
+    return default if default in valid_keys else "FLS"
 
 
 def _get_rate_table_contexts():
     defaults = dict(DEFAULT_RATE_TABLE_CONTEXTS)
-    setting = db.get_planning_setting(RATE_TABLE_CONTEXTS_SETTING_KEY) or {}
+    setting = _get_effective_planning_setting(RATE_TABLE_CONTEXTS_SETTING_KEY)
     raw_text = (setting.get("value_text") or "").strip()
     parsed = None
     if raw_text:
@@ -1257,45 +1379,947 @@ def _get_rate_table_contexts():
     return defaults
 
 
+def _get_json_planning_setting(setting_key):
+    setting = _get_effective_planning_setting(setting_key)
+    raw_text = (setting.get("value_text") or "").strip()
+    if not raw_text:
+        return None
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError:
+        return None
+
+
+def _coerce_optional_non_negative_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed < 0:
+        return 0.0
+    return parsed
+
+
+def _normalize_alternate_trailer_code(value):
+    text = str(value or "").strip().upper().replace("-", " ").replace("_", " ")
+    if not text:
+        return ""
+    if "STEP" in text and "DECK" in text:
+        return "STEP_DECK"
+    if "HOT" in text:
+        return "HOT_SHOT"
+    if "WEDGE" in text:
+        return "WEDGE"
+    if "FLAT" in text:
+        return "FLAT_BED"
+    return ""
+
+
+def _alternate_trailer_label_for_code(code):
+    normalized = _normalize_alternate_trailer_code(code)
+    for definition in ALTERNATE_TRAILER_SECTION_DEFINITIONS:
+        if definition["code"] == normalized:
+            return definition["label"]
+    return normalized.replace("_", " ").title()
+
+
+def _copy_default_alternate_trailer_rates():
+    return json.loads(json.dumps(DEFAULT_ALTERNATE_TRAILER_RATES))
+
+
+def _coerce_alternate_apply_fuel_surcharge(value, *, default=True):
+    if isinstance(value, dict):
+        if "apply_fuel_surcharge" in value:
+            return bool(_coerce_bool_value(value.get("apply_fuel_surcharge")))
+        if "fuel_surcharge_per_mile" in value:
+            legacy = _coerce_optional_non_negative_float(value.get("fuel_surcharge_per_mile"))
+            if legacy is not None:
+                return legacy > 0
+        return bool(default)
+    if value is None:
+        return bool(default)
+    return bool(_coerce_bool_value(value))
+
+
+def _default_alternate_trailer_placeholder():
+    return {
+        "per_stop": 0.0,
+        "load_minimum": 0.0,
+        "apply_fuel_surcharge": True,
+        "requires_return_miles": True,
+    }
+
+
+def _get_ryder_dedicated_rate_table():
+    defaults = json.loads(json.dumps(DEFAULT_RYDER_DEDICATED_RATE_TABLE))
+    payload = _get_json_planning_setting(RYDER_DEDICATED_RATE_TABLE_SETTING_KEY)
+    plants = _context_plants()
+    rates_by_plant = {plant: defaults.get("rates_by_plant", {}).get(plant) for plant in plants}
+    if not isinstance(payload, dict):
+        defaults["plants"] = plants
+        defaults["rates_by_plant"] = rates_by_plant
+        return defaults
+
+    raw_rates = payload.get("rates_by_plant")
+    if isinstance(raw_rates, dict):
+        for plant in plants:
+            if plant not in raw_rates:
+                continue
+            parsed = _coerce_optional_non_negative_float(raw_rates.get(plant))
+            rates_by_plant[plant] = round(parsed, 2) if parsed is not None else None
+
+    # Backward compatibility: previously saved as row objects.
+    payload_rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    for row in payload_rows:
+        if not isinstance(row, dict):
+            continue
+        plant = str(row.get("plant") or "").strip().upper()
+        if plant not in plants:
+            continue
+        parsed_rate = _coerce_optional_non_negative_float(row.get("rate_per_mile"))
+        if parsed_rate is not None:
+            rates_by_plant[plant] = round(parsed_rate, 2)
+
+    fuel = _coerce_optional_non_negative_float(payload.get("fuel_surcharge", defaults.get("fuel_surcharge")))
+    stop = _coerce_optional_non_negative_float(payload.get("per_stop", defaults.get("per_stop")))
+    minimum = _coerce_optional_non_negative_float(payload.get("load_minimum", defaults.get("load_minimum")))
+
+    defaults["name"] = str(payload.get("name") or defaults.get("name") or "").strip() or "Ryder Dedicated"
+    defaults["applies_to"] = str(payload.get("applies_to") or defaults.get("applies_to") or "").strip().upper() or "ALL_STATES"
+    defaults["notes"] = str(payload.get("notes") or defaults.get("notes") or "").strip()
+    defaults["plants"] = plants
+    defaults["rates_by_plant"] = rates_by_plant
+    defaults["fuel_surcharge"] = round(fuel, 2) if fuel is not None else 0.0
+    defaults["per_stop"] = round(stop, 2) if stop is not None else 0.0
+    defaults["load_minimum"] = round(minimum, 2) if minimum is not None else 0.0
+    return defaults
+
+
+def _get_default_rate_change_metadata():
+    payload = _get_json_planning_setting(DEFAULT_RATE_CHANGE_METADATA_SETTING_KEY)
+    if not isinstance(payload, dict):
+        return {"changed_index": {}, "changed_count": 0}
+    changed_index = {}
+    for cell in payload.get("changed_cells") or []:
+        if not isinstance(cell, dict):
+            continue
+        origin = (cell.get("origin_plant") or "").strip().upper()
+        destination = (cell.get("destination_state") or "").strip().upper()
+        if len(destination) != 2 or not origin:
+            continue
+        changed_index[f"{origin}|{destination}"] = cell
+    payload["changed_index"] = changed_index
+    payload["changed_count"] = len(changed_index)
+    return payload
+
+
+def _get_lst_rate_matrix():
+    defaults = json.loads(json.dumps(DEFAULT_LST_RATE_TABLE_SETTINGS))
+    payload = _get_json_planning_setting(LST_RATE_TABLE_SETTING_KEY)
+    if not isinstance(payload, dict):
+        return defaults
+    plants = _context_plants()
+    states = [str(value).strip().upper() for value in payload.get("states") or [] if str(value or "").strip()]
+    matrix_payload = payload.get("matrix")
+    matrix = {}
+    if isinstance(matrix_payload, dict):
+        for state, row in matrix_payload.items():
+            normalized_state = str(state or "").strip().upper()
+            if not normalized_state:
+                continue
+            normalized_row = {}
+            if isinstance(row, dict):
+                for plant, rate in row.items():
+                    normalized_plant = str(plant or "").strip().upper()
+                    if normalized_plant not in plants:
+                        continue
+                    try:
+                        normalized_row[normalized_plant] = float(rate) if rate not in (None, "") else None
+                    except (TypeError, ValueError):
+                        normalized_row[normalized_plant] = None
+            matrix[normalized_state] = normalized_row
+    if not states:
+        states = sorted(matrix.keys())
+    fuel = _coerce_optional_non_negative_float(payload.get("fuel_surcharge", defaults.get("fuel_surcharge")))
+    stop = _coerce_optional_non_negative_float(payload.get("per_stop", defaults.get("per_stop")))
+    minimum = _coerce_optional_non_negative_float(payload.get("load_minimum", defaults.get("load_minimum")))
+    defaults["carrier"] = str(payload.get("carrier") or defaults.get("carrier") or "").strip() or "LST"
+    payload["plants"] = plants
+    payload["states"] = states
+    payload["matrix"] = matrix
+    payload["fuel_surcharge"] = round(fuel, 2) if fuel is not None else 0.0
+    payload["per_stop"] = round(stop, 2) if stop is not None else 0.0
+    payload["load_minimum"] = round(minimum, 2) if minimum is not None else 0.0
+    payload["carrier"] = defaults["carrier"]
+    payload["state_lane_labels"] = payload.get("state_lane_labels") if isinstance(payload.get("state_lane_labels"), dict) else {}
+    return payload
+
+
+def _get_alternate_trailer_rates():
+    defaults = _copy_default_alternate_trailer_rates()
+    payload = _get_json_planning_setting(ALTERNATE_TRAILER_RATES_SETTING_KEY)
+    if not isinstance(payload, dict):
+        return defaults
+    plants = _context_plants()
+    sections_by_code = {
+        section["code"]: section for section in defaults.get("sections") or [] if section.get("code")
+    }
+    for section in payload.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        code = _normalize_alternate_trailer_code(section.get("code") or section.get("trailer_type"))
+        if not code or code not in sections_by_code:
+            continue
+        normalized = sections_by_code[code]
+        normalized["label"] = _alternate_trailer_label_for_code(code)
+        normalized["plants"] = plants
+        rates = normalized.get("rates_by_plant") or {}
+        placeholders = normalized.get("placeholders_by_plant") or {}
+
+        raw_rates = section.get("rates_by_plant")
+        if isinstance(raw_rates, dict):
+            for plant in plants:
+                if plant not in raw_rates:
+                    continue
+                parsed = _coerce_optional_non_negative_float(raw_rates.get(plant))
+                rates[plant] = round(parsed, 2) if parsed is not None else None
+
+        raw_placeholders = section.get("placeholders_by_plant")
+        if isinstance(raw_placeholders, dict):
+            for plant in plants:
+                plant_payload = raw_placeholders.get(plant)
+                if not isinstance(plant_payload, dict):
+                    continue
+                current = placeholders.get(plant) or {}
+                for key in ("per_stop", "load_minimum"):
+                    if key not in plant_payload:
+                        continue
+                    parsed = _coerce_optional_non_negative_float(plant_payload.get(key))
+                    current[key] = round(parsed, 2) if parsed is not None else None
+                if "apply_fuel_surcharge" in plant_payload or "fuel_surcharge_per_mile" in plant_payload:
+                    current["apply_fuel_surcharge"] = _coerce_alternate_apply_fuel_surcharge(
+                        plant_payload,
+                        default=True,
+                    )
+                if "requires_return_miles" in plant_payload:
+                    current["requires_return_miles"] = _coerce_bool_value(
+                        plant_payload.get("requires_return_miles")
+                    )
+                elif "dedicated_round_trip_miles" in plant_payload:
+                    current["requires_return_miles"] = _coerce_bool_value(
+                        plant_payload.get("dedicated_round_trip_miles")
+                    )
+                placeholders[plant] = current
+
+        # Backward compatibility for older carrier-row payload format.
+        rows = section.get("rows") if isinstance(section.get("rows"), list) else []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            plant = str(row.get("plant") or "").strip().upper()
+            if plant not in plants:
+                continue
+            parsed_rate = _coerce_optional_non_negative_float(row.get("rate_per_mile"))
+            if parsed_rate is not None and rates.get(plant) is None:
+                rates[plant] = round(parsed_rate, 2)
+
+        for plant in plants:
+            rates.setdefault(plant, None)
+            plant_placeholders = placeholders.get(plant) or {}
+            for key in ("per_stop", "load_minimum"):
+                plant_placeholders.setdefault(key, 0.0)
+            plant_placeholders["apply_fuel_surcharge"] = _coerce_alternate_apply_fuel_surcharge(
+                plant_placeholders,
+                default=True,
+            )
+            plant_placeholders.pop("fuel_surcharge_per_mile", None)
+            plant_placeholders.setdefault("requires_return_miles", True)
+            placeholders[plant] = plant_placeholders
+        normalized["rates_by_plant"] = rates
+        normalized["placeholders_by_plant"] = placeholders
+
+    defaults["sections"] = [sections_by_code[definition["code"]] for definition in ALTERNATE_TRAILER_SECTION_DEFINITIONS]
+    return defaults
+
+
+def _serialize_optional_money(value):
+    parsed = _coerce_optional_non_negative_float(value)
+    return round(parsed, 2) if parsed is not None else None
+
+
+def _plant_color_map():
+    return {
+        "GA": "#22c55e",
+        "TX": "#3b82f6",
+        "VA": "#06b6d4",
+        "IA": "#a855f7",
+        "OR": "#f97316",
+        "NV": "#ef4444",
+    }
+
+
+def _build_rates_v2_payload(
+    rate_plants,
+    rate_states,
+    rate_matrix_serialized,
+    global_rate_metrics,
+    fuel_surcharge_per_mile,
+    ryder_dedicated_rate_table,
+    lst_rate_matrix,
+    alternate_trailer_rates,
+):
+    plants = _context_plants()
+    plant_names = {plant: PLANT_NAMES.get(plant, plant) for plant in plants}
+    plant_colors = _plant_color_map()
+
+    fls_lanes = {}
+    for state in rate_states:
+        row = {}
+        row_source = rate_matrix_serialized.get(state) or {}
+        for plant in plants:
+            record = row_source.get(plant)
+            if isinstance(record, dict) and record.get("rate_per_mile") is not None:
+                row[plant] = {
+                    "rate_per_mile": round(float(record.get("rate_per_mile")), 2),
+                    "rate_id": record.get("id"),
+                    "effective_year": int(record.get("effective_year") or datetime.now().year),
+                }
+            else:
+                row[plant] = None
+        fls_lanes[state] = row
+
+    ryder_plants = ryder_dedicated_rate_table.get("plants") or plants
+    ryder_rates = ryder_dedicated_rate_table.get("rates_by_plant") or {}
+    ryder_lanes = {
+        "ALL_STATES": {
+            plant: (
+                {"rate_per_mile": round(float(ryder_rates.get(plant)), 2)}
+                if _coerce_optional_non_negative_float(ryder_rates.get(plant)) is not None
+                else None
+            )
+            for plant in plants
+        }
+    }
+
+    lst_states = [str(state).strip().upper() for state in (lst_rate_matrix.get("states") or []) if str(state or "").strip()]
+    lst_matrix = lst_rate_matrix.get("matrix") or {}
+    lst_labels = lst_rate_matrix.get("state_lane_labels") if isinstance(lst_rate_matrix.get("state_lane_labels"), dict) else {}
+    lst_lanes = {}
+    for state in lst_states:
+        source_row = lst_matrix.get(state) if isinstance(lst_matrix.get(state), dict) else {}
+        row = {}
+        for plant in plants:
+            parsed = _coerce_optional_non_negative_float(source_row.get(plant))
+            row[plant] = {"rate_per_mile": round(parsed, 2)} if parsed is not None else None
+        lst_lanes[state] = row
+
+    trailer_sections = []
+    alternate_sections = alternate_trailer_rates.get("sections") if isinstance(alternate_trailer_rates, dict) else []
+    alternate_rows = []
+    alternate_lanes = {}
+    for section in alternate_sections or []:
+        if not isinstance(section, dict):
+            continue
+        code = _normalize_alternate_trailer_code(section.get("code") or section.get("trailer_type"))
+        if not code:
+            continue
+        label = section.get("label") or _alternate_trailer_label_for_code(code)
+        rates_by_plant = section.get("rates_by_plant") if isinstance(section.get("rates_by_plant"), dict) else {}
+        placeholders = section.get("placeholders_by_plant") if isinstance(section.get("placeholders_by_plant"), dict) else {}
+        section_rates_row = {}
+        for plant in plants:
+            parsed_rate = _coerce_optional_non_negative_float(rates_by_plant.get(plant))
+            section_rates_row[plant] = {"rate_per_mile": round(parsed_rate, 2)} if parsed_rate is not None else None
+        alternate_rows.append({"key": code, "label": label})
+        alternate_lanes[code] = section_rates_row
+
+        trailer_section = {
+            "code": code,
+            "label": label,
+            "icon": {
+                "HOT_SHOT": "bolt",
+                "WEDGE": "change_history",
+                "FLAT_BED": "view_stream",
+            }.get(code, "local_shipping"),
+            "plants": list(plants),
+            "rows": [
+                {"field": "rate_per_mile", "label": "All States Rate/Mile", "values": {}},
+                {"field": "per_stop", "label": "Per Stop Fee", "values": {}},
+                {"field": "apply_fuel_surcharge", "label": "Fuel Surcharge (Use Top Box)", "values": {}},
+                {"field": "load_minimum", "label": "Load Minimum", "values": {}},
+                {"field": "requires_return_miles", "label": "Roundtrip Miles Required", "values": {}},
+            ],
+        }
+        for plant in plants:
+            placeholders_by_plant = placeholders.get(plant) if isinstance(placeholders.get(plant), dict) else {}
+            trailer_section["rows"][0]["values"][plant] = _serialize_optional_money(rates_by_plant.get(plant))
+            trailer_section["rows"][1]["values"][plant] = _serialize_optional_money(placeholders_by_plant.get("per_stop"))
+            trailer_section["rows"][2]["values"][plant] = _coerce_alternate_apply_fuel_surcharge(
+                placeholders_by_plant,
+                default=True,
+            )
+            trailer_section["rows"][3]["values"][plant] = _serialize_optional_money(placeholders_by_plant.get("load_minimum"))
+            trailer_section["rows"][4]["values"][plant] = bool(
+                placeholders_by_plant.get("requires_return_miles", True)
+            )
+        trailer_sections.append(trailer_section)
+
+    return {
+        "plants": plants,
+        "plant_names": plant_names,
+        "plant_colors": plant_colors,
+        "carrier_order": ["fls", "ryder", "lst", "alternate"],
+        "carriers": {
+            "fls": {
+                "key": "fls",
+                "label": "FLS",
+                "rows": [{"key": state, "label": state} for state in rate_states],
+                "lanes": fls_lanes,
+                "accessorial": {
+                    "per_stop": round(float(global_rate_metrics.get("stop_fee") or 0.0), 2),
+                    "load_minimum": round(float(global_rate_metrics.get("load_minimum") or 0.0), 2),
+                    "fuel_surcharge": round(float(fuel_surcharge_per_mile or 0.0), 2),
+                },
+            },
+            "ryder": {
+                "key": "ryder",
+                "label": "Ryder Dedicated",
+                "rows": [{"key": "ALL_STATES", "label": "ALL STATES"}],
+                "lanes": ryder_lanes,
+                "accessorial": {
+                    "per_stop": _serialize_optional_money(ryder_dedicated_rate_table.get("per_stop")) or 0.0,
+                    "load_minimum": _serialize_optional_money(ryder_dedicated_rate_table.get("load_minimum")) or 0.0,
+                    "fuel_surcharge": _serialize_optional_money(ryder_dedicated_rate_table.get("fuel_surcharge")) or 0.0,
+                },
+            },
+            "lst": {
+                "key": "lst",
+                "label": "LST",
+                "rows": [
+                    {"key": state, "label": lst_labels.get(state) or state}
+                    for state in lst_states
+                ],
+                "lanes": lst_lanes,
+                "accessorial": {
+                    "per_stop": _serialize_optional_money(lst_rate_matrix.get("per_stop")) or 0.0,
+                    "load_minimum": _serialize_optional_money(lst_rate_matrix.get("load_minimum")) or 0.0,
+                    "fuel_surcharge": _serialize_optional_money(lst_rate_matrix.get("fuel_surcharge")) or 0.0,
+                },
+            },
+            "alternate": {
+                "key": "alternate",
+                "label": "Alternate Trailer Types",
+                "rows": alternate_rows,
+                "lanes": alternate_lanes,
+                "accessorial": {
+                    "per_stop": 0.0,
+                    "load_minimum": 0.0,
+                    "fuel_surcharge": 0.0,
+                },
+            },
+        },
+        "trailer_sections": trailer_sections,
+    }
+
+
+def _active_planner_profile_name():
+    try:
+        if _get_session_role() != ROLE_PLANNER:
+            return ""
+        return (_get_session_profile_name() or _get_session_role() or "").strip()
+    except RuntimeError:
+        return ""
+
+
+def _planner_setting_override_setting_key(setting_key, profile_name=None):
+    profile = str(profile_name or "").strip().upper()
+    key = str(setting_key or "").strip()
+    if not profile or not key:
+        return ""
+    return f"{PLANNER_SETTING_OVERRIDE_SETTING_PREFIX}{profile}::{key}"
+
+
+def _get_effective_planning_setting(setting_key, profile_name=None):
+    key = str(setting_key or "").strip()
+    if not key:
+        return {}
+    resolved_profile = str(profile_name or "").strip()
+    if not resolved_profile:
+        resolved_profile = _active_planner_profile_name()
+    if resolved_profile:
+        override_key = _planner_setting_override_setting_key(key, resolved_profile)
+        if override_key:
+            override_row = db.get_planning_setting(override_key) or {}
+            if (override_row.get("value_text") or "").strip():
+                return override_row
+    return db.get_planning_setting(key) or {}
+
+
+def _upsert_scoped_planning_setting(setting_key, value_text, profile_name=None):
+    key = str(setting_key or "").strip()
+    if not key:
+        return
+    resolved_profile = str(profile_name or "").strip()
+    if not resolved_profile:
+        resolved_profile = _active_planner_profile_name()
+    if resolved_profile:
+        db.upsert_planning_setting(
+            _planner_setting_override_setting_key(key, resolved_profile),
+            value_text,
+        )
+        return
+    db.upsert_planning_setting(key, value_text)
+
+
+def _merge_trailer_assignment_rules(base_rules, parsed):
+    merged = dict(base_rules or DEFAULT_TRAILER_ASSIGNMENT_RULES)
+    if not isinstance(parsed, dict):
+        return merged
+    if "livestock_wedge_enabled" in parsed:
+        merged["livestock_wedge_enabled"] = _coerce_bool_value(
+            parsed.get("livestock_wedge_enabled")
+        )
+    tokens = parsed.get("livestock_category_tokens")
+    if isinstance(tokens, str):
+        tokens = [tokens]
+    if isinstance(tokens, (list, tuple, set)):
+        normalized_tokens = []
+        for token in tokens:
+            text = str(token or "").strip().upper()
+            if text and text not in normalized_tokens:
+                normalized_tokens.append(text)
+        if normalized_tokens:
+            merged["livestock_category_tokens"] = normalized_tokens
+    return merged
+
+
+def _planner_trailer_rules_override_setting_key(profile_name=None):
+    profile = str(profile_name or "").strip().upper()
+    if not profile:
+        return ""
+    return f"{PLANNER_TRAILER_RULES_OVERRIDE_SETTING_PREFIX}{profile}"
+
+
+def _get_planner_trailer_rule_overrides(profile_name=None):
+    resolved_profile = str(profile_name or "").strip()
+    if not resolved_profile:
+        try:
+            resolved_profile = _get_session_profile_name()
+        except RuntimeError:
+            resolved_profile = ""
+    key = _planner_trailer_rules_override_setting_key(resolved_profile)
+    if not key:
+        return {}
+    setting = db.get_planning_setting(key) or {}
+    raw_text = (setting.get("value_text") or "").strip()
+    if not raw_text:
+        return {}
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    sanitized = {}
+    if "livestock_wedge_enabled" in parsed:
+        sanitized["livestock_wedge_enabled"] = _coerce_bool_value(
+            parsed.get("livestock_wedge_enabled")
+        )
+    return sanitized
+
+
 def _get_trailer_assignment_rules():
     defaults = dict(DEFAULT_TRAILER_ASSIGNMENT_RULES)
     setting = db.get_planning_setting(TRAILER_ASSIGNMENT_RULES_SETTING_KEY) or {}
     raw_text = (setting.get("value_text") or "").strip()
-    parsed = None
-    if raw_text:
+    if not raw_text:
+        return defaults
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError:
+        parsed = None
+    return _merge_trailer_assignment_rules(defaults, parsed)
+
+
+def _get_effective_trailer_assignment_rules(profile_name=None):
+    base_rules = _get_trailer_assignment_rules()
+    overrides = _get_planner_trailer_rule_overrides(profile_name)
+    if not overrides:
+        return base_rules
+    return _merge_trailer_assignment_rules(base_rules, overrides)
+
+
+def _carrier_section_code_for_trailer_type(trailer_type):
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    if trailer_key == "HOTSHOT":
+        return "HOT_SHOT"
+    if trailer_key == "FLATBED":
+        return "FLAT_BED"
+    if trailer_key.startswith("STEP_DECK"):
+        return "STEP_DECK"
+    if trailer_key == "WEDGE":
+        return "WEDGE"
+    return ""
+
+
+def _build_load_carrier_pricing_context():
+    fls_lookup = {}
+    for row in db.list_rate_matrix() or []:
+        origin = str((row or {}).get("origin_plant") or "").strip().upper()
+        destination = str((row or {}).get("destination_state") or "").strip().upper()
+        rate = _coerce_optional_non_negative_float((row or {}).get("rate_per_mile"))
+        if not origin or not destination or rate is None:
+            continue
+        key = (origin, destination)
+        if key not in fls_lookup:
+            fls_lookup[key] = round(float(rate), 4)
+
+    lst_payload = _get_lst_rate_matrix()
+    lst_lookup = {}
+    for state, state_row in (lst_payload.get("matrix") or {}).items():
+        destination = str(state or "").strip().upper()
+        if not destination or not isinstance(state_row, dict):
+            continue
+        for plant, raw_rate in state_row.items():
+            origin = str(plant or "").strip().upper()
+            rate = _coerce_optional_non_negative_float(raw_rate)
+            if not origin or rate is None:
+                continue
+            lst_lookup[(origin, destination)] = round(float(rate), 4)
+
+    alternate_payload = _get_alternate_trailer_rates()
+    alternate_sections = {}
+    for section in (alternate_payload.get("sections") or []):
+        if not isinstance(section, dict):
+            continue
+        code = _normalize_alternate_trailer_code(section.get("code") or section.get("trailer_type"))
+        if not code:
+            continue
+        alternate_sections[code] = section
+
+    return {
+        "fls_lookup": fls_lookup,
+        "fls_accessorial": {
+            "per_stop": _get_stop_fee_amount(),
+            "fuel_surcharge": _get_fuel_surcharge_per_mile(),
+            "load_minimum": _get_load_minimum_amount(),
+        },
+        "lst_lookup": lst_lookup,
+        "lst_accessorial": {
+            "per_stop": _coerce_optional_non_negative_float(lst_payload.get("per_stop")) or 0.0,
+            "fuel_surcharge": _coerce_optional_non_negative_float(lst_payload.get("fuel_surcharge")) or 0.0,
+            "load_minimum": _coerce_optional_non_negative_float(lst_payload.get("load_minimum")) or 0.0,
+        },
+        "ryder_table": _get_ryder_dedicated_rate_table(),
+        "alternate_sections": alternate_sections,
+    }
+
+
+def _normalize_route_leg_miles(leg_miles, total_miles, expected_count):
+    expected = max(int(expected_count or 0), 0)
+    if expected <= 0:
+        return []
+    normalized = []
+    for value in list(leg_miles or [])[:expected]:
         try:
-            parsed = json.loads(raw_text)
-        except json.JSONDecodeError:
-            parsed = None
-    if isinstance(parsed, dict):
-        if "livestock_wedge_enabled" in parsed:
-            defaults["livestock_wedge_enabled"] = _coerce_bool_value(
-                parsed.get("livestock_wedge_enabled")
+            parsed = float(value)
+        except (TypeError, ValueError):
+            parsed = 0.0
+        normalized.append(max(parsed, 0.0))
+    while len(normalized) < expected:
+        normalized.append(0.0)
+
+    total_value = max(float(total_miles or 0.0), 0.0)
+    current_sum = sum(normalized)
+    if total_value > 0 and current_sum <= 0:
+        even = total_value / expected
+        return [even for _ in range(expected)]
+    if total_value > 0 and current_sum > 0:
+        scale = total_value / current_sum
+        return [value * scale for value in normalized]
+    return normalized
+
+
+def _matrix_carrier_candidate(
+    *,
+    carrier_key,
+    carrier_label,
+    source_label,
+    origin_plant,
+    stop_states,
+    leg_miles,
+    lookup,
+    stop_count,
+    per_stop_fee,
+    fuel_surcharge_per_mile,
+    load_minimum,
+    requires_return_miles=False,
+    fallback_rate=None,
+    require_all_lanes=False,
+):
+    if not stop_states:
+        return None
+    linehaul_cost = 0.0
+    for index, state in enumerate(stop_states):
+        rate = lookup.get((origin_plant, state))
+        if rate is None:
+            if require_all_lanes:
+                return None
+            rate = fallback_rate if fallback_rate is not None else DEFAULT_RATE_PER_MILE
+        miles = leg_miles[index] if index < len(leg_miles) else 0.0
+        linehaul_cost += max(float(miles or 0.0), 0.0) * float(rate)
+
+    total_miles = max(sum(leg_miles), 0.0)
+    fuel_cost = total_miles * max(float(fuel_surcharge_per_mile or 0.0), 0.0)
+    stop_cost = max(int(stop_count or 0), 0) * max(float(per_stop_fee or 0.0), 0.0)
+    subtotal = linehaul_cost + fuel_cost + stop_cost
+    minimum = max(float(load_minimum or 0.0), 0.0)
+    total_cost = max(subtotal, minimum)
+    effective_rate = (linehaul_cost / total_miles) if total_miles > 0 else float(fallback_rate or DEFAULT_RATE_PER_MILE)
+    return {
+        "carrier_key": carrier_key,
+        "carrier_label": carrier_label,
+        "rate_source_label": source_label,
+        "pricing_note": "Lane matrix by origin plant and destination state.",
+        "requires_return_miles": bool(requires_return_miles),
+        "includes_fuel_and_stop": False,
+        "per_stop_fee": round(float(per_stop_fee or 0.0), 4),
+        "fuel_surcharge_per_mile": round(float(fuel_surcharge_per_mile or 0.0), 4),
+        "load_minimum": round(minimum, 2),
+        "rate_per_mile": round(effective_rate + float(fuel_surcharge_per_mile or 0.0), 4),
+        "linehaul_rate_per_mile": round(effective_rate, 4),
+        "linehaul_cost": round(linehaul_cost, 2),
+        "fuel_cost": round(fuel_cost, 2),
+        "stop_cost": round(stop_cost, 2),
+        "subtotal_before_floor": round(subtotal, 2),
+        "total_cost": round(total_cost, 2),
+    }
+
+
+def _flat_carrier_candidate(
+    *,
+    carrier_key,
+    carrier_label,
+    source_label,
+    rate_per_mile,
+    total_miles,
+    stop_count,
+    per_stop_fee,
+    fuel_surcharge_per_mile,
+    load_minimum,
+    includes_fuel_and_stop=False,
+    requires_return_miles=False,
+    pricing_note="",
+):
+    base_rate = _coerce_optional_non_negative_float(rate_per_mile)
+    if base_rate is None:
+        return None
+    miles = max(float(total_miles or 0.0), 0.0)
+    base_rate = float(base_rate)
+    linehaul_cost = miles * base_rate
+    fuel_cost = miles * max(float(fuel_surcharge_per_mile or 0.0), 0.0)
+    stop_cost = max(int(stop_count or 0), 0) * max(float(per_stop_fee or 0.0), 0.0)
+    subtotal = linehaul_cost + fuel_cost + stop_cost
+    minimum = max(float(load_minimum or 0.0), 0.0)
+    total_cost = max(subtotal, minimum)
+    return {
+        "carrier_key": carrier_key,
+        "carrier_label": carrier_label,
+        "rate_source_label": source_label,
+        "pricing_note": pricing_note,
+        "requires_return_miles": bool(requires_return_miles),
+        "includes_fuel_and_stop": bool(includes_fuel_and_stop),
+        "per_stop_fee": round(float(per_stop_fee or 0.0), 4),
+        "fuel_surcharge_per_mile": round(float(fuel_surcharge_per_mile or 0.0), 4),
+        "load_minimum": round(minimum, 2),
+        "rate_per_mile": round(base_rate + float(fuel_surcharge_per_mile or 0.0), 4),
+        "linehaul_rate_per_mile": round(base_rate, 4),
+        "linehaul_cost": round(linehaul_cost, 2),
+        "fuel_cost": round(fuel_cost, 2),
+        "stop_cost": round(stop_cost, 2),
+        "subtotal_before_floor": round(subtotal, 2),
+        "total_cost": round(total_cost, 2),
+    }
+
+
+def _load_has_lowes_order(lines):
+    return any(
+        customer_rules.is_lowes_customer((line or {}).get("cust_name") or "")
+        for line in (lines or [])
+    )
+
+
+def _alternate_requires_return_hint(lines, trailer_type, origin_plant, carrier_context):
+    trailer_code = _carrier_section_code_for_trailer_type(trailer_type)
+    if not trailer_code:
+        return False
+    section = (carrier_context.get("alternate_sections") or {}).get(trailer_code)
+    if not isinstance(section, dict):
+        return False
+    rates = section.get("rates_by_plant") if isinstance(section.get("rates_by_plant"), dict) else {}
+    if _coerce_optional_non_negative_float(rates.get(origin_plant)) is None:
+        return False
+    placeholders = section.get("placeholders_by_plant") if isinstance(section.get("placeholders_by_plant"), dict) else {}
+    plant_row = placeholders.get(origin_plant) if isinstance(placeholders.get(origin_plant), dict) else {}
+    return bool(_coerce_bool_value(plant_row.get("requires_return_miles", True)))
+
+
+def _resolve_load_carrier_pricing(
+    *,
+    lines,
+    trailer_type,
+    origin_plant,
+    ordered_stops,
+    route_legs,
+    total_miles,
+    stop_count,
+    requires_return_to_origin,
+    carrier_context,
+):
+    origin = str(origin_plant or "").strip().upper()
+    stops = list(ordered_stops or [])
+    stop_states = [str((stop or {}).get("state") or "").strip().upper() for stop in stops]
+    if requires_return_to_origin:
+        stop_states = stop_states + [origin]
+    leg_miles = _normalize_route_leg_miles(route_legs, total_miles, len(stop_states))
+
+    fls_accessorial = carrier_context.get("fls_accessorial") or {}
+    fls_candidate = _matrix_carrier_candidate(
+        carrier_key="fls",
+        carrier_label="FLS",
+        source_label="FLS Default Matrix",
+        origin_plant=origin,
+        stop_states=stop_states,
+        leg_miles=leg_miles,
+        lookup=carrier_context.get("fls_lookup") or {},
+        stop_count=stop_count,
+        per_stop_fee=fls_accessorial.get("per_stop", DEFAULT_STOP_FEE),
+        fuel_surcharge_per_mile=fls_accessorial.get("fuel_surcharge", DEFAULT_FUEL_SURCHARGE_PER_MILE),
+        load_minimum=fls_accessorial.get("load_minimum", DEFAULT_MIN_LOAD_COST),
+        requires_return_miles=requires_return_to_origin,
+        fallback_rate=DEFAULT_RATE_PER_MILE,
+        require_all_lanes=False,
+    )
+
+    lst_accessorial = carrier_context.get("lst_accessorial") or {}
+    lst_candidate = _matrix_carrier_candidate(
+        carrier_key="lst",
+        carrier_label="LST",
+        source_label="LST Matrix",
+        origin_plant=origin,
+        stop_states=stop_states,
+        leg_miles=leg_miles,
+        lookup=carrier_context.get("lst_lookup") or {},
+        stop_count=stop_count,
+        per_stop_fee=lst_accessorial.get("per_stop", 0.0),
+        fuel_surcharge_per_mile=lst_accessorial.get("fuel_surcharge", 0.0),
+        load_minimum=lst_accessorial.get("load_minimum", 0.0),
+        requires_return_miles=requires_return_to_origin,
+        fallback_rate=None,
+        require_all_lanes=True,
+    )
+
+    ryder_table = carrier_context.get("ryder_table") or {}
+    ryder_rate = ((ryder_table.get("rates_by_plant") or {}).get(origin))
+    ryder_candidate = _flat_carrier_candidate(
+        carrier_key="ryder",
+        carrier_label="Ryder Dedicated",
+        source_label="Ryder Dedicated (All States)",
+        rate_per_mile=ryder_rate,
+        total_miles=total_miles,
+        stop_count=stop_count,
+        per_stop_fee=ryder_table.get("per_stop", 0.0),
+        fuel_surcharge_per_mile=ryder_table.get("fuel_surcharge", 0.0),
+        load_minimum=ryder_table.get("load_minimum", 0.0),
+        includes_fuel_and_stop=True,
+        requires_return_miles=True,
+        pricing_note="Includes dedicated fleet return miles pricing.",
+    )
+
+    trailer_code = _carrier_section_code_for_trailer_type(trailer_type)
+    alternate_candidate = None
+    if trailer_code:
+        section = (carrier_context.get("alternate_sections") or {}).get(trailer_code)
+        if isinstance(section, dict):
+            rates_by_plant = section.get("rates_by_plant") if isinstance(section.get("rates_by_plant"), dict) else {}
+            placeholders_by_plant = section.get("placeholders_by_plant") if isinstance(section.get("placeholders_by_plant"), dict) else {}
+            plant_placeholder = placeholders_by_plant.get(origin) if isinstance(placeholders_by_plant.get(origin), dict) else {}
+            default_fuel_surcharge = _coerce_optional_non_negative_float(
+                fls_accessorial.get("fuel_surcharge")
             )
-        tokens = parsed.get("livestock_category_tokens")
-        if isinstance(tokens, str):
-            tokens = [tokens]
-        if isinstance(tokens, (list, tuple, set)):
-            normalized_tokens = []
-            for token in tokens:
-                text = str(token or "").strip().upper()
-                if text and text not in normalized_tokens:
-                    normalized_tokens.append(text)
-            if normalized_tokens:
-                defaults["livestock_category_tokens"] = normalized_tokens
-        if "auto_assign_hotshot_enabled" in parsed:
-            defaults["auto_assign_hotshot_enabled"] = _coerce_bool_value(
-                parsed.get("auto_assign_hotshot_enabled")
+            if default_fuel_surcharge is None:
+                default_fuel_surcharge = DEFAULT_FUEL_SURCHARGE_PER_MILE
+            apply_fuel_surcharge = _coerce_alternate_apply_fuel_surcharge(
+                plant_placeholder,
+                default=True,
             )
-        if "auto_assign_hotshot_utilization_threshold_pct" in parsed:
-            defaults["auto_assign_hotshot_utilization_threshold_pct"] = round(
-                _coerce_non_negative_float(
-                    parsed.get("auto_assign_hotshot_utilization_threshold_pct"),
-                    defaults["auto_assign_hotshot_utilization_threshold_pct"],
-                ),
-                1,
+            alternate_candidate = _flat_carrier_candidate(
+                carrier_key="alternate",
+                carrier_label=_alternate_trailer_label_for_code(trailer_code),
+                source_label=f"{_alternate_trailer_label_for_code(trailer_code)} Alternate Trailer",
+                rate_per_mile=rates_by_plant.get(origin),
+                total_miles=total_miles,
+                stop_count=stop_count,
+                per_stop_fee=plant_placeholder.get("per_stop", 0.0),
+                fuel_surcharge_per_mile=default_fuel_surcharge if apply_fuel_surcharge else 0.0,
+                load_minimum=plant_placeholder.get("load_minimum", 0.0),
+                includes_fuel_and_stop=False,
+                requires_return_miles=bool(_coerce_bool_value(plant_placeholder.get("requires_return_miles", True))),
+                pricing_note="Plant-specific alternate trailer pricing.",
             )
-    return defaults
+
+    has_lowes = _load_has_lowes_order(lines)
+
+    if has_lowes and ryder_candidate is not None:
+        ryder_candidate["selection_reason"] = "Lowe's order detected; using dedicated fleet carrier."
+        return ryder_candidate
+
+    if alternate_candidate is not None:
+        alternate_candidate["selection_reason"] = "Alternate trailer pricing applied."
+        return alternate_candidate
+
+    if lst_candidate and fls_candidate:
+        if lst_candidate["total_cost"] <= fls_candidate["total_cost"]:
+            lst_candidate["selection_reason"] = "Selected the lower total cost between LST and FLS."
+            return lst_candidate
+        fls_candidate["selection_reason"] = "Selected the lower total cost between FLS and LST."
+        return fls_candidate
+
+    if fls_candidate:
+        fls_candidate["selection_reason"] = "Default FLS matrix applied."
+        return fls_candidate
+
+    fallback_miles = max(float(total_miles or 0.0), 0.0)
+    fallback_stop_fee = float(fls_accessorial.get("per_stop", DEFAULT_STOP_FEE))
+    fallback_fuel = float(fls_accessorial.get("fuel_surcharge", DEFAULT_FUEL_SURCHARGE_PER_MILE))
+    fallback_minimum = float(fls_accessorial.get("load_minimum", DEFAULT_MIN_LOAD_COST))
+    fallback_linehaul = fallback_miles * DEFAULT_RATE_PER_MILE
+    fallback_fuel_cost = fallback_miles * fallback_fuel
+    fallback_stop_cost = max(int(stop_count or 0), 0) * fallback_stop_fee
+    fallback_subtotal = fallback_linehaul + fallback_fuel_cost + fallback_stop_cost
+    fallback_total = max(fallback_subtotal, fallback_minimum)
+
+    return {
+        "carrier_key": "fls",
+        "carrier_label": "FLS",
+        "rate_source_label": "FLS Default Matrix",
+        "pricing_note": "Fallback default carrier rate applied.",
+        "selection_reason": "Fallback default carrier rate applied.",
+        "requires_return_miles": bool(requires_return_to_origin),
+        "includes_fuel_and_stop": False,
+        "per_stop_fee": float(fls_accessorial.get("per_stop", DEFAULT_STOP_FEE)),
+        "fuel_surcharge_per_mile": float(fls_accessorial.get("fuel_surcharge", DEFAULT_FUEL_SURCHARGE_PER_MILE)),
+        "load_minimum": float(fls_accessorial.get("load_minimum", DEFAULT_MIN_LOAD_COST)),
+        "rate_per_mile": float(DEFAULT_RATE_PER_MILE + fls_accessorial.get("fuel_surcharge", DEFAULT_FUEL_SURCHARGE_PER_MILE)),
+        "linehaul_rate_per_mile": float(DEFAULT_RATE_PER_MILE),
+        "linehaul_cost": round(fallback_linehaul, 2),
+        "fuel_cost": round(fallback_fuel_cost, 2),
+        "stop_cost": round(fallback_stop_cost, 2),
+        "subtotal_before_floor": round(fallback_subtotal, 2),
+        "total_cost": round(fallback_total, 2),
+    }
 
 
 def _build_freight_breakdown(load, stop_fee_amount, fuel_surcharge_per_mile, load_minimum_amount):
@@ -1305,18 +2329,28 @@ def _build_freight_breakdown(load, stop_fee_amount, fuel_surcharge_per_mile, loa
         except (TypeError, ValueError):
             return float(default)
 
+    carrier_pricing = load.get("carrier_pricing") if isinstance(load.get("carrier_pricing"), dict) else {}
     estimated_cost = max(_as_float(load.get("estimated_cost"), 0.0), 0.0)
     estimated_miles = max(
         _as_float(load.get("estimated_miles"), _as_float(load.get("route_distance"), 0.0)),
         0.0,
     )
     stop_count = max(int(_as_float(load.get("stop_count"), 0.0)), 0)
-    stop_fee = max(_as_float(stop_fee_amount, DEFAULT_STOP_FEE), 0.0)
-    fuel_surcharge = max(
-        _as_float(fuel_surcharge_per_mile, DEFAULT_FUEL_SURCHARGE_PER_MILE),
+    stop_fee = max(
+        _as_float(carrier_pricing.get("per_stop_fee"), _as_float(stop_fee_amount, DEFAULT_STOP_FEE)),
         0.0,
     )
-    load_minimum = max(_as_float(load_minimum_amount, DEFAULT_MIN_LOAD_COST), 0.0)
+    fuel_surcharge = max(
+        _as_float(
+            carrier_pricing.get("fuel_surcharge_per_mile"),
+            _as_float(fuel_surcharge_per_mile, DEFAULT_FUEL_SURCHARGE_PER_MILE),
+        ),
+        0.0,
+    )
+    load_minimum = max(
+        _as_float(carrier_pricing.get("load_minimum"), _as_float(load_minimum_amount, DEFAULT_MIN_LOAD_COST)),
+        0.0,
+    )
 
     stop_cost = stop_count * stop_fee
     avg_rate_per_mile = _as_float(load.get("rate_per_mile"), 0.0)
@@ -1354,7 +2388,133 @@ def _build_freight_breakdown(load, stop_fee_amount, fuel_surcharge_per_mile, loa
         "adjustment_label": adjustment_label,
         "min_load_cost": round(load_minimum, 2),
         "total_cost": round(estimated_cost, 2),
+        "carrier_key": str(carrier_pricing.get("carrier_key") or load.get("carrier_key") or "fls"),
+        "carrier_label": str(carrier_pricing.get("carrier_label") or load.get("carrier_label") or "FLS"),
+        "rate_source_label": str(carrier_pricing.get("rate_source_label") or ""),
+        "selection_reason": str(carrier_pricing.get("selection_reason") or ""),
+        "pricing_note": str(carrier_pricing.get("pricing_note") or ""),
+        "requires_return_miles": bool(
+            _coerce_bool_value(
+                carrier_pricing.get(
+                    "requires_return_miles",
+                    load.get("return_to_origin"),
+                )
+            )
+        ),
+        "includes_fuel_and_stop": bool(
+            _coerce_bool_value(carrier_pricing.get("includes_fuel_and_stop", False))
+        ),
     }
+
+
+def _profile_capacity_for_trailer(trailer_type, default_capacity=53.0):
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    config = stack_calculator.TRAILER_CONFIGS.get(
+        trailer_key,
+        stack_calculator.TRAILER_CONFIGS["STEP_DECK"],
+    )
+    return _coerce_non_negative_float(config.get("capacity"), default_capacity)
+
+
+def _capacity_for_trailer_setting(trailer_type, requested_capacity=None, default_capacity=53.0):
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    profile_capacity = _profile_capacity_for_trailer(trailer_key, default_capacity)
+    if profile_capacity > 0:
+        return round(profile_capacity, 2)
+    return round(_coerce_non_negative_float(default_capacity, 53.0), 2)
+
+
+def _default_trailer_type_for_plant(plant_code, fallback="STEP_DECK"):
+    normalized = _normalize_plant_code(plant_code)
+    preferred = PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES.get(normalized, fallback)
+    return stack_calculator.normalize_trailer_type(preferred, default=fallback)
+
+
+def _resolve_auto_hotshot_enabled_for_plant(plant_code, trailer_rules=None, settings_row=None):
+    normalized = _normalize_plant_code(plant_code)
+    fallback = True
+    if normalized in PLANT_DEFAULT_AUTO_HOTSHOT_OVERRIDES:
+        fallback = bool(PLANT_DEFAULT_AUTO_HOTSHOT_OVERRIDES[normalized])
+    row = settings_row
+    if row is None and normalized:
+        row = db.get_optimizer_settings(normalized) or {}
+    override_value = (row or {}).get("auto_hotshot_enabled")
+    if override_value in (None, ""):
+        return bool(fallback)
+    return _coerce_bool_value(override_value)
+
+
+def _get_optimizer_settings_for_plant(plant_code, optimizer_defaults=None, trailer_rules=None, settings_row=None):
+    normalized = _normalize_plant_code(plant_code)
+    base_defaults = dict(optimizer_defaults or _get_optimizer_default_settings())
+    fallback_trailer = stack_calculator.normalize_trailer_type(
+        base_defaults.get("trailer_type"),
+        default="STEP_DECK",
+    )
+    trailer_type = _default_trailer_type_for_plant(
+        normalized,
+        fallback=fallback_trailer,
+    )
+    row = settings_row
+    if row is None and normalized:
+        row = db.get_optimizer_settings(normalized) or {}
+    if (row or {}).get("trailer_type"):
+        trailer_type = stack_calculator.normalize_trailer_type(
+            row.get("trailer_type"),
+            default=trailer_type,
+        )
+    capacity_feet = _capacity_for_trailer_setting(
+        trailer_type,
+        requested_capacity=(row or {}).get("capacity_feet", base_defaults.get("capacity_feet")),
+        default_capacity=base_defaults.get("capacity_feet", 53.0),
+    )
+    return {
+        "plant_code": normalized,
+        "trailer_type": trailer_type,
+        "capacity_feet": capacity_feet,
+        "auto_hotshot_enabled": _resolve_auto_hotshot_enabled_for_plant(
+            normalized,
+            trailer_rules=trailer_rules,
+            settings_row=row,
+        ),
+    }
+
+
+def _build_optimizer_plant_defaults(optimizer_defaults=None, trailer_rules=None, plant_rows=None):
+    defaults = dict(optimizer_defaults or _get_optimizer_default_settings())
+    rules = trailer_rules or _get_effective_trailer_assignment_rules()
+    source_rows = list(plant_rows or [])
+    if not source_rows:
+        source_rows = [{"plant_code": code, "name": PLANT_NAMES.get(code, code)} for code in PLANT_CODES]
+    indexed_rows = {
+        _normalize_plant_code(row.get("plant_code")): row
+        for row in source_rows
+        if _normalize_plant_code(row.get("plant_code"))
+    }
+
+    rows = []
+    for plant_code in sorted(
+        indexed_rows.keys(),
+        key=lambda code: (PLANT_CODES.index(code) if code in PLANT_CODES else 10**6, code),
+    ):
+        row = indexed_rows.get(plant_code) or {}
+        plant_settings_row = db.get_optimizer_settings(plant_code) or {}
+        settings = _get_optimizer_settings_for_plant(
+            plant_code,
+            optimizer_defaults=defaults,
+            trailer_rules=rules,
+            settings_row=plant_settings_row,
+        )
+        rows.append(
+            {
+                "plant_code": plant_code,
+                "plant_name": row.get("name") or PLANT_NAMES.get(plant_code, plant_code),
+                "trailer_type": settings["trailer_type"],
+                "capacity_feet": settings["capacity_feet"],
+                "auto_hotshot_enabled": bool(settings["auto_hotshot_enabled"]),
+            }
+        )
+    return rows
 
 
 def _get_optimizer_default_settings():
@@ -1391,8 +2551,13 @@ def _get_optimizer_default_settings():
             load_builder.DEFAULT_BUILD_PARAMS.get("upper_deck_exception_categories"),
             default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
         ),
+        "equal_length_deck_length_order_enabled": (
+            _coerce_bool_value(load_builder.DEFAULT_BUILD_PARAMS.get("equal_length_deck_length_order_enabled"))
+            if load_builder.DEFAULT_BUILD_PARAMS.get("equal_length_deck_length_order_enabled") is not None
+            else DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED
+        ),
     }
-    setting = db.get_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY) or {}
+    setting = _get_effective_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY)
     raw_text = (setting.get("value_text") or "").strip()
     if raw_text:
         try:
@@ -1435,6 +2600,11 @@ def _get_optimizer_default_settings():
                 parsed.get("upper_deck_exception_categories"),
                 default=defaults["upper_deck_exception_categories"],
             )
+            defaults["equal_length_deck_length_order_enabled"] = (
+                _coerce_bool_value(parsed.get("equal_length_deck_length_order_enabled"))
+                if parsed.get("equal_length_deck_length_order_enabled") is not None
+                else bool(defaults["equal_length_deck_length_order_enabled"])
+            )
     defaults["max_back_overhang_ft"] = round(defaults["max_back_overhang_ft"], 2)
     defaults["upper_two_across_max_length_ft"] = round(defaults["upper_two_across_max_length_ft"], 2)
     defaults["upper_deck_exception_max_length_ft"] = round(
@@ -1448,6 +2618,17 @@ def _get_optimizer_default_settings():
     defaults["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
         defaults.get("upper_deck_exception_categories"),
         default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+    )
+    defaults["equal_length_deck_length_order_enabled"] = bool(
+        defaults.get(
+            "equal_length_deck_length_order_enabled",
+            DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
+        )
+    )
+    defaults["capacity_feet"] = _capacity_for_trailer_setting(
+        defaults.get("trailer_type"),
+        requested_capacity=defaults.get("capacity_feet"),
+        default_capacity=53.0,
     )
     return defaults
 
@@ -1491,6 +2672,12 @@ def _get_stack_capacity_assumptions():
             defaults.get("upper_deck_exception_categories"),
             default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
         ),
+        "equal_length_deck_length_order_enabled": bool(
+            defaults.get(
+                "equal_length_deck_length_order_enabled",
+                DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
+            )
+        ),
     }
 
 
@@ -1532,6 +2719,16 @@ def _get_replay_eval_preset():
         or defaults.get("upper_deck_exception_categories")
         or DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
         default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+    )
+    defaults["equal_length_deck_length_order_enabled"] = (
+        _coerce_bool_value(optimizer_defaults.get("equal_length_deck_length_order_enabled"))
+        if optimizer_defaults.get("equal_length_deck_length_order_enabled") is not None
+        else bool(
+            defaults.get(
+                "equal_length_deck_length_order_enabled",
+                DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
+            )
+        )
     )
 
     setting = db.get_planning_setting(REPLAY_EVAL_PRESET_SETTING_KEY) or {}
@@ -1589,6 +2786,11 @@ def _get_replay_eval_preset():
         defaults.get("upper_deck_exception_categories"),
         default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
     )
+    defaults["equal_length_deck_length_order_enabled"] = (
+        _coerce_bool_value(defaults.get("equal_length_deck_length_order_enabled"))
+        if defaults.get("equal_length_deck_length_order_enabled") is not None
+        else DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED
+    )
     defaults["ops_parity_enabled"] = _coerce_bool_value(defaults.get("ops_parity_enabled"))
     defaults["ops_parity_max_utilization_pct"] = _coerce_non_negative_float(
         defaults.get("ops_parity_max_utilization_pct"),
@@ -1612,7 +2814,15 @@ def _parse_replay_summary(raw_json):
 
 
 def _get_utilization_grade_thresholds():
-    return stack_calculator.get_utilization_grade_thresholds()
+    setting = _get_effective_planning_setting(UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY)
+    raw_text = (setting.get("value_text") or "").strip()
+    if not raw_text:
+        return dict(DEFAULT_UTILIZATION_GRADE_THRESHOLDS)
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return dict(DEFAULT_UTILIZATION_GRADE_THRESHOLDS)
+    return _coerce_utilization_grade_thresholds(parsed)
 
 
 def _build_utilization_grade_rows(thresholds):
@@ -1922,7 +3132,7 @@ def _auto_trailer_rule_annotation(
                 "Changed from 53' Step Deck to 53' Flatbed because the load does not fit on the 43' / 10' split.",
             )
 
-    if trailer_key == "HOTSHOT" and not exceeds_capacity and bool(rules.get("auto_assign_hotshot_enabled")):
+    if trailer_key == "HOTSHOT" and not exceeds_capacity and bool(rules.get("auto_assign_hotshot_enabled", True)):
         return (
             "Auto Trailer Rule",
             "Changed from 53' Step Deck to 40' Hotshot because the load fits on a hotshot trailer.",
@@ -1948,6 +3158,28 @@ def _auto_trailer_rule_annotation(
     categories.discard("")
     max_unit_length_ft = max(
         (_line_max_unit_length_for_trailer_rules(line, sku_specs) for line in (lines or [])),
+        default=0.0,
+    )
+    max_cargo_unit_length_ft = max(
+        (
+            _line_max_unit_length_for_trailer_rules(line, sku_specs)
+            for line in (lines or [])
+            if (
+                _line_category_for_trailer_rules(line, sku_specs) == "CARGO"
+                or _line_category_for_trailer_rules(line, sku_specs).startswith("CARGO-")
+            )
+        ),
+        default=0.0,
+    )
+    max_uta_unit_length_ft = max(
+        (
+            _line_max_unit_length_for_trailer_rules(line, sku_specs)
+            for line in (lines or [])
+            if (
+                _line_category_for_trailer_rules(line, sku_specs) == "UTA"
+                or _line_category_for_trailer_rules(line, sku_specs).startswith("UTA-")
+            )
+        ),
         default=0.0,
     )
     customer_names = {
@@ -1987,14 +3219,27 @@ def _auto_trailer_rule_annotation(
         )
 
     has_tractor_supply = any(customer_rules.is_tractor_supply_customer(name) for name in customer_names)
-    has_cargo_category = any(
-        category == "CARGO" or category.startswith("CARGO-")
-        for category in categories
+    tractor_supply_cargo_trigger = (
+        max_cargo_unit_length_ft >= DEFAULT_TRACTOR_SUPPLY_CARGO_WEDGE_MIN_ITEM_LENGTH_FT
     )
-    if has_tractor_supply and has_cargo_category and max_unit_length_ft >= 16.0:
+    tractor_supply_uta_trigger = (
+        max_uta_unit_length_ft >= DEFAULT_TRACTOR_SUPPLY_UTA_WEDGE_MIN_ITEM_LENGTH_FT
+    )
+    if has_tractor_supply and (tractor_supply_cargo_trigger or tractor_supply_uta_trigger):
+        applied_rules = []
+        if tractor_supply_cargo_trigger:
+            applied_rules.append(
+                f"CARGO {DEFAULT_TRACTOR_SUPPLY_CARGO_WEDGE_MIN_ITEM_LENGTH_FT:.0f}+ ft"
+            )
+        if tractor_supply_uta_trigger:
+            applied_rules.append(
+                f"UTA {DEFAULT_TRACTOR_SUPPLY_UTA_WEDGE_MIN_ITEM_LENGTH_FT:.0f}+ ft"
+            )
         return (
             "Auto Trailer Rule",
-            "Changed from 53' Step Deck to 51' Wedge for Tractor Supply cargo with 16+ ft units.",
+            "Changed from 53' Step Deck to 51' Wedge for Tractor Supply "
+            + " / ".join(applied_rules)
+            + " units.",
         )
 
     return "", ""
@@ -2559,6 +3804,9 @@ def _serialize_session_config(form_data, params):
             "ignore_past_due": params.get("ignore_past_due"),
             "algorithm_version": params.get("algorithm_version") or "v2",
             "compare_algorithms": bool(params.get("compare_algorithms")),
+            "optimize_mode": params.get("optimize_mode") or "auto",
+            "manual_order_input": form_data.get("manual_order_input") or "",
+            "selected_so_nums": params.get("selected_so_nums") or [],
         }
     )
 
@@ -2608,14 +3856,31 @@ def _period_range(period, today):
     key = (period or "").strip().lower()
     if key == "today":
         return today, today
-    if key == "this_month":
+    if key in {"this_month", "month_to_date"}:
         start = today.replace(day=1)
-        end = (start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-        return start, end
-    if key == "last_30_days":
+        return start, today
+    if key in {"last_30_days", "last30", "last_30"}:
         return today - timedelta(days=29), today
-    if key == "last_7_days":
+    if key in {"last_7_days", "last7"}:
         return today - timedelta(days=6), today
+    if key in {"ytd", "year_to_date"}:
+        return date(today.year, 1, 1), today
+    if key == "last_quarter":
+        quarter = ((today.month - 1) // 3) + 1
+        if quarter == 1:
+            target_year = today.year - 1
+            target_quarter = 4
+        else:
+            target_year = today.year
+            target_quarter = quarter - 1
+
+        start_month = ((target_quarter - 1) * 3) + 1
+        start = date(target_year, start_month, 1)
+        if start_month == 10:
+            end = date(target_year, 12, 31)
+        else:
+            end = date(target_year, start_month + 3, 1) - timedelta(days=1)
+        return start, end
     # default to this_week
     start, end, _, _ = _week_bounds(today)
     return start, end
@@ -2696,7 +3961,7 @@ def _normalize_hex_color(value, fallback):
 
 def _get_stop_color_palette():
     defaults = list(DEFAULT_STOP_COLOR_PALETTE)
-    setting = db.get_planning_setting(STOP_COLOR_PALETTE_SETTING_KEY) or {}
+    setting = _get_effective_planning_setting(STOP_COLOR_PALETTE_SETTING_KEY)
     raw_value = (setting.get("value_text") or "").strip()
     if not raw_value:
         return defaults
@@ -2774,7 +4039,7 @@ def _build_order_colors_for_lines(lines, stop_sequence_map=None, stop_palette=No
 def _requires_return_to_origin(lines):
     if not lines:
         return False
-    strategic_setting = db.get_planning_setting("strategic_customers") or {}
+    strategic_setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
     strategic_customers = _parse_strategic_customers(strategic_setting.get("value_text") or "")
     return any(
         bool(
@@ -3239,9 +4504,200 @@ def _normalize_edit_layout(layout, units_by_id, trailer_type):
     return {"positions": normalized_positions}
 
 
+def _two_across_unit_group_key(unit):
+    stop_sequence = _coerce_int_value((unit or {}).get("stop_sequence"), 0)
+    if stop_sequence > 0:
+        return f"stop:{stop_sequence}"
+    order_id = str((unit or {}).get("order_id") or "").strip()
+    if order_id:
+        return f"order:{order_id}"
+    sku = str((unit or {}).get("sku") or "").strip().upper()
+    if sku:
+        return f"sku:{sku}"
+    return "misc"
+
+
+def _upper_two_across_stack_sort_key(
+    unit,
+    unit_id="",
+    equal_length_deck_length_order_enabled=True,
+):
+    length_ft = _coerce_float_value((unit or {}).get("unit_length_ft"), 0.0)
+    deck_length_ft = stack_calculator.item_deck_length_ft(unit, fallback_length_ft=length_ft)
+    stop_sequence = _coerce_int_value((unit or {}).get("stop_sequence"), 0)
+    # Missing stop sequence is treated as latest/unknown so it remains lower in the stack.
+    stop_rank = stop_sequence if stop_sequence > 0 else 999999
+    order_id = str((unit or {}).get("order_id") or "").strip().upper()
+    sku = str((unit or {}).get("sku") or "").strip().upper()
+    return (
+        -length_ft,
+        (-deck_length_ft if equal_length_deck_length_order_enabled else 0.0),
+        -stop_rank,
+        order_id,
+        sku,
+        str(unit_id or ""),
+    )
+
+
+def _sort_upper_two_across_unit_ids(
+    unit_ids,
+    units_by_id,
+    equal_length_deck_length_order_enabled=True,
+):
+    groups = []
+    for raw_unit_id in unit_ids or []:
+        unit_id = str(raw_unit_id or "").strip()
+        if not unit_id or unit_id not in units_by_id:
+            continue
+        unit = units_by_id.get(unit_id) or {}
+        group_key = _two_across_unit_group_key(unit)
+        if groups and groups[-1]["group_key"] == group_key:
+            groups[-1]["unit_ids"].append(unit_id)
+            continue
+        groups.append(
+            {
+                "group_key": group_key,
+                "unit_ids": [unit_id],
+            }
+        )
+
+    if not groups:
+        return []
+
+    for group in groups:
+        group["unit_ids"].sort(
+            key=lambda current_unit_id: _upper_two_across_stack_sort_key(
+                units_by_id.get(current_unit_id) or {},
+                current_unit_id,
+                equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+            )
+        )
+        first_unit_id = (group.get("unit_ids") or [""])[0]
+        group["sort_key"] = _upper_two_across_stack_sort_key(
+            units_by_id.get(first_unit_id) or {},
+            first_unit_id,
+            equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+        )
+
+    groups.sort(key=lambda group: group.get("sort_key") or ())
+    ordered = []
+    for group in groups:
+        ordered.extend(group.get("unit_ids") or [])
+    return ordered
+
+
+def _auto_stack_upper_two_across_layout(layout, units_by_id, trailer_type, assumptions=None):
+    assumptions = assumptions or _get_stack_capacity_assumptions()
+    trailer_config = _trailer_config_for_type(trailer_type)
+    if not trailer_config["type"].startswith("STEP_DECK"):
+        return layout
+    if _coerce_float_value(trailer_config.get("upper"), 0.0) <= 0.0:
+        return layout
+
+    source_positions = list((layout or {}).get("positions") or [])
+    if not source_positions:
+        return layout
+
+    upper_two_across_max_length_ft = round(
+        _coerce_non_negative_float(
+            assumptions.get("upper_two_across_max_length_ft"),
+            DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT,
+        ),
+        2,
+    )
+    equal_length_deck_length_order_enabled = (
+        _coerce_bool_value(assumptions.get("equal_length_deck_length_order_enabled"))
+        if assumptions.get("equal_length_deck_length_order_enabled") is not None
+        else True
+    )
+
+    probe_positions = []
+    for idx, raw_pos in enumerate(source_positions, start=1):
+        deck = (raw_pos.get("deck") or "lower").strip().lower()
+        if deck != "upper":
+            continue
+        position_id = raw_pos.get("position_id") or f"p{idx}"
+        unit_ids = [
+            str(value or "").strip()
+            for value in (raw_pos.get("unit_ids") or [])
+            if str(value or "").strip() in units_by_id
+        ]
+        if not unit_ids:
+            continue
+        units = [units_by_id[unit_id] for unit_id in unit_ids]
+        length_ft = max(_coerce_float_value(unit.get("unit_length_ft"), 0.0) for unit in units)
+        effective_units = []
+        capacity_used = 0.0
+        for unit in units:
+            effective_max_stack = max(
+                _coerce_int_value(
+                    unit.get("upper_max_stack"),
+                    unit.get("max_stack") or 1,
+                ),
+                1,
+            )
+            capacity_used += 1.0 / effective_max_stack
+            adjusted = dict(unit)
+            adjusted["max_stack"] = effective_max_stack
+            effective_units.append(adjusted)
+
+        probe_positions.append(
+            {
+                "position_id": position_id,
+                "deck": "upper",
+                "length_ft": round(length_ft, 2),
+                "items": _aggregate_position_items(effective_units),
+                "capacity_used": round(capacity_used, 4),
+            }
+        )
+
+    if not probe_positions:
+        return layout
+
+    stack_calculator.apply_upper_usage_metadata(
+        probe_positions,
+        trailer_config,
+        upper_two_across_max_length_ft,
+    )
+    two_across_position_ids = {
+        str(position.get("position_id") or "").strip()
+        for position in probe_positions
+        if bool(position.get("two_across_applied"))
+    }
+    if not two_across_position_ids:
+        return layout
+
+    updated_positions = []
+    changed = False
+    for idx, raw_pos in enumerate(source_positions, start=1):
+        pos = dict(raw_pos or {})
+        position_id = str(pos.get("position_id") or f"p{idx}").strip()
+        if position_id in two_across_position_ids:
+            original_unit_ids = [
+                str(value or "").strip()
+                for value in (pos.get("unit_ids") or [])
+                if str(value or "").strip() in units_by_id
+            ]
+            sorted_unit_ids = _sort_upper_two_across_unit_ids(
+                original_unit_ids,
+                units_by_id,
+                equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+            )
+            if sorted_unit_ids and sorted_unit_ids != original_unit_ids:
+                pos["unit_ids"] = sorted_unit_ids
+                changed = True
+        updated_positions.append(pos)
+
+    if not changed:
+        return layout
+    return {"positions": updated_positions}
+
+
 def _aggregate_position_items(units):
     grouped = []
     for unit in units:
+        unit_length_ft = _coerce_float_value(unit.get("unit_length_ft"), 0.0)
+        deck_length_ft = stack_calculator.item_deck_length_ft(unit, fallback_length_ft=unit_length_ft)
         signature = (
             unit.get("item"),
             unit.get("sku"),
@@ -3249,7 +4705,8 @@ def _aggregate_position_items(units):
             unit.get("category"),
             max(_coerce_int_value(unit.get("max_stack"), 1), 1),
             max(_coerce_int_value(unit.get("upper_max_stack"), unit.get("max_stack") or 1), 1),
-            _coerce_float_value(unit.get("unit_length_ft"), 0.0),
+            unit_length_ft,
+            deck_length_ft,
             unit.get("order_id"),
             unit.get("stop_sequence"),
         )
@@ -3268,7 +4725,8 @@ def _aggregate_position_items(units):
                     _coerce_int_value(unit.get("upper_max_stack"), unit.get("max_stack") or 1),
                     1,
                 ),
-                "unit_length_ft": _coerce_float_value(unit.get("unit_length_ft"), 0.0),
+                "unit_length_ft": unit_length_ft,
+                "deck_length_ft": deck_length_ft,
                 "order_id": unit.get("order_id"),
                 "stop_sequence": unit.get("stop_sequence"),
                 "units": 1,
@@ -3356,6 +4814,11 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
     upper_deck_exception_categories = stack_calculator.normalize_upper_deck_exception_categories(
         assumptions.get("upper_deck_exception_categories"),
         default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+    )
+    equal_length_deck_length_order_enabled = (
+        _coerce_bool_value(assumptions.get("equal_length_deck_length_order_enabled"))
+        if assumptions.get("equal_length_deck_length_order_enabled") is not None
+        else True
     )
     max_stack_utilization_multiplier = (
         1.0 + (1.0 / stack_overflow_max_height)
@@ -3456,6 +4919,10 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
                 "units_count": len(units),
                 "top_stop_sequence": units[-1].get("stop_sequence"),
                 "top_length_ft": _coerce_float_value(units[-1].get("unit_length_ft"), length_ft),
+                "top_deck_length_ft": stack_calculator.item_deck_length_ft(
+                    units[-1],
+                    fallback_length_ft=_coerce_float_value(units[-1].get("unit_length_ft"), length_ft),
+                ),
             }
         )
 
@@ -3654,6 +5121,7 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
     compatibility_issues = stack_calculator.check_stacking_compatibility(
         positions,
         trailer_config=trailer_config,
+        equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
     )
     exceeds_capacity = stack_calculator.capacity_overflow_feet(
         {
@@ -3702,6 +5170,7 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
             "upper_deck_exception_max_length_ft": upper_deck_exception_max_length_ft,
             "upper_deck_exception_overhang_allowance_ft": upper_deck_exception_overhang_allowance_ft,
             "upper_deck_exception_categories": list(upper_deck_exception_categories),
+            "equal_length_deck_length_order_enabled": bool(equal_length_deck_length_order_enabled),
             "max_stack_utilization_multiplier": round(
                 max_stack_utilization_multiplier,
                 4,
@@ -3904,6 +5373,11 @@ def _require_session():
 
 def _require_admin():
     if _get_session_role() != ROLE_ADMIN:
+        abort(403)
+
+
+def _require_settings_editor():
+    if _get_session_role() not in {ROLE_ADMIN, ROLE_PLANNER}:
         abort(403)
 
 
@@ -4163,8 +5637,23 @@ def _coerce_filter_list(values):
 
 
 def _reoptimize_form_data(plant_code, session_id=None):
-    form_data = _default_optimize_form()
+    form_data = _default_optimize_form(plant_code=plant_code)
     form_data["origin_plant"] = plant_code
+
+    def _finalize(data):
+        trailer_key = stack_calculator.normalize_trailer_type(
+            data.get("trailer_type"),
+            default="STEP_DECK",
+        )
+        data["trailer_type"] = trailer_key
+        data["capacity_feet"] = str(
+            _capacity_for_trailer_setting(
+                trailer_key,
+                requested_capacity=data.get("capacity_feet"),
+                default_capacity=_get_optimizer_default_settings().get("capacity_feet", 53.0),
+            )
+        )
+        return data
 
     settings = db.get_optimizer_settings(plant_code) or {}
     if settings.get("capacity_feet") is not None:
@@ -4199,16 +5688,16 @@ def _reoptimize_form_data(plant_code, session_id=None):
         )
 
     if not session_id:
-        return form_data
+        return _finalize(form_data)
 
     planning_session = db.get_planning_session(session_id)
     if not planning_session or not planning_session.get("config_json"):
-        return form_data
+        return _finalize(form_data)
 
     try:
         session_config = json.loads(planning_session.get("config_json") or "{}")
     except json.JSONDecodeError:
-        return form_data
+        return _finalize(form_data)
 
     if session_config.get("capacity_feet") is not None:
         form_data["capacity_feet"] = str(session_config.get("capacity_feet"))
@@ -4259,18 +5748,35 @@ def _reoptimize_form_data(plant_code, session_id=None):
 
     form_data["opt_states"] = _coerce_filter_list(session_config.get("state_filters"))
     form_data["opt_customers"] = _coerce_filter_list(session_config.get("customer_filters"))
+    optimize_mode = (session_config.get("optimize_mode") or "auto").strip().lower()
+    if optimize_mode not in {"auto", "manual"}:
+        optimize_mode = "auto"
+    form_data["optimize_mode"] = optimize_mode
+    manual_order_input = (session_config.get("manual_order_input") or "").strip()
+    if not manual_order_input and optimize_mode == "manual":
+        selected_so_nums = session_config.get("selected_so_nums")
+        if isinstance(selected_so_nums, (list, tuple, set)):
+            manual_order_input = "\n".join(
+                [str(value).strip() for value in selected_so_nums if str(value or "").strip()]
+            )
+    form_data["manual_order_input"] = manual_order_input
     ignore_due_date = bool(session_config.get("ignore_due_date", False))
     form_data["ignore_due_date"] = ignore_due_date
     orders_start_date = (session_config.get("orders_start_date") or "").strip()
     if not orders_start_date and session_config.get("ignore_past_due", True):
         orders_start_date = date.today().strftime("%Y-%m-%d")
     form_data["orders_start_date"] = orders_start_date or date.today().strftime("%Y-%m-%d")
-    return form_data
+    return _finalize(form_data)
 
 
 def _reoptimize_for_plant(plant_code, session_id=None, created_by=None, speed_profile="standard"):
     if not plant_code:
         return {"errors": {"origin_plant": "Missing plant code."}}
+    if not created_by:
+        try:
+            created_by = _get_session_profile_name() or _get_session_role()
+        except RuntimeError:
+            created_by = None
     if session_id:
         db.clear_unapproved_loads(session_id=session_id)
     else:
@@ -4724,7 +6230,13 @@ def _build_command_center_dashboard_context():
                 SELECT 1
                 FROM order_lines ol
                 JOIN load_lines ll ON ll.order_line_id = ol.id
+                JOIN loads l ON l.id = ll.load_id
+                LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
                 WHERE ol.so_num = orders.so_num
+                  AND (
+                    COALESCE(UPPER(l.status), '') = 'APPROVED'
+                    OR COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+                  )
                 LIMIT 1
             )
         """
@@ -4745,11 +6257,13 @@ def _build_command_center_dashboard_context():
 
         for row in connection.execute(
             f"""
-            SELECT origin_plant, COUNT(*) AS planned_loads
-            FROM loads
-            WHERE UPPER(status) IN ('PROPOSED', 'DRAFT')
-              AND origin_plant IN ({allowed_placeholders})
-            GROUP BY origin_plant
+            SELECT l.origin_plant, COUNT(*) AS planned_loads
+            FROM loads l
+            LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
+            WHERE UPPER(l.status) IN ('PROPOSED', 'DRAFT')
+              AND l.origin_plant IN ({allowed_placeholders})
+              AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+            GROUP BY l.origin_plant
             """,
             list(allowed_plants),
         ).fetchall():
@@ -5046,6 +6560,726 @@ def _build_command_center_dashboard_context():
     }
 
 
+def _build_performance_dashboard_context():
+    allowed_plants = _get_allowed_plants()
+    plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
+    plant_scope = plant_filters or allowed_plants
+
+    period_options = [
+        ("this_month", "This Month"),
+        ("last_30_days", "Last 30 Days"),
+        ("last_quarter", "Last Quarter"),
+        ("ytd", "YTD"),
+    ]
+    period_label_map = dict(period_options)
+    period = (request.args.get("period") or "last_30_days").strip().lower()
+    if period not in period_label_map:
+        period = "last_30_days"
+
+    today = date.today()
+    start_date, end_date = _period_range(period, today)
+
+    def _shift_year(value, years=-1):
+        target_year = value.year + years
+        day = value.day
+        while day >= 1:
+            try:
+                return date(target_year, value.month, day)
+            except ValueError:
+                day -= 1
+        return date(target_year, value.month, 1)
+
+    prior_start = _shift_year(start_date, years=-1)
+    prior_end = _shift_year(end_date, years=-1)
+    prior_year = prior_start.year
+
+    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
+    plant_scope_label = (
+        ", ".join([PLANT_NAMES.get(code, code) for code in plant_filters])
+        if plant_filters
+        else "All Plants"
+    )
+    period_label = period_label_map.get(period, "Last 30 Days")
+    date_range_label = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
+    prior_date_range_label = f"{prior_start.strftime('%b %d, %Y')} - {prior_end.strftime('%b %d, %Y')}"
+
+    def _format_int(value):
+        try:
+            return f"{int(value or 0):,}"
+        except (TypeError, ValueError):
+            return "0"
+
+    def _format_number(value, decimals=1):
+        if value is None:
+            return "--"
+        try:
+            return f"{float(value):,.{decimals}f}"
+        except (TypeError, ValueError):
+            return "--"
+
+    def _format_percent(value, decimals=1):
+        if value is None:
+            return "--"
+        return f"{_format_number(value, decimals)}%"
+
+    def _format_compact_currency(amount):
+        if amount is None:
+            return "--"
+        amount = float(amount or 0.0)
+        abs_amount = abs(amount)
+        if abs_amount >= 1_000_000:
+            return f"${amount / 1_000_000:.2f}M"
+        if abs_amount >= 100_000:
+            return f"${amount / 1_000:.0f}K"
+        if abs_amount >= 10_000:
+            return f"${amount / 1_000:.1f}K"
+        return f"${amount:,.0f}"
+
+    def _format_currency(amount, decimals=2):
+        if amount is None:
+            return "--"
+        return f"${float(amount):,.{decimals}f}"
+
+    def _delta_percent(current, previous):
+        if current is None or previous is None:
+            return None
+        current = float(current or 0.0)
+        previous = float(previous or 0.0)
+        if abs(previous) <= 1e-9:
+            return None
+        return ((current - previous) / abs(previous)) * 100.0
+
+    def _build_delta_payload(current, previous, lower_is_better):
+        delta_pct = _delta_percent(current, previous)
+        if delta_pct is None:
+            return {"available": False, "display": "", "class": "neutral"}
+        improved = delta_pct < 0 if lower_is_better else delta_pct > 0
+        if abs(delta_pct) < 1e-6:
+            return {"available": True, "display": "0.0% YoY", "class": "neutral"}
+        return {
+            "available": True,
+            "display": f"{delta_pct:+.1f}% YoY",
+            "class": "positive" if improved else "negative",
+        }
+
+    def _month_start(value):
+        return date(value.year, value.month, 1)
+
+    def _add_months(month_start, offset):
+        index = (month_start.year * 12) + (month_start.month - 1) + offset
+        year = index // 12
+        month = (index % 12) + 1
+        return date(year, month, 1)
+
+    def _month_end(month_start):
+        return _add_months(month_start, 1) - timedelta(days=1)
+
+    def _build_svg_path(values, min_value, max_value, width, height):
+        if not values:
+            return ""
+        span = max_value - min_value
+        if span <= 1e-9:
+            span = 1.0
+        points = []
+        count = len(values)
+        for idx, raw in enumerate(values):
+            if raw is None:
+                points.append(None)
+                continue
+            x = (idx / max(count - 1, 1)) * float(width)
+            y = float(height) - ((float(raw) - min_value) / span) * float(height)
+            points.append((round(x, 2), round(y, 2)))
+        commands = []
+        drawing = False
+        for point in points:
+            if point is None:
+                drawing = False
+                continue
+            commands.append(("L" if drawing else "M") + f"{point[0]},{point[1]}")
+            drawing = True
+        return " ".join(commands)
+
+    approved_statuses = ("APPROVED", "SHIPPED")
+
+    with db.get_connection() as connection:
+        load_columns = {
+            (row["name"] or "").strip().lower()
+            for row in connection.execute("PRAGMA table_info(loads)").fetchall()
+        }
+        trailer_count_expr = (
+            "SUM(COALESCE(l.trailer_count, 1))" if "trailer_count" in load_columns else "COUNT(*)"
+        )
+        status_placeholders = ", ".join("?" for _ in approved_statuses)
+        metrics_cache = {}
+
+        def _aggregate_metrics(plants, start_value, end_value):
+            normalized_plants = [code for code in (plants or []) if code]
+            key = (
+                tuple(sorted(normalized_plants)),
+                start_value.isoformat(),
+                end_value.isoformat(),
+            )
+            if key in metrics_cache:
+                return metrics_cache[key]
+            if not normalized_plants:
+                empty = {
+                    "load_count": 0,
+                    "avg_utilization": None,
+                    "total_spend": 0.0,
+                    "total_units": 0.0,
+                    "total_miles": 0.0,
+                    "total_trailers": 0.0,
+                    "cost_per_unit": None,
+                    "rate_per_mile": None,
+                    "miles_per_load": None,
+                    "trailers_per_load": None,
+                }
+                metrics_cache[key] = empty
+                return empty
+
+            plant_placeholders = ", ".join("?" for _ in normalized_plants)
+            params = list(approved_statuses) + list(normalized_plants) + [
+                start_value.isoformat(),
+                end_value.isoformat(),
+            ]
+            load_row = connection.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS load_count,
+                    AVG(COALESCE(l.utilization_pct, 0)) AS avg_utilization,
+                    SUM(COALESCE(l.estimated_cost, 0)) AS total_spend,
+                    SUM(
+                        CASE
+                            WHEN COALESCE(l.route_total_miles, 0) > 0 THEN l.route_total_miles
+                            ELSE COALESCE(l.estimated_miles, 0)
+                        END
+                    ) AS total_miles,
+                    {trailer_count_expr} AS total_trailers
+                FROM loads l
+                WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+                  AND l.origin_plant IN ({plant_placeholders})
+                  AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+                """,
+                params,
+            ).fetchone()
+            units_row = connection.execute(
+                f"""
+                SELECT SUM(COALESCE(ol.qty, 0)) AS total_units
+                FROM loads l
+                JOIN load_lines ll ON ll.load_id = l.id
+                JOIN order_lines ol ON ol.id = ll.order_line_id
+                WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+                  AND l.origin_plant IN ({plant_placeholders})
+                  AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+                  AND COALESCE(ol.is_excluded, 0) = 0
+                """,
+                params,
+            ).fetchone()
+
+            load_count = int(load_row["load_count"] or 0) if load_row else 0
+            avg_utilization = (
+                float(load_row["avg_utilization"]) if load_row and load_row["avg_utilization"] is not None else None
+            )
+            total_spend = float(load_row["total_spend"] or 0.0) if load_row else 0.0
+            total_miles = float(load_row["total_miles"] or 0.0) if load_row else 0.0
+            total_trailers = float(load_row["total_trailers"] or 0.0) if load_row else 0.0
+            total_units = float(units_row["total_units"] or 0.0) if units_row else 0.0
+
+            metrics = {
+                "load_count": load_count,
+                "avg_utilization": avg_utilization,
+                "total_spend": total_spend,
+                "total_units": total_units,
+                "total_miles": total_miles,
+                "total_trailers": total_trailers,
+                "cost_per_unit": (total_spend / total_units) if total_units > 0 else None,
+                "rate_per_mile": (total_spend / total_miles) if total_miles > 0 else None,
+                "miles_per_load": (total_miles / load_count) if load_count > 0 else None,
+                "trailers_per_load": (total_trailers / load_count) if load_count > 0 else None,
+            }
+            metrics_cache[key] = metrics
+            return metrics
+
+        current_metrics = _aggregate_metrics(plant_scope, start_date, end_date)
+        prior_metrics = _aggregate_metrics(plant_scope, prior_start, prior_end)
+
+        cost_unit_delta = _build_delta_payload(
+            current_metrics["cost_per_unit"],
+            prior_metrics["cost_per_unit"],
+            lower_is_better=True,
+        )
+        rate_mile_delta = _build_delta_payload(
+            current_metrics["rate_per_mile"],
+            prior_metrics["rate_per_mile"],
+            lower_is_better=True,
+        )
+        miles_load_delta = _build_delta_payload(
+            current_metrics["miles_per_load"],
+            prior_metrics["miles_per_load"],
+            lower_is_better=True,
+        )
+        trailers_load_delta = _build_delta_payload(
+            current_metrics["trailers_per_load"],
+            prior_metrics["trailers_per_load"],
+            lower_is_better=False,
+        )
+
+        kpis = [
+            {
+                "label": "Loads Batched",
+                "value": _format_int(current_metrics["load_count"]),
+                "subtext": "Approved/shipped loads",
+                "delta": None,
+            },
+            {
+                "label": "Avg Utilization",
+                "value": _format_percent(current_metrics["avg_utilization"], decimals=1),
+                "subtext": "Mean space-based utilization",
+                "delta": None,
+            },
+            {
+                "label": "Total Freight Spend",
+                "value": _format_compact_currency(current_metrics["total_spend"]),
+                "subtext": "Estimated all-in freight cost",
+                "delta": None,
+            },
+            {
+                "label": "Cost / Unit",
+                "value": _format_currency(current_metrics["cost_per_unit"], decimals=2),
+                "subtext": f"vs same period {prior_year}",
+                "delta": cost_unit_delta,
+            },
+            {
+                "label": "Effective Rate / Mile",
+                "value": _format_currency(current_metrics["rate_per_mile"], decimals=2),
+                "subtext": "All-in cost per mile",
+                "delta": rate_mile_delta,
+            },
+            {
+                "label": "Miles / Load",
+                "value": _format_number(current_metrics["miles_per_load"], decimals=1),
+                "subtext": f"vs same period {prior_year}",
+                "delta": miles_load_delta,
+            },
+        ]
+
+        def _plant_color(code):
+            if not code:
+                return "var(--primary)"
+            if code in PLANT_CODES and DEFAULT_STOP_COLOR_PALETTE:
+                idx = PLANT_CODES.index(code) % len(DEFAULT_STOP_COLOR_PALETTE)
+                return DEFAULT_STOP_COLOR_PALETTE[idx]
+            return "var(--primary)"
+
+        plant_placeholders = ", ".join("?" for _ in allowed_plants) if allowed_plants else "''"
+        plant_params = list(approved_statuses) + list(allowed_plants) + [
+            start_date.isoformat(),
+            end_date.isoformat(),
+        ]
+        plant_rows = connection.execute(
+            f"""
+            SELECT
+                l.origin_plant,
+                COUNT(*) AS load_count,
+                AVG(COALESCE(l.utilization_pct, 0)) AS avg_utilization
+            FROM loads l
+            WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+              AND l.origin_plant IN ({plant_placeholders})
+              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY l.origin_plant
+            """,
+            plant_params,
+        ).fetchall() if allowed_plants else []
+        plant_stats = {}
+        for row in plant_rows:
+            plant_stats[row["origin_plant"]] = {
+                "load_count": int(row["load_count"] or 0),
+                "avg_utilization": (
+                    float(row["avg_utilization"]) if row["avg_utilization"] is not None else None
+                ),
+            }
+        selected_set = set(plant_filters or [])
+        plant_cards = [
+            {
+                "code": "ALL",
+                "name": "All Plants",
+                "load_count": current_metrics["load_count"],
+                "avg_utilization": current_metrics["avg_utilization"],
+                "avg_util_display": _format_percent(current_metrics["avg_utilization"], decimals=1),
+                "selected": not selected_set,
+                "inactive": False,
+                "interactive": True,
+                "is_all": True,
+                "color": "var(--primary)",
+            }
+        ]
+        for plant in allowed_plants:
+            stats = plant_stats.get(plant, {})
+            load_count = int(stats.get("load_count") or 0)
+            avg_util = stats.get("avg_utilization")
+            inactive = load_count <= 0
+            plant_cards.append(
+                {
+                    "code": plant,
+                    "name": PLANT_NAMES.get(plant, plant),
+                    "load_count": load_count,
+                    "avg_utilization": avg_util,
+                    "avg_util_display": _format_percent(avg_util, decimals=1),
+                    "selected": plant in selected_set,
+                    "inactive": inactive,
+                    "interactive": not inactive,
+                    "is_all": False,
+                    "color": _plant_color(plant),
+                }
+            )
+
+        scope_placeholders = ", ".join("?" for _ in plant_scope) if plant_scope else "''"
+        scope_params = list(approved_statuses) + list(plant_scope) + [
+            start_date.isoformat(),
+            end_date.isoformat(),
+        ]
+
+        band_row = connection.execute(
+            f"""
+            SELECT
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) < 70 THEN 1 ELSE 0 END) AS under_70,
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 70 AND COALESCE(l.utilization_pct, 0) < 80 THEN 1 ELSE 0 END) AS band_70_79,
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 80 AND COALESCE(l.utilization_pct, 0) < 90 THEN 1 ELSE 0 END) AS band_80_89,
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 90 AND COALESCE(l.utilization_pct, 0) < 100 THEN 1 ELSE 0 END) AS band_90_99,
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 100 THEN 1 ELSE 0 END) AS over_100,
+                COUNT(*) AS total
+            FROM loads l
+            WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+              AND l.origin_plant IN ({scope_placeholders})
+              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+            """,
+            scope_params,
+        ).fetchone() if plant_scope else None
+        band_total = int(band_row["total"] or 0) if band_row else 0
+        utilization_bands = [
+            {
+                "label": "<70%",
+                "count": int(band_row["under_70"] or 0) if band_row else 0,
+                "width": round(((int(band_row["under_70"] or 0) if band_row else 0) / band_total) * 100, 1)
+                if band_total
+                else 0,
+                "class": "band-red",
+            },
+            {
+                "label": "70-79%",
+                "count": int(band_row["band_70_79"] or 0) if band_row else 0,
+                "width": round(((int(band_row["band_70_79"] or 0) if band_row else 0) / band_total) * 100, 1)
+                if band_total
+                else 0,
+                "class": "band-amber",
+            },
+            {
+                "label": "80-89%",
+                "count": int(band_row["band_80_89"] or 0) if band_row else 0,
+                "width": round(((int(band_row["band_80_89"] or 0) if band_row else 0) / band_total) * 100, 1)
+                if band_total
+                else 0,
+                "class": "band-blue",
+            },
+            {
+                "label": "90-99%",
+                "count": int(band_row["band_90_99"] or 0) if band_row else 0,
+                "width": round(((int(band_row["band_90_99"] or 0) if band_row else 0) / band_total) * 100, 1)
+                if band_total
+                else 0,
+                "class": "band-green",
+            },
+            {
+                "label": "100%+",
+                "count": int(band_row["over_100"] or 0) if band_row else 0,
+                "width": round(((int(band_row["over_100"] or 0) if band_row else 0) / band_total) * 100, 1)
+                if band_total
+                else 0,
+                "class": "band-purple",
+            },
+        ]
+
+        grade_row = connection.execute(
+            f"""
+            SELECT
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 95 THEN 1 ELSE 0 END) AS grade_a,
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 85 AND COALESCE(l.utilization_pct, 0) < 95 THEN 1 ELSE 0 END) AS grade_b,
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 70 AND COALESCE(l.utilization_pct, 0) < 85 THEN 1 ELSE 0 END) AS grade_c,
+                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) < 70 THEN 1 ELSE 0 END) AS grade_df,
+                COUNT(*) AS total
+            FROM loads l
+            WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+              AND l.origin_plant IN ({scope_placeholders})
+              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+            """,
+            scope_params,
+        ).fetchone() if plant_scope else None
+        grade_total = int(grade_row["total"] or 0) if grade_row else 0
+        efficiency_grades = [
+            {
+                "label": "A (95%+)",
+                "count": int(grade_row["grade_a"] or 0) if grade_row else 0,
+                "width": round(((int(grade_row["grade_a"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                if grade_total
+                else 0,
+                "class": "grade-a",
+            },
+            {
+                "label": "B (85-94%)",
+                "count": int(grade_row["grade_b"] or 0) if grade_row else 0,
+                "width": round(((int(grade_row["grade_b"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                if grade_total
+                else 0,
+                "class": "grade-b",
+            },
+            {
+                "label": "C (70-84%)",
+                "count": int(grade_row["grade_c"] or 0) if grade_row else 0,
+                "width": round(((int(grade_row["grade_c"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                if grade_total
+                else 0,
+                "class": "grade-c",
+            },
+            {
+                "label": "D/F (<70%)",
+                "count": int(grade_row["grade_df"] or 0) if grade_row else 0,
+                "width": round(((int(grade_row["grade_df"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                if grade_total
+                else 0,
+                "class": "grade-df",
+            },
+        ]
+
+        trend_month_anchor = _month_start(end_date)
+        trend_months = [_add_months(trend_month_anchor, offset) for offset in range(-11, 1)]
+        current_series = []
+        prior_series = []
+        for month_start in trend_months:
+            month_end = _month_end(month_start)
+            prior_month_start = _shift_year(month_start, years=-1)
+            prior_month_end = _shift_year(month_end, years=-1)
+            month_current = _aggregate_metrics(plant_scope, month_start, month_end)
+            month_prior = _aggregate_metrics(plant_scope, prior_month_start, prior_month_end)
+            current_series.append(month_current["cost_per_unit"])
+            prior_series.append(month_prior["cost_per_unit"])
+
+        complete_month_anchor = _month_start(end_date)
+        if end_date < _month_end(complete_month_anchor):
+            complete_month_anchor = _add_months(complete_month_anchor, -1)
+        complete_month_end = _month_end(complete_month_anchor)
+        complete_prior_start = _shift_year(complete_month_anchor, years=-1)
+        complete_prior_end = _shift_year(complete_month_end, years=-1)
+        complete_current_metrics = _aggregate_metrics(
+            plant_scope,
+            complete_month_anchor,
+            complete_month_end,
+        )
+        complete_prior_metrics = _aggregate_metrics(
+            plant_scope,
+            complete_prior_start,
+            complete_prior_end,
+        )
+        trend_delta_chips = [
+            {
+                "label": "Cost/Unit",
+                "value": _format_currency(complete_current_metrics["cost_per_unit"], decimals=2),
+                "delta": _build_delta_payload(
+                    complete_current_metrics["cost_per_unit"],
+                    complete_prior_metrics["cost_per_unit"],
+                    lower_is_better=True,
+                ),
+            },
+            {
+                "label": "Rate/Mi",
+                "value": _format_currency(complete_current_metrics["rate_per_mile"], decimals=2),
+                "delta": _build_delta_payload(
+                    complete_current_metrics["rate_per_mile"],
+                    complete_prior_metrics["rate_per_mile"],
+                    lower_is_better=True,
+                ),
+            },
+            {
+                "label": "Miles/Load",
+                "value": _format_number(complete_current_metrics["miles_per_load"], decimals=1),
+                "delta": _build_delta_payload(
+                    complete_current_metrics["miles_per_load"],
+                    complete_prior_metrics["miles_per_load"],
+                    lower_is_better=True,
+                ),
+            },
+            {
+                "label": "Trailers/Load",
+                "value": _format_number(complete_current_metrics["trailers_per_load"], decimals=2),
+                "delta": _build_delta_payload(
+                    complete_current_metrics["trailers_per_load"],
+                    complete_prior_metrics["trailers_per_load"],
+                    lower_is_better=False,
+                ),
+            },
+        ]
+        line_values = [float(value) for value in (current_series + prior_series) if value is not None]
+        line_min = min(line_values) if line_values else 0.0
+        line_max = max(line_values) if line_values else 1.0
+        if abs(line_max - line_min) <= 1e-9:
+            line_max = line_min + 1.0
+        chart_width = 860
+        chart_height = 260
+        trend_chart = {
+            "metric_label": "Cost / Unit",
+            "current_path": _build_svg_path(current_series, line_min, line_max, chart_width, chart_height),
+            "prior_path": _build_svg_path(prior_series, line_min, line_max, chart_width, chart_height),
+            "labels": [entry.strftime("%b") for entry in trend_months],
+            "y_max_label": _format_currency(line_max, decimals=2),
+            "y_mid_label": _format_currency((line_max + line_min) / 2, decimals=2),
+            "y_min_label": _format_currency(line_min, decimals=2),
+            "delta_chips": trend_delta_chips,
+            "color": _plant_color(plant_filters[0]) if len(plant_filters) == 1 else "var(--primary)",
+            "compare_label": f"vs same month {complete_prior_start.year}",
+            "current_month_label": complete_month_anchor.strftime("%b %Y"),
+            "prior_month_label": complete_prior_start.strftime("%b %Y"),
+            "width": chart_width,
+            "height": chart_height,
+        }
+
+        sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
+        stop_color_palette = _get_stop_color_palette()
+
+        def _fetch_review_loads(limit, ascending=False, max_utilization=None):
+            if not plant_scope:
+                return []
+            util_clause = " AND COALESCE(l.utilization_pct, 0) < ?" if max_utilization is not None else ""
+            rows = connection.execute(
+                f"""
+                SELECT l.id, l.load_number, l.origin_plant, l.utilization_pct, l.created_at, l.trailer_type
+                FROM loads l
+                WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+                  AND l.origin_plant IN ({scope_placeholders})
+                  AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+                  {util_clause}
+                ORDER BY COALESCE(l.utilization_pct, 0) {"ASC" if ascending else "DESC"}, DATE(l.created_at) DESC
+                LIMIT ?
+                """,
+                list(approved_statuses)
+                + list(plant_scope)
+                + [start_date.isoformat(), end_date.isoformat()]
+                + ([float(max_utilization)] if max_utilization is not None else [])
+                + [int(limit)],
+            ).fetchall()
+            formatted = []
+            for row in rows:
+                load = dict(row)
+                utilization_pct = round(float(load.get("utilization_pct") or 0.0), 1)
+                parsed_date = _parse_date(load.get("created_at"))
+                ship_date = parsed_date.strftime("%m/%d/%Y") if parsed_date else "--"
+                thumbnail = _build_load_thumbnail(load, sku_specs, stop_color_palette=stop_color_palette)
+                schematic_segments = []
+                total_width = 0.0
+                for position in thumbnail:
+                    width = float(position.get("width_pct") or 0.0)
+                    if width <= 0:
+                        continue
+                    colors = position.get("colors") or []
+                    schematic_segments.append(
+                        {
+                            "width_pct": width,
+                            "color": colors[0] if colors else "rgba(148, 163, 184, 0.55)",
+                        }
+                    )
+                    total_width += width
+                if total_width > 0:
+                    for segment in schematic_segments:
+                        segment["width_pct"] = round((segment["width_pct"] / total_width) * 100.0, 2)
+                util_class = "positive"
+                if utilization_pct < 70:
+                    util_class = "negative"
+                elif utilization_pct < 85:
+                    util_class = "neutral"
+                formatted.append(
+                    {
+                        "id": load["id"],
+                        "load_number": load.get("load_number") or f"Load {load['id']}",
+                        "origin_plant": load.get("origin_plant") or "--",
+                        "utilization_pct": utilization_pct,
+                        "utilization_class": util_class,
+                        "ship_date": ship_date,
+                        "schematic_segments": schematic_segments,
+                        "has_schematic": bool(schematic_segments),
+                        "fallback_width": max(0.0, min(100.0, utilization_pct)),
+                    }
+                )
+            return formatted
+
+        top_loads = _fetch_review_loads(limit=5, ascending=False)
+        problem_loads = _fetch_review_loads(limit=5, ascending=True, max_utilization=70.0)
+
+        latest_row = connection.execute(
+            f"""
+            SELECT MAX(l.created_at) AS latest_created_at
+            FROM loads l
+            WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+              AND l.origin_plant IN ({scope_placeholders})
+            """,
+            list(approved_statuses) + list(plant_scope),
+        ).fetchone() if plant_scope else None
+        latest_value = latest_row["latest_created_at"] if latest_row else None
+        latest_label = _format_est_datetime_label(latest_value) if latest_value else "No approved load activity"
+
+        has_prior_data = (
+            prior_metrics["load_count"] > 0
+            and prior_metrics["cost_per_unit"] is not None
+            and prior_metrics["rate_per_mile"] is not None
+        )
+        savings = None
+        if (
+            has_prior_data
+            and current_metrics["load_count"] > 0
+            and current_metrics["cost_per_unit"] is not None
+            and current_metrics["rate_per_mile"] is not None
+            and current_metrics["miles_per_load"] is not None
+            and current_metrics["total_units"] > 0
+        ):
+            utilization_gains = (
+                (prior_metrics["cost_per_unit"] - current_metrics["cost_per_unit"])
+                * current_metrics["total_units"]
+            )
+            rate_routing_efficiency = (
+                (prior_metrics["rate_per_mile"] - current_metrics["rate_per_mile"])
+                * current_metrics["miles_per_load"]
+                * current_metrics["load_count"]
+            )
+            savings = {
+                "utilization_gains": utilization_gains,
+                "rate_routing_efficiency": rate_routing_efficiency,
+                "total": utilization_gains + rate_routing_efficiency,
+                "utilization_gains_display": _format_currency(utilization_gains, decimals=0),
+                "rate_routing_efficiency_display": _format_currency(rate_routing_efficiency, decimals=0),
+                "total_display": _format_currency(utilization_gains + rate_routing_efficiency, decimals=0),
+                "utilization_formula": "(prior period cost/unit - current cost/unit) x units shipped",
+                "rate_formula": "(prior period rate/mile - current rate/mile) x avg miles/load x load count",
+                "tone": "positive" if (utilization_gains + rate_routing_efficiency) >= 0 else "negative",
+            }
+
+    return {
+        "period": period,
+        "period_options": period_options,
+        "period_label": period_label,
+        "date_range_label": date_range_label,
+        "prior_date_range_label": prior_date_range_label,
+        "plant_filter_param": plant_filter_param,
+        "plant_scope_label": plant_scope_label,
+        "prior_year": prior_year,
+        "topbar_status": {"label": "Live", "detail": latest_label},
+        "kpis": kpis,
+        "plant_cards": plant_cards,
+        "trend_chart": trend_chart,
+        "utilization_bands": utilization_bands,
+        "efficiency_grades": efficiency_grades,
+        "top_loads": top_loads,
+        "problem_loads": problem_loads,
+        "savings": savings,
+    }
+
+
 @app.route("/")
 def home():
     session_redirect = _require_session()
@@ -5059,9 +7293,63 @@ def dashboard():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    context = _build_command_center_dashboard_context()
+    context = _build_performance_dashboard_context()
     if isinstance(context, Response):
         return context
+    if not isinstance(context, dict):
+        context = {}
+
+    context.setdefault("period", "last_30_days")
+    context.setdefault(
+        "period_options",
+        [
+            ("this_month", "This Month"),
+            ("last_30_days", "Last 30 Days"),
+            ("last_quarter", "Last Quarter"),
+            ("ytd", "YTD"),
+        ],
+    )
+    context.setdefault("period_label", "Last 30 Days")
+    context.setdefault("date_range_label", "--")
+    context.setdefault("plant_filter_param", "")
+    context.setdefault("plant_scope_label", "All Plants")
+
+    for list_key in (
+        "plant_cards",
+        "kpis",
+        "utilization_bands",
+        "efficiency_grades",
+        "top_loads",
+        "problem_loads",
+    ):
+        if not isinstance(context.get(list_key), list):
+            context[list_key] = []
+
+    topbar_status = context.get("topbar_status")
+    if not isinstance(topbar_status, dict):
+        topbar_status = {}
+    context["topbar_status"] = {
+        "label": topbar_status.get("label") or "Live",
+        "detail": topbar_status.get("detail") or "Awaiting refresh",
+    }
+
+    trend_defaults = {
+        "metric_label": "Cost / Unit",
+        "deltas": [],
+        "months": [],
+        "current_points": [],
+        "prior_points": [],
+        "current_path": "",
+        "prior_path": "",
+        "y_min": 0.0,
+        "y_max": 1.0,
+    }
+    trend_chart = context.get("trend_chart")
+    if not isinstance(trend_chart, dict):
+        trend_chart = {}
+    context["trend_chart"] = {**trend_defaults, **trend_chart}
+
+    context.setdefault("savings", None)
     return render_template("dashboard.html", **context)
 
 
@@ -5347,11 +7635,14 @@ def orders():
             }
         )
 
-    optimize_defaults = _default_optimize_form()
+    optimize_origin = ""
     if plant_filters:
-        optimize_defaults["origin_plant"] = plant_filters[0]
-    elif not optimize_defaults["origin_plant"] and plants:
-        optimize_defaults["origin_plant"] = plants[0]
+        optimize_origin = plant_filters[0]
+    elif plants:
+        optimize_origin = plants[0]
+    optimize_defaults = _default_optimize_form(plant_code=optimize_origin or None)
+    if optimize_origin:
+        optimize_defaults["origin_plant"] = optimize_origin
     optimize_defaults["state_filters"] = []
     optimize_defaults["customer_filters"] = []
     optimize_defaults["enforce_time_window"] = True
@@ -5426,6 +7717,18 @@ def orders():
             optimize_defaults["algorithm_version"] = "v2"
             optimize_defaults["compare_algorithms"] = False
 
+    optimize_defaults["trailer_type"] = stack_calculator.normalize_trailer_type(
+        optimize_defaults.get("trailer_type"),
+        default="STEP_DECK",
+    )
+    optimize_defaults["capacity_feet"] = str(
+        _capacity_for_trailer_setting(
+            optimize_defaults.get("trailer_type"),
+            requested_capacity=optimize_defaults.get("capacity_feet"),
+            default_capacity=_get_optimizer_default_settings().get("capacity_feet", 53.0),
+        )
+    )
+
     last_upload = db.get_last_upload()
     upload_history = db.list_upload_history(limit=12)
     rejected_orders = sum(1 for order in orders_list if order.get("is_excluded"))
@@ -5442,7 +7745,7 @@ def orders():
             "end": max(due_dates).strftime("%Y-%m-%d"),
         }
 
-    strategic_setting = db.get_planning_setting("strategic_customers") or {}
+    strategic_setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
     strategic_customers_raw = strategic_setting.get("value_text") or ""
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
     strategic_customer_groups = []
@@ -5483,7 +7786,9 @@ def orders():
         total_count = len(section_orders)
         render_all = show_section == key
         limit = None if render_all else default_limit
-        render_orders = section_orders if render_all else section_orders[:default_limit]
+        # Keep all rows in the DOM so client-side search can match any order ID;
+        # overflow rows stay collapsed via `section.limit` + `group-hidden`.
+        render_orders = section_orders
         hidden_count = 0 if (render_all or limit is None) else max(total_count - limit, 0)
 
         show_url = None
@@ -5664,7 +7969,7 @@ def orders_optimize():
         active_session = None
         active_session_id = None
     active_session_status = _normalize_session_status(active_session.get("status")) if active_session else ""
-    optimize_form = request.form
+    optimize_form = request.form.copy()
     origin_plant = _normalize_plant_code(optimize_form.get("origin_plant"))
     optimize_mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
     if optimize_mode not in {"auto", "manual"}:
@@ -5674,7 +7979,6 @@ def orders_optimize():
     if optimize_mode == "manual":
         # Paste mode intentionally ignores explicit plant/scope selections.
         origin_plant = ""
-        optimize_form = request.form.copy()
         if hasattr(optimize_form, "setlist"):
             optimize_form.setlist("opt_states", [])
             optimize_form.setlist("opt_customers", [])
@@ -5707,6 +8011,11 @@ def orders_optimize():
                 else:
                     origin_plant = inferred_plant
         optimize_form["origin_plant"] = origin_plant or ""
+
+    if origin_plant:
+        plant_defaults = _get_optimizer_settings_for_plant(origin_plant)
+        optimize_form["trailer_type"] = plant_defaults["trailer_type"]
+        optimize_form["capacity_feet"] = str(plant_defaults["capacity_feet"])
 
     replace_session = optimize_form.get("replace_session") == "1"
 
@@ -5949,7 +8258,7 @@ def orders_optimize():
             "end": max(due_dates).strftime("%Y-%m-%d"),
         }
 
-    strategic_setting = db.get_planning_setting("strategic_customers") or {}
+    strategic_setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
     strategic_customers_raw = strategic_setting.get("value_text") or ""
     strategic_customers = _parse_strategic_customers(strategic_customers_raw)
     strategic_customer_groups = []
@@ -5990,7 +8299,9 @@ def orders_optimize():
         total_count = len(section_orders)
         render_all = show_section == key
         limit = None if render_all else default_limit
-        render_orders = section_orders if render_all else section_orders[:default_limit]
+        # Keep all rows in the DOM so client-side search can match any order ID;
+        # overflow rows stay collapsed via `section.limit` + `group-hidden`.
+        render_orders = section_orders
         hidden_count = 0 if (render_all or limit is None) else max(total_count - limit, 0)
 
         show_url = None
@@ -6411,9 +8722,11 @@ def loads():
     stop_fee_amount = _get_stop_fee_amount()
     fuel_surcharge_per_mile = _get_fuel_surcharge_per_mile()
     load_minimum_amount = _get_load_minimum_amount()
-    trailer_assignment_rules = _get_trailer_assignment_rules()
-    strategic_setting = db.get_planning_setting("strategic_customers") or {}
+    trailer_assignment_rules = _get_effective_trailer_assignment_rules()
+    hotshot_enabled_by_plant = {}
+    strategic_setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
     strategic_customers = _parse_strategic_customers(strategic_setting.get("value_text") or "")
+    carrier_pricing_context = _build_load_carrier_pricing_context()
 
     for load in loads_data:
         lines = load.get("lines", [])
@@ -6533,6 +8846,15 @@ def loads():
         origin_code = load.get("origin_plant")
         origin_coords = geo_utils.plant_coords_for_code(origin_code)
         requires_return_to_origin = _requires_return_to_origin(lines)
+        if _alternate_requires_return_hint(
+            lines,
+            trailer_type,
+            origin_code,
+            carrier_pricing_context,
+        ):
+            requires_return_to_origin = True
+        if _load_has_lowes_order(lines):
+            requires_return_to_origin = True
         reverse_route = _is_load_route_reversed(load)
         ordered_stops = (
             tsp_solver.solve_route(
@@ -6592,8 +8914,6 @@ def loads():
                     "terminal_label": "Return to Plant",
                 }
             )
-        load["manifest_groups"] = manifest_groups
-
         route_nodes = [
             {
                 "type": "origin",
@@ -6659,12 +8979,52 @@ def loads():
         route_legs = route_metrics["route_legs"]
         total_route_distance = route_metrics["route_distance"]
         route_geometry = route_metrics["route_geometry"]
+        load["estimated_miles"] = total_route_distance
+
+        # Surface per-stop connector mileage for the manifest timeline.
+        # route_legs index 0 is origin->stop1, index 1 is stop1->stop2, etc.
+        group_count = len(manifest_groups)
+        for index, group in enumerate(manifest_groups):
+            group["leg_to_next_miles"] = None
+            current_seq = _coerce_int_value(group.get("stop_sequence"), None)
+            if current_seq is None:
+                continue
+            if index + 1 < group_count:
+                next_same_seq = _coerce_int_value(
+                    manifest_groups[index + 1].get("stop_sequence"),
+                    None,
+                )
+                if next_same_seq == current_seq:
+                    continue
+            has_next = index + 1 < group_count
+            if not has_next:
+                continue
+            leg_index = int(current_seq)
+            if leg_index < 0 or leg_index >= len(route_legs):
+                continue
+            try:
+                leg_miles = int(round(float(route_legs[leg_index] or 0)))
+            except (TypeError, ValueError):
+                leg_miles = 0
+            if leg_miles > 0:
+                group["leg_to_next_miles"] = leg_miles
+
+        load["manifest_groups"] = manifest_groups
 
         schematic, line_items, order_numbers = _calculate_load_schematic(
             lines,
             sku_specs,
             trailer_type,
             stop_sequence_map=stop_sequence_map,
+        )
+        if origin_code not in hotshot_enabled_by_plant:
+            hotshot_enabled_by_plant[origin_code] = _resolve_auto_hotshot_enabled_for_plant(
+                origin_code,
+                trailer_rules=trailer_assignment_rules,
+            )
+        load_trailer_rules = dict(trailer_assignment_rules or {})
+        load_trailer_rules["auto_assign_hotshot_enabled"] = bool(
+            hotshot_enabled_by_plant.get(origin_code, True)
         )
         auto_label, auto_reason = _auto_trailer_rule_annotation(
             load=load,
@@ -6673,7 +9033,7 @@ def loads():
             schematic=schematic,
             sku_specs=sku_specs,
             stop_sequence_map=stop_sequence_map,
-            trailer_assignment_rules=trailer_assignment_rules,
+            trailer_assignment_rules=load_trailer_rules,
             strategic_customers=strategic_customers,
         )
         load["auto_trailer_label"] = auto_label
@@ -6708,6 +9068,25 @@ def loads():
         load["route_distance"] = total_route_distance
         load["route_geometry"] = route_geometry
         load["route_reversed"] = bool(reverse_route)
+        load["return_to_origin"] = bool(requires_return_to_origin)
+        carrier_pricing = _resolve_load_carrier_pricing(
+            lines=lines,
+            trailer_type=trailer_type,
+            origin_plant=origin_code,
+            ordered_stops=ordered_stops,
+            route_legs=route_legs,
+            total_miles=total_route_distance,
+            stop_count=load.get("stop_count"),
+            requires_return_to_origin=requires_return_to_origin,
+            carrier_context=carrier_pricing_context,
+        )
+        load["carrier_pricing"] = carrier_pricing
+        load["carrier_key"] = carrier_pricing.get("carrier_key")
+        load["carrier_label"] = carrier_pricing.get("carrier_label")
+        load["carrier_source_label"] = carrier_pricing.get("rate_source_label")
+        load["carrier_selection_reason"] = carrier_pricing.get("selection_reason")
+        load["rate_per_mile"] = carrier_pricing.get("rate_per_mile", load.get("rate_per_mile"))
+        load["estimated_cost"] = carrier_pricing.get("total_cost", load.get("estimated_cost"))
         load["freight_breakdown"] = _build_freight_breakdown(
             load,
             stop_fee_amount=stop_fee_amount,
@@ -6921,6 +9300,7 @@ def loads():
         load["display_sequence"] = idx
 
     full_truckloads = []
+    past_due_loads = []
     manual_loads = []
     other_loads = list(loads_data)
     if tab == "draft":
@@ -6941,6 +9321,13 @@ def loads():
                 if load.get("id") is not None:
                     full_ids.add(load.get("id"))
         other_loads = [load for load in other_loads if load.get("id") not in full_ids]
+        past_due_ids = set()
+        for load in other_loads:
+            if (load.get("ship_date_status") or "").upper() == "PAST_DUE":
+                past_due_loads.append(load)
+                if load.get("id") is not None:
+                    past_due_ids.add(load.get("id"))
+        other_loads = [load for load in other_loads if load.get("id") not in past_due_ids]
 
     load_sections = []
     if tab == "draft":
@@ -6952,7 +9339,13 @@ def loads():
             load_sections.append(
                 {"title": "Full Truckload", "loads": full_truckloads, "kind": "full"}
             )
-        load_sections.append({"title": "Draft Loads", "loads": other_loads, "kind": "draft"})
+        if past_due_loads:
+            load_sections.append(
+                {"title": "Past Due Orders", "loads": past_due_loads, "kind": "past_due"}
+            )
+        load_sections.append(
+            {"title": "Remaining Draft Loads", "loads": other_loads, "kind": "draft"}
+        )
     else:
         load_sections.append({"title": "Loads", "loads": loads_data, "kind": "all"})
 
@@ -7854,7 +10247,6 @@ def _archive_session_and_release_loads(session_id):
     if not planning_session:
         return False
     _reintroduce_orders_to_pool(_session_plant_scope(session_id))
-    db.clear_loads_for_session(session_id)
     db.archive_planning_session(session_id)
     if _get_active_planning_session_id() == session_id:
         _set_active_planning_session_id(None)
@@ -9563,7 +11955,6 @@ def manual_add_suggestions(load_id):
 
     plant_code = load.get("origin_plant")
     trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
-    capacity_ft = _capacity_for_trailer(trailer_type)
 
     lines = db.list_load_lines(load_id)
     existing_so_nums = {line.get("so_num") for line in lines if line.get("so_num")}
@@ -9585,9 +11976,6 @@ def manual_add_suggestions(load_id):
         else:
             used_ft += float(line_totals.get(so_num) or 0)
 
-    remaining_ft = max(capacity_ft - used_ft, 0)
-    util_pct = round((used_ft / capacity_ft) * 100, 1) if capacity_ft else 0.0
-
     zip_coords = geo_utils.load_zip_coordinates()
     stop_coords = []
     for line in lines:
@@ -9596,7 +11984,31 @@ def manual_add_suggestions(load_id):
         if coords and coords not in stop_coords:
             stop_coords.append(coords)
 
-    sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
+    load_payload = _build_load_schematic_payload(load_id) or {}
+    payload_schematic = load_payload.get("schematic") or {}
+    if load_payload.get("trailer_type"):
+        trailer_type = stack_calculator.normalize_trailer_type(
+            load_payload.get("trailer_type"),
+            default=trailer_type,
+        )
+
+    lower_deck_length = float(payload_schematic.get("lower_deck_length") or 0.0)
+    upper_deck_length = float(payload_schematic.get("upper_deck_length") or 0.0)
+    if lower_deck_length > 0 or upper_deck_length > 0:
+        capacity_ft = lower_deck_length + upper_deck_length
+    else:
+        capacity_ft = float(payload_schematic.get("capacity_feet") or _capacity_for_trailer(trailer_type))
+    lower_used_ft = float(payload_schematic.get("lower_deck_used_length_ft") or 0.0)
+    upper_used_ft = float(payload_schematic.get("upper_deck_effective_length_ft") or 0.0)
+    schematic_used_ft = lower_used_ft + upper_used_ft
+    if schematic_used_ft <= 0.0:
+        schematic_used_ft = float(payload_schematic.get("total_linear_feet") or 0.0)
+    if schematic_used_ft > 0.0:
+        used_ft = schematic_used_ft
+
+    remaining_ft = max(capacity_ft - used_ft, 0)
+    util_pct = round((used_ft / capacity_ft) * 100, 1) if capacity_ft else 0.0
+
     existing_schematic = {
         "trailer_type": trailer_type,
         "lower_deck_length": 0.0,
@@ -9605,19 +12017,9 @@ def manual_add_suggestions(load_id):
         "upper_remaining_ft": 0.0,
         "decks": {"lower": [], "upper": []},
     }
-    if lines:
-        schematic, _, _ = _calculate_load_schematic(
-            lines,
-            sku_specs,
-            trailer_type,
-            stop_sequence_map=None,
-        )
-        lower_deck_length = float(schematic.get("lower_deck_length") or 0.0)
-        upper_deck_length = float(schematic.get("upper_deck_length") or 0.0)
-        lower_used_ft = float(schematic.get("lower_deck_used_length_ft") or 0.0)
-        upper_used_ft = float(schematic.get("upper_deck_effective_length_ft") or 0.0)
+    if payload_schematic:
         deck_rows = {"lower": [], "upper": []}
-        for pos in schematic.get("positions") or []:
+        for pos in payload_schematic.get("positions") or []:
             deck = (pos.get("deck") or "lower").strip().lower()
             if deck not in {"lower", "upper"}:
                 deck = "lower"
@@ -9837,7 +12239,12 @@ def manual_add_orders(load_id):
     db.delete_load_schematic_override(load_id)
 
     session_id = load.get("planning_session_id")
-    reopt_job_id = _start_reopt_job(plant_code, session_id=session_id, speed_profile="fast")
+    reopt_job_id = _start_reopt_job(
+        plant_code,
+        session_id=session_id,
+        created_by=_get_session_profile_name() or _get_session_role(),
+        speed_profile="fast",
+    )
     return jsonify(
         {
             "redirect_url": url_for(
@@ -10600,10 +13007,38 @@ def _build_load_schematic_payload(load_id):
     load["trailer_type"] = trailer_type
     lines = db.list_load_lines(load_id)
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
+    carrier_pricing_context = _build_load_carrier_pricing_context()
 
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
     ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
+    requires_return_to_origin = _requires_return_to_origin(lines)
+    if _alternate_requires_return_hint(
+        lines,
+        trailer_type,
+        load.get("origin_plant"),
+        carrier_pricing_context,
+    ):
+        requires_return_to_origin = True
+    if _load_has_lowes_order(lines):
+        requires_return_to_origin = True
+
+    carrier_pricing = _resolve_load_carrier_pricing(
+        lines=lines,
+        trailer_type=trailer_type,
+        origin_plant=load.get("origin_plant"),
+        ordered_stops=ordered_stops,
+        route_legs=load.get("route_legs") or [],
+        total_miles=load.get("route_total_miles") or load.get("estimated_miles") or 0.0,
+        stop_count=len(ordered_stops),
+        requires_return_to_origin=requires_return_to_origin,
+        carrier_context=carrier_pricing_context,
+    )
+    load["carrier_pricing"] = carrier_pricing
+    load["carrier_key"] = carrier_pricing.get("carrier_key")
+    load["carrier_label"] = carrier_pricing.get("carrier_label")
+    load["carrier_source_label"] = carrier_pricing.get("rate_source_label")
+    load["carrier_selection_reason"] = carrier_pricing.get("selection_reason")
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
         lines,
@@ -10656,8 +13091,14 @@ def _build_load_schematic_payload(load_id):
         if isinstance(parsed_warnings, list):
             schematic_warnings = parsed_warnings
 
-    trailer_assignment_rules = _get_trailer_assignment_rules()
-    strategic_setting = db.get_planning_setting("strategic_customers") or {}
+    trailer_assignment_rules = _get_effective_trailer_assignment_rules()
+    origin_code = _normalize_plant_code(load.get("origin_plant") or load.get("plant"))
+    trailer_assignment_rules = dict(trailer_assignment_rules or {})
+    trailer_assignment_rules["auto_assign_hotshot_enabled"] = _resolve_auto_hotshot_enabled_for_plant(
+        origin_code,
+        trailer_rules=trailer_assignment_rules,
+    )
+    strategic_setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
     strategic_customers = _parse_strategic_customers(strategic_setting.get("value_text") or "")
     auto_label, auto_reason = _auto_trailer_rule_annotation(
         load=load,
@@ -10790,11 +13231,18 @@ def save_schematic_edit(load_id):
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
+        assumptions = payload.get("assumptions") or _get_stack_capacity_assumptions()
+        normalized_layout = _auto_stack_upper_two_across_layout(
+            normalized_layout,
+            units_by_id,
+            requested_trailer,
+            assumptions=assumptions,
+        )
         schematic, warnings = _build_schematic_from_layout(
             normalized_layout,
             units_by_id,
             requested_trailer,
-            assumptions=payload.get("assumptions") or _get_stack_capacity_assumptions(),
+            assumptions=assumptions,
         )
         confirm_violation = _coerce_bool_value(data.get("confirm_violation"))
         if warnings and not confirm_violation:
@@ -11217,7 +13665,15 @@ def reject_load(load_id):
 
     load = db.get_load(load_id)
     if not load:
-        return jsonify({"error": "Load not found"}), 404
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": "Load not found"}), 404
+        return redirect(
+            url_for(
+                "loads",
+                feedback_error="Load no longer exists. It may have already been returned or refreshed.",
+                session_id=_get_active_planning_session_id(),
+            )
+        )
 
     allowed_plants = _get_allowed_plants()
     if load["origin_plant"] not in allowed_plants:
@@ -11567,6 +14023,10 @@ def settings():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
+    current_role = _get_session_role()
+    is_admin = current_role == ROLE_ADMIN
+    can_edit_settings = current_role in {ROLE_ADMIN, ROLE_PLANNER}
+    current_profile_name = (_get_session_profile_name() or "").strip()
     tab = (request.args.get("tab") or "overview").strip().lower()
     valid_tabs = {"overview", "rates", "skus", "lookups"}
     if tab not in valid_tabs:
@@ -11576,6 +14036,7 @@ def settings():
     rate_plants = []
     rate_states = []
     rate_matrix = {}
+    rate_matrix_serialized = {}
     specs = []
     recent_specs = []
     sku_categories = []
@@ -11595,10 +14056,26 @@ def settings():
     strategic_customers_raw = ""
     strategic_customers = []
     stop_color_rows = []
-    trailer_assignment_rules = _get_trailer_assignment_rules()
+    trailer_assignment_rules_admin = _get_trailer_assignment_rules()
+    planner_trailer_overrides = (
+        _get_planner_trailer_rule_overrides(current_profile_name)
+        if current_role == ROLE_PLANNER
+        else {}
+    )
+    trailer_assignment_rules = _merge_trailer_assignment_rules(
+        trailer_assignment_rules_admin,
+        planner_trailer_overrides,
+    )
+    trailer_assignment_rules_override_active = bool(planner_trailer_overrides)
     rate_table_contexts = _get_rate_table_contexts()
+    ryder_dedicated_rate_table = {}
+    default_rate_change_metadata = {"changed_index": {}, "changed_count": 0}
+    lst_rate_matrix = {}
+    alternate_trailer_rates = {}
+    rates_v2_payload = {}
     optimizer_defaults = _default_optimize_form()
     optimizer_defaults.update(_get_optimizer_default_settings())
+    optimizer_plant_defaults = []
     util_grade_thresholds = []
     fuel_surcharge_per_mile = _get_fuel_surcharge_per_mile()
     global_rate_metrics = _get_rates_overview_metrics()
@@ -11606,6 +14083,21 @@ def settings():
     if tab in {"overview", "rates"}:
         rates_data = db.list_rate_matrix()
         rate_plants, rate_states, rate_matrix = _build_rate_matrix_records(rates_data)
+        rate_matrix_serialized = _build_serialized_rate_matrix(rate_plants, rate_states, rate_matrix)
+        ryder_dedicated_rate_table = _get_ryder_dedicated_rate_table()
+        default_rate_change_metadata = _get_default_rate_change_metadata()
+        lst_rate_matrix = _get_lst_rate_matrix()
+        alternate_trailer_rates = _get_alternate_trailer_rates()
+        rates_v2_payload = _build_rates_v2_payload(
+            rate_plants,
+            rate_states,
+            rate_matrix_serialized,
+            global_rate_metrics,
+            fuel_surcharge_per_mile,
+            ryder_dedicated_rate_table,
+            lst_rate_matrix,
+            alternate_trailer_rates,
+        )
     if tab in {"overview", "skus", "lookups"}:
         specs = db.list_sku_specs()
         category_source = {
@@ -11676,8 +14168,14 @@ def settings():
         lookups_data = db.list_item_lookups()
     if tab in {"overview", "plants"}:
         plants_data = db.list_plants()
+    if tab == "overview":
+        optimizer_plant_defaults = _build_optimizer_plant_defaults(
+            optimizer_defaults=optimizer_defaults,
+            trailer_rules=trailer_assignment_rules,
+            plant_rows=plants_data,
+        )
     if tab in {"overview", "planning_tools"}:
-        setting = db.get_planning_setting("strategic_customers") or {}
+        setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
         strategic_customers_raw = setting.get("value_text") or ""
         strategic_customers = _parse_strategic_customers(strategic_customers_raw)
         util_grade_thresholds = _build_utilization_grade_rows(_get_utilization_grade_thresholds())
@@ -11694,6 +14192,7 @@ def settings():
         rate_plants=rate_plants,
         rate_states=rate_states,
         rate_matrix=rate_matrix,
+        rate_matrix_serialized=rate_matrix_serialized,
         specs=specs,
         planner_specs=planner_specs,
         system_specs=system_specs,
@@ -11705,7 +14204,15 @@ def settings():
         trailer_assignment_rules=trailer_assignment_rules,
         rate_table_contexts=rate_table_contexts,
         rate_table_key_options=RATE_TABLE_KEY_OPTIONS,
+        ryder_dedicated_rate_table=ryder_dedicated_rate_table,
+        default_rate_change_metadata=default_rate_change_metadata,
+        default_rate_changed_index=default_rate_change_metadata.get("changed_index") or {},
+        default_rate_changed_count=default_rate_change_metadata.get("changed_count") or 0,
+        lst_rate_matrix=lst_rate_matrix,
+        alternate_trailer_rates=alternate_trailer_rates,
+        rates_v2_payload=rates_v2_payload,
         optimizer_defaults=optimizer_defaults,
+        optimizer_plant_defaults=optimizer_plant_defaults,
         util_grade_thresholds=util_grade_thresholds,
         sku_categories=sku_categories,
         sku_lengths=sku_lengths,
@@ -11719,7 +14226,11 @@ def settings():
         fuel_surcharge_per_mile=fuel_surcharge_per_mile,
         stop_color_rows=stop_color_rows,
         optimizer_exception_category_options=optimizer_exception_category_options,
-        is_admin=_get_session_role() == ROLE_ADMIN,
+        trailer_assignment_rules_admin=trailer_assignment_rules_admin,
+        trailer_assignment_rules_override_active=trailer_assignment_rules_override_active,
+        current_profile_name=current_profile_name,
+        is_admin=is_admin,
+        can_edit_settings=can_edit_settings,
     )
 
 
@@ -11728,34 +14239,44 @@ def save_planning_tools():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    current_role = _get_session_role()
+    is_admin = current_role == ROLE_ADMIN
+    can_edit_settings = current_role in {ROLE_ADMIN, ROLE_PLANNER}
+    if not can_edit_settings:
+        abort(403)
 
     if "strategic_customers" in request.form:
         strategic_customers_raw = request.form.get("strategic_customers") or ""
         parsed = customer_rules.parse_strategic_customers(strategic_customers_raw)
         serialized = customer_rules.serialize_strategic_customers(parsed)
-        db.upsert_planning_setting("strategic_customers", serialized)
+        _upsert_scoped_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY, serialized)
 
     has_trailer_rules_payload = request.form.get("trailer_rules_form") == "1"
     if has_trailer_rules_payload:
-        trailer_rules = _get_trailer_assignment_rules()
-        trailer_rules["livestock_wedge_enabled"] = _coerce_bool_value(
+        livestock_wedge_enabled = _coerce_bool_value(
             request.form.get("livestock_wedge_enabled")
         )
-        trailer_rules["auto_assign_hotshot_enabled"] = _coerce_bool_value(
-            request.form.get("auto_assign_hotshot_enabled")
-        )
-        trailer_rules["auto_assign_hotshot_utilization_threshold_pct"] = round(
-            _coerce_non_negative_float(
-                request.form.get("auto_assign_hotshot_utilization_threshold_pct"),
-                trailer_rules.get("auto_assign_hotshot_utilization_threshold_pct", 45.0),
-            ),
-            1,
-        )
-        db.upsert_planning_setting(
-            TRAILER_ASSIGNMENT_RULES_SETTING_KEY,
-            json.dumps(trailer_rules),
-        )
+        if is_admin:
+            trailer_rules = _get_trailer_assignment_rules()
+            trailer_rules["livestock_wedge_enabled"] = livestock_wedge_enabled
+            trailer_rules.pop("auto_assign_hotshot_enabled", None)
+            trailer_rules.pop("auto_assign_hotshot_utilization_threshold_pct", None)
+            db.upsert_planning_setting(
+                TRAILER_ASSIGNMENT_RULES_SETTING_KEY,
+                json.dumps(trailer_rules),
+            )
+        else:
+            profile_name = _get_session_profile_name() or _get_session_role()
+            if not profile_name:
+                abort(403)
+            base_rules = _get_trailer_assignment_rules()
+            override_payload = {}
+            if livestock_wedge_enabled != _coerce_bool_value(base_rules.get("livestock_wedge_enabled")):
+                override_payload["livestock_wedge_enabled"] = livestock_wedge_enabled
+            db.upsert_planning_setting(
+                _planner_trailer_rules_override_setting_key(profile_name),
+                json.dumps(override_payload, separators=(",", ":")),
+            )
     target_tab = (request.form.get("tab") or "overview").strip().lower()
     if target_tab != "overview":
         target_tab = "overview"
@@ -11767,13 +14288,13 @@ def save_stop_colors():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _require_settings_editor()
 
     palette = []
     for idx, default_color in enumerate(DEFAULT_STOP_COLOR_PALETTE, start=1):
         raw = request.form.get(f"stop_color_{idx}")
         palette.append(_normalize_hex_color(raw, default_color))
-    db.upsert_planning_setting(STOP_COLOR_PALETTE_SETTING_KEY, json.dumps(palette))
+    _upsert_scoped_planning_setting(STOP_COLOR_PALETTE_SETTING_KEY, json.dumps(palette))
 
     target_tab = (request.form.get("tab") or "overview").strip().lower()
     if target_tab != "overview":
@@ -11786,7 +14307,7 @@ def save_fuel_surcharge():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _require_settings_editor()
 
     payload = request.get_json(silent=True) or request.form
     value = round(
@@ -11796,7 +14317,7 @@ def save_fuel_surcharge():
         ),
         2,
     )
-    db.upsert_planning_setting(FUEL_SURCHARGE_SETTING_KEY, f"{value:.2f}")
+    _upsert_scoped_planning_setting(FUEL_SURCHARGE_SETTING_KEY, f"{value:.2f}")
 
     if request.is_json:
         return jsonify({"fuel_surcharge_per_mile": value})
@@ -11811,23 +14332,23 @@ def save_rate_table_contexts():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _require_settings_editor()
 
     payload = request.get_json(silent=True) or request.form
     contexts = _get_rate_table_contexts()
     contexts["default_rate_table_key"] = _normalize_rate_table_key(
         payload.get("default_rate_table_key"),
-        contexts.get("default_rate_table_key", "DEFAULT"),
+        contexts.get("default_rate_table_key", "FLS"),
     )
     contexts["carrier_dedicated_ryder_rate_table_key"] = _normalize_rate_table_key(
         payload.get("carrier_dedicated_ryder_rate_table_key"),
-        contexts.get("carrier_dedicated_ryder_rate_table_key", "DEDICATED_RYDER_FLEET"),
+        contexts.get("carrier_dedicated_ryder_rate_table_key", "LST"),
     )
     contexts["trailer_hotshot_rate_table_key"] = _normalize_rate_table_key(
         payload.get("trailer_hotshot_rate_table_key"),
-        contexts.get("trailer_hotshot_rate_table_key", "HOTSHOT_TRAILER_TYPES"),
+        contexts.get("trailer_hotshot_rate_table_key", "ALTERNATE_TRAILERS"),
     )
-    db.upsert_planning_setting(RATE_TABLE_CONTEXTS_SETTING_KEY, json.dumps(contexts))
+    _upsert_scoped_planning_setting(RATE_TABLE_CONTEXTS_SETTING_KEY, json.dumps(contexts))
 
     if request.is_json:
         return jsonify({"rate_table_contexts": contexts})
@@ -11837,12 +14358,324 @@ def save_rate_table_contexts():
     return redirect(url_for("settings", tab=target_tab))
 
 
+@app.route("/settings/rates/lst/save", methods=["POST"])
+def save_lst_rate_settings():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
+
+    payload = request.get_json(silent=True) or request.form
+    data = _get_lst_rate_matrix()
+    plants = _context_plants()
+    data["plants"] = plants
+    data.setdefault("states", [])
+    data.setdefault("state_lane_labels", {})
+    data.setdefault("matrix", {})
+
+    destination_state = str(payload.get("destination_state") or "").strip().upper()
+    origin_plant = str(payload.get("origin_plant") or payload.get("plant") or "").strip().upper()
+    if destination_state and origin_plant in plants and "rate_per_mile" in payload:
+        matrix_row = data["matrix"].setdefault(destination_state, {})
+        matrix_row[origin_plant] = _serialize_optional_money(payload.get("rate_per_mile"))
+        if destination_state not in data["states"]:
+            data["states"].append(destination_state)
+            data["states"] = sorted({str(state).strip().upper() for state in data["states"] if str(state).strip()})
+
+    for key in ("fuel_surcharge", "per_stop", "load_minimum"):
+        if key in payload:
+            data[key] = _serialize_optional_money(payload.get(key))
+
+    _upsert_scoped_planning_setting(LST_RATE_TABLE_SETTING_KEY, json.dumps(data))
+    return jsonify(
+        {
+            "lst_rate_matrix": data,
+            "saved_rate": data.get("matrix", {}).get(destination_state, {}).get(origin_plant),
+            "destination_state": destination_state,
+            "origin_plant": origin_plant,
+        }
+    )
+
+
+@app.route("/settings/rates/ryder/save", methods=["POST"])
+def save_ryder_dedicated_rate_settings():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
+
+    payload = request.get_json(silent=True) or request.form
+    data = _get_ryder_dedicated_rate_table()
+    plants = _context_plants()
+    data["plants"] = plants
+    data.setdefault("rates_by_plant", {plant: None for plant in plants})
+
+    origin_plant = str(payload.get("origin_plant") or payload.get("plant") or "").strip().upper()
+    if origin_plant in plants and "rate_per_mile" in payload:
+        data["rates_by_plant"][origin_plant] = _serialize_optional_money(payload.get("rate_per_mile"))
+
+    for key in ("fuel_surcharge", "per_stop", "load_minimum"):
+        if key in payload:
+            data[key] = _serialize_optional_money(payload.get(key))
+
+    _upsert_scoped_planning_setting(RYDER_DEDICATED_RATE_TABLE_SETTING_KEY, json.dumps(data))
+    return jsonify(
+        {
+            "ryder_dedicated_rate_table": data,
+            "saved_rate": data.get("rates_by_plant", {}).get(origin_plant),
+            "origin_plant": origin_plant,
+        }
+    )
+
+
+@app.route("/settings/rates/alternate/save", methods=["POST"])
+def save_alternate_trailer_rate_settings():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
+
+    payload = request.get_json(silent=True) or request.form
+    data = _get_alternate_trailer_rates()
+    trailer_code = _normalize_alternate_trailer_code(
+        payload.get("trailer_type_code") or payload.get("trailer_type") or payload.get("code")
+    )
+    origin_plant = str(payload.get("origin_plant") or payload.get("plant") or "").strip().upper()
+    raw_field = str(payload.get("field") or "").strip().lower()
+    field = "apply_fuel_surcharge" if raw_field == "fuel_surcharge_per_mile" else raw_field
+    plants = _context_plants()
+    saved_value = None
+
+    if trailer_code and origin_plant in plants and field in {"rate_per_mile", "apply_fuel_surcharge", "per_stop", "load_minimum", "requires_return_miles"}:
+        for section in data.get("sections") or []:
+            if section.get("code") != trailer_code:
+                continue
+            section.setdefault("rates_by_plant", {})
+            section.setdefault("placeholders_by_plant", {})
+            section["rates_by_plant"].setdefault(origin_plant, None)
+            section["placeholders_by_plant"].setdefault(
+                origin_plant,
+                _default_alternate_trailer_placeholder(),
+            )
+            if field == "requires_return_miles":
+                saved_value = bool(_coerce_bool_value(payload.get("value")))
+            elif field == "apply_fuel_surcharge":
+                if raw_field == "fuel_surcharge_per_mile":
+                    saved_value = _coerce_alternate_apply_fuel_surcharge(
+                        {"fuel_surcharge_per_mile": payload.get("value")},
+                        default=True,
+                    )
+                else:
+                    saved_value = _coerce_alternate_apply_fuel_surcharge(
+                        {"apply_fuel_surcharge": payload.get("value")},
+                        default=True,
+                    )
+            else:
+                saved_value = _serialize_optional_money(payload.get("value"))
+            if field == "rate_per_mile":
+                section["rates_by_plant"][origin_plant] = saved_value
+            else:
+                section["placeholders_by_plant"][origin_plant][field] = saved_value
+            break
+
+    _upsert_scoped_planning_setting(ALTERNATE_TRAILER_RATES_SETTING_KEY, json.dumps(data))
+    return jsonify(
+        {
+            "alternate_trailer_rates": data,
+            "trailer_type_code": trailer_code,
+            "origin_plant": origin_plant,
+            "field": field,
+            "saved_value": saved_value,
+        }
+    )
+
+
+@app.route("/settings/rates/batch-save", methods=["POST"])
+def save_rates_batch():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
+
+    payload = request.get_json(silent=True) or {}
+    pending = payload.get("pending") if isinstance(payload.get("pending"), dict) else {}
+    plants = _context_plants()
+    saved_counts = {
+        "fls_lanes": 0,
+        "ryder_lanes": 0,
+        "lst_lanes": 0,
+        "alternate_cells": 0,
+    }
+
+    fls_accessorial = pending.get("fls_accessorial") if isinstance(pending.get("fls_accessorial"), dict) else {}
+    if fls_accessorial:
+        current = _get_rates_overview_metrics()
+        stop_fee = round(
+            _coerce_non_negative_float(
+                fls_accessorial.get("per_stop"),
+                current.get("stop_fee", DEFAULT_STOP_FEE),
+            ),
+            2,
+        )
+        load_minimum = round(
+            _coerce_non_negative_float(
+                fls_accessorial.get("load_minimum"),
+                current.get("load_minimum", DEFAULT_MIN_LOAD_COST),
+            ),
+            2,
+        )
+        fuel_surcharge = round(
+            _coerce_non_negative_float(
+                fls_accessorial.get("fuel_surcharge"),
+                current.get("fuel_surcharge", DEFAULT_FUEL_SURCHARGE_PER_MILE),
+            ),
+            2,
+        )
+        _upsert_scoped_planning_setting(STOP_FEE_SETTING_KEY, f"{stop_fee:.2f}")
+        _upsert_scoped_planning_setting(MIN_LOAD_COST_SETTING_KEY, f"{load_minimum:.2f}")
+        _upsert_scoped_planning_setting(FUEL_SURCHARGE_SETTING_KEY, f"{fuel_surcharge:.2f}")
+
+    fls_lane_updates = pending.get("fls_lanes") if isinstance(pending.get("fls_lanes"), list) else []
+    for update in fls_lane_updates:
+        if not isinstance(update, dict):
+            continue
+        origin_plant = str(update.get("origin_plant") or "").strip().upper()
+        destination_state = str(update.get("destination_state") or "").strip().upper()
+        parsed_rate = _coerce_optional_non_negative_float(update.get("rate_per_mile"))
+        if origin_plant not in plants or not destination_state or parsed_rate is None:
+            continue
+        effective_year = int(update.get("effective_year") or datetime.now().year)
+        rate_payload = {
+            "origin_plant": origin_plant,
+            "destination_state": destination_state,
+            "rate_per_mile": round(parsed_rate, 2),
+            "effective_year": effective_year,
+            "notes": str(update.get("notes") or "").strip(),
+        }
+        rate_id = update.get("rate_id")
+        if rate_id:
+            try:
+                db.update_rate(int(rate_id), rate_payload)
+            except (TypeError, ValueError):
+                db.upsert_rate(rate_payload)
+        else:
+            db.upsert_rate(rate_payload)
+        saved_counts["fls_lanes"] += 1
+
+    ryder_table = _get_ryder_dedicated_rate_table()
+    ryder_changed = False
+    ryder_lane_updates = pending.get("ryder_lanes") if isinstance(pending.get("ryder_lanes"), list) else []
+    for update in ryder_lane_updates:
+        if not isinstance(update, dict):
+            continue
+        origin_plant = str(update.get("origin_plant") or "").strip().upper()
+        if origin_plant not in plants:
+            continue
+        ryder_table.setdefault("rates_by_plant", {})
+        ryder_table["rates_by_plant"][origin_plant] = _serialize_optional_money(update.get("rate_per_mile"))
+        ryder_changed = True
+        saved_counts["ryder_lanes"] += 1
+    ryder_accessorial = pending.get("ryder_accessorial") if isinstance(pending.get("ryder_accessorial"), dict) else {}
+    for key in ("per_stop", "load_minimum", "fuel_surcharge"):
+        if key not in ryder_accessorial:
+            continue
+        parsed = _serialize_optional_money(ryder_accessorial.get(key))
+        ryder_table[key] = parsed if parsed is not None else 0.0
+        ryder_changed = True
+    if ryder_changed:
+        _upsert_scoped_planning_setting(RYDER_DEDICATED_RATE_TABLE_SETTING_KEY, json.dumps(ryder_table))
+
+    lst_table = _get_lst_rate_matrix()
+    lst_changed = False
+    lst_lane_updates = pending.get("lst_lanes") if isinstance(pending.get("lst_lanes"), list) else []
+    for update in lst_lane_updates:
+        if not isinstance(update, dict):
+            continue
+        origin_plant = str(update.get("origin_plant") or "").strip().upper()
+        destination_state = str(update.get("destination_state") or "").strip().upper()
+        if origin_plant not in plants or not destination_state:
+            continue
+        lst_table.setdefault("matrix", {})
+        lst_table.setdefault("states", [])
+        row = lst_table["matrix"].setdefault(destination_state, {})
+        row[origin_plant] = _serialize_optional_money(update.get("rate_per_mile"))
+        if destination_state not in lst_table["states"]:
+            lst_table["states"].append(destination_state)
+        lst_changed = True
+        saved_counts["lst_lanes"] += 1
+    if lst_changed:
+        lst_table["states"] = sorted(
+            {str(state).strip().upper() for state in lst_table.get("states") or [] if str(state or "").strip()}
+        )
+    lst_accessorial = pending.get("lst_accessorial") if isinstance(pending.get("lst_accessorial"), dict) else {}
+    for key in ("per_stop", "load_minimum", "fuel_surcharge"):
+        if key not in lst_accessorial:
+            continue
+        lst_table[key] = _serialize_optional_money(lst_accessorial.get(key))
+        lst_changed = True
+    if lst_changed:
+        _upsert_scoped_planning_setting(LST_RATE_TABLE_SETTING_KEY, json.dumps(lst_table))
+
+    alternate_table = _get_alternate_trailer_rates()
+    alternate_changed = False
+    alternate_updates = pending.get("alternate_cells") if isinstance(pending.get("alternate_cells"), list) else []
+    sections = alternate_table.get("sections") if isinstance(alternate_table.get("sections"), list) else []
+    section_index = {
+        _normalize_alternate_trailer_code(section.get("code")): section
+        for section in sections
+        if isinstance(section, dict)
+    }
+    for update in alternate_updates:
+        if not isinstance(update, dict):
+            continue
+        trailer_code = _normalize_alternate_trailer_code(update.get("trailer_type_code") or update.get("code"))
+        origin_plant = str(update.get("origin_plant") or "").strip().upper()
+        raw_field = str(update.get("field") or "").strip().lower()
+        field = "apply_fuel_surcharge" if raw_field == "fuel_surcharge_per_mile" else raw_field
+        if trailer_code not in section_index or origin_plant not in plants:
+            continue
+        if field not in {"rate_per_mile", "per_stop", "apply_fuel_surcharge", "load_minimum", "requires_return_miles"}:
+            continue
+        section = section_index[trailer_code]
+        section.setdefault("rates_by_plant", {})
+        section.setdefault("placeholders_by_plant", {})
+        section["placeholders_by_plant"].setdefault(
+            origin_plant,
+            _default_alternate_trailer_placeholder(),
+        )
+        if field == "requires_return_miles":
+            saved_value = bool(_coerce_bool_value(update.get("value")))
+        elif field == "apply_fuel_surcharge":
+            if raw_field == "fuel_surcharge_per_mile":
+                saved_value = _coerce_alternate_apply_fuel_surcharge(
+                    {"fuel_surcharge_per_mile": update.get("value")},
+                    default=True,
+                )
+            else:
+                saved_value = _coerce_alternate_apply_fuel_surcharge(
+                    {"apply_fuel_surcharge": update.get("value")},
+                    default=True,
+                )
+        else:
+            saved_value = _serialize_optional_money(update.get("value"))
+        if field == "rate_per_mile":
+            section["rates_by_plant"][origin_plant] = saved_value
+        else:
+            section["placeholders_by_plant"][origin_plant][field] = saved_value
+        alternate_changed = True
+        saved_counts["alternate_cells"] += 1
+    if alternate_changed:
+        _upsert_scoped_planning_setting(ALTERNATE_TRAILER_RATES_SETTING_KEY, json.dumps(alternate_table))
+
+    return jsonify({"ok": True, "saved_counts": saved_counts})
+
+
 @app.route("/settings/global-metrics/save", methods=["POST"])
 def save_global_metrics():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _require_settings_editor()
 
     payload = request.get_json(silent=True) or request.form
     stop_fee = round(
@@ -11867,9 +14700,9 @@ def save_global_metrics():
         2,
     )
 
-    db.upsert_planning_setting(STOP_FEE_SETTING_KEY, f"{stop_fee:.2f}")
-    db.upsert_planning_setting(MIN_LOAD_COST_SETTING_KEY, f"{load_minimum:.2f}")
-    db.upsert_planning_setting(FUEL_SURCHARGE_SETTING_KEY, f"{fuel_surcharge:.2f}")
+    _upsert_scoped_planning_setting(STOP_FEE_SETTING_KEY, f"{stop_fee:.2f}")
+    _upsert_scoped_planning_setting(MIN_LOAD_COST_SETTING_KEY, f"{load_minimum:.2f}")
+    _upsert_scoped_planning_setting(FUEL_SURCHARGE_SETTING_KEY, f"{fuel_surcharge:.2f}")
 
     if request.is_json:
         return jsonify(
@@ -11891,7 +14724,8 @@ def save_optimizer_defaults():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _require_settings_editor()
+    is_admin = _get_session_role() == ROLE_ADMIN
 
     payload = request.get_json(silent=True) or request.form
     current = _get_optimizer_default_settings()
@@ -11900,14 +14734,17 @@ def save_optimizer_defaults():
         form_categories = request.form.getlist("upper_deck_exception_categories")
         if form_categories:
             raw_exception_categories = form_categories
-    trailer_type = (payload.get("trailer_type") or current["trailer_type"]).strip().upper()
-    if not stack_calculator.is_valid_trailer_type(trailer_type):
-        trailer_type = stack_calculator.normalize_trailer_type(current["trailer_type"], default="STEP_DECK")
     optimized = {
-        "trailer_type": trailer_type,
-        "capacity_feet": round(
-            _coerce_non_negative_float(payload.get("capacity_feet"), current["capacity_feet"]),
-            2,
+        # Trailer type/capacity are controlled per plant in optimizer_settings.
+        # Keep these global keys stable as legacy fallbacks only.
+        "trailer_type": stack_calculator.normalize_trailer_type(
+            current.get("trailer_type"),
+            default="STEP_DECK",
+        ),
+        "capacity_feet": _capacity_for_trailer_setting(
+            current.get("trailer_type"),
+            requested_capacity=current.get("capacity_feet"),
+            default_capacity=current.get("capacity_feet", 53.0),
         ),
         "max_detour_pct": round(
             _coerce_non_negative_float(payload.get("max_detour_pct"), current["max_detour_pct"]),
@@ -11969,9 +14806,90 @@ def save_optimizer_defaults():
                 DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
             ),
         ),
+        "equal_length_deck_length_order_enabled": (
+            _coerce_bool_value(payload.get("equal_length_deck_length_order_enabled"))
+            if payload.get("equal_length_deck_length_order_enabled") is not None
+            else bool(
+                current.get(
+                    "equal_length_deck_length_order_enabled",
+                    DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
+                )
+            )
+        ),
     }
 
-    db.upsert_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY, json.dumps(optimized))
+    _upsert_scoped_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY, json.dumps(optimized))
+    if is_admin:
+        trailer_rules = _get_trailer_assignment_rules()
+
+        def _save_plant_optimizer_default(plant_code, trailer_value, hotshot_value, hotshot_present):
+            normalized_plant = _normalize_plant_code(plant_code)
+            if not normalized_plant:
+                return
+            current_row = db.get_optimizer_settings(normalized_plant) or {}
+            current_defaults = _get_optimizer_settings_for_plant(
+                normalized_plant,
+                optimizer_defaults=optimized,
+                trailer_rules=trailer_rules,
+                settings_row=current_row,
+            )
+            trailer_key = stack_calculator.normalize_trailer_type(
+                trailer_value,
+                default=current_defaults["trailer_type"],
+            )
+            capacity_feet = _capacity_for_trailer_setting(
+                trailer_key,
+                requested_capacity=current_row.get("capacity_feet", optimized.get("capacity_feet")),
+                default_capacity=optimized.get("capacity_feet", 53.0),
+            )
+            auto_hotshot_enabled = (
+                _coerce_bool_value(hotshot_value)
+                if hotshot_present
+                else bool(current_defaults["auto_hotshot_enabled"])
+            )
+            db.upsert_optimizer_settings(
+                {
+                    "origin_plant": normalized_plant,
+                    "capacity_feet": capacity_feet,
+                    "trailer_type": trailer_key,
+                    "max_detour_pct": _coerce_non_negative_float(
+                        current_row.get("max_detour_pct"),
+                        optimized.get("max_detour_pct", 15.0),
+                    ),
+                    "time_window_days": _coerce_non_negative_int(
+                        current_row.get("time_window_days"),
+                        optimized.get("time_window_days", 7),
+                    ),
+                    "geo_radius": _coerce_non_negative_float(
+                        current_row.get("geo_radius"),
+                        optimized.get("geo_radius", 100.0),
+                    ),
+                    "auto_hotshot_enabled": 1 if auto_hotshot_enabled else 0,
+                }
+            )
+
+        if request.is_json:
+            plant_defaults_payload = payload.get("plant_defaults")
+            if isinstance(plant_defaults_payload, dict):
+                for plant_code, plant_payload in plant_defaults_payload.items():
+                    if not isinstance(plant_payload, dict):
+                        continue
+                    _save_plant_optimizer_default(
+                        plant_code,
+                        plant_payload.get("trailer_type"),
+                        plant_payload.get("auto_hotshot_enabled"),
+                        "auto_hotshot_enabled" in plant_payload,
+                    )
+        else:
+            for plant_code in PLANT_CODES:
+                if request.form.get(f"plant_defaults_present_{plant_code}") != "1":
+                    continue
+                _save_plant_optimizer_default(
+                    plant_code,
+                    request.form.get(f"plant_default_trailer_{plant_code}"),
+                    request.form.get(f"plant_auto_hotshot_enabled_{plant_code}"),
+                    True,
+                )
     stack_calculator.invalidate_stack_assumptions_cache()
 
     if request.is_json:
@@ -11988,7 +14906,7 @@ def save_utilization_grades():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    _require_settings_editor()
 
     payload = request.get_json(silent=True) or request.form
     current = _get_utilization_grade_thresholds()
@@ -12005,7 +14923,7 @@ def save_utilization_grades():
             "D": d_value,
         }
     )
-    db.upsert_planning_setting(UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY, json.dumps(thresholds))
+    _upsert_scoped_planning_setting(UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY, json.dumps(thresholds))
     stack_calculator.invalidate_utilization_grade_thresholds_cache()
 
     if request.is_json:
@@ -12019,7 +14937,10 @@ def save_utilization_grades():
 
 @app.route("/rates/save", methods=["POST"])
 def save_rate():
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     payload = request.get_json(silent=True) or request.form
 
     rate_id = payload.get("id") or payload.get("rate_id")
@@ -12052,7 +14973,10 @@ def save_rate():
 
 @app.route("/rates/add", methods=["POST"])
 def add_rate():
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     rate = {
         "origin_plant": request.form.get("origin_plant", "").strip().upper(),
         "destination_state": request.form.get("destination_state", "").strip().upper(),
@@ -12066,14 +14990,20 @@ def add_rate():
 
 @app.route("/rates/delete/<int:rate_id>", methods=["POST"])
 def delete_rate(rate_id):
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     db.delete_rate(rate_id)
     return redirect(url_for("rates"))
 
 
 @app.route("/skus/save", methods=["POST"])
 def save_sku():
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     payload = request.get_json(silent=True) or {}
     spec_id = payload.get("id")
     if not spec_id:
@@ -12094,7 +15024,10 @@ def save_sku():
 
 @app.route("/lookups/save", methods=["POST"])
 def save_lookup():
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     payload = request.get_json(silent=True) or {}
     entry_id = payload.get("id")
     if not entry_id:
@@ -12112,7 +15045,10 @@ def save_lookup():
 
 @app.route("/plants/save", methods=["POST"])
 def save_plant():
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     payload = request.get_json(silent=True) or {}
     plant_id = payload.get("id")
     if not plant_id:
@@ -12236,7 +15172,10 @@ def export_sku_cheat_sheet():
 
 @app.route("/skus/add", methods=["POST"])
 def add_sku():
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     spec = {
         "sku": request.form.get("sku", "").strip(),
         "description": request.form.get("description", "").strip(),
@@ -12252,7 +15191,10 @@ def add_sku():
 
 @app.route("/skus/delete/<int:spec_id>", methods=["POST"])
 def delete_sku(spec_id):
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     db.delete_sku_spec(spec_id)
     return redirect(request.referrer or url_for("settings", tab="skus"))
 
@@ -12271,7 +15213,10 @@ def lookups():
 
 @app.route("/lookups/add", methods=["POST"])
 def add_lookup():
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     entry = {
         "plant": request.form.get("plant", "").strip().upper(),
         "bin": request.form.get("bin", "").strip().upper(),
@@ -12284,7 +15229,10 @@ def add_lookup():
 
 @app.route("/lookups/delete/<int:entry_id>", methods=["POST"])
 def delete_lookup(entry_id):
-    _require_admin()
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    _require_settings_editor()
     db.delete_item_lookup(entry_id)
     return redirect(url_for("lookups"))
 
@@ -12525,4 +15473,5 @@ def get_optimization_loads(run_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 

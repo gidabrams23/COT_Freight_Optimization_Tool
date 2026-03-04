@@ -94,8 +94,8 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
                 "stop_sequence": 2,
             },
             {
-                "item": "5X8GWE",
-                "sku": "5X8GWE",
+                "item": "3X5GWE",
+                "sku": "3X5GWE",
                 "qty": 1,
                 "unit_length_ft": 7.0,
                 "max_stack_height": 6,
@@ -116,9 +116,74 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
         items = (config["positions"][0].get("items") or [])
         self.assertEqual(len(items), 2)
         self.assertEqual(items[0].get("sku"), "4X5HS")
-        self.assertEqual(items[1].get("sku"), "5X8GWE")
+        self.assertEqual(items[1].get("sku"), "3X5GWE")
         self.assertEqual(items[0].get("stop_sequence"), 2)
         self.assertEqual(items[1].get("stop_sequence"), 1)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_equal_total_length_uses_sku_deck_length_ordering(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "4X5",
+                "sku": "4X5",
+                "qty": 1,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 6,
+                "category": "USA",
+            },
+            {
+                "item": "5X8G",
+                "sku": "5X8G",
+                "qty": 1,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 6,
+                "category": "USA",
+            },
+            {
+                "item": "4X6G",
+                "sku": "4X6G",
+                "qty": 1,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 6,
+                "category": "USA",
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="FLATBED",
+            preserve_order_contiguity=False,
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+
+        self.assertEqual(len(config.get("positions") or []), 1)
+        items = (config["positions"][0].get("items") or [])
+        self.assertEqual([item.get("sku") for item in items], ["5X8G", "4X6G", "4X5"])
+        self.assertFalse(
+            any("deck-length item above" in issue for issue in (config.get("compatibility_issues") or []))
+        )
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_equal_total_length_deck_rule_applies_on_upper_deck(self, _mock_get_setting):
+        positions = [
+            {
+                "position_id": "p1",
+                "deck": "upper",
+                "two_across_applied": True,
+                "units_count": 2,
+                "items": [
+                    {"sku": "4X5", "unit_length_ft": 7.0, "max_stack": 1, "units": 1},
+                    {"sku": "5X8G", "unit_length_ft": 7.0, "max_stack": 1, "units": 1},
+                ],
+            }
+        ]
+        issues = stack_calculator.check_stacking_compatibility(
+            positions,
+            trailer_config={"type": "STEP_DECK", "lower": 43.0, "upper": 10.0},
+            equal_length_deck_length_order_enabled=True,
+        )
+        self.assertTrue(any("deck-length item above" in issue for issue in issues))
 
     @patch("services.stack_calculator.db.get_planning_setting", return_value={})
     def test_stack_overflow_increases_utilization_credit_for_mixed_base_stack(self, _mock_get_setting):
@@ -578,6 +643,43 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
         self.assertEqual(len(upper_positions), 1)
 
     @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_auto_layout_allows_multiple_two_across_upper_positions_when_they_fit(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "SHORT-A",
+                "sku": "SA",
+                "qty": 2,
+                "unit_length_ft": 5.0,
+                "max_stack_height": 2,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+            },
+            {
+                "item": "SHORT-B",
+                "sku": "SB",
+                "qty": 2,
+                "unit_length_ft": 5.0,
+                "max_stack_height": 2,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+            upper_two_across_max_length_ft=7.0,
+        )
+        upper_positions = [
+            pos for pos in (config.get("positions") or []) if (pos.get("deck") or "").lower() == "upper"
+        ]
+        two_across_upper = [pos for pos in upper_positions if pos.get("two_across_applied")]
+        self.assertGreaterEqual(len(two_across_upper), 2)
+        self.assertGreaterEqual(len(upper_positions), 2)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
     def test_upper_exception_length_not_mixed_with_side_by_side_mode(self, _mock_get_setting):
         order_lines = [
             {
@@ -614,6 +716,31 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
         if two_across_upper:
             self.assertEqual(len(upper_positions), 1)
             self.assertLessEqual(float(upper_positions[0].get("length_ft") or 0.0), 7.0 + 1e-6)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_step_deck_48_ignores_capacity_override_and_keeps_38_10_split(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "TEST",
+                "sku": "TEST",
+                "qty": 1,
+                "unit_length_ft": 10.0,
+                "max_stack_height": 1,
+                "category": "USA",
+            }
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK_48",
+            capacity_feet=53.0,
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+
+        self.assertEqual(float(config.get("capacity_feet") or 0.0), 48.0)
+        self.assertEqual(float(config.get("lower_deck_length") or 0.0), 38.0)
+        self.assertEqual(float(config.get("upper_deck_length") or 0.0), 10.0)
 
 
 if __name__ == "__main__":

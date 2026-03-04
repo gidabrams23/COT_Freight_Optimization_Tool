@@ -16,7 +16,7 @@
 
     {% if archived_session_id %}
       <div class="session-alert">
-        Session #{{ archived_session_id }} archived. Its loads were released back to the order pool.
+        Session #{{ archived_session_id }} archived. Orders were released back to the pool and load history was preserved.
       </div>
     {% endif %}
     {% if archived_all_count is not none %}
@@ -86,7 +86,7 @@
         <form
           method="post"
           action="{{ url_for('planning_sessions_archive_all') }}"
-          onsubmit="return confirm('Archive all sessions in this filtered view and release their loads back to the order pool?');"
+          onsubmit="return confirm('Archive all sessions in this filtered view, release their orders back to the pool, and keep their history?');"
         >
           <input type="hidden" name="plant" value="{{ filters.plant }}">
           <input type="hidden" name="planner" value="{{ filters.planner }}">
@@ -189,7 +189,7 @@
                 <span class="material-symbols-outlined">download</span>
                 Export Excel
               </a>
-              <form method="post" id="preview-archive-form" onsubmit="return confirm('Archive this session and release its loads back into the order pool?');">
+              <form method="post" id="preview-archive-form" onsubmit="return confirm('Archive this session, release its orders back into the pool, and preserve load history?');">
                 <input type="hidden" name="plant" value="{{ filters.plant }}">
                 <input type="hidden" name="planner" value="{{ filters.planner }}">
                 <input type="hidden" name="start" value="{{ filters.start }}">

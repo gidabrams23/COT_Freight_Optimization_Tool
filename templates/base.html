@@ -126,7 +126,7 @@
         </aside>
       {% endif %}
       <div class="app-main">
-        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') or request.path.startswith('/dashboard') or request.path == '/' or request.path.startswith('/settings') or request.path.startswith('/tutorial') %} page-full{% endif %}{% if request.path == '/loads' %} page-loads-index{% endif %}">
+        <main class="page{% if request.path.startswith('/orders') or request.path.startswith('/loads') or request.path.startswith('/dashboard') or request.path == '/' or request.path.startswith('/settings') or request.path.startswith('/tutorial') %} page-full{% endif %}{% if request.path.startswith('/dashboard') %} page-dashboard{% endif %}{% if request.path == '/loads' %} page-loads-index{% endif %}">
           {% block content %}{% endblock %}
         </main>
       </div>

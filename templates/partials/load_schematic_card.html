@@ -1,5 +1,5 @@
-<div class="schematic-card" id="schematic-card-{{ load.id }}" data-load-id="{{ load.id }}">
-  {% set report_mode = report_mode | default(false) %}
+{% set report_mode = report_mode | default(false) %}
+<div class="schematic-card{% if report_mode %} schematic-card-report{% endif %}" id="schematic-card-{{ load.id }}" data-load-id="{{ load.id }}">
   {% set replay_mode = replay_mode | default(false) %}
   {% set read_only_mode = report_mode or replay_mode %}
   {% set trailer = load.trailer_type or 'STEP_DECK' %}
@@ -35,14 +35,37 @@
   {% else %}
     {% set util_class = 'util-f' %}
   {% endif %}
+  {% set carrier_key = (load.carrier_key or 'default') | lower %}
+  {% if carrier_key == 'ryder' %}
+    {% set carrier_class = 'carrier-chip-ryder' %}
+  {% elif carrier_key == 'lst' %}
+    {% set carrier_class = 'carrier-chip-lst' %}
+  {% elif carrier_key == 'fls' %}
+    {% set carrier_class = 'carrier-chip-fls' %}
+  {% else %}
+    {% set carrier_class = 'carrier-chip-default' %}
+  {% endif %}
+  {% set carrier_label = load.carrier_label or 'FLS' %}
   <div class="card-header-row schematic-header compact">
     <div class="schematic-header-left">
       <div class="schematic-title-row">
         <h3>Stacking Schematic</h3>
         <div class="schematic-stats">
           <div class="schematic-stat-row">
-            <span class="metric-value">Utilization {{ util_pct_display }}%</span>
+            {% if report_mode %}
+              <span class="metric-value">{{ util_pct_display }}% Util</span>
+            {% else %}
+              <span class="metric-value">Utilization {{ util_pct_display }}%</span>
+            {% endif %}
             <span class="util-grade {{ util_class }}">Grade {{ util_grade_key }}</span>
+            <span
+              class="carrier-chip {{ carrier_class }}"
+              {% if load.carrier_source_label %}title="{{ load.carrier_source_label }}"{% endif %}
+            >
+              <span class="carrier-chip-label">Carrier</span>
+              <span class="carrier-chip-dot" aria-hidden="true"></span>
+              <span class="carrier-chip-value">{{ carrier_label }}</span>
+            </span>
           </div>
         </div>
         {% if load.has_custom_schematic %}
@@ -51,7 +74,7 @@
         {% if load.schematic_warning_count %}
           <div class="schematic-warning-wrap">
             <span class="badge badge-warning schematic-warning-pill">
-              {{ load.schematic_warning_count }} warning{% if load.schematic_warning_count != 1 %}s{% endif %}
+              {{ load.schematic_warning_count }} Warning{% if load.schematic_warning_count != 1 %}s{% endif %}
             </span>
             <div class="schematic-warning-popover" role="tooltip" aria-label="Schematic warnings">
               <div class="schematic-warning-title">Schematic Warnings</div>

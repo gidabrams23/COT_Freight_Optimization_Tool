@@ -25,12 +25,37 @@ DEFAULT_BUILD_PARAMS = {
     "manual_order_input": "",
     "ignore_due_date": False,
 }
+PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES = {
+    "NV": "STEP_DECK_48",
+}
 
 
 def _clean_value(value):
     if value is None:
         return ""
     return str(value).strip()
+
+
+def _default_trailer_type_for_plant(origin_plant):
+    normalized = str(origin_plant or "").strip().upper()
+    preferred = PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES.get(
+        normalized,
+        DEFAULT_BUILD_PARAMS.get("trailer_type") or "STEP_DECK",
+    )
+    return stack_calculator.normalize_trailer_type(preferred, default="STEP_DECK")
+
+
+def _capacity_for_trailer(trailer_type, default_capacity=53.0):
+    trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    config = stack_calculator.TRAILER_CONFIGS.get(
+        trailer_key,
+        stack_calculator.TRAILER_CONFIGS["STEP_DECK"],
+    )
+    try:
+        capacity = float(config.get("capacity") or default_capacity)
+    except (TypeError, ValueError):
+        capacity = float(default_capacity)
+    return max(round(capacity, 2), 0.0)
 
 
 def _parse_date(value):
@@ -318,6 +343,13 @@ def build_loads(
     if optimize_mode == "manual" and not selected_so_nums:
         errors["manual_order_input"] = "Paste at least one order number to run manual selection."
 
+    form_data["capacity_feet"] = str(
+        _capacity_for_trailer(
+            form_data.get("trailer_type"),
+            default_capacity=float(DEFAULT_BUILD_PARAMS.get("capacity_feet") or 53.0),
+        )
+    )
+
     if errors:
         return {
             "errors": errors,
@@ -441,7 +473,7 @@ def build_loads(
     if store_settings:
         db.upsert_optimizer_settings(params)
 
-    optimizer = Optimizer()
+    optimizer = Optimizer(planner_id=created_by)
     if algorithm_version == "v2":
         optimized_loads = optimizer.build_optimized_loads_v2(params)
     else:
@@ -598,22 +630,20 @@ def create_manual_load(origin_plant, so_nums, trailer_type=None, created_by=None
         return {"errors": {"so_nums": "Select at least one order."}, "load_id": None}
 
     settings = db.get_optimizer_settings(origin_plant) or {}
-    capacity_value = settings.get("capacity_feet")
-    if capacity_value is None or capacity_value == "":
-        capacity_value = DEFAULT_BUILD_PARAMS.get("capacity_feet") or "53"
-    try:
-        capacity_feet = float(capacity_value)
-    except (TypeError, ValueError):
-        capacity_feet = float(DEFAULT_BUILD_PARAMS.get("capacity_feet") or 53)
-
     trailer_choice = stack_calculator.normalize_trailer_type(
-        trailer_type or settings.get("trailer_type") or DEFAULT_BUILD_PARAMS.get("trailer_type") or "STEP_DECK",
+        trailer_type
+        or settings.get("trailer_type")
+        or _default_trailer_type_for_plant(origin_plant),
         default="STEP_DECK",
     )
     if not stack_calculator.is_valid_trailer_type(trailer_choice):
         return {"errors": {"trailer_type": "Select a valid trailer type."}, "load_id": None}
+    capacity_feet = _capacity_for_trailer(
+        trailer_choice,
+        default_capacity=float(DEFAULT_BUILD_PARAMS.get("capacity_feet") or 53.0),
+    )
 
-    optimizer = Optimizer()
+    optimizer = Optimizer(planner_id=created_by)
     order_lines = db.list_order_lines_for_so_nums(origin_plant, normalized)
     if not order_lines:
         return {"errors": {"so_nums": "No eligible order lines found."}, "load_id": None}

@@ -24,6 +24,7 @@ DEFAULT_REPLAY_PRESET = {
     "upper_deck_exception_max_length_ft": 16.0,
     "upper_deck_exception_overhang_allowance_ft": 6.0,
     "upper_deck_exception_categories": ["USA", "UTA"],
+    "equal_length_deck_length_order_enabled": True,
     "enforce_time_window": True,
     "algorithm_version": "v2",
     "v2_low_util_threshold": 70.0,
@@ -55,6 +56,9 @@ DEFAULT_REPLAY_PRESET = {
     "v2_home_length_priority_max_bonus": 12.0,
     "ops_parity_enabled": False,
     "ops_parity_max_utilization_pct": 120.0,
+}
+PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES = {
+    "NV": "STEP_DECK_48",
 }
 
 EVAL_SCOPE_DAILY_SHIPPED = "DAILY_SHIPPED"
@@ -364,13 +368,27 @@ def parse_report(file_obj):
 def _build_optimizer_params(plant_code, preset):
     combined = dict(DEFAULT_REPLAY_PRESET)
     combined.update(preset or {})
+    normalized_plant = _clean_text(plant_code).upper()
+    plant_default_trailer = PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES.get(normalized_plant)
+    if plant_default_trailer:
+        requested_trailer = stack_calculator.normalize_trailer_type(
+            combined.get("trailer_type"),
+            default=DEFAULT_REPLAY_PRESET.get("trailer_type", "STEP_DECK"),
+        )
+        if requested_trailer == DEFAULT_REPLAY_PRESET.get("trailer_type", "STEP_DECK"):
+            combined["trailer_type"] = plant_default_trailer
     params = dict(combined)
     params["origin_plant"] = plant_code
     params["trailer_type"] = stack_calculator.normalize_trailer_type(
         params.get("trailer_type"),
         default="STEP_DECK",
     )
-    params["capacity_feet"] = float(params.get("capacity_feet") or 53.0)
+    if params["trailer_type"] in stack_calculator.FIXED_CAPACITY_TRAILER_TYPES:
+        params["capacity_feet"] = float(
+            stack_calculator.TRAILER_CONFIGS.get(params["trailer_type"], {}).get("capacity") or 53.0
+        )
+    else:
+        params["capacity_feet"] = float(params.get("capacity_feet") or 53.0)
     params["max_detour_pct"] = float(params.get("max_detour_pct") or 15.0)
     params["time_window_days"] = int(params.get("time_window_days") or 0)
     params["geo_radius"] = float(params.get("geo_radius") or 0.0)
@@ -391,6 +409,10 @@ def _build_optimizer_params(plant_code, preset):
     params["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
         params.get("upper_deck_exception_categories"),
         default=DEFAULT_REPLAY_PRESET.get("upper_deck_exception_categories", ["USA", "UTA"]),
+    )
+    params["equal_length_deck_length_order_enabled"] = _to_bool(
+        params.get("equal_length_deck_length_order_enabled"),
+        default=DEFAULT_REPLAY_PRESET.get("equal_length_deck_length_order_enabled", True),
     )
     params["enforce_time_window"] = bool(params.get("enforce_time_window", True))
     params["algorithm_version"] = "v2"

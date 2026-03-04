@@ -11,8 +11,8 @@
         <p class="settings-command-subtitle">Unified Admin Command Center for rates, customers, optimizer defaults, SKUs, and plant locations.</p>
       </div>
     </header>
-    {% if not is_admin %}
-      <div class="alert-message warning">Read-only access for Planner role.</div>
+    {% if not can_edit_settings %}
+      <div class="alert-message warning">Read-only access for this role.</div>
     {% endif %}
 
     <div class="settings-tabs">
@@ -44,7 +44,7 @@
               </div>
               <div class="settings-card-actions">
                 <a class="settings-card-btn settings-card-btn-secondary" href="{{ url_for('settings', tab='rates') }}">Edit Matrix</a>
-                {% if is_admin %}
+                {% if can_edit_settings %}
                   <button class="settings-card-btn settings-card-btn-primary" type="submit" form="rates-overview-form">Save Metrics</button>
                 {% endif %}
               </div>
@@ -56,7 +56,7 @@
                   <span class="settings-rate-label">Stop Fee</span>
                   <div class="settings-rate-input-wrap">
                     <span class="settings-rate-prefix">$</span>
-                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="stop_fee" value="{{ '%.2f' | format(global_rate_metrics.stop_fee or 0) }}" {% if not is_admin %}disabled{% endif %}>
+                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="stop_fee" value="{{ '%.2f' | format(global_rate_metrics.stop_fee or 0) }}" {% if not can_edit_settings %}disabled{% endif %}>
                   </div>
                   <small>Applied per additional stop</small>
                 </label>
@@ -64,7 +64,7 @@
                   <span class="settings-rate-label">Load Minimum</span>
                   <div class="settings-rate-input-wrap">
                     <span class="settings-rate-prefix">$</span>
-                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="load_minimum" value="{{ '%.2f' | format(global_rate_metrics.load_minimum or 0) }}" {% if not is_admin %}disabled{% endif %}>
+                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="load_minimum" value="{{ '%.2f' | format(global_rate_metrics.load_minimum or 0) }}" {% if not can_edit_settings %}disabled{% endif %}>
                   </div>
                   <small>Global floor per load</small>
                 </label>
@@ -72,7 +72,7 @@
                   <span class="settings-rate-label">Fuel Surcharge</span>
                   <div class="settings-rate-input-wrap">
                     <span class="settings-rate-prefix">$</span>
-                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="fuel_surcharge" value="{{ '%.2f' | format(global_rate_metrics.fuel_surcharge or 0) }}" {% if not is_admin %}disabled{% endif %}>
+                    <input class="settings-rate-input" type="number" step="0.01" min="0" name="fuel_surcharge" value="{{ '%.2f' | format(global_rate_metrics.fuel_surcharge or 0) }}" {% if not can_edit_settings %}disabled{% endif %}>
                     <span class="settings-rate-suffix">/mi</span>
                   </div>
                   <small>Added to state rate per mile</small>
@@ -90,7 +90,7 @@
                   <p class="muted">Default color map for stops 1-12 across manifest dots and stacking schematic blocks.</p>
                 </div>
               </div>
-              {% if is_admin %}
+              {% if can_edit_settings %}
                 <div class="settings-card-actions">
                   <button class="settings-card-btn settings-card-btn-primary" type="submit" form="stop-colors-form">Save Colors</button>
                 </div>
@@ -109,7 +109,7 @@
                       name="stop_color_{{ row.sequence }}"
                       value="{{ row.color }}"
                       data-stop-color-input
-                      {% if not is_admin %}disabled{% endif %}
+                      {% if not can_edit_settings %}disabled{% endif %}
                     >
                     <input
                       class="table-input settings-stop-color-hex"
@@ -118,7 +118,7 @@
                       data-stop-color-hex
                       maxlength="7"
                       pattern="#[0-9A-Fa-f]{6}"
-                      {% if not is_admin %}disabled{% endif %}
+                      {% if not can_edit_settings %}disabled{% endif %}
                     >
                   </label>
                 {% endfor %}
@@ -126,52 +126,90 @@
             </form>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-plants" style="order: 3;">
+          <article class="content-block settings-command-card settings-command-card-wide settings-card-plants" style="order: 3;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">factory</span>
                 <div>
                   <h2>Plant Locations</h2>
-                  <p class="muted">Editable plant registry.</p>
+                  <p class="muted">Editable plant registry with Plant Trailer Defaults in the right-side columns.</p>
                 </div>
               </div>
+              {% if can_edit_settings and is_admin %}
+                <div class="settings-card-actions">
+                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="optimizer-plant-defaults-form">Save Plant Trailer Defaults</button>
+                </div>
+              {% endif %}
             </div>
-            <div class="table-container table-container-compact settings-table-shell">
-              <table class="settings-table inline-edit-table" id="overview-plants-table" data-save="/plants/save">
-                <thead>
-                  <tr>
-                    <th>Plant</th>
-                    <th>Name</th>
-                    <th>Lat</th>
-                    <th>Lng</th>
-                    <th>Address</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for plant in plants_data %}
-                    <tr data-id="{{ plant.id }}">
-                      <td><input class="table-input" data-field="plant_code" value="{{ plant.plant_code }}" {% if not is_admin %}disabled{% endif %}></td>
-                      <td><input class="table-input" data-field="name" value="{{ plant.name }}" {% if not is_admin %}disabled{% endif %}></td>
-                      <td><input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lat) if plant.lat is not none else '' }}" {% if not is_admin %}disabled{% endif %}></td>
-                      <td><input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lng) if plant.lng is not none else '' }}" {% if not is_admin %}disabled{% endif %}></td>
-                      <td><input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not is_admin %}disabled{% endif %}></td>
+            {% if not is_admin %}
+              <p class="muted">Plant-level trailer defaults are managed by admins.</p>
+            {% endif %}
+            <form class="settings-defaults-form" id="optimizer-plant-defaults-form" method="post" action="{{ url_for('save_optimizer_defaults') }}">
+              <input type="hidden" name="tab" value="overview">
+              <div class="table-container table-container-compact settings-table-shell">
+                <table class="settings-table settings-defaults-table inline-edit-table" id="overview-plants-table" data-save="/plants/save">
+                  <thead>
+                    <tr class="settings-trailer-group-row">
+                      <th class="settings-trailer-group-spacer" colspan="5"></th>
+                      <th class="settings-trailer-group-label" colspan="3">Plant Trailer Default Settings</th>
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
+                    <tr>
+                      <th>Plant</th>
+                      <th>Name</th>
+                      <th>Lat</th>
+                      <th>Lng</th>
+                      <th>Address</th>
+                      <th>Default Trailer</th>
+                      <th>Capacity (ft)</th>
+                      <th>Auto HOTSHOT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for plant in plants_data %}
+                      {% set plant_code = plant.plant_code %}
+                      {% set row = (optimizer_plant_defaults | selectattr('plant_code', 'equalto', plant_code) | list | first) %}
+                      {% set selected_trailer = row.trailer_type if row else optimizer_defaults.trailer_type %}
+                      {% set capacity_value = row.capacity_feet if row else optimizer_defaults.capacity_feet %}
+                      {% set hotshot_enabled = row.auto_hotshot_enabled if row else true %}
+                      <tr data-id="{{ plant.id }}">
+                        <td><input class="table-input" data-field="plant_code" value="{{ plant_code }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="name" value="{{ plant.name }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lat) if plant.lat is not none else '' }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lng) if plant.lng is not none else '' }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td>
+                          <input type="hidden" name="plant_defaults_present_{{ plant_code }}" value="1">
+                          <select class="select-field settings-default-input plant-trailer-default-select" name="plant_default_trailer_{{ plant_code }}" {% if not can_edit_settings or not is_admin %}disabled{% endif %}>
+                            {% for trailer_option in trailer_profile_options %}
+                              <option value="{{ trailer_option.value }}" {% if selected_trailer == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
+                            {% endfor %}
+                          </select>
+                        </td>
+                        <td>{{ capacity_value | round(1) }}</td>
+                        <td>
+                          <label class="checkbox-pill">
+                            <input type="checkbox" name="plant_auto_hotshot_enabled_{{ plant_code }}" value="1" {% if hotshot_enabled %}checked{% endif %} {% if not can_edit_settings or not is_admin %}disabled{% endif %}>
+                            <span>Enabled</span>
+                          </label>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </form>
           </article>
 
-          <article class="content-block settings-command-card settings-command-card-span-6 settings-card-defaults" style="order: 4;">
+          <article class="content-block settings-command-card settings-command-card-wide settings-card-defaults" style="order: 4;">
             <div class="content-header settings-content-header settings-panel-header">
               <div class="settings-panel-title">
                 <span class="material-symbols-outlined">tune</span>
                 <div>
                   <h2>Optimizer Defaults</h2>
-                  <p class="muted">Primary defaults used to pre-fill optimization on Orders.</p>
+                  <p class="muted">Primary defaults used to pre-fill optimization on Orders. Trailer type + capacity are configured per plant.</p>
                 </div>
               </div>
-              {% if is_admin %}
+              {% if can_edit_settings %}
                 <div class="settings-card-actions">
                   <button class="settings-card-btn settings-card-btn-primary" type="submit" form="optimizer-defaults-form">Save Defaults</button>
                 </div>
@@ -190,72 +228,91 @@
                   </thead>
                   <tbody>
                     <tr>
-                      <td>Trailer Type</td>
-                      <td>
-                        <select class="select-field settings-default-input" name="trailer_type" {% if not is_admin %}disabled{% endif %}>
-                          {% for trailer_option in trailer_profile_options %}
-                            <option value="{{ trailer_option.value }}" {% if optimizer_defaults.trailer_type == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
-                          {% endfor %}
-                        </select>
-                      </td>
-                      <td class="settings-default-note">Primary profile for capacity planning</td>
-                    </tr>
-                    <tr>
-                      <td>Capacity (ft)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="1" step="0.1" name="capacity_feet" value="{{ optimizer_defaults.capacity_feet }}" {% if not is_admin %}disabled{% endif %}></td>
-                      <td class="settings-default-note">Target trailer length capacity.</td>
-                    </tr>
-                    <tr>
                       <td>Time Window (days)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="time_window_days" value="{{ optimizer_defaults.time_window_days }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="time_window_days" value="{{ optimizer_defaults.time_window_days }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">How early orders can be consolidated.</td>
                     </tr>
                     <tr>
                       <td>Geo Search Radius</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="geo_radius" value="{{ optimizer_defaults.geo_radius }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="geo_radius" value="{{ optimizer_defaults.geo_radius }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">Maximum distance for order consolidation.</td>
                     </tr>
                     <tr>
                       <td>Max Detour (%)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="max_detour_pct" value="{{ optimizer_defaults.max_detour_pct }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="max_detour_pct" value="{{ optimizer_defaults.max_detour_pct }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">Route compatibility tolerance.</td>
                     </tr>
                     <tr>
                       <td>Stack Overflow Max Height</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="stack_overflow_max_height" value="{{ optimizer_defaults.stack_overflow_max_height or 5 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="stack_overflow_max_height" value="{{ optimizer_defaults.stack_overflow_max_height or 5 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">Allows one overflow unit on a full stack when item max-stack is at least this value (0 disables).</td>
                     </tr>
                     <tr>
                       <td>Back Overhang Allowance (ft)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="max_back_overhang_ft" value="{{ optimizer_defaults.max_back_overhang_ft or 4 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="max_back_overhang_ft" value="{{ optimizer_defaults.max_back_overhang_ft or 4 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">Allowed overhang off trailer back (left side in schematic) before hard capacity violation.</td>
                     </tr>
                     <tr>
                       <td>Upper Deck Two-Across Max Length (ft)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_two_across_max_length_ft" value="{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_two_across_max_length_ft" value="{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">For step decks, items at or below this length can be treated as 2-across on upper deck to add capacity. Upper deck stacking still uses flatbed max stack values.</td>
                     </tr>
                     <tr>
                       <td>Upper Deck Exception Max Length (ft)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_deck_exception_max_length_ft" value="{{ optimizer_defaults.upper_deck_exception_max_length_ft or 16 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_deck_exception_max_length_ft" value="{{ optimizer_defaults.upper_deck_exception_max_length_ft or 16 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">Selected categories can be placed on step-deck upper deck up to this length.</td>
                     </tr>
                     <tr>
                       <td>Upper Deck Exception Overhang Allowance (ft)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_deck_exception_overhang_allowance_ft" value="{{ optimizer_defaults.upper_deck_exception_overhang_allowance_ft or 6 }}" {% if not is_admin %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_deck_exception_overhang_allowance_ft" value="{{ optimizer_defaults.upper_deck_exception_overhang_allowance_ft or 6 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">Maximum upper-deck back overhang allowed for exception-eligible stacks.</td>
                     </tr>
                     <tr>
                       <td>Upper Deck Exception Categories</td>
                       <td>
                         {% set selected_exception_categories = optimizer_defaults.upper_deck_exception_categories or ['USA', 'UTA'] %}
-                        <div class="settings-inline-checkboxes">
-                          {% for category in optimizer_exception_category_options %}
-                            <label class="settings-inline-check">
-                              <input type="checkbox" name="upper_deck_exception_categories" value="{{ category }}" {% if category in selected_exception_categories %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
-                              <span>{{ category }}</span>
-                            </label>
-                          {% endfor %}
+                        {% set selected_exception_count = selected_exception_categories | length %}
+                        <div class="optimize-dropdown settings-multiselect" data-settings-multiselect>
+                          <button class="dropdown-trigger" type="button" data-settings-multiselect-toggle {% if not can_edit_settings %}disabled{% endif %}>
+                            <span data-settings-multiselect-label>
+                              {% if selected_exception_count == 0 %}
+                                No categories selected
+                              {% elif selected_exception_count == 1 %}
+                                {{ selected_exception_categories[0] }}
+                              {% elif selected_exception_count <= 3 %}
+                                {{ selected_exception_categories | join(', ') }}
+                              {% else %}
+                                {{ selected_exception_count }} selected
+                              {% endif %}
+                            </span>
+                            <span class="material-symbols-outlined" aria-hidden="true">expand_more</span>
+                          </button>
+                          <div class="dropdown-panel hidden" data-settings-multiselect-panel>
+                            <div class="dropdown-actions">
+                              <span class="meta-label">Select Categories</span>
+                              {% if can_edit_settings %}
+                                <div class="settings-multiselect-actions">
+                                  <button class="btn-ghost btn-xs" type="button" data-settings-multiselect-all>Select all</button>
+                                  <button class="btn-ghost btn-xs" type="button" data-settings-multiselect-clear>Clear</button>
+                                </div>
+                              {% endif %}
+                            </div>
+                            <div class="dropdown-scroll">
+                              {% for category in optimizer_exception_category_options %}
+                                <label class="checkbox-pill">
+                                  <input
+                                    type="checkbox"
+                                    name="upper_deck_exception_categories"
+                                    value="{{ category }}"
+                                    data-settings-multiselect-input
+                                    {% if category in selected_exception_categories %}checked{% endif %}
+                                    {% if not can_edit_settings %}disabled{% endif %}
+                                  >
+                                  <span>{{ category }}</span>
+                                </label>
+                              {% endfor %}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td class="settings-default-note">Upper-deck exception applies only when all items in a stack are in selected categories.</td>
@@ -309,7 +366,7 @@
                 <p class="muted">Editable grade thresholds.</p>
                 </div>
               </div>
-              {% if is_admin %}
+              {% if can_edit_settings %}
                 <div class="settings-card-actions">
                   <button class="settings-card-btn settings-card-btn-primary" type="submit" form="util-grades-form">Save Grades</button>
                 </div>
@@ -327,7 +384,7 @@
                         <span class="util-grade-name">{{ grade_name }}</span>
                       </span>
                       <span class="util-grade-threshold">
-                        <input class="select-field util-grade-input" type="number" min="0" max="100" step="1" name="grade_{{ row.grade | lower }}_min" value="{{ row.min_pct }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="select-field util-grade-input" type="number" min="0" max="100" step="1" name="grade_{{ row.grade | lower }}_min" value="{{ row.min_pct }}" {% if not can_edit_settings %}disabled{% endif %}>
                         <span>%+</span>
                       </span>
                     </label>
@@ -338,7 +395,7 @@
                         <span class="util-grade-name">{{ grade_name }}</span>
                       </span>
                       <span class="util-grade-threshold">
-                        {% if is_admin %}
+                        {% if can_edit_settings %}
                           <input class="select-field util-grade-input" type="number" min="0" max="100" step="1" name="grade_d_min" data-grade-d-input value="{{ row.min_pct }}">
                         {% else %}
                           <span>{{ row.min_pct }}</span>
@@ -353,7 +410,7 @@
                         <span class="util-grade-name">{{ grade_name }}</span>
                       </span>
                       <span class="util-grade-threshold">
-                        {% if is_admin %}
+                        {% if can_edit_settings %}
                           <input class="select-field util-grade-input" type="number" min="0" max="99" step="1" name="grade_f_max" data-grade-f-input value="{{ row.f_max if row.f_max is not none else 0 }}">
                         {% else %}
                           <span>{{ row.f_max if row.f_max is not none else 0 }}</span>
@@ -376,7 +433,7 @@
                   <p class="muted">Customer-level defaults for optimization and load shaping.</p>
                 </div>
               </div>
-              {% if is_admin %}
+              {% if can_edit_settings %}
                 <div class="settings-card-actions">
                   <button class="settings-card-btn settings-card-btn-primary" type="submit" form="strategic-customers-form">Save Definitions</button>
                 </div>
@@ -387,8 +444,8 @@
               <textarea class="settings-textarea-hidden" name="strategic_customers" data-strategic-hidden hidden>{{ strategic_customers_raw or '' }}</textarea>
               <div class="strategic-editor">
                 <div class="strategic-editor-head">
-                  <span class="muted">Pattern matching is case-insensitive substring logic. Customer Flex Days overrides global optimizer flex for that customer (leave blank to use global). Tractor Supply orders with 16ft+ cargo are auto-assigned to 51' Wedge.</span>
-                  {% if is_admin %}
+                  <span class="muted">Pattern matching is case-insensitive substring logic. Customer Flex Days overrides global optimizer flex for that customer (leave blank to use global). Tractor Supply orders are auto-assigned to 51' Wedge when CARGO units are 20+ ft or UTA units are 22+ ft.</span>
+                  {% if can_edit_settings %}
                     <button class="settings-card-btn settings-card-btn-secondary settings-inline-btn" type="button" data-strategic-add>
                       <span class="material-symbols-outlined">add</span>
                       Add Row
@@ -404,7 +461,7 @@
                         <th>Customer Flex Days</th>
                         <th>No Mix</th>
                         <th>Default 51' Wedge</th>
-                        <th>Requires Return Trip</th>
+                        <th>Requires Dedicated Fleet (Return Miles)</th>
                         <th>Ignore for Optimization</th>
                         <th>Include in Optimizer Workbench</th>
                         <th>Action</th>
@@ -415,31 +472,31 @@
                         {% for entry in strategic_customers %}
                           <tr class="strategic-row" data-strategic-row>
                             <td>
-                              <input class="table-input" type="text" data-strategic-label placeholder="Customer label" value="{{ entry.label }}" {% if not is_admin %}disabled{% endif %}>
+                              <input class="table-input" type="text" data-strategic-label placeholder="Customer label" value="{{ entry.label }}" {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td>
-                              <input class="table-input strategic-pattern-input" type="text" data-strategic-patterns placeholder="Pattern1, Pattern2" value="{{ entry.patterns | join(', ') }}" {% if not is_admin %}disabled{% endif %}>
+                              <input class="table-input strategic-pattern-input" type="text" data-strategic-patterns placeholder="Pattern1, Pattern2" value="{{ entry.patterns | join(', ') }}" {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td>
-                              <input class="table-input strategic-flex-input" type="number" min="0" step="1" data-strategic-flex placeholder="Use Global" value="{{ entry.default_due_date_flex_days if entry.default_due_date_flex_days is not none else '' }}" {% if not is_admin %}disabled{% endif %}>
+                              <input class="table-input strategic-flex-input" type="number" min="0" step="1" data-strategic-flex placeholder="Use Global" value="{{ entry.default_due_date_flex_days if entry.default_due_date_flex_days is not none else '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td class="strategic-check-cell">
-                              <input class="strategic-checkbox" type="checkbox" data-strategic-no-mix {% if entry.no_mix %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-no-mix {% if entry.no_mix %}checked{% endif %} {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td class="strategic-check-cell">
-                              <input class="strategic-checkbox" type="checkbox" data-strategic-wedge {% if entry.default_wedge_51 %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-wedge {% if entry.default_wedge_51 %}checked{% endif %} {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td class="strategic-check-cell">
-                              <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if entry.requires_return_to_origin %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if entry.requires_return_to_origin %}checked{% endif %} {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td class="strategic-check-cell">
-                              <input class="strategic-checkbox" type="checkbox" data-strategic-ignore-opt {% if entry.ignore_for_optimization %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-ignore-opt {% if entry.ignore_for_optimization %}checked{% endif %} {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td class="strategic-check-cell">
-                              <input class="strategic-checkbox" type="checkbox" data-strategic-workbench {% if entry.include_in_optimizer_workbench %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                              <input class="strategic-checkbox" type="checkbox" data-strategic-workbench {% if entry.include_in_optimizer_workbench %}checked{% endif %} {% if not can_edit_settings %}disabled{% endif %}>
                             </td>
                             <td class="strategic-remove-cell">
-                              {% if is_admin %}
+                              {% if can_edit_settings %}
                                 <button class="btn-ghost btn-icon" type="button" data-strategic-remove title="Remove row">
                                   <span class="material-symbols-outlined">close</span>
                                 </button>
@@ -452,31 +509,31 @@
                       {% else %}
                         <tr class="strategic-row" data-strategic-row>
                           <td>
-                            <input class="table-input" type="text" data-strategic-label placeholder="Customer label" {% if not is_admin %}disabled{% endif %}>
+                            <input class="table-input" type="text" data-strategic-label placeholder="Customer label" {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td>
-                            <input class="table-input strategic-pattern-input" type="text" data-strategic-patterns placeholder="Pattern1, Pattern2" {% if not is_admin %}disabled{% endif %}>
+                            <input class="table-input strategic-pattern-input" type="text" data-strategic-patterns placeholder="Pattern1, Pattern2" {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td>
-                            <input class="table-input strategic-flex-input" type="number" min="0" step="1" data-strategic-flex placeholder="Use Global" value="" {% if not is_admin %}disabled{% endif %}>
+                            <input class="table-input strategic-flex-input" type="number" min="0" step="1" data-strategic-flex placeholder="Use Global" value="" {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td class="strategic-check-cell">
-                            <input class="strategic-checkbox" type="checkbox" data-strategic-no-mix {% if not is_admin %}disabled{% endif %}>
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-no-mix {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td class="strategic-check-cell">
-                            <input class="strategic-checkbox" type="checkbox" data-strategic-wedge {% if not is_admin %}disabled{% endif %}>
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-wedge {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td class="strategic-check-cell">
-                            <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if not is_admin %}disabled{% endif %}>
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-return {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td class="strategic-check-cell">
-                            <input class="strategic-checkbox" type="checkbox" data-strategic-ignore-opt {% if not is_admin %}disabled{% endif %}>
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-ignore-opt {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td class="strategic-check-cell">
-                            <input class="strategic-checkbox" type="checkbox" data-strategic-workbench checked {% if not is_admin %}disabled{% endif %}>
+                            <input class="strategic-checkbox" type="checkbox" data-strategic-workbench checked {% if not can_edit_settings %}disabled{% endif %}>
                           </td>
                           <td class="strategic-remove-cell">
-                            {% if is_admin %}
+                            {% if can_edit_settings %}
                               <button class="btn-ghost btn-icon" type="button" data-strategic-remove title="Remove row">
                                 <span class="material-symbols-outlined">close</span>
                               </button>
@@ -502,7 +559,7 @@
                     {% endif %}
                     {% if entry.no_mix %}- No Mix{% endif %}
                     {% if entry.default_wedge_51 %}- 51' Wedge{% endif %}
-                    {% if entry.requires_return_to_origin %}- Return Trip{% endif %}
+                    {% if entry.requires_return_to_origin %}- Dedicated Fleet (Return Miles){% endif %}
                     {% if entry.ignore_for_optimization %}- Ignored in Auto Optimize{% endif %}
                     {% if not entry.include_in_optimizer_workbench %}- Hidden in Workbench{% endif %}
                   </span>
@@ -517,18 +574,32 @@
                 <span class="material-symbols-outlined">local_shipping</span>
                 <div>
                   <h2>Trailer Assignment Rules</h2>
-                  <p class="muted">Global trailer logic used by the planner and auto-assignment flow.</p>
+                  {% if is_admin %}
+                    <p class="muted">Global trailer logic used by the planner and auto-assignment flow.</p>
+                  {% else %}
+                    <p class="muted">These settings apply only to your account and override admin defaults for your runs.</p>
+                  {% endif %}
                 </div>
               </div>
-              {% if is_admin %}
-                <div class="settings-card-actions">
-                  <button class="settings-card-btn settings-card-btn-primary" type="submit" form="trailer-rules-form">Save Trailer Rules</button>
-                </div>
-              {% endif %}
+              <div class="settings-card-actions">
+                <button class="settings-card-btn settings-card-btn-primary" type="submit" form="trailer-rules-form">
+                  {% if is_admin %}Save Trailer Rules{% else %}Save My Overrides{% endif %}
+                </button>
+              </div>
             </div>
+            {% if not is_admin %}
+              <div class="settings-warning-note">
+                {% if trailer_assignment_rules_override_active %}
+                  Your account override is active. These values are replacing admin defaults for your planner account.
+                {% else %}
+                  Saving here creates an account-level override and leaves admin defaults unchanged for other users.
+                {% endif %}
+              </div>
+            {% endif %}
             <form class="settings-defaults-form" id="trailer-rules-form" method="post" action="{{ url_for('save_planning_tools') }}">
               <input type="hidden" name="tab" value="overview">
               <input type="hidden" name="trailer_rules_form" value="1">
+              <p class="muted">Auto HOTSHOT assignment is configured per plant in Plant Locations.</p>
               <div class="table-container table-container-compact settings-table-shell">
                 <table class="settings-table settings-defaults-table">
                   <thead>
@@ -543,21 +614,18 @@
                       <td>LIVESTOCK Uses 51' Wedge</td>
                       <td>
                         <label class="checkbox-pill">
-                          <input type="checkbox" name="livestock_wedge_enabled" value="1" {% if trailer_assignment_rules.livestock_wedge_enabled %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                          <input type="checkbox" name="livestock_wedge_enabled" value="1" {% if trailer_assignment_rules.livestock_wedge_enabled %}checked{% endif %}>
                           <span>Enabled for all customers</span>
                         </label>
                       </td>
                       <td class="settings-default-note">Any order with SKU category matching LIVESTOCK will be assigned to a WEDGE trailer profile.</td>
                     </tr>
                     <tr>
-                      <td>Auto Assign HOTSHOT</td>
+                      <td>Tractor Supply Wedge Trigger</td>
                       <td>
-                        <label class="checkbox-pill">
-                          <input type="checkbox" name="auto_assign_hotshot_enabled" value="1" {% if trailer_assignment_rules.auto_assign_hotshot_enabled %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
-                          <span>Enabled</span>
-                        </label>
+                        <span class="meta-chip">Automatic</span>
                       </td>
-                      <td class="settings-default-note">When enabled, any non-wedge load that fits on HOTSHOT is auto-assigned to HOTSHOT.</td>
+                      <td class="settings-default-note">For Tractor Supply only: assign 51' Wedge when CARGO SKU length is 20+ ft (length with tongue) or UTA SKU length is 22+ ft.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -595,12 +663,12 @@
                   <tbody>
                     {% for spec in recent_specs[:3] %}
                       <tr data-id="{{ spec.id }}">
-                        <td><input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}></td>
-                        <td><input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not is_admin %}disabled{% endif %}></td>
-                        <td><input class="table-input" data-field="category" value="{{ spec.category or '' }}" {% if not is_admin %}disabled{% endif %}></td>
-                        <td><input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not is_admin %}disabled{% endif %}></td>
-                        <td><input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not is_admin %}disabled{% endif %}></td>
-                        <td><input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not is_admin %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="category" value="{{ spec.category or '' }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                        <td><input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                         <td><span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span></td>
                       </tr>
                     {% endfor %}
@@ -613,136 +681,66 @@
           </article>
         </div>
       {% elif tab == 'rates' %}
-        <div class="content-block settings-rates-tab">
+        <div class="content-block settings-rates-tab rates-v2" id="rates-v2-root" data-is-admin="{{ '1' if can_edit_settings else '0' }}">
           <div class="content-header settings-content-header">
             <div>
               <h2>Freight Rates</h2>
-              <p class="muted">Update base lane rates by destination state. Estimated freight applies stop fee, load minimum, and fuel surcharge automatically.</p>
+              <p class="muted">Carrier matrix reference and configuration for lane and accessorial rates.</p>
             </div>
-            <div class="settings-header-chips">
-              <span class="meta-chip">{{ rate_plants | length }} Plants</span>
-              <span class="meta-chip">{{ rate_states | length }} Destinations</span>
-              <span class="meta-chip">{{ rates | length }} Lanes</span>
+            <div class="rates-v2-header-right">
+              <div class="rates-v2-accessorials" id="rates-v2-accessorials"></div>
             </div>
           </div>
-          <div class="rate-context-shell" id="rate-context-shell">
-            <div class="rate-context-header">
-              <span class="meta-label">Rate Table Contexts</span>
-              <span class="muted">Use the context tabs to preview planned rate-table modes. All contexts currently use the live DEFAULT matrix.</span>
-            </div>
-            <div class="settings-defaults-form">
-              <div class="rate-context-tabs" role="tablist" aria-label="Rate table contexts">
-                <button class="rate-context-tab is-active" type="button" role="tab" aria-selected="true" data-rate-context-target="default">System Default</button>
-                <button class="rate-context-tab" type="button" role="tab" aria-selected="false" data-rate-context-target="ryder">Dedicated Ryder Fleet</button>
-                <button class="rate-context-tab" type="button" role="tab" aria-selected="false" data-rate-context-target="hotshot">Hotshot Trailer</button>
+
+          <div class="rates-v2-contextbar">
+            <div class="rates-v2-carrier-tabs" id="rates-v2-carrier-tabs" role="tablist" aria-label="Carrier selector"></div>
+            {% if can_edit_settings %}
+              <div class="rates-v2-actions">
+                <button class="btn-ghost" type="button" id="rates-v2-discard-btn">Discard</button>
+                <button class="btn-primary" type="button" id="rates-v2-save-btn">Save Rates</button>
               </div>
-              <div class="rate-context-panel is-active" data-rate-context-panel="default">
-                <span class="meta-chip">Using: DEFAULT</span>
-                <p class="settings-default-note">Current production matrix. Cost logic uses this table today.</p>
-              </div>
-              <div class="rate-context-panel" data-rate-context-panel="ryder" hidden>
-                <span class="meta-chip">Planned Table: DEDICATED RYDER FLEET</span>
-                <p class="settings-default-note">Placeholder context for dedicated fleet rating. Wiring to cost engine comes later.</p>
-              </div>
-              <div class="rate-context-panel" data-rate-context-panel="hotshot" hidden>
-                <span class="meta-chip">Planned Table: HOTSHOT TRAILER TYPES</span>
-                <p class="settings-default-note">Placeholder context for future hotshot-specific rate tables.</p>
-              </div>
+            {% endif %}
+          </div>
+
+          <div class="rates-v2-metric-card">
+            <div class="rates-v2-kpis" id="rates-v2-kpis">
+              <span class="meta-chip" id="rates-v2-kpi-plants">0 Plants</span>
+              <span class="meta-chip" id="rates-v2-kpi-destinations">0 Destinations</span>
+              <span class="meta-chip" id="rates-v2-kpi-lanes">0 Lanes</span>
+              <span class="meta-chip" id="rates-v2-kpi-avg">Avg $0.00/mi</span>
+              <span class="meta-chip rates-v2-kpi-changed hidden" id="rates-v2-kpi-changed">0 Changed Lanes</span>
             </div>
           </div>
-          <div class="rates-toolbar">
-            <div class="search-field">
-              <span class="material-symbols-outlined">search</span>
-              <input id="rate-search" type="text" placeholder="Search destination row..." />
-            </div>
-            <div class="muted">Tip: edit a cell and click outside to save.</div>
+
+          <div class="rates-v2-toolbar" id="rates-v2-toolbar">
+            <button class="btn-secondary rates-v2-export" type="button" id="rates-v2-export-btn">
+              <span class="material-symbols-outlined" aria-hidden="true">download</span>
+              Export CSV
+            </button>
           </div>
-          <div class="rate-assumptions">
-            <div class="assumption-card">
-              <span class="meta-label">Stop Fee</span>
-              <span class="assumption-value">${{ '%.2f' | format(global_rate_metrics.stop_fee or 0) }}</span>
-              <span class="assumption-note">Applied per stop</span>
-            </div>
-            <div class="assumption-card">
-              <span class="meta-label">Load Minimum</span>
-              <span class="assumption-value">${{ '%.2f' | format(global_rate_metrics.load_minimum or 0) }}</span>
-              <span class="assumption-note">Applied per load</span>
-            </div>
-            <div class="assumption-card assumption-card-editable">
-              <span class="meta-label">Fuel Surcharge</span>
-              {% if is_admin %}
-                <label class="rate-input-wrap assumption-input-wrap" for="fuel-surcharge-input">
-                  <span class="currency-prefix">$</span>
-                  <input
-                    id="fuel-surcharge-input"
-                    class="table-input"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value="{{ '%.2f' | format(fuel_surcharge_per_mile or 0) }}"
-                    aria-label="Fuel surcharge per mile"
-                  />
-                </label>
-              {% else %}
-                <span class="assumption-value">${{ '%.2f' | format(fuel_surcharge_per_mile or 0) }}</span>
-              {% endif %}
-              <span class="assumption-note" id="fuel-surcharge-note">
-                Applied per mile. Example: base $3.25 -> effective ${{ '%.2f' | format((3.25 + (fuel_surcharge_per_mile or 0)) | float) }}
-              </span>
-            </div>
+
+          <div class="rates-v2-matrix-shell" id="rates-v2-matrix-shell">
+            <table class="settings-table rates-v2-matrix" id="rates-v2-matrix">
+              <thead id="rates-v2-matrix-head"></thead>
+              <tbody id="rates-v2-matrix-body"></tbody>
+            </table>
           </div>
-          {% if not is_admin %}
+
+          <section class="rates-v2-trailer-section" id="rates-v2-trailer-section" hidden>
+            <div class="rates-v2-trailer-header">
+              <h3>Alternate Trailer Types</h3>
+              <span class="muted">Plant-level trailer-specific rates and accessorial placeholders.</span>
+            </div>
+            <div class="rates-v2-trailer-list" id="rates-v2-trailer-list"></div>
+          </section>
+
+          <div class="form-status" id="rates-status"></div>
+
+          <script type="application/json" id="rates-v2-data">{{ rates_v2_payload | tojson }}</script>
+
+          {% if not can_edit_settings %}
             <div class="readonly-note">Rates are read-only for planners.</div>
           {% endif %}
-
-          {% if rate_states %}
-            <div class="table-container">
-              <table class="settings-table rates-matrix" id="rates-matrix">
-                <thead>
-                  <tr>
-                    <th>Destination</th>
-                    {% for plant in rate_plants %}
-                      <th>{{ plant }}</th>
-                    {% endfor %}
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for state in rate_states %}
-                    <tr>
-                      <td class="matrix-label">{{ state }}</td>
-                      {% for plant in rate_plants %}
-                        {% set rate = rate_matrix[state][plant] %}
-                        {% set rate_value = ('%.2f' | format(rate.rate_per_mile)) if rate and rate.rate_per_mile is not none else '' %}
-                        <td class="rate-cell"
-                            data-origin-plant="{{ plant }}"
-                            data-destination-state="{{ state }}"
-                            data-rate-id="{{ rate.id if rate }}"
-                            data-effective-year="{{ rate.effective_year if rate }}">
-                          {% if is_admin %}
-                            <div class="rate-input-wrap">
-                              <span class="currency-prefix">$</span>
-                              <input class="table-input rate-input"
-                                     type="number"
-                                     step="0.01"
-                                     value="{{ rate_value }}"
-                                     placeholder="--" />
-                            </div>
-                          {% else %}
-                            <span class="rate-display">
-                              {% if rate %}${{ rate_value }}{% else %}-{% endif %}
-                            </span>
-                          {% endif %}
-                        </td>
-                      {% endfor %}
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <p>No rates yet.</p>
-          {% endif %}
-          <div class="form-status" id="rates-status"></div>
         </div>
       {% elif tab == 'skus' %}
         <div class="content-block settings-skus-tab">
@@ -877,7 +875,7 @@
                 </select>
               </label>
               <button class="btn-ghost btn-xs" type="button" data-sku-filter-reset>Reset</button>
-              {% if is_admin %}
+              {% if can_edit_settings %}
                 <button
                   class="btn-primary btn-xs sku-add-toggle"
                   type="button"
@@ -890,7 +888,7 @@
               {% endif %}
             </div>
           </div>
-          {% if is_admin %}
+          {% if can_edit_settings %}
             <form class="form-grid sku-add-form" id="sku-add-form-panel" method="post" action="{{ url_for('add_sku') }}" hidden>
               <label>SKU<input name="sku" type="text" required></label>
               <label>Description<input name="description" type="text"></label>
@@ -943,31 +941,31 @@
                         data-step-deck-value="{{ spec.max_stack_step_deck if spec.max_stack_step_deck is not none else '' }}"
                         data-flat-bed-value="{{ spec.max_stack_flat_bed if spec.max_stack_flat_bed is not none else '' }}">
                       <td>
-                        <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
                         <span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span>
                       </td>
                       <td>
-                        {% if is_admin %}
+                        {% if can_edit_settings %}
                           <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
                             <button class="btn-danger" type="submit">Delete</button>
                           </form>
@@ -996,31 +994,31 @@
                         data-step-deck-value="{{ spec.max_stack_step_deck if spec.max_stack_step_deck is not none else '' }}"
                         data-flat-bed-value="{{ spec.max_stack_flat_bed if spec.max_stack_flat_bed is not none else '' }}">
                       <td>
-                        <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
                         <span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span>
                       </td>
                       <td>
-                        {% if is_admin %}
+                        {% if can_edit_settings %}
                           <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
                             <button class="btn-danger" type="submit">Delete</button>
                           </form>
@@ -1042,7 +1040,7 @@
           <div class="content-header">
             <h2>Item Lookup Rules</h2>
           </div>
-          {% if is_admin %}
+          {% if can_edit_settings %}
             <form class="form-grid" method="post" action="{{ url_for('add_lookup') }}">
               <label>Plant<input name="plant" type="text" required></label>
               <label>BIN<input name="bin" type="text" required></label>
@@ -1079,23 +1077,23 @@
                   {% for lookup in lookups %}
                     <tr data-id="{{ lookup.id }}">
                       <td>
-                        <input class="table-input" data-field="plant" value="{{ lookup.plant }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="plant" value="{{ lookup.plant }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="bin" value="{{ lookup.bin }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="bin" value="{{ lookup.bin }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <input class="table-input" data-field="item_pattern" value="{{ lookup.item_pattern or '' }}" {% if not is_admin %}disabled{% endif %}>
+                        <input class="table-input" data-field="item_pattern" value="{{ lookup.item_pattern or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
                         <input class="table-input"
                                data-field="sku"
                                list="sku-options"
                                value="{{ lookup.sku }}"
-                               {% if not is_admin %}disabled{% endif %}>
+                               {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        {% if is_admin %}
+                        {% if can_edit_settings %}
                           <form method="post" action="{{ url_for('delete_lookup', entry_id=lookup.id) }}">
                             <button class="btn-danger" type="submit">Delete</button>
                           </form>
@@ -1137,19 +1135,19 @@
                 {% for plant in plants_data %}
                   <tr data-id="{{ plant.id }}">
                     <td>
-                      <input class="table-input" data-field="plant_code" value="{{ plant.plant_code }}" {% if not is_admin %}disabled{% endif %}>
+                      <input class="table-input" data-field="plant_code" value="{{ plant.plant_code }}" {% if not can_edit_settings %}disabled{% endif %}>
                     </td>
                     <td>
-                      <input class="table-input" data-field="name" value="{{ plant.name }}" {% if not is_admin %}disabled{% endif %}>
+                      <input class="table-input" data-field="name" value="{{ plant.name }}" {% if not can_edit_settings %}disabled{% endif %}>
                     </td>
                     <td>
-                      <input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lat) if plant.lat is not none else '' }}" {% if not is_admin %}disabled{% endif %}>
+                      <input class="table-input" data-field="lat" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lat) if plant.lat is not none else '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                     </td>
                     <td>
-                      <input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lng) if plant.lng is not none else '' }}" {% if not is_admin %}disabled{% endif %}>
+                      <input class="table-input" data-field="lng" data-type="float" type="number" step="0.0001" value="{{ '%.4f' | format(plant.lng) if plant.lng is not none else '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                     </td>
                     <td>
-                      <input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not is_admin %}disabled{% endif %}>
+                      <input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                     </td>
                   </tr>
                 {% endfor %}
@@ -1178,10 +1176,10 @@
               <form class="form-grid" method="post" action="{{ url_for('save_planning_tools') }}">
                 <label style="grid-column: 1 / -1;">
                   Definitions
-                  <textarea name="strategic_customers" rows="6" {% if not is_admin %}disabled{% endif %}>{{ strategic_customers_raw or '' }}</textarea>
+                  <textarea name="strategic_customers" rows="6" {% if not can_edit_settings %}disabled{% endif %}>{{ strategic_customers_raw or '' }}</textarea>
                 </label>
                 <div class="form-actions" style="grid-column: 1 / -1;">
-                  {% if is_admin %}
+                  {% if can_edit_settings %}
                     <button class="btn-success" type="submit">Save</button>
                   {% else %}
                     <div class="readonly-note">Planning tools are read-only for planners.</div>
@@ -1312,7 +1310,8 @@
       {% endif %}
     </div>
   </section>
-  {% if is_admin %}
+  <script src="{{ url_for('static', filename='rates_v2.js') }}"></script>
+  {% if can_edit_settings %}
     <script>
       (function () {
         const tab = "{{ tab }}";
@@ -1398,12 +1397,99 @@
           });
         }
 
+        function setupSettingsMultiselect() {
+          const wrappers = Array.from(document.querySelectorAll('[data-settings-multiselect]'));
+          if (!wrappers.length) return;
+
+          const closeAll = () => {
+            wrappers.forEach((wrapper) => {
+              const panel = wrapper.querySelector('[data-settings-multiselect-panel]');
+              if (panel) panel.classList.add('hidden');
+            });
+          };
+
+          wrappers.forEach((wrapper) => {
+            const toggle = wrapper.querySelector('[data-settings-multiselect-toggle]');
+            const panel = wrapper.querySelector('[data-settings-multiselect-panel]');
+            const label = wrapper.querySelector('[data-settings-multiselect-label]');
+            const inputs = Array.from(wrapper.querySelectorAll('[data-settings-multiselect-input]'));
+            const selectAllBtn = wrapper.querySelector('[data-settings-multiselect-all]');
+            const clearBtn = wrapper.querySelector('[data-settings-multiselect-clear]');
+
+            if (!toggle || !panel || !label || !inputs.length) return;
+
+            const updateLabel = () => {
+              const selected = inputs
+                .filter((input) => input.checked)
+                .map((input) => String(input.value || '').trim())
+                .filter((value) => value);
+              if (!selected.length) {
+                label.textContent = 'No categories selected';
+              } else if (selected.length === 1) {
+                label.textContent = selected[0];
+              } else if (selected.length <= 3) {
+                label.textContent = selected.join(', ');
+              } else {
+                label.textContent = `${selected.length} selected`;
+              }
+            };
+
+            toggle.addEventListener('click', (event) => {
+              event.preventDefault();
+              if (toggle.disabled) return;
+              const isOpen = !panel.classList.contains('hidden');
+              closeAll();
+              if (!isOpen) panel.classList.remove('hidden');
+            });
+
+            inputs.forEach((input) => {
+              input.addEventListener('change', () => {
+                updateLabel();
+              });
+            });
+
+            if (selectAllBtn) {
+              selectAllBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                inputs.forEach((input) => {
+                  if (!input.disabled) input.checked = true;
+                });
+                updateLabel();
+              });
+            }
+
+            if (clearBtn) {
+              clearBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                inputs.forEach((input) => {
+                  if (!input.disabled) input.checked = false;
+                });
+                updateLabel();
+              });
+            }
+
+            updateLabel();
+          });
+
+          document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) return;
+            if (target.closest('[data-settings-multiselect]')) return;
+            closeAll();
+          });
+
+          document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeAll();
+          });
+        }
+
         function setupRateContextTabs() {
           const shell = document.getElementById('rate-context-shell');
           if (!shell) return;
 
           const tabs = Array.from(shell.querySelectorAll('[data-rate-context-target]'));
           const panels = Array.from(shell.querySelectorAll('[data-rate-context-panel]'));
+          const contents = Array.from(document.querySelectorAll('[data-rate-context-content]'));
 
           const activateTab = (target) => {
             tabs.forEach((tab) => {
@@ -1416,6 +1502,11 @@
               panel.classList.toggle('is-active', active);
               panel.hidden = !active;
             });
+            contents.forEach((content) => {
+              const active = content.dataset.rateContextContent === target;
+              content.classList.toggle('is-active', active);
+              content.hidden = !active;
+            });
           };
 
           tabs.forEach((tab) => {
@@ -1423,58 +1514,93 @@
               activateTab(tab.dataset.rateContextTarget || 'default');
             });
           });
+          activateTab('default');
         }
 
         function setupRatesMatrix() {
           const table = document.getElementById('rates-matrix');
           const statusEl = document.getElementById('rates-status');
           const searchInput = document.getElementById('rate-search');
-          const surchargeInput = document.getElementById('fuel-surcharge-input');
-          const surchargeNote = document.getElementById('fuel-surcharge-note');
+          const defaultStopInput = document.getElementById('default-stop-fee-input');
+          const defaultLoadMinInput = document.getElementById('default-load-minimum-input');
+          const defaultFuelInput = document.getElementById('default-fuel-surcharge-input');
+          const defaultFuelNote = document.getElementById('default-fuel-surcharge-note');
+          const lstPerStopInput = document.getElementById('lst-per-stop-input');
+          const lstLoadMinInput = document.getElementById('lst-load-minimum-input');
+          const lstFuelInput = document.getElementById('lst-fuel-surcharge-input');
+          const ryderPerStopInput = document.getElementById('ryder-per-stop-input');
+          const ryderLoadMinInput = document.getElementById('ryder-load-minimum-input');
+          const ryderFuelInput = document.getElementById('ryder-fuel-surcharge-input');
 
-          function updateSurchargeNote(value) {
-            if (!surchargeNote) return;
-            const base = 3.25;
-            surchargeNote.textContent = `Applied per mile. Example: base $${base.toFixed(2)} -> effective $${(base + value).toFixed(2)}`;
+          function setStatus(message) {
+            if (!statusEl) return;
+            statusEl.textContent = message;
           }
 
-          if (searchInput && table) {
+          function parseOptionalCurrency(value) {
+            const text = `${value ?? ''}`.trim();
+            if (!text) return null;
+            const parsed = parseFloat(text);
+            if (Number.isNaN(parsed)) return null;
+            return Math.max(parsed, 0);
+          }
+
+          function toCurrencyInput(value) {
+            if (value === null || value === undefined || value === '') return '';
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed.toFixed(2) : '';
+          }
+
+          function updateDefaultFuelNote(value) {
+            if (!defaultFuelNote) return;
+            const base = 3.25;
+            defaultFuelNote.textContent = `Applied per mile. Example: base $${base.toFixed(2)} -> effective $${(base + value).toFixed(2)}`;
+          }
+
+          function wireBlurSave(input, onSave) {
+            if (!input) return;
+            input.dataset.current = input.value;
+            input.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                input.blur();
+              }
+            });
+            input.addEventListener('blur', async () => {
+              if (input.value === input.dataset.current) return;
+              await onSave(input);
+            });
+          }
+
+          if (searchInput) {
             searchInput.addEventListener('input', () => {
               const term = searchInput.value.toLowerCase().trim();
-              table.querySelectorAll('tbody tr').forEach((row) => {
-                const haystack = row.textContent.toLowerCase();
-                row.style.display = haystack.includes(term) ? '' : 'none';
+              document.querySelectorAll('[data-rate-context-content]').forEach((content) => {
+                content.querySelectorAll('tbody tr').forEach((row) => {
+                  const haystack = row.textContent.toLowerCase();
+                  row.style.display = haystack.includes(term) ? '' : 'none';
+                });
               });
             });
           }
 
           if (table) {
             table.querySelectorAll('.rate-input').forEach((input) => {
-              input.dataset.current = input.value;
-
-              input.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  input.blur();
-                }
-              });
-
-              input.addEventListener('blur', async () => {
-                if (input.value === input.dataset.current) return;
+              wireBlurSave(input, async () => {
                 const cell = input.closest('.rate-cell');
                 if (!cell) return;
                 const rateId = cell.dataset.rateId || undefined;
                 const origin = cell.dataset.originPlant || '';
                 const destination = cell.dataset.destinationState || '';
                 const year = cell.dataset.effectiveYear || 2026;
-                const parsed = parseFloat(input.value);
+                const parsed = parseOptionalCurrency(input.value);
 
-                if (Number.isNaN(parsed)) {
+                if (parsed === null) {
                   input.value = input.dataset.current || '';
                   return;
                 }
 
-                if (statusEl) statusEl.textContent = 'Saving...';
+                setStatus('Saving...');
 
                 try {
                   const response = await fetch('/rates/save', {
@@ -1492,57 +1618,216 @@
                   if (data && data.rate) {
                     cell.dataset.rateId = data.rate.id || '';
                     cell.dataset.effectiveYear = data.rate.effective_year || year;
-                    input.value = Number(data.rate.rate_per_mile || parsed).toFixed(2);
+                    input.value = toCurrencyInput(data.rate.rate_per_mile ?? parsed);
                   } else {
-                    input.value = parsed.toFixed(2);
+                    input.value = toCurrencyInput(parsed);
                   }
                   input.dataset.current = input.value;
-                  if (statusEl) statusEl.textContent = 'Saved.';
+                  setStatus('Saved.');
                 } catch (error) {
                   input.value = input.dataset.current || '';
-                  if (statusEl) statusEl.textContent = 'Unable to save.';
+                  setStatus('Unable to save.');
                 }
               });
             });
           }
 
-          if (surchargeInput) {
-            surchargeInput.dataset.current = surchargeInput.value;
-            updateSurchargeNote(parseFloat(surchargeInput.value || '0') || 0);
+          async function saveDefaultMetrics() {
+            if (!defaultStopInput || !defaultLoadMinInput || !defaultFuelInput) return;
+            const stopFee = parseOptionalCurrency(defaultStopInput.value);
+            const loadMinimum = parseOptionalCurrency(defaultLoadMinInput.value);
+            const fuelSurcharge = parseOptionalCurrency(defaultFuelInput.value);
+            if (stopFee === null || loadMinimum === null || fuelSurcharge === null) {
+              defaultStopInput.value = defaultStopInput.dataset.current || '0.00';
+              defaultLoadMinInput.value = defaultLoadMinInput.dataset.current || '0.00';
+              defaultFuelInput.value = defaultFuelInput.dataset.current || '0.00';
+              updateDefaultFuelNote(parseOptionalCurrency(defaultFuelInput.value) || 0);
+              return;
+            }
+            setStatus('Saving...');
+            try {
+              const response = await fetch('/settings/global-metrics/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  stop_fee: stopFee,
+                  load_minimum: loadMinimum,
+                  fuel_surcharge: fuelSurcharge,
+                }),
+              });
+              const data = await response.json();
+              defaultStopInput.value = toCurrencyInput(data.stop_fee ?? stopFee);
+              defaultLoadMinInput.value = toCurrencyInput(data.load_minimum ?? loadMinimum);
+              defaultFuelInput.value = toCurrencyInput(data.fuel_surcharge ?? fuelSurcharge);
+              defaultStopInput.dataset.current = defaultStopInput.value;
+              defaultLoadMinInput.dataset.current = defaultLoadMinInput.value;
+              defaultFuelInput.dataset.current = defaultFuelInput.value;
+              updateDefaultFuelNote(parseOptionalCurrency(defaultFuelInput.value) || 0);
+              setStatus('Saved.');
+            } catch (error) {
+              defaultStopInput.value = defaultStopInput.dataset.current || '0.00';
+              defaultLoadMinInput.value = defaultLoadMinInput.dataset.current || '0.00';
+              defaultFuelInput.value = defaultFuelInput.dataset.current || '0.00';
+              updateDefaultFuelNote(parseOptionalCurrency(defaultFuelInput.value) || 0);
+              setStatus('Unable to save.');
+            }
+          }
 
-            surchargeInput.addEventListener('keydown', (event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                surchargeInput.blur();
-              }
-            });
+          [defaultStopInput, defaultLoadMinInput, defaultFuelInput].forEach((input) => {
+            wireBlurSave(input, saveDefaultMetrics);
+          });
+          if (defaultFuelInput) {
+            updateDefaultFuelNote(parseOptionalCurrency(defaultFuelInput.value) || 0);
+          }
 
-            surchargeInput.addEventListener('blur', async () => {
-              if (surchargeInput.value === surchargeInput.dataset.current) return;
-              const parsed = parseFloat(surchargeInput.value);
-              if (Number.isNaN(parsed) || parsed < 0) {
-                surchargeInput.value = surchargeInput.dataset.current || '0.40';
-                return;
-              }
-              if (statusEl) statusEl.textContent = 'Saving...';
+          async function saveLstMetrics() {
+            if (!lstPerStopInput || !lstLoadMinInput || !lstFuelInput) return;
+            setStatus('Saving...');
+            try {
+              const response = await fetch('/settings/rates/lst/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  per_stop: parseOptionalCurrency(lstPerStopInput.value),
+                  load_minimum: parseOptionalCurrency(lstLoadMinInput.value),
+                  fuel_surcharge: parseOptionalCurrency(lstFuelInput.value),
+                }),
+              });
+              const data = await response.json();
+              const saved = data.lst_rate_matrix || {};
+              lstPerStopInput.value = toCurrencyInput(saved.per_stop);
+              lstLoadMinInput.value = toCurrencyInput(saved.load_minimum);
+              lstFuelInput.value = toCurrencyInput(saved.fuel_surcharge);
+              lstPerStopInput.dataset.current = lstPerStopInput.value;
+              lstLoadMinInput.dataset.current = lstLoadMinInput.value;
+              lstFuelInput.dataset.current = lstFuelInput.value;
+              setStatus('Saved.');
+            } catch (error) {
+              lstPerStopInput.value = lstPerStopInput.dataset.current || '';
+              lstLoadMinInput.value = lstLoadMinInput.dataset.current || '';
+              lstFuelInput.value = lstFuelInput.dataset.current || '';
+              setStatus('Unable to save.');
+            }
+          }
+
+          [lstPerStopInput, lstLoadMinInput, lstFuelInput].forEach((input) => {
+            wireBlurSave(input, saveLstMetrics);
+          });
+
+          document.querySelectorAll('.lst-rate-input').forEach((input) => {
+            wireBlurSave(input, async () => {
+              const origin = input.dataset.originPlant || '';
+              const destination = input.dataset.destinationState || '';
+              const rate = parseOptionalCurrency(input.value);
+              setStatus('Saving...');
               try {
-                const response = await fetch('/rates/fuel-surcharge/save', {
+                const response = await fetch('/settings/rates/lst/save', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ fuel_surcharge_per_mile: parsed }),
+                  body: JSON.stringify({
+                    origin_plant: origin,
+                    destination_state: destination,
+                    rate_per_mile: rate,
+                  }),
                 });
                 const data = await response.json();
-                const saved = Number(data.fuel_surcharge_per_mile || parsed);
-                surchargeInput.value = saved.toFixed(2);
-                surchargeInput.dataset.current = surchargeInput.value;
-                updateSurchargeNote(saved);
-                if (statusEl) statusEl.textContent = 'Saved.';
+                input.value = toCurrencyInput(data.saved_rate);
+                input.dataset.current = input.value;
+                setStatus('Saved.');
               } catch (error) {
-                surchargeInput.value = surchargeInput.dataset.current || '0.40';
-                if (statusEl) statusEl.textContent = 'Unable to save.';
+                input.value = input.dataset.current || '';
+                setStatus('Unable to save.');
               }
             });
+          });
+
+          async function saveRyderMetrics() {
+            if (!ryderPerStopInput || !ryderLoadMinInput || !ryderFuelInput) return;
+            setStatus('Saving...');
+            try {
+              const response = await fetch('/settings/rates/ryder/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  per_stop: parseOptionalCurrency(ryderPerStopInput.value),
+                  load_minimum: parseOptionalCurrency(ryderLoadMinInput.value),
+                  fuel_surcharge: parseOptionalCurrency(ryderFuelInput.value),
+                }),
+              });
+              const data = await response.json();
+              const saved = data.ryder_dedicated_rate_table || {};
+              ryderPerStopInput.value = toCurrencyInput(saved.per_stop);
+              ryderLoadMinInput.value = toCurrencyInput(saved.load_minimum);
+              ryderFuelInput.value = toCurrencyInput(saved.fuel_surcharge);
+              ryderPerStopInput.dataset.current = ryderPerStopInput.value;
+              ryderLoadMinInput.dataset.current = ryderLoadMinInput.value;
+              ryderFuelInput.dataset.current = ryderFuelInput.value;
+              setStatus('Saved.');
+            } catch (error) {
+              ryderPerStopInput.value = ryderPerStopInput.dataset.current || '';
+              ryderLoadMinInput.value = ryderLoadMinInput.dataset.current || '';
+              ryderFuelInput.value = ryderFuelInput.dataset.current || '';
+              setStatus('Unable to save.');
+            }
           }
+
+          [ryderPerStopInput, ryderLoadMinInput, ryderFuelInput].forEach((input) => {
+            wireBlurSave(input, saveRyderMetrics);
+          });
+
+          document.querySelectorAll('.ryder-rate-input').forEach((input) => {
+            wireBlurSave(input, async () => {
+              const origin = input.dataset.originPlant || '';
+              const rate = parseOptionalCurrency(input.value);
+              setStatus('Saving...');
+              try {
+                const response = await fetch('/settings/rates/ryder/save', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    origin_plant: origin,
+                    rate_per_mile: rate,
+                  }),
+                });
+                const data = await response.json();
+                input.value = toCurrencyInput(data.saved_rate);
+                input.dataset.current = input.value;
+                setStatus('Saved.');
+              } catch (error) {
+                input.value = input.dataset.current || '';
+                setStatus('Unable to save.');
+              }
+            });
+          });
+
+          document.querySelectorAll('.alternate-input').forEach((input) => {
+            wireBlurSave(input, async () => {
+              const trailerTypeCode = input.dataset.trailerTypeCode || '';
+              const origin = input.dataset.originPlant || '';
+              const field = input.dataset.field || '';
+              const value = parseOptionalCurrency(input.value);
+              setStatus('Saving...');
+              try {
+                const response = await fetch('/settings/rates/alternate/save', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    trailer_type_code: trailerTypeCode,
+                    origin_plant: origin,
+                    field,
+                    value,
+                  }),
+                });
+                const data = await response.json();
+                input.value = toCurrencyInput(data.saved_value);
+                input.dataset.current = input.value;
+                setStatus('Saved.');
+              } catch (error) {
+                input.value = input.dataset.current || '';
+                setStatus('Unable to save.');
+              }
+            });
+          });
         }
 
         function setupStrategicEditor() {
@@ -1650,7 +1935,7 @@
               }
               if (entry.no_mix) tags.push('No Mix');
               if (entry.default_wedge_51) tags.push("51' Wedge");
-              if (entry.requires_return_to_origin) tags.push('Return Trip');
+              if (entry.requires_return_to_origin) tags.push('Dedicated Fleet (Return Miles)');
               if (entry.ignore_for_optimization) tags.push('Ignored in Auto Optimize');
               if (!entry.include_in_optimizer_workbench) tags.push('Hidden in Workbench');
               const tagText = tags.length ? ` - ${tags.join(' | ')}` : '';
@@ -1796,10 +2081,10 @@
 
 
         if (tab === 'rates') {
-          setupRateContextTabs();
-          setupRatesMatrix();
+          // Rates V2 initializes in the shared script block below.
         }
         if (tab === 'overview') {
+          setupSettingsMultiselect();
           setupStrategicEditor();
           setupUtilGradeSync();
           setupStopColorEditor();
@@ -1815,7 +2100,12 @@
   <script>
     (function () {
       const tab = "{{ tab }}";
-      if (tab === 'rates') return;
+      if (tab === 'rates') {
+        if (window.RatesV2 && typeof window.RatesV2.init === 'function') {
+          window.RatesV2.init();
+        }
+        return;
+      }
       if (tab !== 'skus') return;
       const addSkuToggle = document.querySelector('[data-sku-add-toggle]');
       const addSkuPanel = document.getElementById('sku-add-form-panel');
@@ -1976,4 +2266,6 @@
     })();
   </script>
 {% endblock %}
+
+
 
