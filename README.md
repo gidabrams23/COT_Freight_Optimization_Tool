@@ -89,3 +89,23 @@ Access profiles are also seeded from `data/seed/access_profiles.csv` when the `a
 Profile persistence notes:
 - On Render, account changes persist across deploys when `APP_DB_PATH` points to a mounted disk (`/var/data/app.db`).
 - The app also snapshots access profiles to `data/seed/access_profiles.csv` on profile create/update/delete, so you can commit that file to GitHub and preserve accounts for fresh environments.
+
+## Sync Local Settings To Render
+
+If your local DB is the source of truth (plant defaults, auto-hotshot toggles, SKU dimensions), use this workflow before deploy:
+
+1. Export local DB snapshots into seed CSV files:
+   ```bash
+   python scripts/export_seed_data.py --tables optimizer_settings sku_specifications planning_settings
+   ```
+2. Commit and push the updated files under `data/seed/`.
+3. Deploy to Render.
+4. For an existing Render disk (already has a DB), open a Render shell and apply the seed snapshots into the live DB:
+   ```bash
+   python scripts/apply_seed_snapshots.py --tables optimizer_settings sku_specifications planning_settings
+   ```
+5. Restart the service.
+
+Notes:
+- Fresh Render disks will auto-seed from `data/seed/` at boot; step 4 is mainly for already-initialized disks.
+- `scripts/export_seed_data.py` now includes `optimizer_settings.auto_hotshot_enabled` so plant-level hotshot checkbox values are preserved.

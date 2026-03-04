@@ -1,11 +1,13 @@
+import argparse
 import csv
+import os
 import sqlite3
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "data" / "db" / "app.db"
-SEED_DIR = ROOT / "data" / "seed"
+DEFAULT_DB_PATH = Path(os.environ.get("APP_DB_PATH", str(ROOT / "data" / "db" / "app.db")))
+DEFAULT_SEED_DIR = Path(os.environ.get("APP_SEED_DIR", str(ROOT / "data" / "seed")))
 
 TABLES = {
     "plants": {
@@ -62,6 +64,7 @@ TABLES = {
             "max_detour_pct",
             "time_window_days",
             "geo_radius",
+            "auto_hotshot_enabled",
             "baseline_cost",
             "baseline_set_at",
             "updated_at",
@@ -71,16 +74,13 @@ TABLES = {
 }
 
 
-def _export_table(cursor, table_name, columns, order_by):
+def _export_table(cursor, seed_dir, table_name, columns, order_by):
     query = f"SELECT {', '.join(columns)} FROM {table_name}"
     if order_by:
         query += f" ORDER BY {order_by}"
     rows = cursor.execute(query).fetchall()
 
-    if not rows:
-        return 0
-
-    path = SEED_DIR / f"{table_name}.csv"
+    path = seed_dir / f"{table_name}.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(columns)
@@ -89,16 +89,47 @@ def _export_table(cursor, table_name, columns, order_by):
     return len(rows)
 
 
-def main():
-    if not DB_PATH.exists():
-        raise SystemExit(f"Database not found at {DB_PATH}")
-    SEED_DIR.mkdir(parents=True, exist_ok=True)
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Export SQLite reference/settings tables to data/seed CSV files.")
+    parser.add_argument(
+        "--db-path",
+        default=str(DEFAULT_DB_PATH),
+        help=f"Path to SQLite DB (default: {DEFAULT_DB_PATH})",
+    )
+    parser.add_argument(
+        "--seed-dir",
+        default=str(DEFAULT_SEED_DIR),
+        help=f"Output directory for CSV files (default: {DEFAULT_SEED_DIR})",
+    )
+    parser.add_argument(
+        "--tables",
+        nargs="+",
+        choices=sorted(TABLES.keys()),
+        help="Optional subset of tables to export.",
+    )
+    return parser.parse_args()
 
-    with sqlite3.connect(DB_PATH) as connection:
+
+def main():
+    args = _parse_args()
+    db_path = Path(args.db_path).expanduser().resolve()
+    seed_dir = Path(args.seed_dir).expanduser().resolve()
+    table_names = args.tables or list(TABLES.keys())
+
+    if not db_path.exists():
+        raise SystemExit(f"Database not found at {db_path}")
+    seed_dir.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(db_path) as connection:
         cursor = connection.cursor()
-        for table, meta in TABLES.items():
+        for table in table_names:
+            meta = TABLES[table]
             count = _export_table(
-                cursor, table, meta["columns"], meta.get("order_by")
+                cursor,
+                seed_dir,
+                table,
+                meta["columns"],
+                meta.get("order_by"),
             )
             print(f"{table}: {count} rows")
 
