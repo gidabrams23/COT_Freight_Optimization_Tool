@@ -26,7 +26,7 @@
               <select class="select-field login-account-select" name="profile_id" id="profile_id" required>
                 {% for profile in profiles %}
                   <option value="{{ profile.id }}" {% if profile.id == selected_profile_id %}selected{% endif %}>
-                    {{ profile.name }} - {{ 'Admin' if profile.is_admin else 'Planner' }}
+                    {{ profile.name }} - {{ 'Admin' if profile.is_admin else ('Planner Sandbox' if profile.is_sandbox else 'Planner') }}
                   </option>
                 {% endfor %}
               </select>
@@ -138,10 +138,14 @@
           }
 
           const isAdmin = !!profile.is_admin;
+          const isSandbox = !!profile.is_sandbox && !isAdmin;
           const name = profile.name || "Unnamed";
+          const roleLabel = isAdmin
+            ? "Administrator Account"
+            : (isSandbox ? "Planner Sandbox Account" : "Planner Account");
 
           if (title) title.textContent = name;
-          if (subtitle) subtitle.textContent = isAdmin ? "Administrator Account" : "Planner Account";
+          if (subtitle) subtitle.textContent = roleLabel;
           if (icon) icon.textContent = isAdmin ? "shield" : "person";
           renderFocusChips(isAdmin ? [] : profile.focus_plants);
 
@@ -159,7 +163,7 @@
           if (note) {
             note.textContent = isAdmin
               ? "Standard security protocols active"
-              : "Planner profile ready for sign in";
+              : (isSandbox ? "Sandbox planner profile ready for sign in" : "Planner profile ready for sign in");
           }
           if (submitButton) {
             submitButton.setAttribute("aria-label", isAdmin ? "Sign in as admin" : "Sign in as planner");

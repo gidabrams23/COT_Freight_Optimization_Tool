@@ -394,6 +394,9 @@ def _rebuild_loads_if_needed(connection):
                 fragility_score,
                 status,
                 trailer_type,
+                carrier_override_key,
+                carrier_override_updated_at,
+                carrier_override_updated_by,
                 utilization_pct,
                 optimization_score,
                 build_source,
@@ -817,6 +820,8 @@ def init_db():
                 notes TEXT,
                 added_at TEXT,
                 source TEXT,
+                updated_at TEXT,
+                updated_by TEXT,
                 created_at TEXT NOT NULL
             )
             """
@@ -997,6 +1002,7 @@ def init_db():
                 session_code TEXT NOT NULL UNIQUE,
                 plant_code TEXT NOT NULL,
                 created_by TEXT,
+                is_sandbox INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'DRAFT',
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 archived_at TEXT,
@@ -1044,6 +1050,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 is_admin INTEGER NOT NULL DEFAULT 0,
+                is_sandbox INTEGER NOT NULL DEFAULT 0,
                 allowed_plants TEXT,
                 default_plants TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1278,8 +1285,12 @@ def init_db():
         _ensure_column(connection, "loads", "utilization_pct", "utilization_pct REAL DEFAULT 0.0")
         _ensure_column(connection, "loads", "optimization_score", "optimization_score REAL DEFAULT 0.0")
         _ensure_column(connection, "loads", "created_by", "created_by TEXT")
+        _ensure_column(connection, "loads", "carrier_override_key", "carrier_override_key TEXT")
+        _ensure_column(connection, "loads", "carrier_override_updated_at", "carrier_override_updated_at TEXT")
+        _ensure_column(connection, "loads", "carrier_override_updated_by", "carrier_override_updated_by TEXT")
         _ensure_column(connection, "planning_sessions", "load_number_prefix", "load_number_prefix TEXT")
         _ensure_column(connection, "planning_sessions", "next_load_sequence", "next_load_sequence INTEGER")
+        _ensure_column(connection, "planning_sessions", "is_sandbox", "is_sandbox INTEGER DEFAULT 0")
         _ensure_column(connection, "optimizer_settings", "baseline_cost", "baseline_cost REAL")
         _ensure_column(connection, "optimizer_settings", "baseline_set_at", "baseline_set_at TEXT")
         _ensure_column(connection, "optimizer_settings", "auto_hotshot_enabled", "auto_hotshot_enabled INTEGER")
@@ -1295,6 +1306,9 @@ def init_db():
         _ensure_column(connection, "sku_specifications", "description", "description TEXT")
         _ensure_column(connection, "sku_specifications", "added_at", "added_at TEXT")
         _ensure_column(connection, "sku_specifications", "source", "source TEXT")
+        _ensure_column(connection, "sku_specifications", "updated_at", "updated_at TEXT")
+        _ensure_column(connection, "sku_specifications", "updated_by", "updated_by TEXT")
+        _ensure_column(connection, "access_profiles", "is_sandbox", "is_sandbox INTEGER DEFAULT 0")
 
         connection.execute(
             """
@@ -2165,6 +2179,7 @@ def list_orders(filters=None, sort_key="due_date"):
                 COALESCE(UPPER(l.status), '') = 'APPROVED'
                 OR COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
               )
+              AND COALESCE(ps.is_sandbox, 0) = 0
             LIMIT 1
         )
     """
@@ -2318,6 +2333,36 @@ def list_orders_by_so_nums(origin_plant, so_nums):
         return [dict(row) for row in rows]
 
 
+def list_order_line_aggregates_by_so_nums(so_nums):
+    cleaned = [str(value).strip() for value in so_nums or [] if str(value or "").strip()]
+    if not cleaned:
+        return {}
+    placeholders = ", ".join("?" for _ in cleaned)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT
+                so_num,
+                COUNT(*) AS line_count,
+                SUM(COALESCE(qty, 0)) AS total_qty,
+                SUM(COALESCE(total_length_ft, 0)) AS total_length_ft
+            FROM order_lines
+            WHERE so_num IN ({placeholders})
+            GROUP BY so_num
+            """,
+            cleaned,
+        ).fetchall()
+        return {
+            str(row["so_num"]): {
+                "line_count": int(row["line_count"] or 0),
+                "total_qty": float(row["total_qty"] or 0.0),
+                "total_length_ft": float(row["total_length_ft"] or 0.0),
+            }
+            for row in rows
+            if row["so_num"]
+        }
+
+
 def filter_eligible_manual_so_nums(origin_plant, so_nums):
     if not origin_plant or not so_nums:
         return set()
@@ -2338,6 +2383,7 @@ def filter_eligible_manual_so_nums(origin_plant, so_nums):
               AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT')
               AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'OPTIMIZED'
               AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+              AND COALESCE(ps.is_sandbox, 0) = 0
               AND ol.so_num IN ({placeholders})
             """,
             params,
@@ -2365,6 +2411,7 @@ def list_eligible_manual_orders(origin_plant, search=None, limit=25):
               AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT')
               AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'OPTIMIZED'
               AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+              AND COALESCE(ps.is_sandbox, 0) = 0
             LIMIT 1
         )
         """.strip(),
@@ -2431,6 +2478,7 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None):
                     COALESCE(UPPER(l.status), '') = 'APPROVED'
                       OR COALESCE(UPPER(ps.status), '') IN ('DRAFT', 'ACTIVE')
                   )
+                  AND COALESCE(ps.is_sandbox, 0) = 0
               )
             ORDER BY ol.due_date ASC, ol.id ASC
             """,
@@ -2539,12 +2587,30 @@ def list_sku_specs():
         rows = connection.execute(
             """
             SELECT id, sku, description, category, length_with_tongue_ft, max_stack_step_deck,
-                   max_stack_flat_bed, notes, added_at, source, created_at
+                   max_stack_flat_bed, notes, added_at, source, updated_at, updated_by, created_at
             FROM sku_specifications
             ORDER BY sku ASC
             """
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def get_sku_spec_by_sku(sku):
+    sku_key = str(sku or "").strip().upper()
+    if not sku_key:
+        return None
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT id, sku, description, category, length_with_tongue_ft, max_stack_step_deck,
+                   max_stack_flat_bed, notes, added_at, source, updated_at, updated_by, created_at
+            FROM sku_specifications
+            WHERE UPPER(sku) = ?
+            LIMIT 1
+            """,
+            (sku_key,),
+        ).fetchone()
+        return dict(row) if row else None
 
 
 def upsert_sku_spec(spec):
@@ -2553,14 +2619,16 @@ def upsert_sku_spec(spec):
     source = (spec.get("source") or "planner").strip().lower()
     if source not in {"planner", "system"}:
         source = "planner"
+    updated_at = (spec.get("updated_at") or "").strip() or None
+    updated_by = (spec.get("updated_by") or "").strip() or None
     with get_connection() as connection:
         connection.execute(
             """
             INSERT INTO sku_specifications (
                 sku, description, category, length_with_tongue_ft, max_stack_step_deck,
-                max_stack_flat_bed, notes, added_at, created_at, source
+                max_stack_flat_bed, notes, added_at, created_at, source, updated_at, updated_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(sku) DO UPDATE SET
                 category = excluded.category,
                 length_with_tongue_ft = excluded.length_with_tongue_ft,
@@ -2569,7 +2637,9 @@ def upsert_sku_spec(spec):
                 description = excluded.description,
                 notes = excluded.notes,
                 added_at = COALESCE(sku_specifications.added_at, excluded.added_at),
-                source = COALESCE(sku_specifications.source, excluded.source)
+                source = COALESCE(sku_specifications.source, excluded.source),
+                updated_at = COALESCE(excluded.updated_at, sku_specifications.updated_at),
+                updated_by = COALESCE(excluded.updated_by, sku_specifications.updated_by)
             """,
             (
                 spec.get("sku"),
@@ -2582,12 +2652,16 @@ def upsert_sku_spec(spec):
                 added_at,
                 created_at,
                 source,
+                updated_at,
+                updated_by,
             ),
         )
         connection.commit()
 
 
-def update_sku_spec(spec_id, spec):
+def update_sku_spec(spec_id, spec, updated_by=None):
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    updated_by_text = (updated_by or "").strip() or None
     with get_connection() as connection:
         connection.execute(
             """
@@ -2598,7 +2672,9 @@ def update_sku_spec(spec_id, spec):
                 length_with_tongue_ft = ?,
                 max_stack_step_deck = ?,
                 max_stack_flat_bed = ?,
-                notes = ?
+                notes = ?,
+                updated_at = ?,
+                updated_by = ?
             WHERE id = ?
             """,
             (
@@ -2609,7 +2685,44 @@ def update_sku_spec(spec_id, spec):
                 spec.get("max_stack_step_deck", 1),
                 spec.get("max_stack_flat_bed", 1),
                 spec.get("notes"),
+                now,
+                updated_by_text,
                 spec_id,
+            ),
+        )
+        connection.commit()
+
+
+def update_sku_spec_by_sku(sku, spec, updated_by=None):
+    sku_key = str(sku or "").strip()
+    if not sku_key:
+        raise ValueError("SKU is required.")
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    updated_by_text = (updated_by or "").strip() or None
+    with get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE sku_specifications
+            SET description = ?,
+                category = ?,
+                length_with_tongue_ft = ?,
+                max_stack_step_deck = ?,
+                max_stack_flat_bed = ?,
+                notes = ?,
+                updated_at = ?,
+                updated_by = ?
+            WHERE UPPER(sku) = UPPER(?)
+            """,
+            (
+                spec.get("description"),
+                spec.get("category"),
+                spec.get("length_with_tongue_ft"),
+                spec.get("max_stack_step_deck", 1),
+                spec.get("max_stack_flat_bed", 1),
+                spec.get("notes"),
+                now,
+                updated_by_text,
+                sku_key,
             ),
         )
         connection.commit()
@@ -3138,6 +3251,7 @@ def create_planning_session(
     config_json,
     horizon_end=None,
     status="DRAFT",
+    is_sandbox=False,
     created_at=None,
 ):
     created_at = created_at or datetime.utcnow().isoformat(timespec="seconds")
@@ -3148,17 +3262,19 @@ def create_planning_session(
                 session_code,
                 plant_code,
                 created_by,
+                is_sandbox,
                 status,
                 created_at,
                 horizon_end,
                 config_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session_code,
                 plant_code,
                 created_by,
+                1 if is_sandbox else 0,
                 status,
                 created_at,
                 horizon_end,
@@ -3380,6 +3496,9 @@ def create_load(load, connection=None):
         load.get("fragility_score"),
         load.get("status", "PROPOSED"),
         load.get("trailer_type", "STEP_DECK"),
+        load.get("carrier_override_key"),
+        load.get("carrier_override_updated_at"),
+        load.get("carrier_override_updated_by"),
         load.get("utilization_pct", 0.0),
         load.get("optimization_score", 0.0),
         load.get("build_source") or "OPTIMIZED",
@@ -3409,13 +3528,16 @@ def create_load(load, connection=None):
                 fragility_score,
                 status,
                 trailer_type,
+                carrier_override_key,
+                carrier_override_updated_at,
+                carrier_override_updated_by,
                 utilization_pct,
                 optimization_score,
                 build_source,
                 created_by,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             params,
         )
@@ -3444,13 +3566,16 @@ def create_load(load, connection=None):
                 fragility_score,
                 status,
                 trailer_type,
+                carrier_override_key,
+                carrier_override_updated_at,
+                carrier_override_updated_by,
                 utilization_pct,
                 optimization_score,
                 build_source,
                 created_by,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             params,
         )
@@ -3716,6 +3841,24 @@ def update_load_trailer_type(load_id, trailer_type):
         connection.execute(
             "UPDATE loads SET trailer_type = ? WHERE id = ?",
             (trailer_type, load_id),
+        )
+        connection.commit()
+
+
+def update_load_carrier_override(load_id, carrier_key=None, updated_by=None):
+    key = (carrier_key or "").strip().lower() or None
+    updater = (updated_by or "").strip() or None
+    updated_at = datetime.utcnow().isoformat(timespec="seconds") if key else None
+    with get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE loads
+            SET carrier_override_key = ?,
+                carrier_override_updated_at = ?,
+                carrier_override_updated_by = ?
+            WHERE id = ?
+            """,
+            (key, updated_at, updater, load_id),
         )
         connection.commit()
 
@@ -4237,7 +4380,7 @@ def list_access_profiles():
     with get_connection() as connection:
         rows = connection.execute(
             """
-            SELECT id, name, is_admin, allowed_plants, default_plants, created_at
+            SELECT id, name, is_admin, is_sandbox, allowed_plants, default_plants, created_at
             FROM access_profiles
             ORDER BY is_admin DESC, name ASC
             """
@@ -4251,7 +4394,7 @@ def get_access_profile(profile_id):
     with get_connection() as connection:
         row = connection.execute(
             """
-            SELECT id, name, is_admin, allowed_plants, default_plants, created_at
+            SELECT id, name, is_admin, is_sandbox, allowed_plants, default_plants, created_at
             FROM access_profiles
             WHERE id = ?
             """,
@@ -4267,7 +4410,7 @@ def get_access_profile_by_name(name):
     with get_connection() as connection:
         row = connection.execute(
             """
-            SELECT id, name, is_admin, allowed_plants, default_plants, created_at
+            SELECT id, name, is_admin, is_sandbox, allowed_plants, default_plants, created_at
             FROM access_profiles
             WHERE name = ?
             """,
@@ -4276,7 +4419,7 @@ def get_access_profile_by_name(name):
         return dict(row) if row else None
 
 
-def create_access_profile(name, is_admin, allowed_plants, default_plants):
+def create_access_profile(name, is_admin, allowed_plants, default_plants, is_sandbox=False):
     name = (name or "").strip()
     if not name:
         raise ValueError("Profile name is required.")
@@ -4294,16 +4437,16 @@ def create_access_profile(name, is_admin, allowed_plants, default_plants):
     with get_connection() as connection:
         cursor = connection.execute(
             """
-            INSERT INTO access_profiles (name, is_admin, allowed_plants, default_plants)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO access_profiles (name, is_admin, is_sandbox, allowed_plants, default_plants)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (name, 1 if is_admin else 0, allowed, default),
+            (name, 1 if is_admin else 0, 1 if is_sandbox else 0, allowed, default),
         )
         connection.commit()
         return cursor.lastrowid
 
 
-def update_access_profile(profile_id, name, is_admin, allowed_plants, default_plants):
+def update_access_profile(profile_id, name, is_admin, allowed_plants, default_plants, is_sandbox=False):
     if not profile_id:
         raise ValueError("Profile id is required.")
     name = (name or "").strip()
@@ -4324,10 +4467,10 @@ def update_access_profile(profile_id, name, is_admin, allowed_plants, default_pl
         connection.execute(
             """
             UPDATE access_profiles
-            SET name = ?, is_admin = ?, allowed_plants = ?, default_plants = ?
+            SET name = ?, is_admin = ?, is_sandbox = ?, allowed_plants = ?, default_plants = ?
             WHERE id = ?
             """,
-            (name, 1 if is_admin else 0, allowed, default, profile_id),
+            (name, 1 if is_admin else 0, 1 if is_sandbox else 0, allowed, default, profile_id),
         )
         connection.commit()
 
@@ -4357,6 +4500,7 @@ def ensure_default_access_profiles(profiles):
                 (
                     name,
                     1 if profile.get("is_admin") else 0,
+                    1 if profile.get("is_sandbox") else 0,
                     profile.get("allowed_plants"),
                     profile.get("default_plants"),
                 )
@@ -4365,8 +4509,8 @@ def ensure_default_access_profiles(profiles):
         if to_insert:
             connection.executemany(
                 """
-                INSERT INTO access_profiles (name, is_admin, allowed_plants, default_plants)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO access_profiles (name, is_admin, is_sandbox, allowed_plants, default_plants)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 to_insert,
             )

@@ -5,7 +5,7 @@ import json
 import math
 
 import db
-from services import geo_utils, stack_calculator
+from services import geo_utils, order_categories, stack_calculator
 from services import customer_rules
 from services.cost_calculator import (
     CostCalculator,
@@ -306,6 +306,7 @@ class Optimizer:
             "groups_after_all_filters_no_batch": 0,
             "groups_without_customer_filter": 0,
             "groups_without_state_filter": 0,
+            "groups_without_order_category_filter": 0,
             "first_due_no_batch": None,
         }
         if not origin_plant:
@@ -358,6 +359,17 @@ class Optimizer:
             self._apply_order_group_filters(
                 grouped,
                 params_without_state,
+                min_due_date=min_due_date,
+                include_batch=True,
+            )
+        )
+
+        params_without_order_category = dict(params)
+        params_without_order_category["order_category_scope"] = order_categories.ORDER_CATEGORY_SCOPE_ALL
+        diagnostics["groups_without_order_category_filter"] = len(
+            self._apply_order_group_filters(
+                grouped,
+                params_without_order_category,
                 min_due_date=min_due_date,
                 include_batch=True,
             )
@@ -446,6 +458,17 @@ class Optimizer:
             filtered = [group for group in filtered if (group.get("key") or "") in selected_set]
             sequence = {so_num: idx for idx, so_num in enumerate(selected_so_nums)}
             filtered.sort(key=lambda group: sequence.get(group.get("key"), len(sequence)))
+
+        order_category_scope = order_categories.normalize_order_category_scope(
+            params.get("order_category_scope"),
+            default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+        )
+        if order_category_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL:
+            filtered = [
+                group
+                for group in filtered
+                if self._group_order_category_scope(group) == order_category_scope
+            ]
         return filtered
 
     def _build_baseline_group_sets(self, params):
@@ -2241,6 +2264,9 @@ class Optimizer:
             for category in categories
             if str(category or "").strip()
         ]
+        order_category_scope = order_categories.order_category_scope_from_tokens(
+            normalized_categories
+        )
         cust_name = ""
         if order_summary:
             cust_name = (order_summary.get("cust_name") or "").strip()
@@ -2315,7 +2341,23 @@ class Optimizer:
             "contains_livestock": wedge_by_livestock,
             "requires_return_to_origin": requires_return_to_origin,
             "ignore_for_optimization": ignore_for_optimization,
+            "order_category_scope": order_category_scope,
         }
+
+    def _group_order_category_scope(self, group):
+        if not isinstance(group, dict):
+            return order_categories.ORDER_CATEGORY_SCOPE_OTHER
+        stored_scope = order_categories.normalize_order_category_scope(
+            group.get("order_category_scope"),
+            default="",
+        )
+        if stored_scope and stored_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL:
+            return stored_scope
+        resolved_scope = order_categories.order_category_scope_from_tokens(
+            group.get("categories") or []
+        )
+        group["order_category_scope"] = resolved_scope
+        return resolved_scope
 
     def _coerce_optional_non_negative_int(self, value):
         if value is None:

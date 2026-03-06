@@ -142,6 +142,9 @@
                     <td>
                       <div class="session-line">
                         <strong>{{ session.session_code }}</strong>
+                        {% if session.is_sandbox %}
+                          <span class="session-active-flag">Sandbox</span>
+                        {% endif %}
                         {% if active_session_id and session.id == active_session_id %}
                           <span class="session-active-flag">Active</span>
                         {% endif %}

@@ -43,6 +43,7 @@ import db
 from services import (
     load_builder,
     orders as order_service,
+    order_categories,
     stack_calculator,
     geo_utils,
     tsp_solver,
@@ -227,10 +228,11 @@ PLANT_NAMES = {
     "NV": "Winnemucca",
 }
 PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES = {
+    "VA": "FLATBED_48",
     "NV": "STEP_DECK_48",
 }
 PLANT_DEFAULT_AUTO_HOTSHOT_OVERRIDES = {}
-FIXED_CAPACITY_TRAILER_TYPES = {"STEP_DECK_48", "HOTSHOT", "WEDGE"}
+FIXED_CAPACITY_TRAILER_TYPES = {"STEP_DECK_48", "FLATBED_48", "HOTSHOT", "WEDGE"}
 STATUS_PROPOSED = "PROPOSED"
 STATUS_DRAFT = "DRAFT"
 STATUS_APPROVED = "APPROVED"
@@ -244,6 +246,7 @@ APP_TIMEZONE = ZoneInfo("America/New_York")
 SESSION_PROFILE_ID_KEY = "profile_id"
 SESSION_PROFILE_NAME_KEY = "profile_name"
 SESSION_PROFILE_DEFAULT_PLANTS_KEY = "profile_default_plants"
+SESSION_PROFILE_SANDBOX_KEY = "profile_is_sandbox"
 SESSION_ACTIVE_PLANNING_ID_KEY = "active_planning_session_id"
 ORDER_REMOVAL_REASONS = [
     "Customer mixing conflict",
@@ -260,6 +263,16 @@ LOAD_REJECTION_REASONS = [
     "Delivery date conflicts",
     "Other",
 ]
+LOAD_CARRIER_SELECTION_OPTIONS = [
+    {"key": "fls", "label": "FLS"},
+    {"key": "lst", "label": "LST"},
+    {"key": "ryder", "label": "Ryder Dedicated"},
+    {"key": "alternate", "label": "Alternate Trailer"},
+]
+ADMIN_ONLY_PATH_PREFIXES = (
+    "/access/manage",
+    "/planning-sessions/replay",
+)
 OPTIMIZER_DEFAULTS_SETTING_KEY = "optimizer_defaults"
 UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY = "utilization_grade_thresholds"
 REPLAY_EVAL_PRESET_SETTING_KEY = "replay_eval_preset"
@@ -388,7 +401,7 @@ _REOPT_JOBS = {}
 ACCESS_PROFILES_SEED_PATH = Path(
     os.environ.get("ACCESS_PROFILES_SEED_PATH", str(ROOT_DIR / "data" / "seed" / "access_profiles.csv"))
 )
-ACCESS_PROFILES_SEED_COLUMNS = ["name", "is_admin", "allowed_plants", "default_plants", "created_at"]
+ACCESS_PROFILES_SEED_COLUMNS = ["name", "is_admin", "is_sandbox", "allowed_plants", "default_plants", "created_at"]
 
 
 def _sync_access_profiles_seed_snapshot():
@@ -403,6 +416,7 @@ def _sync_access_profiles_seed_snapshot():
                     {
                         "name": (profile.get("name") or "").strip(),
                         "is_admin": 1 if profile.get("is_admin") else 0,
+                        "is_sandbox": 1 if profile.get("is_sandbox") else 0,
                         "allowed_plants": profile.get("allowed_plants") or "ALL",
                         "default_plants": profile.get("default_plants") or "ALL",
                         "created_at": profile.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -418,42 +432,49 @@ db.ensure_default_access_profiles(
         {
             "name": "Admin",
             "is_admin": True,
+            "is_sandbox": False,
             "allowed_plants": "ALL",
             "default_plants": "ALL",
         },
         {
             "name": "Chris",
             "is_admin": False,
+            "is_sandbox": False,
             "allowed_plants": "ALL",
             "default_plants": "OR",
         },
         {
             "name": "Basil",
             "is_admin": False,
+            "is_sandbox": False,
             "allowed_plants": "ALL",
             "default_plants": "IA",
         },
         {
             "name": "Mario",
             "is_admin": False,
+            "is_sandbox": False,
             "allowed_plants": "ALL",
             "default_plants": "TX",
         },
         {
             "name": "Ed",
             "is_admin": False,
+            "is_sandbox": False,
             "allowed_plants": "ALL",
             "default_plants": "GA,VA,NV",
         },
         {
             "name": "Kissaryn",
             "is_admin": False,
+            "is_sandbox": False,
             "allowed_plants": "ALL",
             "default_plants": "GA,VA,NV",
         },
         {
             "name": "Judy",
             "is_admin": False,
+            "is_sandbox": False,
             "allowed_plants": "ALL",
             "default_plants": "GA,VA,NV",
         },
@@ -620,12 +641,17 @@ def login():
     login_profiles = []
     for profile in profiles:
         is_admin = bool(profile.get("is_admin"))
+        is_sandbox = bool(profile.get("is_sandbox"))
+        role_label = "Administrator Account" if is_admin else "Planner Account"
+        if is_sandbox and not is_admin:
+            role_label = "Planner Sandbox Account"
         login_profiles.append(
             {
                 "id": profile.get("id"),
                 "name": (profile.get("name") or "Unnamed").strip() or "Unnamed",
                 "is_admin": is_admin,
-                "role_label": "Administrator Account" if is_admin else "Planner Account",
+                "is_sandbox": is_sandbox,
+                "role_label": role_label,
                 "focus_plants": _profile_focus_plants(profile),
             }
         )
@@ -659,7 +685,7 @@ def login():
 
         if not error and profile:
             _apply_profile_to_session(profile, reset_filters=True)
-            return redirect(next_url or url_for("orders"))
+            return redirect(_safe_next_url_for_profile(profile, next_url))
 
     if selected_profile_id is None and login_profiles:
         selected_profile_id = login_profiles[0]["id"]
@@ -686,6 +712,25 @@ def _safe_next_url(value):
     if value.startswith("/"):
         return value
     return None
+
+
+def _is_admin_only_path(path_value):
+    path = str(path_value or "").strip()
+    if not path:
+        return False
+    return any(
+        path == prefix or path.startswith(f"{prefix}/")
+        for prefix in ADMIN_ONLY_PATH_PREFIXES
+    )
+
+
+def _safe_next_url_for_profile(profile, requested_next):
+    next_url = _safe_next_url(requested_next)
+    if not next_url:
+        return url_for("orders")
+    if not bool((profile or {}).get("is_admin")) and _is_admin_only_path(next_url):
+        return url_for("orders")
+    return next_url
 
 
 def _json_session_expired_response():
@@ -998,7 +1043,7 @@ def access_switch():
         return redirect(url_for("orders"))
 
     _apply_profile_to_session(profile, reset_filters=True)
-    next_url = _safe_next_url(request.form.get("next")) or url_for("orders")
+    next_url = _safe_next_url_for_profile(profile, request.form.get("next"))
     return redirect(next_url)
 
 
@@ -1007,7 +1052,8 @@ def access_manage():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
+    if _get_session_role() != ROLE_ADMIN:
+        return redirect(url_for("orders"))
 
     error = None
     edit_profile = None
@@ -1043,6 +1089,12 @@ def access_manage():
             "on",
             "yes",
         }
+        is_sandbox_flag = (request.form.get("is_sandbox") or "").strip().lower() in {
+            "1",
+            "true",
+            "on",
+            "yes",
+        }
         allowed = [_normalize_plant_code(code) for code in request.form.getlist("allowed_plants")]
         allowed = [code for code in allowed if code in PLANT_CODES]
         default_plants = [_normalize_plant_code(code) for code in request.form.getlist("default_plants")]
@@ -1057,9 +1109,9 @@ def access_manage():
         elif is_admin_flag:
             try:
                 if action == "create":
-                    db.create_access_profile(name, True, "ALL", "ALL")
+                    db.create_access_profile(name, True, "ALL", "ALL", is_sandbox=False)
                 else:
-                    db.update_access_profile(profile_id, name, True, "ALL", "ALL")
+                    db.update_access_profile(profile_id, name, True, "ALL", "ALL", is_sandbox=False)
                 _sync_access_profiles_seed_snapshot()
                 return redirect(url_for("access_manage"))
             except Exception:
@@ -1074,9 +1126,22 @@ def access_manage():
                 default_csv = ",".join(default_plants) if default_plants else "ALL"
                 try:
                     if action == "create":
-                        db.create_access_profile(name, False, allowed_csv, default_csv)
+                        db.create_access_profile(
+                            name,
+                            False,
+                            allowed_csv,
+                            default_csv,
+                            is_sandbox=is_sandbox_flag,
+                        )
                     else:
-                        db.update_access_profile(profile_id, name, False, allowed_csv, default_csv)
+                        db.update_access_profile(
+                            profile_id,
+                            name,
+                            False,
+                            allowed_csv,
+                            default_csv,
+                            is_sandbox=is_sandbox_flag,
+                        )
                     _sync_access_profiles_seed_snapshot()
                     return redirect(url_for("access_manage"))
                 except Exception:
@@ -1167,6 +1232,10 @@ def _default_optimize_form(plant_code=None):
     form_data["upper_deck_exception_categories"] = stack_calculator.normalize_upper_deck_exception_categories(
         optimizer_defaults.get("upper_deck_exception_categories"),
         default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
+    )
+    form_data["order_category_scope"] = order_categories.normalize_order_category_scope(
+        form_data.get("order_category_scope"),
+        default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
     )
     form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
     if not form_data.get("orders_start_date"):
@@ -1955,7 +2024,7 @@ def _carrier_section_code_for_trailer_type(trailer_type):
     trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
     if trailer_key == "HOTSHOT":
         return "HOT_SHOT"
-    if trailer_key == "FLATBED":
+    if trailer_key.startswith("FLATBED"):
         return "FLAT_BED"
     if trailer_key.startswith("STEP_DECK"):
         return "STEP_DECK"
@@ -2177,6 +2246,7 @@ def _resolve_load_carrier_pricing(
     stop_count,
     requires_return_to_origin,
     carrier_context,
+    forced_carrier_key=None,
 ):
     origin = str(origin_plant or "").strip().upper()
     stops = list(ordered_stops or [])
@@ -2269,6 +2339,22 @@ def _resolve_load_carrier_pricing(
                 requires_return_miles=bool(_coerce_bool_value(plant_placeholder.get("requires_return_miles", True))),
                 pricing_note="Plant-specific alternate trailer pricing.",
             )
+
+    candidate_by_key = {
+        "fls": fls_candidate,
+        "lst": lst_candidate,
+        "ryder": ryder_candidate,
+        "alternate": alternate_candidate,
+    }
+    forced_key = str(forced_carrier_key or "").strip().lower()
+    if forced_key:
+        forced_candidate = candidate_by_key.get(forced_key)
+        if forced_candidate:
+            forced_payload = dict(forced_candidate)
+            forced_payload["selection_reason"] = "Carrier override selected by planner."
+            forced_payload["override_applied"] = True
+            forced_payload["requested_carrier_key"] = forced_key
+            return forced_payload
 
     has_lowes = _load_has_lowes_order(lines)
 
@@ -2515,6 +2601,38 @@ def _build_optimizer_plant_defaults(optimizer_defaults=None, trailer_rules=None,
             }
         )
     return rows
+
+
+def _build_optimizer_workbench_trailer_defaults(plants, optimizer_defaults=None):
+    options = stack_calculator.trailer_profile_options()
+    option_map = {
+        str(option.get("value") or "").strip().upper(): option
+        for option in options
+        if str(option.get("value") or "").strip()
+    }
+    defaults = {}
+    for plant_code in (plants or []):
+        normalized = _normalize_plant_code(plant_code)
+        if not normalized:
+            continue
+        settings = _get_optimizer_settings_for_plant(
+            normalized,
+            optimizer_defaults=optimizer_defaults,
+        )
+        trailer_key = stack_calculator.normalize_trailer_type(
+            settings.get("trailer_type"),
+            default="STEP_DECK",
+        )
+        option = option_map.get(trailer_key, {})
+        defaults[normalized] = {
+            "trailer_type": trailer_key,
+            "label": option.get("label") or trailer_key.replace("_", " ").title(),
+            "capacity_feet": _coerce_non_negative_float(settings.get("capacity_feet"), 53.0),
+        }
+    return {
+        "options": options,
+        "defaults_by_plant": defaults,
+    }
 
 
 def _get_optimizer_default_settings():
@@ -3118,7 +3236,8 @@ def _auto_trailer_rule_annotation(
     is_manual_build = build_source == "MANUAL"
     is_active_draft = load_status in {STATUS_PROPOSED, STATUS_DRAFT, ""}
 
-    if trailer_key == "FLATBED":
+    flatbed_label = "48' Flatbed" if trailer_key == "FLATBED_48" else "53' Flatbed"
+    if trailer_key.startswith("FLATBED"):
         step_schematic, _, _ = _calculate_load_schematic(
             lines,
             sku_specs,
@@ -3129,7 +3248,7 @@ def _auto_trailer_rule_annotation(
         if step_schematic.get("exceeds_capacity"):
             return (
                 "Auto Trailer Rule",
-                "Changed from 53' Step Deck to 53' Flatbed because the load does not fit on the 43' / 10' split.",
+                f"Changed from 53' Step Deck to {flatbed_label} because the load does not fit on the 43' / 10' split.",
             )
 
     if trailer_key == "HOTSHOT" and not exceeds_capacity and bool(rules.get("auto_assign_hotshot_enabled", True)):
@@ -3139,7 +3258,7 @@ def _auto_trailer_rule_annotation(
         )
 
     if (
-        trailer_key in {"FLATBED", "HOTSHOT"}
+        (trailer_key.startswith("FLATBED") or trailer_key == "HOTSHOT")
         and is_active_draft
         and not is_manual_build
     ):
@@ -3265,6 +3384,209 @@ def _parse_manual_so_nums(raw_text):
     return parsed
 
 
+def _sku_category_lookup():
+    lookup = {}
+    for spec in db.list_sku_specs():
+        sku_key = str(spec.get("sku") or "").strip().upper()
+        if sku_key and sku_key not in lookup:
+            lookup[sku_key] = str(spec.get("category") or "").strip()
+    return lookup
+
+
+def _line_order_category_token(line, sku_category_by_sku=None):
+    sku_category_by_sku = sku_category_by_sku or {}
+    sku_key = str((line or {}).get("sku") or "").strip().upper()
+    sku_category = sku_category_by_sku.get(sku_key, "")
+    if sku_category:
+        return sku_category
+    for key in ("category", "bin"):
+        value = str((line or {}).get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _group_order_category_scope(lines, sku_category_by_sku=None):
+    tokens = [
+        _line_order_category_token(line, sku_category_by_sku=sku_category_by_sku)
+        for line in (lines or [])
+    ]
+    return order_categories.order_category_scope_from_tokens(tokens)
+
+
+def _scope_snapshot_base(mode, selected_order_category_scope):
+    return {
+        "mode": mode,
+        "order_category_scope": order_categories.normalize_order_category_scope(
+            selected_order_category_scope,
+            default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+        ),
+        "category_counts": order_categories.empty_category_counts(),
+        "orders_in_scope": 0,
+        "lines_in_scope": 0,
+    }
+
+
+def _manual_order_scope_snapshot(
+    raw_text,
+    origin_plant=None,
+    allowed_plants=None,
+    order_category_scope=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+):
+    parsed_so_nums = _parse_manual_so_nums(raw_text)
+    snapshot = {
+        **_scope_snapshot_base("manual", order_category_scope),
+        "pasted_count": len(parsed_so_nums),
+        "matched_count": 0,
+        "matched_in_scope_count": 0,
+        "not_found_count": 0,
+        "matched_so_nums": [],
+        "not_found_so_nums": [],
+        "matched_plant": "",
+        "matched_plants": [],
+    }
+    if not parsed_so_nums:
+        return snapshot
+
+    allowed = {
+        _normalize_plant_code(code)
+        for code in (allowed_plants or _get_allowed_plants())
+        if _normalize_plant_code(code)
+    }
+    origin = _normalize_plant_code(origin_plant)
+
+    matched_so_nums = []
+    matched_set = set()
+    matched_plants = set()
+    rows = db.list_orders_by_so_nums_any(parsed_so_nums, include_closed=False)
+    for row in rows:
+        so_num = str(row.get("so_num") or "").strip()
+        plant_code = _normalize_plant_code(row.get("plant"))
+        if (
+            not so_num
+            or so_num in matched_set
+            or plant_code not in allowed
+            or (origin and plant_code != origin)
+            or _coerce_bool_value(row.get("is_excluded"))
+        ):
+            continue
+        matched_so_nums.append(so_num)
+        matched_set.add(so_num)
+        matched_plants.add(plant_code)
+
+    sku_category_by_sku = _sku_category_lookup()
+    grouped_lines = {}
+    if matched_set:
+        matched_lines = db.list_order_lines_by_so_nums(list(matched_set))
+        for line in matched_lines:
+            plant_code = _normalize_plant_code(line.get("plant"))
+            if (
+                _coerce_bool_value(line.get("is_excluded"))
+                or plant_code not in allowed
+                or (origin and plant_code != origin)
+            ):
+                continue
+            so_num = str(line.get("so_num") or "").strip()
+            if not so_num:
+                continue
+            grouped_lines.setdefault(so_num, []).append(line)
+
+    not_found = [so_num for so_num in parsed_so_nums if so_num not in matched_set]
+    snapshot["matched_so_nums"] = matched_so_nums
+    snapshot["matched_count"] = len(matched_so_nums)
+    snapshot["not_found_so_nums"] = not_found
+    snapshot["not_found_count"] = len(not_found)
+    snapshot["matched_plants"] = sorted(matched_plants)
+    snapshot["matched_plant"] = snapshot["matched_plants"][0] if len(snapshot["matched_plants"]) == 1 else ""
+
+    selected_scope = snapshot["order_category_scope"]
+    for so_num in matched_so_nums:
+        lines = grouped_lines.get(so_num) or []
+        if not lines:
+            continue
+        group_scope = _group_order_category_scope(lines, sku_category_by_sku=sku_category_by_sku)
+        snapshot["category_counts"][group_scope] += 1
+        if selected_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL and group_scope != selected_scope:
+            continue
+        snapshot["orders_in_scope"] += 1
+        snapshot["lines_in_scope"] += len(lines)
+
+    snapshot["matched_in_scope_count"] = snapshot["orders_in_scope"]
+    return snapshot
+
+
+def _auto_order_scope_snapshot(
+    origin_plant,
+    state_filters=None,
+    customer_filters=None,
+    orders_start_date=None,
+    batch_end_date=None,
+    batch_horizon_enabled=False,
+    order_category_scope=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+):
+    origin = _normalize_plant_code(origin_plant)
+    snapshot = _scope_snapshot_base("auto", order_category_scope)
+    if not origin:
+        return snapshot
+
+    min_due_date = _parse_date(orders_start_date)
+    min_due_iso = min_due_date.strftime("%Y-%m-%d") if min_due_date else None
+    batch_due_date = _parse_date(batch_end_date) if batch_horizon_enabled else None
+
+    state_set = {
+        str(value or "").strip().upper()
+        for value in (state_filters or [])
+        if str(value or "").strip()
+    }
+    customer_set = {
+        str(value or "").strip().casefold()
+        for value in (customer_filters or [])
+        if str(value or "").strip()
+    }
+
+    order_lines = db.list_order_lines_for_optimization(origin, min_due_date=min_due_iso)
+    if not order_lines:
+        return snapshot
+
+    sku_category_by_sku = _sku_category_lookup()
+    summary_rows = db.list_orders_for_optimization(origin)
+    summary_by_so_num = {
+        str(row.get("so_num") or "").strip(): row
+        for row in summary_rows
+        if str(row.get("so_num") or "").strip()
+    }
+
+    grouped_lines = {}
+    for line in order_lines:
+        so_num = str(line.get("so_num") or "").strip()
+        if not so_num:
+            continue
+        grouped_lines.setdefault(so_num, []).append(line)
+
+    selected_scope = snapshot["order_category_scope"]
+    for so_num, lines in grouped_lines.items():
+        if not lines:
+            continue
+        summary = summary_by_so_num.get(so_num) or {}
+        state_value = str(summary.get("state") or lines[0].get("state") or "").strip().upper()
+        if state_set and state_value not in state_set:
+            continue
+        customer_value = str(summary.get("cust_name") or lines[0].get("cust_name") or "").strip().casefold()
+        if customer_set and customer_value not in customer_set:
+            continue
+        if batch_due_date:
+            due_date_value = _parse_date(summary.get("due_date") or lines[0].get("due_date"))
+            if due_date_value and due_date_value > batch_due_date:
+                continue
+        group_scope = _group_order_category_scope(lines, sku_category_by_sku=sku_category_by_sku)
+        snapshot["category_counts"][group_scope] += 1
+        if selected_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL and group_scope != selected_scope:
+            continue
+        snapshot["orders_in_scope"] += 1
+        snapshot["lines_in_scope"] += len(lines)
+    return snapshot
+
+
 def _sku_is_planner_input(spec):
     source = (spec.get("source") or "").strip().lower()
     if source == "planner":
@@ -3276,6 +3598,28 @@ def _sku_is_planner_input(spec):
 
 def _sku_source_label(spec):
     return "Planner Input" if _sku_is_planner_input(spec) else "Cheat Sheet"
+
+
+def _source_led_source_text(spec):
+    if not isinstance(spec, dict):
+        return ""
+    base = "Manually inputted on order entry" if _sku_is_planner_input(spec) else "Came from cheat sheet"
+    updated_by = str(spec.get("updated_by") or "").strip()
+    updated_at_raw = str(spec.get("updated_at") or "").strip()
+    if not updated_at_raw:
+        return base
+    try:
+        parsed = datetime.fromisoformat(updated_at_raw.replace("Z", "+00:00"))
+    except ValueError:
+        parsed_date = _parse_date(updated_at_raw)
+        if not parsed_date:
+            return base
+        timestamp_label = parsed_date.strftime("%m/%d/%y")
+    else:
+        timestamp_label = parsed.strftime("%m/%d/%y")
+    if updated_by:
+        return f"{base} | Updated by {updated_by} on {timestamp_label}"
+    return f"{base} | Updated on {timestamp_label}"
 
 
 def _build_source_led_cheat_sheet_rows(specs):
@@ -3367,7 +3711,7 @@ def _build_source_led_cheat_sheet_rows(specs):
             length_with_tongue_ft = spec.get("length_with_tongue_ft")
             max_stack_step_deck = spec.get("max_stack_step_deck")
             max_stack_flat_bed = spec.get("max_stack_flat_bed")
-            mapped_source = _sku_source_label(spec)
+            mapped_source = _source_led_source_text(spec)
             mapping_status = "Mapped"
         elif mapped_sku:
             cargo_length = importer._cargo_length_from_item(item_num, mapped_sku)
@@ -3377,10 +3721,13 @@ def _build_source_led_cheat_sheet_rows(specs):
                 length_with_tongue_ft = cargo_length
                 max_stack_step_deck = 1
                 max_stack_flat_bed = 1
+                mapped_source = "Derived from cargo rule"
                 mapping_status = "Mapped (Cargo Rule)"
             else:
+                mapped_source = "Mapped SKU has no cheat sheet spec"
                 mapping_status = "Mapped SKU Missing Spec"
         else:
+            mapped_source = "Unmapped item"
             mapping_status = "Unmapped"
 
         rows.append(
@@ -3473,6 +3820,7 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "mapped_source": "",
                 "mapping_status": "Unmapped",
                 "mapping_conflict": False,
+                "can_edit_specs": False,
                 "line_count": group["line_count"],
                 "order_count": group["order_count"],
             }
@@ -3495,6 +3843,10 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "mapped_source": winner.get("mapped_source") or "",
                 "mapping_status": winner.get("mapping_status") or "Mapped",
                 "mapping_conflict": False,
+                "can_edit_specs": (
+                    bool((winner.get("mapped_sku") or "").strip())
+                    and (winner.get("mapping_status") or "").strip() == "Mapped"
+                ),
                 "line_count": group["line_count"],
                 "order_count": group["order_count"],
             }
@@ -3526,6 +3878,7 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "mapped_source": "",
                 "mapping_status": "Plant Mapping Conflict",
                 "mapping_conflict": True,
+                "can_edit_specs": False,
                 "line_count": group["line_count"],
                 "order_count": group["order_count"],
             }
@@ -3577,10 +3930,12 @@ def _profile_focus_plants(profile):
 def _apply_profile_to_session(profile, *, reset_filters=False):
     allowed = _profile_allowed_plants(profile)
     default_plants = _profile_default_plants(profile, allowed)
+    is_sandbox_profile = bool(profile.get("is_sandbox"))
 
     session[SESSION_PROFILE_ID_KEY] = profile["id"]
     session[SESSION_PROFILE_NAME_KEY] = profile["name"]
     session[SESSION_PROFILE_DEFAULT_PLANTS_KEY] = default_plants
+    session[SESSION_PROFILE_SANDBOX_KEY] = is_sandbox_profile
     session.pop(SESSION_ACTIVE_PLANNING_ID_KEY, None)
 
     session["role"] = ROLE_ADMIN if profile.get("is_admin") else ROLE_PLANNER
@@ -3598,7 +3953,12 @@ def _ensure_active_profile():
         return None
 
     # Apply if missing/mismatched or if allowed plants were cleared.
-    if session.get(SESSION_PROFILE_ID_KEY) != profile["id"] or not _get_allowed_plants():
+    if (
+        session.get(SESSION_PROFILE_ID_KEY) != profile["id"]
+        or not _get_allowed_plants()
+        or SESSION_PROFILE_SANDBOX_KEY not in session
+        or bool(session.get(SESSION_PROFILE_SANDBOX_KEY)) != bool(profile.get("is_sandbox"))
+    ):
         _apply_profile_to_session(profile, reset_filters=True)
     return profile
 
@@ -3606,6 +3966,10 @@ def _ensure_active_profile():
 def _get_session_role():
     role = session.get("role")
     return role if role in {ROLE_ADMIN, ROLE_PLANNER} else None
+
+
+def _is_session_sandbox():
+    return bool(session.get(SESSION_PROFILE_SANDBOX_KEY))
 
 
 def _get_active_planning_session_id():
@@ -3807,6 +4171,10 @@ def _serialize_session_config(form_data, params):
             "optimize_mode": params.get("optimize_mode") or "auto",
             "manual_order_input": form_data.get("manual_order_input") or "",
             "selected_so_nums": params.get("selected_so_nums") or [],
+            "order_category_scope": order_categories.normalize_order_category_scope(
+                params.get("order_category_scope"),
+                default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+            ),
         }
     )
 
@@ -3831,6 +4199,7 @@ def _create_planning_session(created_by, plant_code, form_data, params):
         config_json=config_json,
         horizon_end=horizon_end or None,
         status="DRAFT",
+        is_sandbox=_is_session_sandbox(),
     )
 
 
@@ -3839,6 +4208,8 @@ def _find_resumable_planning_session(plant_code):
         return None
     sessions = db.list_planning_sessions({"plant_code": plant_code})
     for entry in sessions:
+        if not _can_access_planning_session(entry):
+            continue
         status = _normalize_session_status(entry.get("status"))
         if status == "DRAFT" and (entry.get("load_count") or 0) > 0:
             return entry
@@ -3936,6 +4307,11 @@ def _line_stop_key(state, zip_code):
     return f"{state_value}|{zip_value}"
 
 
+def _normalize_order_identifier(value, fallback=""):
+    text = str(value or "").strip()
+    return text if text else str(fallback or "").strip()
+
+
 def _stop_sequence_map_from_ordered_stops(ordered_stops):
     sequence = {}
     for idx, stop in enumerate(ordered_stops or [], start=1):
@@ -4004,7 +4380,7 @@ def _build_order_colors_for_lines(lines, stop_sequence_map=None, stop_palette=No
     order_ids = []
     order_stop_map = {}
     for line in lines or []:
-        order_id = (line.get("so_num") or "").strip()
+        order_id = _normalize_order_identifier(line.get("so_num"))
         if not order_id:
             continue
         if order_id not in order_ids:
@@ -4228,7 +4604,7 @@ def _build_schematic_line_items(lines, sku_specs, trailer_type, stop_sequence_ma
                 "max_stack_height": max_stack,
                 "upper_deck_max_stack_height": upper_max_stack,
                 "category": (spec or {}).get("category", ""),
-                "order_id": line.get("so_num"),
+                "order_id": _normalize_order_identifier(line.get("so_num")),
                 "stop_sequence": stop_sequence,
             }
         )
@@ -4243,9 +4619,9 @@ def _calculate_load_schematic(
     assumptions=None,
 ):
     order_numbers = {
-        (line.get("so_num") or "").strip()
+        _normalize_order_identifier(line.get("so_num"))
         for line in (lines or [])
-        if (line.get("so_num") or "").strip()
+        if _normalize_order_identifier(line.get("so_num"))
     }
     assumptions = assumptions or _get_stack_capacity_assumptions()
     line_items = _build_schematic_line_items(
@@ -4339,11 +4715,12 @@ def _build_schematic_units(lines, sku_specs, trailer_type, stop_sequence_map=Non
         if qty <= 0:
             continue
         unit_length_ft = _coerce_float_value(line.get("unit_length_ft"), 0.0)
-        order_id = (line.get("so_num") or "").strip()
+        order_id = _normalize_order_identifier(line.get("so_num"))
         stop_sequence = None
         if stop_sequence_map:
             stop_sequence = stop_sequence_map.get(_line_stop_key(line.get("state"), line.get("zip")))
         order_line_id = line.get("order_line_id") or line.get("id") or line_idx
+        fallback_color = _color_for_stop_sequence(stop_sequence)
         for unit_index in range(qty):
             unit_id = f"ol{order_line_id}-u{unit_index + 1}"
             units.append(
@@ -4359,7 +4736,7 @@ def _build_schematic_units(lines, sku_specs, trailer_type, stop_sequence_map=Non
                     "upper_max_stack": upper_max_stack,
                     "category": (spec or {}).get("category", ""),
                     "stop_sequence": stop_sequence,
-                    "color": order_colors.get(order_id, "#334155"),
+                    "color": order_colors.get(order_id, fallback_color),
                 }
             )
     return units
@@ -5208,7 +5585,9 @@ def _build_schematic_fragment_payload(load_data, status=None, tab=None):
         load=load_data,
         status=status,
         tab=tab,
+        carrier_selection_options=LOAD_CARRIER_SELECTION_OPTIONS,
     )
+    freight = load_data.get("freight_breakdown") or {}
     return {
         "schematic_html": schematic_html,
         "utilization_pct": round(load_data.get("utilization_pct") or 0),
@@ -5218,6 +5597,33 @@ def _build_schematic_fragment_payload(load_data, status=None, tab=None):
         "warnings": list(load_data.get("schematic_warnings") or []),
         "warning_count": int(load_data.get("schematic_warning_count") or 0),
         "assumptions": dict(load_data.get("stack_assumptions") or {}),
+        "carrier_key": str(load_data.get("carrier_key") or ""),
+        "carrier_label": str(load_data.get("carrier_label") or ""),
+        "carrier_source_label": str(load_data.get("carrier_source_label") or ""),
+        "carrier_selection_reason": str(load_data.get("carrier_selection_reason") or ""),
+        "rate_per_mile": float(load_data.get("rate_per_mile") or 0.0),
+        "estimated_cost": float(load_data.get("estimated_cost") or 0.0),
+        "freight_breakdown": {
+            "stop_count": int(freight.get("stop_count") or 0),
+            "stop_fee": float(freight.get("stop_fee") or 0.0),
+            "stop_cost": float(freight.get("stop_cost") or 0.0),
+            "estimated_miles": float(freight.get("estimated_miles") or 0.0),
+            "linehaul_rate_per_mile": float(freight.get("linehaul_rate_per_mile") or 0.0),
+            "linehaul_cost": float(freight.get("linehaul_cost") or 0.0),
+            "fuel_surcharge_per_mile": float(freight.get("fuel_surcharge_per_mile") or 0.0),
+            "fuel_cost": float(freight.get("fuel_cost") or 0.0),
+            "adjustment_cost": float(freight.get("adjustment_cost") or 0.0),
+            "adjustment_label": str(freight.get("adjustment_label") or "Adjustment"),
+            "subtotal_before_floor": float(freight.get("subtotal_before_floor") or 0.0),
+            "min_load_cost": float(freight.get("min_load_cost") or 0.0),
+            "total_cost": float(freight.get("total_cost") or 0.0),
+            "carrier_key": str(freight.get("carrier_key") or load_data.get("carrier_key") or ""),
+            "carrier_label": str(freight.get("carrier_label") or load_data.get("carrier_label") or ""),
+            "rate_source_label": str(freight.get("rate_source_label") or load_data.get("carrier_source_label") or ""),
+            "selection_reason": str(freight.get("selection_reason") or load_data.get("carrier_selection_reason") or ""),
+            "pricing_note": str(freight.get("pricing_note") or ""),
+            "requires_return_miles": bool(_coerce_bool_value(freight.get("requires_return_miles"))),
+        },
     }
 
 
@@ -5391,11 +5797,47 @@ def _can_access_planning_session(planning_session):
     if _get_session_role() == ROLE_ADMIN:
         return True
 
+    if bool(planning_session.get("is_sandbox")) != bool(_is_session_sandbox()):
+        return False
+
     profile_name = (_get_session_profile_name() or "").strip()
     created_by = (planning_session.get("created_by") or "").strip()
     if not profile_name:
         return False
     return created_by.casefold() == profile_name.casefold()
+
+
+def _load_access_failure_reason(load):
+    if not load:
+        return "missing"
+    allowed_plants = set(_get_allowed_plants())
+    if load.get("origin_plant") not in allowed_plants:
+        return "plant"
+    if _get_session_role() == ROLE_ADMIN:
+        return None
+
+    session_id = load.get("planning_session_id")
+    if _is_session_sandbox():
+        if not session_id:
+            return "sandbox"
+        planning_session = db.get_planning_session(session_id)
+        if not planning_session or not bool(planning_session.get("is_sandbox")):
+            return "sandbox"
+        return None
+
+    if session_id:
+        planning_session = db.get_planning_session(session_id)
+        if planning_session and bool(planning_session.get("is_sandbox")):
+            return "sandbox"
+    return None
+
+
+def _load_access_error_message(reason):
+    if reason == "sandbox":
+        return "Sandbox accounts can only access sandbox planning-session loads."
+    if reason == "plant":
+        return "Not authorized for this plant."
+    return "Not authorized for this load."
 
 
 def _get_scoped_planning_session_or_404(session_id):
@@ -5752,6 +6194,10 @@ def _reoptimize_form_data(plant_code, session_id=None):
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
     form_data["optimize_mode"] = optimize_mode
+    form_data["order_category_scope"] = order_categories.normalize_order_category_scope(
+        session_config.get("order_category_scope"),
+        default=form_data.get("order_category_scope", order_categories.ORDER_CATEGORY_SCOPE_ALL),
+    )
     manual_order_input = (session_config.get("manual_order_input") or "").strip()
     if not manual_order_input and optimize_mode == "manual":
         selected_so_nums = session_config.get("selected_so_nums")
@@ -5965,6 +6411,7 @@ def inject_session_context():
     return {
         "session_role": role,
         "session_profile_name": _get_session_profile_name(),
+        "session_is_sandbox": _is_session_sandbox(),
         "session_profile_id": session.get(SESSION_PROFILE_ID_KEY),
         "session_profile_default_plants": session.get(SESSION_PROFILE_DEFAULT_PLANTS_KEY) or [],
         "access_profiles": db.list_access_profiles(),
@@ -7728,7 +8175,6 @@ def orders():
             default_capacity=_get_optimizer_default_settings().get("capacity_feet", 53.0),
         )
     )
-
     last_upload = db.get_last_upload()
     upload_history = db.list_upload_history(limit=12)
     rejected_orders = sum(1 for order in orders_list if order.get("is_excluded"))
@@ -7851,6 +8297,10 @@ def orders():
     else:
         toggle_args["hide_past_due"] = "1"
     past_due_toggle_url = url_for("orders", **_clean_query_params(toggle_args))
+    optimize_trailer_context = _build_optimizer_workbench_trailer_defaults(
+        plants,
+        optimizer_defaults=_get_optimizer_default_settings(),
+    )
 
     return render_template(
         "orders.html",
@@ -7863,6 +8313,8 @@ def orders():
         plants=plants,
         states=states,
         customers=customers,
+        trailer_profile_options=optimize_trailer_context["options"],
+        optimize_plant_trailer_defaults=optimize_trailer_context["defaults_by_plant"],
         optimize_defaults=optimize_defaults,
         optimize_errors={},
         optimize_summary=None,
@@ -7977,8 +8429,7 @@ def orders_optimize():
     manual_mode_error = ""
 
     if optimize_mode == "manual":
-        # Paste mode intentionally ignores explicit plant/scope selections.
-        origin_plant = ""
+        # Paste mode ignores state/customer filters, but still honors origin/trailer preference.
         if hasattr(optimize_form, "setlist"):
             optimize_form.setlist("opt_states", [])
             optimize_form.setlist("opt_customers", [])
@@ -8006,7 +8457,11 @@ def orders_optimize():
                 )
             else:
                 inferred_plant = matched_plants[0]
-                if inferred_plant not in allowed_plants:
+                if origin_plant and inferred_plant != origin_plant:
+                    manual_mode_error = (
+                        f"Pasted orders resolve to {inferred_plant}, but selected origin is {origin_plant}."
+                    )
+                elif inferred_plant not in allowed_plants:
                     manual_mode_error = "Pasted orders do not match your allowed plant scope."
                 else:
                     origin_plant = inferred_plant
@@ -8014,8 +8469,18 @@ def orders_optimize():
 
     if origin_plant:
         plant_defaults = _get_optimizer_settings_for_plant(origin_plant)
-        optimize_form["trailer_type"] = plant_defaults["trailer_type"]
-        optimize_form["capacity_feet"] = str(plant_defaults["capacity_feet"])
+        requested_trailer = stack_calculator.normalize_trailer_type(
+            optimize_form.get("trailer_type"),
+            default=plant_defaults["trailer_type"],
+        )
+        optimize_form["trailer_type"] = requested_trailer
+        optimize_form["capacity_feet"] = str(
+            _capacity_for_trailer_setting(
+                requested_trailer,
+                requested_capacity=optimize_form.get("capacity_feet"),
+                default_capacity=plant_defaults["capacity_feet"],
+            )
+        )
 
     replace_session = optimize_form.get("replace_session") == "1"
 
@@ -8032,6 +8497,13 @@ def orders_optimize():
         form_data["geo_radius"] = optimize_form.get("geo_radius", form_data.get("geo_radius", "100"))
         form_data["max_detour_pct"] = optimize_form.get("max_detour_pct", form_data.get("max_detour_pct", "15"))
         form_data["capacity_feet"] = optimize_form.get("capacity_feet", form_data.get("capacity_feet", "53"))
+        form_data["capacity_feet"] = str(
+            _capacity_for_trailer_setting(
+                form_data.get("trailer_type"),
+                requested_capacity=form_data.get("capacity_feet"),
+                default_capacity=_get_optimizer_default_settings().get("capacity_feet", 53.0),
+            )
+        )
         form_data["stack_overflow_max_height"] = optimize_form.get(
             "stack_overflow_max_height",
             form_data.get("stack_overflow_max_height", str(DEFAULT_STACK_OVERFLOW_MAX_HEIGHT)),
@@ -8092,6 +8564,10 @@ def orders_optimize():
         mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
         form_data["optimize_mode"] = mode if mode in {"auto", "manual"} else "auto"
         form_data["manual_order_input"] = optimize_form.get("manual_order_input", "")
+        form_data["order_category_scope"] = order_categories.normalize_order_category_scope(
+            optimize_form.get("order_category_scope"),
+            default=form_data.get("order_category_scope", order_categories.ORDER_CATEGORY_SCOPE_ALL),
+        )
         return form_data
 
     if active_session and active_session_status == "DRAFT" and not replace_session:
@@ -8364,6 +8840,10 @@ def orders_optimize():
     else:
         toggle_args["hide_past_due"] = "1"
     past_due_toggle_url = url_for("orders", **_clean_query_params(toggle_args))
+    optimize_trailer_context = _build_optimizer_workbench_trailer_defaults(
+        plants,
+        optimizer_defaults=_get_optimizer_default_settings(),
+    )
 
     return render_template(
         "orders.html",
@@ -8376,6 +8856,8 @@ def orders_optimize():
         plants=plants,
         states=states,
         customers=customers,
+        trailer_profile_options=optimize_trailer_context["options"],
+        optimize_plant_trailer_defaults=optimize_trailer_context["defaults_by_plant"],
         optimize_defaults=result["form_data"],
         optimize_errors=result["errors"],
         optimize_summary=result["summary"],
@@ -8418,45 +8900,60 @@ def api_manual_order_validate():
 
     payload = request.get_json(silent=True) or {}
     manual_order_input = payload.get("manual_order_input") or ""
-    parsed_so_nums = _parse_manual_so_nums(manual_order_input)
-    if not parsed_so_nums:
+    snapshot = _manual_order_scope_snapshot(
+        manual_order_input,
+        allowed_plants=_get_allowed_plants(),
+    )
+    return jsonify(snapshot)
+
+
+@app.route("/api/orders/scope-count", methods=["POST"])
+def api_orders_scope_count():
+    session_redirect = _require_session()
+    if session_redirect:
+        return jsonify({"error": "Session expired"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    optimize_mode = (payload.get("optimize_mode") or "auto").strip().lower()
+    if optimize_mode not in {"auto", "manual"}:
+        optimize_mode = "auto"
+    selected_order_category_scope = order_categories.normalize_order_category_scope(
+        payload.get("order_category_scope"),
+        default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+    )
+
+    allowed_plants = _get_allowed_plants()
+    origin_plant = _normalize_plant_code(payload.get("origin_plant"))
+    if origin_plant and origin_plant not in allowed_plants:
         return jsonify(
             {
-                "pasted_count": 0,
-                "matched_count": 0,
-                "not_found_count": 0,
-                "matched_so_nums": [],
-                "not_found_so_nums": [],
+                "mode": optimize_mode,
+                "order_category_scope": selected_order_category_scope,
+                "category_counts": order_categories.empty_category_counts(),
+                "orders_in_scope": 0,
+                "lines_in_scope": 0,
             }
         )
 
-    allowed_plants = set(_get_allowed_plants())
-    matches = []
-    matched_set = set()
-    rows = db.list_orders_by_so_nums_any(parsed_so_nums, include_closed=False)
-    for row in rows:
-        so_num = str(row.get("so_num") or "").strip()
-        plant_code = _normalize_plant_code(row.get("plant"))
-        if (
-            not so_num
-            or plant_code not in allowed_plants
-            or _coerce_bool_value(row.get("is_excluded"))
-            or so_num in matched_set
-        ):
-            continue
-        matches.append(so_num)
-        matched_set.add(so_num)
+    if optimize_mode == "manual":
+        snapshot = _manual_order_scope_snapshot(
+            payload.get("manual_order_input") or "",
+            origin_plant=origin_plant,
+            allowed_plants=allowed_plants,
+            order_category_scope=selected_order_category_scope,
+        )
+        return jsonify(snapshot)
 
-    not_found = [so_num for so_num in parsed_so_nums if so_num not in matched_set]
-    return jsonify(
-        {
-            "pasted_count": len(parsed_so_nums),
-            "matched_count": len(matches),
-            "not_found_count": len(not_found),
-            "matched_so_nums": matches,
-            "not_found_so_nums": not_found,
-        }
+    snapshot = _auto_order_scope_snapshot(
+        origin_plant=origin_plant,
+        state_filters=_coerce_filter_list(payload.get("opt_states")),
+        customer_filters=_coerce_filter_list(payload.get("opt_customers")),
+        orders_start_date=payload.get("orders_start_date"),
+        batch_end_date=payload.get("batch_end_date"),
+        batch_horizon_enabled=_coerce_bool_value(payload.get("batch_horizon_enabled")),
+        order_category_scope=selected_order_category_scope,
     )
+    return jsonify(snapshot)
 
 
 @app.route("/orders/export")
@@ -8629,6 +9126,9 @@ def loads():
         if not active_session:
             _set_active_planning_session_id(None)
             return redirect(url_for("orders", needs_session=1))
+        if not _can_access_planning_session(active_session):
+            _set_active_planning_session_id(None)
+            return redirect(url_for("orders", needs_session=1))
         if active_session.get("plant_code") and active_session.get("plant_code") not in allowed_plants:
             _set_active_planning_session_id(None)
             return redirect(url_for("orders", needs_session=1))
@@ -8777,7 +9277,7 @@ def loads():
         manifest_groups = []
         group_map = {}
         for line in lines:
-            order_id = line.get("so_num") or "UNKNOWN"
+            order_id = _normalize_order_identifier(line.get("so_num"), fallback="UNKNOWN")
             group = group_map.get(order_id)
             if not group:
                 group = {
@@ -9079,6 +9579,7 @@ def loads():
             stop_count=load.get("stop_count"),
             requires_return_to_origin=requires_return_to_origin,
             carrier_context=carrier_pricing_context,
+            forced_carrier_key=load.get("carrier_override_key"),
         )
         load["carrier_pricing"] = carrier_pricing
         load["carrier_key"] = carrier_pricing.get("carrier_key")
@@ -9444,6 +9945,7 @@ def loads():
         replay_mode=replay_mode,
         replay_context=replay_context,
         replay_link_params=replay_link_params,
+        carrier_selection_options=LOAD_CARRIER_SELECTION_OPTIONS,
     )
 
 
@@ -9491,10 +9993,8 @@ def planning_sessions():
         session_plant = _normalize_plant_code(session.get("plant_code"))
         if session_plant and session_plant not in allowed_plants:
             continue
-        if not can_manage_sessions:
-            owner = (session.get("created_by") or "").strip()
-            if owner.casefold() != profile_name.casefold():
-                continue
+        if not can_manage_sessions and not _can_access_planning_session(session):
+            continue
         config = {}
         if session.get("config_json"):
             try:
@@ -10246,7 +10746,8 @@ def _archive_session_and_release_loads(session_id):
     planning_session = db.get_planning_session(session_id)
     if not planning_session:
         return False
-    _reintroduce_orders_to_pool(_session_plant_scope(session_id))
+    if not bool(planning_session.get("is_sandbox")):
+        _reintroduce_orders_to_pool(_session_plant_scope(session_id))
     db.archive_planning_session(session_id)
     if _get_active_planning_session_id() == session_id:
         _set_active_planning_session_id(None)
@@ -10416,7 +10917,7 @@ def _build_load_report_rows(loads):
         order_map = {}
         customers = set()
         for idx, line in enumerate(lines):
-            so_num = (line.get("so_num") or "").strip() or f"UNASSIGNED-{idx + 1}"
+            so_num = _normalize_order_identifier(line.get("so_num"), fallback=f"UNASSIGNED-{idx + 1}")
             state = (line.get("state") or "").strip().upper()
             city = (line.get("city") or "").strip()
             zip_code = (line.get("zip") or "").strip()
@@ -11868,11 +12369,37 @@ def manual_load_create():
     except (TypeError, ValueError):
         session_id = None
     redirect_session_id = session_id or _get_active_planning_session_id()
+    planning_session = db.get_planning_session(session_id) if session_id else None
+    if session_id and not planning_session:
+        return redirect(
+            url_for("loads", manual_error="Select a valid planning session.", session_id=redirect_session_id)
+        )
+    if planning_session and not _can_access_planning_session(planning_session):
+        return redirect(
+            url_for("loads", manual_error="Not authorized for this planning session.", session_id=redirect_session_id)
+        )
 
     plant_code = (request.form.get("plant") or "").strip().upper()
     if not plant_code or plant_code not in allowed_plants:
         return redirect(
             url_for("loads", manual_error="Select a valid plant.", session_id=redirect_session_id)
+        )
+    if planning_session and (planning_session.get("plant_code") or "").strip().upper() != plant_code:
+        return redirect(
+            url_for(
+                "loads",
+                manual_error="Selected plant does not match the active planning session.",
+                session_id=redirect_session_id,
+            )
+        )
+    if _is_session_sandbox() and not session_id:
+        return redirect(
+            url_for(
+                "loads",
+                plants=plant_code,
+                manual_error="Sandbox accounts can only create loads inside a sandbox planning session.",
+                session_id=redirect_session_id,
+            )
         )
 
     so_nums = list(
@@ -11945,9 +12472,9 @@ def manual_add_suggestions(load_id):
     if not load:
         return jsonify({"error": "Load not found"}), 404
 
-    allowed_plants = _get_allowed_plants()
-    if load.get("origin_plant") not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     status = (load.get("status") or STATUS_PROPOSED).upper()
     if status == STATUS_APPROVED:
@@ -11957,16 +12484,24 @@ def manual_add_suggestions(load_id):
     trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
 
     lines = db.list_load_lines(load_id)
-    existing_so_nums = {line.get("so_num") for line in lines if line.get("so_num")}
+    existing_so_nums = {
+        _normalize_order_identifier(line.get("so_num"))
+        for line in lines
+        if _normalize_order_identifier(line.get("so_num"))
+    }
     line_totals = {}
     for line in lines:
-        so_num = line.get("so_num")
+        so_num = _normalize_order_identifier(line.get("so_num"))
         if not so_num:
             continue
         line_totals[so_num] = line_totals.get(so_num, 0) + float(line.get("total_length_ft") or 0)
 
     order_rows = db.list_orders_by_so_nums(plant_code, list(existing_so_nums)) if existing_so_nums else []
-    order_map = {row.get("so_num"): row for row in order_rows if row.get("so_num")}
+    order_map = {
+        _normalize_order_identifier(row.get("so_num")): row
+        for row in order_rows
+        if _normalize_order_identifier(row.get("so_num"))
+    }
 
     used_ft = 0.0
     for so_num in existing_so_nums:
@@ -12056,6 +12591,20 @@ def manual_add_suggestions(load_id):
         search=search_query or None,
         limit=None,
     )
+    strategic_setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
+    strategic_customers = _parse_strategic_customers(strategic_setting.get("value_text") or "")
+    strategic_groups = [
+        {"key": entry.get("key"), "label": entry.get("label")}
+        for entry in (strategic_customers or [])
+        if entry.get("key")
+        and entry.get("label")
+        and entry.get("include_in_optimizer_workbench", True)
+    ]
+    strategic_lookup = {
+        str(entry["key"]): entry
+        for entry in (strategic_customers or [])
+        if entry.get("key") and entry.get("include_in_optimizer_workbench", True)
+    }
     candidate_so_nums = []
     seen_candidate_so_nums = set()
     for order in candidates:
@@ -12134,6 +12683,12 @@ def manual_add_suggestions(load_id):
         so_num = str(order.get("so_num") or "").strip()
         if not so_num or so_num in existing_so_nums:
             continue
+        customer_name = str(order.get("cust_name") or "").strip()
+        matched_strategic = None
+        for group_entry in strategic_lookup.values():
+            if customer_rules.matches_any_customer_pattern(customer_name, group_entry.get("patterns")):
+                matched_strategic = group_entry
+                break
 
         dist = None
         order_zip = geo_utils.normalize_zip(order.get("zip"))
@@ -12150,7 +12705,7 @@ def manual_add_suggestions(load_id):
         suggestions.append(
             {
                 "so_num": so_num,
-                "cust_name": order.get("cust_name") or "",
+                "cust_name": customer_name,
                 "due_date": order.get("due_date") or "",
                 "city": order.get("city") or "",
                 "state": order.get("state") or "",
@@ -12160,6 +12715,8 @@ def manual_add_suggestions(load_id):
                 "utilization_pct": order.get("utilization_pct") or 0,
                 "distance_miles": round(dist, 1) if dist is not None else None,
                 "sku_breakdown": sku_breakdown,
+                "strategic_key": str((matched_strategic or {}).get("key") or ""),
+                "strategic_label": str((matched_strategic or {}).get("label") or ""),
             }
         )
 
@@ -12188,6 +12745,7 @@ def manual_add_suggestions(load_id):
             "existing_schematic": existing_schematic,
             "existing_segments": existing_segments,
             "params": {},
+            "strategic_groups": strategic_groups,
             "suggestions": suggestions,
         }
     )
@@ -12203,9 +12761,9 @@ def manual_add_orders(load_id):
     if not load:
         return jsonify({"error": "Load not found"}), 404
 
-    allowed_plants = _get_allowed_plants()
-    if load.get("origin_plant") not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     status = (load.get("status") or STATUS_PROPOSED).upper()
     if status == STATUS_APPROVED:
@@ -12391,8 +12949,8 @@ def load_detail(load_id):
     if not load:
         return redirect(url_for("loads", session_id=_get_active_planning_session_id()))
 
-    allowed_plants = _get_allowed_plants()
-    if load["origin_plant"] not in allowed_plants:
+    access_reason = _load_access_failure_reason(dict(load))
+    if access_reason:
         return redirect(
             url_for("loads", session_id=load.get("planning_session_id") or _get_active_planning_session_id())
         )
@@ -12660,9 +13218,9 @@ def load_route_geometry(load_id):
     if not load:
         return jsonify({"error": "Load not found"}), 404
 
-    allowed_plants = _get_allowed_plants()
-    if load.get("origin_plant") not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     if _is_load_route_reversed(load):
         return jsonify(
@@ -12756,6 +13314,76 @@ def load_route_geometry(load_id):
     )
 
 
+@app.route("/loads/<int:load_id>/carrier", methods=["POST"])
+def update_load_carrier(load_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return _json_session_expired_response()
+
+    body_data = request.get_json(silent=True) or {}
+    carrier_key = (
+        request.form.get("carrier_key")
+        or body_data.get("carrier_key")
+        or ""
+    ).strip().lower()
+    if carrier_key in {"auto", "default"}:
+        carrier_key = ""
+
+    valid_keys = {option["key"] for option in LOAD_CARRIER_SELECTION_OPTIONS}
+    if carrier_key and carrier_key not in valid_keys:
+        return jsonify({"error": "Invalid carrier selection."}), 400
+
+    load = db.get_load(load_id)
+    if not load:
+        return jsonify({"error": "Load not found"}), 404
+
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
+
+    status = (load.get("status") or STATUS_PROPOSED).upper()
+    if status == STATUS_APPROVED:
+        return jsonify({"error": "Approved loads cannot be modified."}), 400
+
+    updater = _get_session_profile_name() or _get_session_role()
+    requested_key = carrier_key or None
+    db.update_load_carrier_override(load_id, requested_key, updated_by=updater)
+
+    load_data = _build_load_schematic_payload(load_id)
+    if not load_data:
+        return jsonify({"error": "Load not found"}), 404
+
+    resolved_key = str(load_data.get("carrier_key") or "").strip().lower()
+    if requested_key and resolved_key != requested_key:
+        db.update_load_carrier_override(load_id, None, updated_by=updater)
+        requested_label = next(
+            (
+                option.get("label")
+                for option in LOAD_CARRIER_SELECTION_OPTIONS
+                if option.get("key") == requested_key
+            ),
+            requested_key.upper(),
+        )
+        return jsonify(
+            {
+                "error": (
+                    f"{requested_label} is not available for this load's lanes/trailer. "
+                    "Carrier override was cleared."
+                )
+            }
+        ), 400
+
+    tab = (request.args.get("tab") or request.form.get("tab") or "").strip().lower()
+    payload = _build_schematic_fragment_payload(
+        load_data,
+        status=(load_data.get("status") or STATUS_PROPOSED).upper(),
+        tab=tab,
+    )
+    payload["ok"] = True
+    payload["carrier_override_key"] = requested_key or ""
+    return jsonify(payload)
+
+
 @app.route("/loads/<int:load_id>/trailer", methods=["POST"])
 def update_load_trailer(load_id):
     session_redirect = _require_session()
@@ -12775,9 +13403,9 @@ def update_load_trailer(load_id):
     if not load:
         return jsonify({"error": "Load not found"}), 404
 
-    allowed_plants = _get_allowed_plants()
-    if load["origin_plant"] not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     status = (load.get("status") or STATUS_PROPOSED).upper()
     if status == STATUS_APPROVED:
@@ -12865,9 +13493,9 @@ def update_load_trailer(load_id):
         return jsonify(payload)
 
     order_numbers = {
-        (line.get("so_num") or "").strip()
+        _normalize_order_identifier(line.get("so_num"))
         for line in lines
-        if (line.get("so_num") or "").strip()
+        if _normalize_order_identifier(line.get("so_num"))
     }
     if len(order_numbers) > 1:
         schematic, _, _ = _calculate_load_schematic(
@@ -12962,11 +13590,11 @@ def reverse_load_order(load_id):
         fallback = url_for("loads", session_id=_get_active_planning_session_id())
         return redirect(next_url or fallback)
 
-    allowed_plants = _get_allowed_plants()
-    if load.get("origin_plant") not in allowed_plants:
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
         wants_json = request.is_json or request.accept_mimetypes.best == "application/json"
         if wants_json:
-            return jsonify({"error": "Not authorized for this plant"}), 403
+            return jsonify({"error": _load_access_error_message(access_reason)}), 403
         fallback = url_for(
             "loads",
             session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
@@ -13033,12 +13661,21 @@ def _build_load_schematic_payload(load_id):
         stop_count=len(ordered_stops),
         requires_return_to_origin=requires_return_to_origin,
         carrier_context=carrier_pricing_context,
+        forced_carrier_key=load.get("carrier_override_key"),
     )
     load["carrier_pricing"] = carrier_pricing
     load["carrier_key"] = carrier_pricing.get("carrier_key")
     load["carrier_label"] = carrier_pricing.get("carrier_label")
     load["carrier_source_label"] = carrier_pricing.get("rate_source_label")
     load["carrier_selection_reason"] = carrier_pricing.get("selection_reason")
+    load["rate_per_mile"] = carrier_pricing.get("rate_per_mile", load.get("rate_per_mile"))
+    load["estimated_cost"] = carrier_pricing.get("total_cost", load.get("estimated_cost"))
+    load["freight_breakdown"] = _build_freight_breakdown(
+        load,
+        stop_fee_amount=_get_stop_fee_amount(),
+        fuel_surcharge_per_mile=_get_fuel_surcharge_per_mile(),
+        load_minimum_amount=_get_load_minimum_amount(),
+    )
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
         lines,
@@ -13145,9 +13782,9 @@ def load_schematic_fragment(load_id):
     if not load_data:
         return jsonify({"error": "Load not found"}), 404
 
-    allowed_plants = _get_allowed_plants()
-    if load_data.get("origin_plant") not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(load_data)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     status = (load_data.get("status") or STATUS_PROPOSED).upper()
     tab = (request.args.get("tab") or "").strip().lower()
@@ -13168,9 +13805,9 @@ def load_schematic_edit(load_id):
     if not payload:
         return jsonify({"error": "Load not found"}), 404
 
-    allowed_plants = _get_allowed_plants()
-    if (payload.get("load") or {}).get("origin_plant") not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(payload.get("load") or {})
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     return jsonify(
         {
@@ -13203,9 +13840,9 @@ def save_schematic_edit(load_id):
     if not payload:
         return jsonify({"error": "Load not found"}), 404
 
-    allowed_plants = _get_allowed_plants()
-    if (payload.get("load") or {}).get("origin_plant") not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(payload.get("load") or {})
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
     if not payload.get("can_edit"):
         return jsonify({"error": "Approved loads are read-only."}), 403
 
@@ -13311,8 +13948,9 @@ def update_load_status(load_id):
         return jsonify({"error": "Load not found"}), 404
 
     allowed_plants = _get_allowed_plants()
-    if load["origin_plant"] not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     plant_filters = _parse_plant_filters(request.form.get("plants"))
     if plant_filters is None:
@@ -13327,6 +13965,17 @@ def update_load_status(load_id):
     year_suffix = _year_suffix()
     planning_session_id = load.get("planning_session_id")
     planning_session = db.get_planning_session(planning_session_id) if planning_session_id else None
+    if _is_session_sandbox() and action in {"approve_draft", "approve_lock", "unapprove"}:
+        message = "Sandbox accounts cannot approve or finalize loads."
+        if is_async:
+            return jsonify({"error": message}), 403
+        return redirect(
+            url_for(
+                "loads",
+                session_id=planning_session_id or _get_active_planning_session_id(),
+                manual_error=message,
+            )
+        )
 
     redirect_target = request.referrer or url_for(
         "loads", session_id=_get_active_planning_session_id()
@@ -13563,8 +14212,8 @@ def remove_order_from_load(load_id):
     if not load:
         return redirect(url_for("loads", session_id=_get_active_planning_session_id()))
 
-    allowed_plants = _get_allowed_plants()
-    if load["origin_plant"] not in allowed_plants:
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
         return redirect(url_for("loads", session_id=_get_active_planning_session_id()))
 
     order_id = (request.values.get("order_id") or "").strip()
@@ -13675,9 +14324,9 @@ def reject_load(load_id):
             )
         )
 
-    allowed_plants = _get_allowed_plants()
-    if load["origin_plant"] not in allowed_plants:
-        return jsonify({"error": "Not authorized for this plant"}), 403
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        return jsonify({"error": _load_access_error_message(access_reason)}), 403
 
     session_id = load.get("planning_session_id")
     reason_category = (request.form.get("reason_category") or "").strip()
@@ -13725,6 +14374,22 @@ def clear_loads():
     except (TypeError, ValueError):
         session_id = None
     redirect_session_id = session_id
+    if session_id:
+        planning_session = db.get_planning_session(session_id)
+        if not planning_session or not _can_access_planning_session(planning_session):
+            abort(404)
+    elif _is_session_sandbox():
+        return redirect(
+            url_for(
+                "loads",
+                plants=",".join(plant_filters) if plant_filters else None,
+                tab=tab or None,
+                sort=sort_mode or None,
+                today=today_param or None,
+                session_id=_get_active_planning_session_id(),
+                manual_error="Sandbox accounts can only clear loads inside an active sandbox session.",
+            )
+        )
 
     if session_id:
         _archive_session_and_release_loads(session_id)
@@ -13767,6 +14432,23 @@ def approve_all_loads():
         session_id = int(session_id) if session_id else None
     except (TypeError, ValueError):
         session_id = None
+    if _is_session_sandbox():
+        return redirect(
+            url_for(
+                "loads",
+                plants=",".join(plant_filters) if plant_filters else None,
+                status=status_filter or None,
+                tab=tab or None,
+                sort=sort_mode or None,
+                today=today_param or None,
+                session_id=session_id or _get_active_planning_session_id(),
+                manual_error="Sandbox accounts cannot approve or finalize loads.",
+            )
+        )
+    if session_id:
+        planning_session = db.get_planning_session(session_id)
+        if not planning_session or not _can_access_planning_session(planning_session):
+            abort(404)
 
     if not plant_scope:
         return redirect(url_for("loads", session_id=session_id or _get_active_planning_session_id()))
@@ -13858,6 +14540,22 @@ def approve_full_truckloads():
         session_id = int(session_id) if session_id else None
     except (TypeError, ValueError):
         session_id = None
+    if _is_session_sandbox():
+        return redirect(
+            url_for(
+                "loads",
+                plants=",".join(plant_filters) if plant_filters else None,
+                tab=tab or None,
+                sort=sort_mode or None,
+                today=today_param or None,
+                session_id=session_id or _get_active_planning_session_id(),
+                manual_error="Sandbox accounts cannot approve or finalize loads.",
+            )
+        )
+    if session_id:
+        planning_session = db.get_planning_session(session_id)
+        if not planning_session or not _can_access_planning_session(planning_session):
+            abort(404)
 
     if not plant_scope:
         return redirect(url_for("loads", session_id=session_id or _get_active_planning_session_id()))
@@ -13933,6 +14631,21 @@ def reject_all_loads():
         session_id = int(session_id) if session_id else None
     except (TypeError, ValueError):
         session_id = None
+    if session_id:
+        planning_session = db.get_planning_session(session_id)
+        if not planning_session or not _can_access_planning_session(planning_session):
+            abort(404)
+    elif _is_session_sandbox():
+        return redirect(
+            url_for(
+                "loads",
+                plants=",".join(plant_filters) if plant_filters else None,
+                status=status_filter or None,
+                tab=tab or None,
+                session_id=_get_active_planning_session_id(),
+                manual_error="Sandbox accounts can only return loads inside an active sandbox session.",
+            )
+        )
 
     if not plant_scope:
         return redirect(url_for("loads", session_id=session_id or _get_active_planning_session_id()))
@@ -15020,6 +15733,58 @@ def save_sku():
     }
     db.update_sku_spec(int(spec_id), spec)
     return jsonify({"status": "ok"})
+
+
+@app.route("/skus/source-led/save", methods=["POST"])
+def save_source_led_sku():
+    session_redirect = _require_session()
+    if session_redirect:
+        return _json_session_expired_response()
+    _require_settings_editor()
+
+    payload = request.get_json(silent=True) or {}
+    sku = str(payload.get("sku") or "").strip().upper()
+    if not sku:
+        return jsonify({"error": "Mapped SKU is required."}), 400
+
+    current = db.get_sku_spec_by_sku(sku)
+    if not current:
+        return jsonify({"error": "Mapped SKU does not exist in canonical specs."}), 404
+
+    length_with_tongue_ft = _coerce_optional_non_negative_float(payload.get("length_with_tongue_ft"))
+    max_stack_step_deck = _coerce_int_value(payload.get("max_stack_step_deck"), current.get("max_stack_step_deck") or 1)
+    max_stack_flat_bed = _coerce_int_value(payload.get("max_stack_flat_bed"), current.get("max_stack_flat_bed") or 1)
+    if length_with_tongue_ft is None:
+        return jsonify({"error": "Length must be a valid non-negative number."}), 400
+    if max_stack_step_deck <= 0 or max_stack_flat_bed <= 0:
+        return jsonify({"error": "Stack limits must be whole numbers greater than zero."}), 400
+
+    updated_by = _get_session_profile_name() or _get_session_role()
+    db.update_sku_spec_by_sku(
+        sku,
+        {
+            "description": current.get("description") or "",
+            "category": current.get("category") or "",
+            "length_with_tongue_ft": round(float(length_with_tongue_ft), 2),
+            "max_stack_step_deck": int(max_stack_step_deck),
+            "max_stack_flat_bed": int(max_stack_flat_bed),
+            "notes": current.get("notes") or "",
+        },
+        updated_by=updated_by,
+    )
+    refreshed = db.get_sku_spec_by_sku(sku) or {}
+    source_text = _source_led_source_text(refreshed)
+
+    return jsonify(
+        {
+            "ok": True,
+            "sku": sku,
+            "length_with_tongue_ft": float(refreshed.get("length_with_tongue_ft") or 0.0),
+            "max_stack_step_deck": int(refreshed.get("max_stack_step_deck") or 1),
+            "max_stack_flat_bed": int(refreshed.get("max_stack_flat_bed") or 1),
+            "mapped_source": source_text,
+        }
+    )
 
 
 @app.route("/lookups/save", methods=["POST"])

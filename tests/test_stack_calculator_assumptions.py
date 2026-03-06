@@ -186,6 +186,79 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
         self.assertTrue(any("deck-length item above" in issue for issue in issues))
 
     @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_dump_units_prefer_dump_candidate_when_available(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "6X12GWHS16",
+                "sku": "6X12GWHS16",
+                "qty": 1,
+                "unit_length_ft": 14.0,
+                "max_stack_height": 3,
+                "category": "USA",
+                "stop_sequence": 3,
+            },
+            {
+                "item": "6X12DUMPLP10K/12K",
+                "sku": "6X12DUMPLP10K/12K",
+                "qty": 1,
+                "unit_length_ft": 16.0,
+                "max_stack_height": 3,
+                "category": "DUMP",
+                "stop_sequence": 2,
+            },
+            {
+                "item": "5X8DUMPLP5K",
+                "sku": "5X8DUMPLP5K",
+                "qty": 1,
+                "unit_length_ft": 14.0,
+                "max_stack_height": 3,
+                "category": "DUMP",
+                "stop_sequence": 1,
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="FLATBED",
+            preserve_order_contiguity=False,
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+
+        positions = config.get("positions") or []
+        self.assertEqual(len(positions), 2)
+        dump_units_by_stack = []
+        for pos in positions:
+            dump_units_by_stack.append(
+                sum(
+                    int(item.get("units") or 0)
+                    for item in (pos.get("items") or [])
+                    if str(item.get("category") or "").strip().upper() == "DUMP"
+                )
+            )
+        self.assertEqual(max(dump_units_by_stack), 2)
+
+    def test_check_stacking_compatibility_does_not_flag_mixed_dump_stack(self):
+        positions = [
+            {
+                "position_id": "p1",
+                "deck": "lower",
+                "units_count": 2,
+                "items": [
+                    {"sku": "5X8DUMPLP5K", "unit_length_ft": 12.0, "max_stack": 3, "units": 1, "category": "DUMP"},
+                    {"sku": "6X12GWHS16", "unit_length_ft": 12.0, "max_stack": 3, "units": 1, "category": "USA"},
+                ],
+            }
+        ]
+
+        issues = stack_calculator.check_stacking_compatibility(
+            positions,
+            trailer_config={"type": "FLATBED", "lower": 53.0, "upper": 0.0},
+            equal_length_deck_length_order_enabled=True,
+        )
+        self.assertFalse(any("Dump units should only be stacked with other dump units" in issue for issue in issues))
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
     def test_stack_overflow_increases_utilization_credit_for_mixed_base_stack(self, _mock_get_setting):
         order_lines = [
             {

@@ -229,25 +229,29 @@
             <span class="badge badge-neutral">Proposed</span>
           {% endif %}
           <div class="form-actions" style="margin-top: 8px;">
-            {% if status == 'PROPOSED' %}
-              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
-                <input type="hidden" name="action" value="approve_draft">
-                <button class="btn-secondary" type="submit">Approve to Draft</button>
-              </form>
-              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
-                <input type="hidden" name="action" value="approve_lock">
-                <button class="btn-primary" type="submit">Approve & Lock</button>
-              </form>
-            {% elif status == 'DRAFT' %}
-              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
-                <input type="hidden" name="action" value="approve_lock">
-                <button class="btn-primary" type="submit">Approve & Lock</button>
-              </form>
+            {% if session_is_sandbox %}
+              <p class="muted">Sandbox mode: approval actions are disabled.</p>
             {% else %}
-              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
-                <input type="hidden" name="action" value="unapprove">
-                <button class="btn-secondary" type="submit">Unapprove to Draft</button>
-              </form>
+              {% if status == 'PROPOSED' %}
+                <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                  <input type="hidden" name="action" value="approve_draft">
+                  <button class="btn-secondary" type="submit">Approve to Draft</button>
+                </form>
+                <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                  <input type="hidden" name="action" value="approve_lock">
+                  <button class="btn-primary" type="submit">Approve & Lock</button>
+                </form>
+              {% elif status == 'DRAFT' %}
+                <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                  <input type="hidden" name="action" value="approve_lock">
+                  <button class="btn-primary" type="submit">Approve & Lock</button>
+                </form>
+              {% else %}
+                <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}">
+                  <input type="hidden" name="action" value="unapprove">
+                  <button class="btn-secondary" type="submit">Unapprove to Draft</button>
+                </form>
+              {% endif %}
             {% endif %}
           </div>
         </div>

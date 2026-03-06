@@ -133,6 +133,7 @@
                 <div>
                   <h2>Plant Locations</h2>
                   <p class="muted">Editable plant registry with Plant Trailer Defaults in the right-side columns.</p>
+                  <p class="muted">Policy reminder: NV Lowe's loads should remain on 48' Step Deck by default.</p>
                 </div>
               </div>
               {% if can_edit_settings and is_admin %}
@@ -773,7 +774,7 @@
             </div>
             <div style="display: inline-flex; align-items: center; gap: 0.6rem;">
               <button class="btn-ghost btn-xs" type="button" data-source-column-toggle aria-expanded="false" title="Show mapping columns">+ Columns</button>
-              <div class="muted">This table is read-only and driven by open orders + lookup mapping.</div>
+              <button class="btn-ghost btn-xs" type="button" data-canonical-toggle aria-expanded="true">Hide Canonical Specs</button>
             </div>
           </div>
           {% if source_led_specs %}
@@ -790,17 +791,21 @@
                     <th>Length (ft)</th>
                     <th>Step Deck</th>
                     <th>Flat Bed</th>
-                    <th>Status</th>
+                    <th>Source</th>
                     <th>Lines</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for row in source_led_specs %}
+                    {% set row_sku = row.mapped_sku_list[0] if row.mapped_sku_list and (row.mapped_sku_list | length) == 1 else '' %}
                     <tr data-source-row
                         data-item-num="{{ row.item_num or '' }}"
                         data-item-desc="{{ row.item_desc or '' }}"
                         data-mapped-sku="{{ row.mapped_sku or '' }}"
-                        data-category="{{ row.category or '' }}">
+                        data-category="{{ row.category or '' }}"
+                        data-source-sku="{{ row_sku }}"
+                        data-source-editable="{{ 1 if row.can_edit_specs else 0 }}">
                       <td><strong>{{ row.item_num }}</strong></td>
                       <td>{{ row.item_desc or '-' }}</td>
                       <td data-source-extra-col hidden>{{ row.bin or '-' }}</td>
@@ -808,16 +813,62 @@
                       <td data-source-extra-col hidden>{{ row.mapped_description or '-' }}</td>
                       <td>{{ row.category or '-' }}</td>
                       <td>
-                        {% if row.length_with_tongue_ft is not none %}
-                          {{ '%.1f' | format(row.length_with_tongue_ft | float) }}
+                        {% if can_edit_settings and row.can_edit_specs %}
+                          <input
+                            class="table-input source-led-input"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            data-source-field="length_with_tongue_ft"
+                            value="{{ '%.1f' | format((row.length_with_tongue_ft or 0) | float) }}"
+                          >
+                        {% elif row.length_with_tongue_ft is not none %}
+                          {{ '%.1f' | format((row.length_with_tongue_ft or 0) | float) }}
                         {% else %}
                           -
                         {% endif %}
                       </td>
-                      <td>{{ row.max_stack_step_deck if row.max_stack_step_deck is not none else '-' }}</td>
-                      <td>{{ row.max_stack_flat_bed if row.max_stack_flat_bed is not none else '-' }}</td>
-                      <td>{{ row.mapping_status }}</td>
+                      <td>
+                        {% if can_edit_settings and row.can_edit_specs %}
+                          <input
+                            class="table-input source-led-input"
+                            type="number"
+                            min="1"
+                            step="1"
+                            data-source-field="max_stack_step_deck"
+                            value="{{ row.max_stack_step_deck if row.max_stack_step_deck is not none else 1 }}"
+                          >
+                        {% else %}
+                          {{ row.max_stack_step_deck if row.max_stack_step_deck is not none else '-' }}
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if can_edit_settings and row.can_edit_specs %}
+                          <input
+                            class="table-input source-led-input"
+                            type="number"
+                            min="1"
+                            step="1"
+                            data-source-field="max_stack_flat_bed"
+                            value="{{ row.max_stack_flat_bed if row.max_stack_flat_bed is not none else 1 }}"
+                          >
+                        {% else %}
+                          {{ row.max_stack_flat_bed if row.max_stack_flat_bed is not none else '-' }}
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="source-led-source" data-source-led-source>{{ row.mapped_source or '-' }}</div>
+                        <div class="muted">{{ row.mapping_status }}</div>
+                      </td>
                       <td>{{ row.line_count }}</td>
+                      <td>
+                        {% if can_edit_settings and row.can_edit_specs %}
+                          <button class="btn-secondary btn-xs" type="button" data-source-led-save>Save</button>
+                          <span class="muted source-led-save-status" data-source-led-save-status></span>
+                        {% else %}
+                          <span class="muted">-</span>
+                        {% endif %}
+                      </td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -826,6 +877,7 @@
           {% else %}
             <p>No observed open-order items available yet. Upload orders to populate the source-led view.</p>
           {% endif %}
+          <section id="canonical-sku-section" class="canonical-sku-section">
           <div class="content-header settings-content-header">
             <div>
               <h3>Canonical SKU Specifications</h3>
@@ -1034,6 +1086,7 @@
           {% else %}
             <p>No SKU specs yet.</p>
           {% endif %}
+          </section>
         </div>
       {% elif tab == 'lookups' %}
         <div class="content-block">
@@ -2127,10 +2180,31 @@
       const sourceTable = document.getElementById('source-led-table');
       const sourceSearchInput = document.querySelector('[data-source-led-search]');
       const sourceColumnToggle = document.querySelector('[data-source-column-toggle]');
-      if (sourceTable && sourceSearchInput) {
+      const canonicalToggle = document.querySelector('[data-canonical-toggle]');
+      const canonicalSection = document.getElementById('canonical-sku-section');
+
+      const setCanonicalVisible = (visible) => {
+        if (!canonicalSection) return;
+        canonicalSection.hidden = !visible;
+        canonicalSection.classList.toggle('hidden', !visible);
+        if (canonicalToggle) {
+          canonicalToggle.setAttribute('aria-expanded', visible ? 'true' : 'false');
+          canonicalToggle.textContent = visible ? 'Hide Canonical Specs' : 'Show Canonical Specs';
+        }
+      };
+
+      if (canonicalToggle) {
+        canonicalToggle.addEventListener('click', () => {
+          setCanonicalVisible(canonicalSection ? canonicalSection.hidden : false);
+        });
+        setCanonicalVisible(canonicalSection ? !canonicalSection.hidden : true);
+      }
+
+      if (sourceTable) {
         const sourceExtraColumns = Array.from(sourceTable.querySelectorAll('[data-source-extra-col]'));
         const sourceRows = Array.from(sourceTable.querySelectorAll('tbody tr[data-source-row]'));
         const normalizeSource = (value) => (value || '').trim().toUpperCase();
+        const parseResponseJson = (response) => response.json().catch(() => ({}));
         const setSourceColumnsVisible = (visible) => {
           sourceExtraColumns.forEach((cell) => {
             cell.hidden = !visible;
@@ -2150,7 +2224,7 @@
         }
 
         const applySourceSearch = () => {
-          const term = normalizeSource(sourceSearchInput.value);
+          const term = normalizeSource(sourceSearchInput ? sourceSearchInput.value : '');
           sourceRows.forEach((row) => {
             const haystack = [
               row.dataset.itemNum || '',
@@ -2163,7 +2237,106 @@
             row.style.display = !term || haystack.includes(term) ? '' : 'none';
           });
         };
-        sourceSearchInput.addEventListener('input', applySourceSearch);
+
+        const setRowSaveStatus = (row, message, statusClass = '') => {
+          const status = row.querySelector('[data-source-led-save-status]');
+          if (!status) return;
+          status.textContent = message || '';
+          status.classList.remove('is-saving', 'is-success', 'is-error');
+          if (statusClass) status.classList.add(statusClass);
+        };
+
+        const parseFieldValue = (row, fieldName) => {
+          const input = row.querySelector(`[data-source-field="${fieldName}"]`);
+          if (!input) return null;
+          const raw = (input.value || '').trim();
+          if (!raw) return null;
+          const numeric = Number(raw);
+          return Number.isFinite(numeric) ? numeric : null;
+        };
+
+        const bindSourceLedSave = (row) => {
+          const saveBtn = row.querySelector('[data-source-led-save]');
+          if (!saveBtn) return;
+          if (saveBtn.dataset.bound === 'true') return;
+          saveBtn.dataset.bound = 'true';
+
+          row.querySelectorAll('[data-source-field]').forEach((input) => {
+            input.addEventListener('input', () => {
+              setRowSaveStatus(row, 'Unsaved changes');
+            });
+          });
+
+          saveBtn.addEventListener('click', () => {
+            const sku = (row.dataset.sourceSku || '').trim();
+            if (!sku) {
+              setRowSaveStatus(row, 'Mapped SKU required.', 'is-error');
+              return;
+            }
+            const payload = {
+              sku,
+              length_with_tongue_ft: parseFieldValue(row, 'length_with_tongue_ft'),
+              max_stack_step_deck: parseFieldValue(row, 'max_stack_step_deck'),
+              max_stack_flat_bed: parseFieldValue(row, 'max_stack_flat_bed'),
+            };
+            if (
+              payload.length_with_tongue_ft === null
+              || payload.max_stack_step_deck === null
+              || payload.max_stack_flat_bed === null
+            ) {
+              setRowSaveStatus(row, 'Enter valid values before saving.', 'is-error');
+              return;
+            }
+
+            saveBtn.disabled = true;
+            setRowSaveStatus(row, 'Saving...', 'is-saving');
+
+            fetch('/skus/source-led/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            })
+              .then((response) => parseResponseJson(response).then((body) => ({ response, body })))
+              .then(({ response, body }) => {
+                if (!response.ok || (body && body.error)) {
+                  throw new Error((body && body.error) || `Save failed (${response.status})`);
+                }
+                const lengthInput = row.querySelector('[data-source-field="length_with_tongue_ft"]');
+                const stepInput = row.querySelector('[data-source-field="max_stack_step_deck"]');
+                const flatInput = row.querySelector('[data-source-field="max_stack_flat_bed"]');
+                const sourceNode = row.querySelector('[data-source-led-source]');
+                if (lengthInput && Number.isFinite(Number(body.length_with_tongue_ft))) {
+                  lengthInput.value = Number(body.length_with_tongue_ft).toFixed(1);
+                }
+                if (stepInput && Number.isFinite(Number(body.max_stack_step_deck))) {
+                  stepInput.value = String(Math.max(1, Number(body.max_stack_step_deck)));
+                }
+                if (flatInput && Number.isFinite(Number(body.max_stack_flat_bed))) {
+                  flatInput.value = String(Math.max(1, Number(body.max_stack_flat_bed)));
+                }
+                if (sourceNode) {
+                  sourceNode.textContent = body.mapped_source || 'Updated';
+                }
+                setRowSaveStatus(row, 'Saved.', 'is-success');
+              })
+              .catch((error) => {
+                setRowSaveStatus(row, (error && error.message) || 'Unable to save.', 'is-error');
+              })
+              .finally(() => {
+                saveBtn.disabled = false;
+              });
+          });
+        };
+
+        sourceRows.forEach((row) => {
+          if (row.dataset.sourceEditable === '1') {
+            bindSourceLedSave(row);
+          }
+        });
+
+        if (sourceSearchInput) {
+          sourceSearchInput.addEventListener('input', applySourceSearch);
+        }
         setSourceColumnsVisible(false);
         applySourceSearch();
       } else if (sourceColumnToggle) {

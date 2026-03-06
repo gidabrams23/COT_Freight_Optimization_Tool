@@ -36,36 +36,49 @@
     {% set util_class = 'util-f' %}
   {% endif %}
   {% set carrier_key = (load.carrier_key or 'default') | lower %}
-  {% if carrier_key == 'ryder' %}
-    {% set carrier_class = 'carrier-chip-ryder' %}
-  {% elif carrier_key == 'lst' %}
-    {% set carrier_class = 'carrier-chip-lst' %}
-  {% elif carrier_key == 'fls' %}
-    {% set carrier_class = 'carrier-chip-fls' %}
-  {% else %}
-    {% set carrier_class = 'carrier-chip-default' %}
-  {% endif %}
+  {% set carrier_override_key = (load.carrier_override_key or '') | lower %}
   {% set carrier_label = load.carrier_label or 'FLS' %}
   <div class="card-header-row schematic-header compact">
     <div class="schematic-header-left">
       <div class="schematic-title-row">
-        <h3>Stacking Schematic</h3>
         <div class="schematic-stats">
           <div class="schematic-stat-row">
-            {% if report_mode %}
-              <span class="metric-value">{{ util_pct_display }}% Util</span>
+            <div class="util-grade-stack">
+              {% if report_mode %}
+                <span class="metric-value">{{ util_pct_display }}% Util</span>
+              {% else %}
+                <span class="metric-value">Utilization {{ util_pct_display }}%</span>
+              {% endif %}
+              <span class="util-grade {{ util_class }}">Grade {{ util_grade_key }}</span>
+            </div>
+            {% if not read_only_mode %}
+              <div class="carrier-inline-control{% if status == 'APPROVED' %} is-disabled{% endif %}">
+                <div class="carrier-inline-picker">
+                  <span class="carrier-inline-picker-label">Carrier</span>
+                  <span class="carrier-inline-picker-value" data-carrier-display>{{ carrier_label }}</span>
+                  <span class="material-symbols-outlined carrier-inline-picker-icon" aria-hidden="true">expand_more</span>
+                  <select class="load-carrier-select carrier-inline-picker-select" data-load-id="{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>
+                    <option value="" data-display="{{ carrier_label }}" {% if not carrier_override_key %}selected{% endif %}>Auto ({{ carrier_label }})</option>
+                    {% for carrier_option in carrier_selection_options or [] %}
+                      {% set option_key = (carrier_option.key or '') | lower %}
+                      <option value="{{ option_key }}" data-display="{{ carrier_option.label }}" {% if carrier_override_key == option_key %}selected{% endif %}>{{ carrier_option.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                {% if load.carrier_selection_reason %}
+                  <div class="carrier-inline-reason-wrap" tabindex="0" role="note" aria-label="Carrier rule reason">
+                    <span class="material-symbols-outlined carrier-inline-reason-icon" aria-hidden="true">info</span>
+                    <div class="carrier-inline-reason-popover" role="tooltip" aria-label="Carrier selection reason">
+                      {{ load.carrier_selection_reason }}
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
             {% else %}
-              <span class="metric-value">Utilization {{ util_pct_display }}%</span>
+              <span class="metric-value carrier-inline-label" {% if load.carrier_source_label %}title="{{ load.carrier_source_label }}"{% endif %}>
+                Carrier {{ carrier_label }}
+              </span>
             {% endif %}
-            <span class="util-grade {{ util_class }}">Grade {{ util_grade_key }}</span>
-            <span
-              class="carrier-chip {{ carrier_class }}"
-              {% if load.carrier_source_label %}title="{{ load.carrier_source_label }}"{% endif %}
-            >
-              <span class="carrier-chip-label">Carrier</span>
-              <span class="carrier-chip-dot" aria-hidden="true"></span>
-              <span class="carrier-chip-value">{{ carrier_label }}</span>
-            </span>
           </div>
         </div>
         {% if load.has_custom_schematic %}

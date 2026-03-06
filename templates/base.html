@@ -84,7 +84,9 @@
                     <div class="profile-avatar">{{ initials }}</div>
                     <div class="profile-meta">
                       <div class="profile-name">{{ profile_display }}</div>
-                      <div class="profile-subtitle">{{ session_plant_filter_label }}</div>
+                      <div class="profile-subtitle">
+                        {{ session_plant_filter_label }}{% if session_is_sandbox %} | Sandbox{% endif %}
+                      </div>
                     </div>
                   </div>
                 </summary>

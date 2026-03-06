@@ -20,12 +20,18 @@
                     <span class="session-status-badge session-status-{{ (active_session.status or 'DRAFT') | lower }}">
                       {{ (active_session.status or 'DRAFT') | upper }}
                     </span>
+                    {% if session_is_sandbox %}
+                      <span class="session-status-badge session-status-draft">SANDBOX</span>
+                    {% endif %}
                     <div class="session-tooltip" data-session-tooltip data-start-ts="{{ active_session.created_at }}" data-archived-ts="{{ active_session.archived_at or '' }}">
                       <div class="tooltip-title">{{ active_session.session_code }}</div>
                       <div class="tooltip-row"><span>Planner</span><strong>{{ active_session.created_by or 'Planner' }}</strong></div>
                       <div class="tooltip-row"><span>Plant</span><strong>{{ active_session.plant_code }}</strong></div>
                       <div class="tooltip-row"><span>Created</span><strong>{{ active_session.created_at | est_datetime }}</strong></div>
                       <div class="tooltip-row"><span>Status</span><strong>{{ (active_session.status or 'DRAFT') | upper }}</strong></div>
+                      {% if active_session.is_sandbox %}
+                        <div class="tooltip-row"><span>Mode</span><strong>Sandbox</strong></div>
+                      {% endif %}
                       <div class="tooltip-row"><span>Trailer</span><strong>{{ active_session_config.trailer_type or 'STEP_DECK' }}</strong></div>
                       <div class="tooltip-row"><span>Algorithm</span><strong>{{ (active_session_config.algorithm_version or 'v2') | upper }}</strong></div>
                       <div class="tooltip-row"><span>Flex Days</span><strong>{{ active_session_config.time_window_days or 0 }}</strong></div>
@@ -328,7 +334,7 @@
                           </div>
                         </div>
                       </div>
-                      {% if tab != 'final' and not is_replay %}
+                      {% if tab != 'final' and not is_replay and not session_is_sandbox %}
                         <form method="post" action="{{ url_for('approve_all_loads') }}">
                           <input type="hidden" name="plants" value="{{ plant_filter_param }}">
                           <input type="hidden" name="tab" value="{{ tab }}">
@@ -396,7 +402,7 @@
                         <div class="load-section" data-section="{{ section.kind }}">
                         <div class="load-section-title load-section-title-row">
                           <span>{{ section.title }}</span>
-                          {% if tab == 'draft' and section.kind == 'full' and not is_replay %}
+                          {% if tab == 'draft' and section.kind == 'full' and not is_replay and not session_is_sandbox %}
                             <form method="post" action="{{ url_for('approve_full_truckloads') }}">
                               <input type="hidden" name="plants" value="{{ plant_filter_param }}">
                               <input type="hidden" name="tab" value="{{ tab }}">
@@ -561,24 +567,29 @@
                           {% if is_replay %}
                             <span class="approval-status">Simulation Only</span>
                           {% else %}
-                            {% if status == 'APPROVED' %}
-                              <span class="approval-status approved">Approved</span>
-                            {% else %}
-                              <span class="approval-status">Pending Approval</span>
-                            {% endif %}
-                            {% if tab != 'final' %}
-                              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
-                                <input type="hidden" name="action" value="approve_lock">
-                                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-                                <button class="btn-success approval-btn" type="submit" {% if status == 'APPROVED' %}disabled{% endif %}>Approve</button>
-                              </form>
+                            {% if session_is_sandbox %}
+                              <span class="approval-status">Sandbox Mode: No Approval</span>
                               <button class="btn-danger approval-btn feedback-toggle" type="button" data-feedback-target="load-return-{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>Return Orders</button>
                             {% else %}
-                              <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
-                                <input type="hidden" name="action" value="unapprove">
-                                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
-                                <button class="btn-secondary approval-btn" type="submit">Unapprove Load</button>
-                              </form>
+                              {% if status == 'APPROVED' %}
+                                <span class="approval-status approved">Approved</span>
+                              {% else %}
+                                <span class="approval-status">Pending Approval</span>
+                              {% endif %}
+                              {% if tab != 'final' %}
+                                <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
+                                  <input type="hidden" name="action" value="approve_lock">
+                                  <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                                  <button class="btn-success approval-btn" type="submit" {% if status == 'APPROVED' %}disabled{% endif %}>Approve</button>
+                                </form>
+                                <button class="btn-danger approval-btn feedback-toggle" type="button" data-feedback-target="load-return-{{ load.id }}" {% if status == 'APPROVED' %}disabled{% endif %}>Return Orders</button>
+                              {% else %}
+                                <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
+                                  <input type="hidden" name="action" value="unapprove">
+                                  <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+                                  <button class="btn-secondary approval-btn" type="submit">Unapprove Load</button>
+                                </form>
+                              {% endif %}
                             {% endif %}
                           {% endif %}
                         </div>
@@ -1076,6 +1087,7 @@
               <span class="material-symbols-outlined">search</span>
               <input class="select-field" type="text" id="manual-add-search" placeholder="Search by order #, customer, city, state, due date, or SKU..." autocomplete="off" aria-label="Search available orders">
             </div>
+            <div class="manual-add-strategic-filters hidden" id="manual-add-strategic-filters"></div>
             <div class="manual-order-list manual-add-order-list" id="manual-add-list">
               <div class="subtext">Select a load's "Manually Add Orders" button to see suggestions.</div>
             </div>
@@ -1575,11 +1587,13 @@
           const replacement = document.getElementById(`schematic-card-${loadId}`);
           bindSchematicRemove(replacement || document);
           bindTrailerSelect(replacement || document);
+          bindCarrierSelect(replacement || document);
           bindManualAddButtons(replacement || document);
           bindSchematicEditButtons(replacement || document);
         }
       }
       updateUtilSummary(loadId, payload || {});
+      updateFreightSummary(loadId, payload || {});
       const alert = document.getElementById(`over-capacity-${loadId}`);
       if (alert) {
         alert.classList.toggle('hidden', !(payload && payload.over_capacity));
@@ -1611,6 +1625,91 @@
           applySchematicPayload(loadId, payload);
           return payload;
         });
+    }
+
+    function updateFreightSummary(loadId, payload) {
+      if (!payload || !payload.freight_breakdown) return;
+      const totalCost = Number(payload.estimated_cost || payload.freight_breakdown.total_cost || 0);
+      const freightNodes = document.querySelectorAll(`[data-freight-estimate][data-load-id="${loadId}"]`);
+      freightNodes.forEach((node) => {
+        node.textContent = `$${Math.round(totalCost).toLocaleString()}`;
+        node.dataset.carrierKey = payload.freight_breakdown.carrier_key || payload.carrier_key || '';
+        node.dataset.carrierLabel = payload.freight_breakdown.carrier_label || payload.carrier_label || '';
+        node.dataset.rateSource = payload.freight_breakdown.rate_source_label || payload.carrier_source_label || '';
+        node.dataset.selectionReason = payload.freight_breakdown.selection_reason || payload.carrier_selection_reason || '';
+        node.dataset.pricingNote = payload.freight_breakdown.pricing_note || '';
+        node.dataset.returnRequired = payload.freight_breakdown.requires_return_miles ? '1' : '0';
+        node.dataset.stopCount = String(payload.freight_breakdown.stop_count || 0);
+        node.dataset.stopFee = String(payload.freight_breakdown.stop_fee || 0);
+        node.dataset.stopCost = String(payload.freight_breakdown.stop_cost || 0);
+        node.dataset.estimatedMiles = String(payload.freight_breakdown.estimated_miles || 0);
+        node.dataset.linehaulRate = String(payload.freight_breakdown.linehaul_rate_per_mile || 0);
+        node.dataset.linehaulCost = String(payload.freight_breakdown.linehaul_cost || 0);
+        node.dataset.fuelRate = String(payload.freight_breakdown.fuel_surcharge_per_mile || 0);
+        node.dataset.fuelCost = String(payload.freight_breakdown.fuel_cost || 0);
+        node.dataset.adjustmentCost = String(payload.freight_breakdown.adjustment_cost || 0);
+        node.dataset.adjustmentLabel = payload.freight_breakdown.adjustment_label || 'Adjustment';
+        node.dataset.subtotalBeforeFloor = String(payload.freight_breakdown.subtotal_before_floor || 0);
+        node.dataset.minLoadCost = String(payload.freight_breakdown.min_load_cost || 0);
+        node.dataset.totalCost = String(payload.freight_breakdown.total_cost || 0);
+      });
+    }
+
+    function carrierDisplayLabel(select) {
+      if (!select || !select.selectedOptions || !select.selectedOptions.length) return '';
+      const selectedOption = select.selectedOptions[0];
+      const explicit = (selectedOption.dataset.display || '').trim();
+      if (explicit) return explicit;
+      return (selectedOption.textContent || '').trim();
+    }
+
+    function bindCarrierSelect(root = document) {
+      root.querySelectorAll('.load-carrier-select').forEach((select) => {
+        if (select.dataset.bound === 'true') return;
+        select.dataset.bound = 'true';
+        if (!select.dataset.previousValue) {
+          select.dataset.previousValue = select.value;
+        }
+        const carrierPicker = select.closest('.carrier-inline-picker');
+        const displayNode = carrierPicker ? carrierPicker.querySelector('[data-carrier-display]') : null;
+        if (displayNode && !displayNode.textContent.trim()) {
+          displayNode.textContent = carrierDisplayLabel(select);
+        }
+        select.addEventListener('change', () => {
+          const loadId = select.dataset.loadId;
+          if (!loadId) return;
+          const previous = select.dataset.previousValue || '';
+          const previousDisplay = displayNode ? displayNode.textContent : '';
+          if (displayNode) {
+            displayNode.textContent = carrierDisplayLabel(select);
+          }
+          select.disabled = true;
+          const formData = new FormData();
+          formData.append('carrier_key', select.value || '');
+          fetch(`/loads/${loadId}/carrier`, {
+            method: 'POST',
+            body: formData,
+          })
+            .then((response) => parseJsonResponseSafe(response).then((payload) => ({ response, payload })))
+            .then(({ response, payload }) => {
+              if (!response.ok || (payload && payload.error)) {
+                throw new Error((payload && payload.error) || `Carrier update failed (${response.status})`);
+              }
+              applySchematicPayload(loadId, payload || {});
+              select.dataset.previousValue = select.value;
+            })
+            .catch((error) => {
+              select.value = previous;
+              if (displayNode) {
+                displayNode.textContent = previousDisplay;
+              }
+              window.alert((error && error.message) || 'Unable to update carrier. Please try again.');
+            })
+            .finally(() => {
+              select.disabled = false;
+            });
+        });
+      });
     }
 
     function bindTrailerSelect(root = document) {
@@ -2302,6 +2401,7 @@
 
     bindSchematicRemove();
     bindTrailerSelect();
+    bindCarrierSelect();
     bindSchematicEditButtons();
     bindAsyncApprove();
     stashAllDetailPanels();
@@ -3143,6 +3243,7 @@
       const meta = document.getElementById('manual-add-meta');
       const list = document.getElementById('manual-add-list');
       const searchInput = document.getElementById('manual-add-search');
+      const strategicFilters = document.getElementById('manual-add-strategic-filters');
       const error = document.getElementById('manual-add-error');
       const submitBtn = document.getElementById('manual-add-submit');
       const utilMeta = document.getElementById('manual-add-util-meta');
@@ -3155,10 +3256,12 @@
       let activeLoadId = null;
       let activeController = null;
       let cachedSuggestions = [];
+      let strategicGroups = [];
       let cachedSpace = {};
       let cachedExistingSchematic = null;
       let selectedOrders = new Map();
       let searchTerm = '';
+      let activeStrategicKey = '';
       let isSubmitting = false;
       let pollTimer = null;
       let elapsedTimer = null;
@@ -3205,6 +3308,8 @@
         city: (order.city || '').toString().trim(),
         state: (order.state || '').toString().trim(),
         zip: (order.zip || '').toString().trim(),
+        strategic_key: (order.strategic_key || '').toString().trim(),
+        strategic_label: (order.strategic_label || '').toString().trim(),
         total_length_ft: Number(order.total_length_ft || 0),
         stack_added_ft: Number(order.stack_added_ft || order.total_length_ft || 0),
         utilization_pct: Number(order.utilization_pct || 0),
@@ -3507,16 +3612,19 @@
         activeController = null;
         activeLoadId = null;
         cachedSuggestions = [];
+        strategicGroups = [];
         cachedSpace = {};
         cachedExistingSchematic = null;
         selectedOrders = new Map();
         searchTerm = '';
+        activeStrategicKey = '';
         setSubmittingState(false);
         closeProgressModal();
         setError('');
         if (searchInput) searchInput.value = '';
         if (meta) meta.textContent = '';
         if (utilMeta) utilMeta.textContent = '';
+        renderStrategicFilters();
         renderCapacityPlaceholder('Existing SKU footprint and remaining feet will appear here.');
         modal.classList.add('hidden');
       };
@@ -3539,6 +3647,49 @@
         renderCapacityVisual();
       };
 
+      const renderStrategicFilters = () => {
+        if (!strategicFilters) return;
+        strategicFilters.innerHTML = '';
+        if (!cachedSuggestions.length || !Array.isArray(strategicGroups) || !strategicGroups.length) {
+          strategicFilters.classList.add('hidden');
+          return;
+        }
+
+        const countsByKey = {};
+        cachedSuggestions.forEach((item) => {
+          const key = (item.strategic_key || '').toString().trim();
+          if (!key) return;
+          countsByKey[key] = (countsByKey[key] || 0) + 1;
+        });
+        const availableGroups = strategicGroups.filter(
+          (group) => group && group.key && (countsByKey[group.key] || 0) > 0,
+        );
+        if (!availableGroups.length) {
+          strategicFilters.classList.add('hidden');
+          return;
+        }
+
+        strategicFilters.classList.remove('hidden');
+        const allButton = document.createElement('button');
+        allButton.type = 'button';
+        allButton.className = `manual-add-filter-pill${activeStrategicKey ? '' : ' is-active'}`;
+        allButton.dataset.strategicKey = '';
+        allButton.textContent = `All Customers (${cachedSuggestions.length})`;
+        strategicFilters.appendChild(allButton);
+
+        availableGroups.forEach((group) => {
+          const key = (group.key || '').toString().trim();
+          if (!key) return;
+          const count = countsByKey[key] || 0;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `manual-add-filter-pill${activeStrategicKey === key ? ' is-active' : ''}`;
+          btn.dataset.strategicKey = key;
+          btn.textContent = `${(group.label || key).toString().trim()} (${count})`;
+          strategicFilters.appendChild(btn);
+        });
+      };
+
       const renderSuggestionList = () => {
         if (!list) return;
         list.innerHTML = '';
@@ -3547,6 +3698,10 @@
         const visible = cachedSuggestions.filter((item) => {
           const soNum = (item.so_num || '').toString().trim();
           if (!soNum) return false;
+          if (activeStrategicKey) {
+            const itemStrategicKey = (item.strategic_key || '').toString().trim();
+            if (itemStrategicKey !== activeStrategicKey) return false;
+          }
           if (!query) return true;
           const skuTerms = (Array.isArray(item.sku_breakdown) ? item.sku_breakdown : [])
             .map((entry) => (entry.sku || '').toString())
@@ -3567,11 +3722,21 @@
 
         if (meta) {
           const selectedCount = selectedOrders.size;
-          meta.textContent = `${visible.length} shown of ${cachedSuggestions.length} available | ${selectedCount} selected (+${getSelectedTotalFt().toFixed(1)} ft)`;
+          const filterLabel = activeStrategicKey
+            ? (strategicGroups.find((group) => (group.key || '').toString().trim() === activeStrategicKey) || {}).label
+            : '';
+          const filterSegment = filterLabel ? ` | Filter: ${filterLabel}` : '';
+          meta.textContent = `${visible.length} shown of ${cachedSuggestions.length} available${filterSegment} | ${selectedCount} selected (+${getSelectedTotalFt().toFixed(1)} ft)`;
         }
 
         if (!visible.length) {
-          renderEmpty(query ? 'No orders match your search.' : 'No draft-scope orders are available to add.');
+          if (query) {
+            renderEmpty('No orders match your search.');
+          } else if (activeStrategicKey) {
+            renderEmpty('No suggested orders match the selected customer filter.');
+          } else {
+            renderEmpty('No draft-scope orders are available to add.');
+          }
           updateSubmitState();
           updateUtilizationUI();
           return;
@@ -3670,9 +3835,19 @@
 
       const renderSuggestions = (payload) => {
         cachedSuggestions = Array.isArray(payload.suggestions) ? payload.suggestions.map((order) => normalizeOrder(order)) : [];
+        strategicGroups = Array.isArray(payload.strategic_groups)
+          ? payload.strategic_groups
+            .map((group) => ({
+              key: (group.key || '').toString().trim(),
+              label: (group.label || '').toString().trim(),
+            }))
+            .filter((group) => group.key && group.label)
+          : [];
+        activeStrategicKey = '';
         cachedSpace = payload.space || {};
         cachedExistingSchematic = payload.existing_schematic || null;
         selectedOrders = new Map();
+        renderStrategicFilters();
         updateSubmitState();
         updateUtilizationUI();
         renderSuggestionList();
@@ -3681,9 +3856,12 @@
       const loadSuggestions = (loadId) => {
         if (!list) return;
         cachedSuggestions = [];
+        strategicGroups = [];
+        activeStrategicKey = '';
         cachedSpace = {};
         cachedExistingSchematic = null;
         selectedOrders = new Map();
+        renderStrategicFilters();
         updateSubmitState();
         setError('');
         if (meta) meta.textContent = '';
@@ -3856,6 +4034,15 @@
       if (searchInput) {
         searchInput.addEventListener('input', () => {
           searchTerm = searchInput.value || '';
+          renderSuggestionList();
+        });
+      }
+      if (strategicFilters) {
+        strategicFilters.addEventListener('click', (event) => {
+          const button = event.target.closest('[data-strategic-key]');
+          if (!button) return;
+          activeStrategicKey = (button.dataset.strategicKey || '').toString().trim();
+          renderStrategicFilters();
           renderSuggestionList();
         });
       }

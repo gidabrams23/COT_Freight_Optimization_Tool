@@ -2,7 +2,7 @@ import db
 import re
 from datetime import date, datetime, timedelta
 
-from services import stack_calculator, validation
+from services import order_categories, stack_calculator, validation
 from services.optimizer import Optimizer
 
 DEFAULT_BUILD_PARAMS = {
@@ -24,8 +24,10 @@ DEFAULT_BUILD_PARAMS = {
     "optimize_mode": "auto",
     "manual_order_input": "",
     "ignore_due_date": False,
+    "order_category_scope": order_categories.ORDER_CATEGORY_SCOPE_ALL,
 }
 PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES = {
+    "VA": "FLATBED_48",
     "NV": "STEP_DECK_48",
 }
 
@@ -169,6 +171,20 @@ def _build_no_eligible_orders_message(params, diagnostics):
     ):
         return "No eligible orders match the selected states within the current filters."
 
+    selected_order_category_scope = order_categories.normalize_order_category_scope(
+        params.get("order_category_scope"),
+    )
+    if (
+        selected_order_category_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL
+        and diagnostics.get("groups_after_all_filters", 0) == 0
+        and diagnostics.get("groups_without_order_category_filter", 0) > 0
+    ):
+        label = order_categories.ORDER_CATEGORY_SCOPE_LABELS.get(
+            selected_order_category_scope,
+            "selected order category",
+        )
+        return f"No eligible orders match {label.lower()}."
+
     return message
 
 
@@ -311,6 +327,9 @@ def build_loads(
         "compare_algorithms": compare_algorithms,
         "optimize_mode": optimize_mode,
         "manual_order_input": manual_order_input,
+        "order_category_scope": order_categories.normalize_order_category_scope(
+            form.get("order_category_scope", DEFAULT_BUILD_PARAMS.get("order_category_scope", "all"))
+        ),
     }
 
     errors = {}
@@ -426,6 +445,7 @@ def build_loads(
         "customer_filters": [] if optimize_mode == "manual" else customer_filters,
         "selected_so_nums": selected_so_nums,
         "optimize_mode": optimize_mode,
+        "order_category_scope": form_data["order_category_scope"],
         "orders_start_date": parsed_orders_start_date,
         "ignore_due_date": ignore_due_date,
         # Backward compatibility for logic that still checks this flag.
@@ -532,8 +552,23 @@ def build_loads(
                 "summary": None,
             }
         if optimize_mode == "manual":
+            selected_scope = order_categories.normalize_order_category_scope(
+                form_data.get("order_category_scope"),
+                default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+            )
+            if selected_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL:
+                scope_label = order_categories.ORDER_CATEGORY_SCOPE_LABELS.get(
+                    selected_scope,
+                    "selected order category",
+                )
+                message = (
+                    "No eligible draft orders were found for the pasted order numbers "
+                    f"within {scope_label.lower()}."
+                )
+            else:
+                message = "No eligible draft orders were found for the pasted order numbers."
             return {
-                "errors": {"order_lines": "No eligible draft orders were found for the pasted order numbers."},
+                "errors": {"order_lines": message},
                 "form_data": form_data,
                 "success_message": "",
                 "summary": None,

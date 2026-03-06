@@ -9,18 +9,20 @@ TRAILER_CONFIGS = {
     "STEP_DECK": {"capacity": 53.0, "lower": 43.0, "upper": 10.0},
     "STEP_DECK_48": {"capacity": 48.0, "lower": 38.0, "upper": 10.0},
     "FLATBED": {"capacity": 53.0, "lower": 53.0, "upper": 0.0},
+    "FLATBED_48": {"capacity": 48.0, "lower": 48.0, "upper": 0.0},
     "HOTSHOT": {"capacity": 40.0, "lower": 40.0, "upper": 0.0},
     "WEDGE": {"capacity": 51.0, "lower": 51.0, "upper": 0.0},
 }
 TRAILER_PROFILE_OPTIONS = [
     {"value": "STEP_DECK", "label": "53' Step Deck", "capacity": 53.0, "lower": 43.0, "upper": 10.0},
     {"value": "FLATBED", "label": "53' Flatbed", "capacity": 53.0, "lower": 53.0, "upper": 0.0},
+    {"value": "FLATBED_48", "label": "48' Flatbed", "capacity": 48.0, "lower": 48.0, "upper": 0.0},
     {"value": "WEDGE", "label": "51' Wedge", "capacity": 51.0, "lower": 51.0, "upper": 0.0},
     {"value": "STEP_DECK_48", "label": "48' Step Deck (38/10)", "capacity": 48.0, "lower": 38.0, "upper": 10.0},
     {"value": "HOTSHOT", "label": "40' Hotshot", "capacity": 40.0, "lower": 40.0, "upper": 0.0},
 ]
 TRAILER_TYPE_SET = set(TRAILER_CONFIGS.keys())
-FIXED_CAPACITY_TRAILER_TYPES = {"STEP_DECK_48", "HOTSHOT", "WEDGE"}
+FIXED_CAPACITY_TRAILER_TYPES = {"STEP_DECK_48", "FLATBED_48", "HOTSHOT", "WEDGE"}
 
 UTILIZATION_GRADE_THRESHOLDS_SETTING_KEY = "utilization_grade_thresholds"
 OPTIMIZER_DEFAULTS_SETTING_KEY = "optimizer_defaults"
@@ -338,6 +340,45 @@ def _position_top_item(position):
     return items[-1] if items else {}
 
 
+def _item_is_dump(item):
+    category = str((item or {}).get("category") or "").strip().upper()
+    if "DUMP" in category:
+        return True
+    for key in ("item", "sku", "item_desc"):
+        text = str((item or {}).get(key) or "").strip().upper()
+        if "DUMP" in text:
+            return True
+    return False
+
+
+def _position_dump_mix_state(position):
+    has_dump = False
+    has_non_dump = False
+    for item in (position or {}).get("items") or []:
+        units = item.get("units")
+        if units is not None and max(_coerce_non_negative_int(units, 0), 0) <= 0:
+            continue
+        if _item_is_dump(item):
+            has_dump = True
+        else:
+            has_non_dump = True
+        if has_dump and has_non_dump:
+            break
+    return has_dump, has_non_dump
+
+
+def _dump_stack_preference_rank(position, incoming_item):
+    has_dump, has_non_dump = _position_dump_mix_state(position)
+    if not has_dump and not has_non_dump:
+        return 0
+    incoming_is_dump = _item_is_dump(incoming_item)
+    if has_dump and has_non_dump:
+        return 3
+    if has_dump:
+        return 0 if incoming_is_dump else 2
+    return 0 if not incoming_is_dump else 2
+
+
 def _length_stack_compatible(
     position,
     incoming_length_ft,
@@ -402,6 +443,15 @@ def _position_order_priority(position, order_rank):
         if item.get("order_id")
     ]
     return min(ranks) if ranks else 10**9
+
+
+def _position_size_priority(position):
+    # Larger stacks should render closer to trailer rear/right when stop/order
+    # priority is tied.
+    length_ft = _coerce_non_negative_float(position.get("length_ft"), 0.0)
+    units_count = _coerce_non_negative_int(position.get("units_count"), 0)
+    capacity_used = _coerce_non_negative_float(position.get("capacity_used"), 0.0)
+    return (-length_ft, -units_count, -capacity_used)
 
 
 def _resolve_trailer_config(trailer_type, capacity_feet=None):
@@ -623,6 +673,7 @@ def _apply_singleton_overflow_allowance(
         # Prefer a physically similar stack first, then left-most for deterministic layout.
         candidates.sort(
             key=lambda entry: (
+                _dump_stack_preference_rank(entry[1], source_item),
                 abs(float(entry[1].get("length_ft") or 0.0) - source_length),
                 entry[0],
             )
@@ -1444,6 +1495,7 @@ def calculate_stack_configuration(
                     # Keep stack fill direction deterministic by stable column index.
                     candidates.sort(
                         key=lambda entry: (
+                            _dump_stack_preference_rank(entry[1], item),
                             entry[0],
                             entry[1]["length_ft"],
                             -(1.0 - entry[1]["capacity_used"]),
@@ -1560,9 +1612,36 @@ def calculate_stack_configuration(
                     ):
                         cursor += 1
                         continue
+                    if float(target.get("capacity_used") or 0.0) >= (1.0 - 1e-6):
+                        cursor += 1
+                        continue
                     if not _stop_access_compatible(target, item_stop_sequence):
                         cursor += 1
                         continue
+                    current_pref_rank = _dump_stack_preference_rank(target, item)
+                    if current_pref_rank > 0:
+                        found_better_pref_target = False
+                        for probe_idx in range(cursor + 1, len(positions)):
+                            probe = positions[probe_idx]
+                            if probe.get("length_ft", 0) < length_ft:
+                                continue
+                            if float(probe.get("capacity_used") or 0.0) >= (1.0 - 1e-6):
+                                continue
+                            if not _length_stack_compatible(
+                                probe,
+                                length_ft,
+                                incoming_deck_length_ft=deck_length_ft,
+                                equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+                            ):
+                                continue
+                            if not _stop_access_compatible(probe, item_stop_sequence):
+                                continue
+                            if _dump_stack_preference_rank(probe, item) < current_pref_rank:
+                                found_better_pref_target = True
+                                break
+                        if found_better_pref_target:
+                            cursor += 1
+                            continue
 
                     target.setdefault("overflow_units_used", 0)
                     target.setdefault("overflow_applied", False)
@@ -1617,12 +1696,13 @@ def calculate_stack_configuration(
 
     # Keep schematic columns deterministic by earliest accessible stop first.
     # UI renders right-to-left, so earliest stops land on the right/rear.
-    # Tie-break by manifest-like order among same-stop orders.
+    # Within the same stop/order bucket, place larger stacks toward the rear.
     order_rank = _build_order_rank(order_lines if has_order_ids else [])
     positions = sorted(
         positions,
         key=lambda pos: (
             _position_stop_priority(pos),
+            _position_size_priority(pos),
             _position_order_priority(pos, order_rank),
         ),
     )
