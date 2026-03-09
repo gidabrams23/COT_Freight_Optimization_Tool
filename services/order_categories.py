@@ -25,6 +25,9 @@ ORDER_CATEGORY_SCOPE_LABELS = {
     ORDER_CATEGORY_SCOPE_MIXED: "Mixed Orders",
 }
 
+_UTILITY_PREFIXES = ("USA", "UTA", "ECOM", "HDEQ", "UTIL")
+_UTILITY_EXACT = {"UTILITY", "UTILITIES"}
+
 
 def normalize_order_category_scope(value, default=ORDER_CATEGORY_SCOPE_ALL):
     normalized = str(value or "").strip().lower()
@@ -40,7 +43,7 @@ def line_category_bucket(raw_value):
     value = str(raw_value or "").strip().upper()
     if not value:
         return ORDER_CATEGORY_SCOPE_OTHER
-    if value.startswith("USA") or value.startswith("UTA"):
+    if value in _UTILITY_EXACT or value.startswith(_UTILITY_PREFIXES):
         return ORDER_CATEGORY_SCOPE_UTILITIES
     if "CARGO" in value:
         return ORDER_CATEGORY_SCOPE_CARGO

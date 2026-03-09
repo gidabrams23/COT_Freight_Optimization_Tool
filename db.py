@@ -2205,20 +2205,27 @@ def list_orders(filters=None, sort_key="due_date"):
     if filters.get("due_end"):
         where.append("DATE(due_date) <= DATE(?)")
         params.append(filters["due_end"])
+    so_nums = [
+        str(value).strip()
+        for value in (filters.get("so_nums") or [])
+        if str(value or "").strip()
+    ]
+    if so_nums:
+        placeholders = ", ".join("?" for _ in so_nums)
+        where.append(f"so_num IN ({placeholders})")
+        params.extend(so_nums)
 
     assigned_clause = """
         EXISTS (
             SELECT 1
-            FROM order_lines ol
-            JOIN load_lines ll ON ll.order_line_id = ol.id
-            JOIN loads l ON l.id = ll.load_id
-            LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
-            WHERE ol.so_num = orders.so_num
-              AND (
-                COALESCE(UPPER(l.status), '') = 'APPROVED'
-                OR COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+            FROM load_report_assignments lra
+            WHERE lra.so_num = orders.so_num
+              AND lra.upload_id = (
+                SELECT id
+                FROM load_report_uploads
+                ORDER BY uploaded_at DESC, id DESC
+                LIMIT 1
               )
-              AND COALESCE(ps.is_sandbox, 0) = 0
             LIMIT 1
         )
     """
@@ -2279,6 +2286,32 @@ def count_orders_by_plant(filters=None):
     if filters.get("cust_name"):
         where.append("cust_name = ?")
         params.append(filters["cust_name"])
+    if filters.get("due_start"):
+        where.append("DATE(due_date) >= DATE(?)")
+        params.append(filters["due_start"])
+    if filters.get("due_end"):
+        where.append("DATE(due_date) <= DATE(?)")
+        params.append(filters["due_end"])
+
+    assigned_clause = """
+        EXISTS (
+            SELECT 1
+            FROM load_report_assignments lra
+            WHERE lra.so_num = orders.so_num
+              AND lra.upload_id = (
+                SELECT id
+                FROM load_report_uploads
+                ORDER BY uploaded_at DESC, id DESC
+                LIMIT 1
+              )
+            LIMIT 1
+        )
+    """
+    assignment_filter = (filters.get("assignment_status") or "").upper()
+    if assignment_filter == "ASSIGNED":
+        where.append(assigned_clause)
+    elif assignment_filter == "UNASSIGNED":
+        where.append(f"NOT {assigned_clause}")
 
     where.append("COALESCE(is_excluded, 0) = 0")
     where_clause = f"WHERE {' AND '.join(where)}" if where else ""
@@ -2506,18 +2539,18 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None):
                 FROM orders
                 WHERE plant = ?
                   AND COALESCE(UPPER(status), 'OPEN') != 'CLOSED'
-              )
-              AND NOT EXISTS (
-                SELECT 1
-                FROM load_lines ll
-                JOIN loads l ON l.id = ll.load_id
-                LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
-                WHERE ll.order_line_id = ol.id
-                  AND (
-                    COALESCE(UPPER(l.status), '') = 'APPROVED'
-                      OR COALESCE(UPPER(ps.status), '') IN ('DRAFT', 'ACTIVE')
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM load_report_assignments lra
+                    WHERE lra.so_num = orders.so_num
+                      AND lra.upload_id = (
+                        SELECT id
+                        FROM load_report_uploads
+                        ORDER BY uploaded_at DESC, id DESC
+                        LIMIT 1
+                      )
+                    LIMIT 1
                   )
-                  AND COALESCE(ps.is_sandbox, 0) = 0
               )
             ORDER BY ol.due_date ASC, ol.id ASC
             """,
@@ -2535,6 +2568,18 @@ def list_orders_for_optimization(origin_plant):
             WHERE is_excluded = 0
               AND plant = ?
               AND COALESCE(UPPER(status), 'OPEN') != 'CLOSED'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM load_report_assignments lra
+                WHERE lra.so_num = orders.so_num
+                  AND lra.upload_id = (
+                    SELECT id
+                    FROM load_report_uploads
+                    ORDER BY uploaded_at DESC, id DESC
+                    LIMIT 1
+                  )
+                LIMIT 1
+              )
             ORDER BY due_date ASC, id ASC
             """,
             (origin_plant,),

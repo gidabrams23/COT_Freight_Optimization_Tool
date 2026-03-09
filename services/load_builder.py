@@ -274,8 +274,6 @@ def build_loads(
     if not reference_date:
         reference_date = date.today()
     orders_start_date = _clean_value(form.get("orders_start_date", "")) if form else ""
-    if not orders_start_date and optimize_mode != "manual":
-        orders_start_date = reference_date.strftime("%Y-%m-%d")
 
     form_data = {
         "origin_plant": _clean_value(form.get("origin_plant", "")),

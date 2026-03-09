@@ -288,10 +288,10 @@
                         <label class="optimize-field">
                           <span class="optimize-field-label-row">
                             <span>Start Date</span>
+                            <span class="optimize-field-inline-note">optional</span>
                           </span>
                           <input class="select-field" type="date" name="orders_start_date"
-                                 value="{{ optimize_defaults.orders_start_date }}"
-                                 required>
+                                 value="{{ optimize_defaults.orders_start_date }}">
                         </label>
                         <label class="optimize-field">
                           <span class="optimize-field-label-row">
@@ -386,8 +386,8 @@
                     <button class="btn-ghost" type="button" data-optimize-close>Cancel</button>
                     <div class="optimize-scope-indicator optimize-scope-indicator-footer" data-optimize-scope-indicator aria-live="polite">
                       <strong data-optimize-scope-count>0</strong>
-                      <span class="optimize-scope-unit">orders in scope</span>
-                      <span data-optimize-scope-detail>Select filters to preview scope.</span>
+                      <span class="optimize-scope-unit">unassigned orders in scope</span>
+                      <span data-optimize-scope-detail>Select filters to preview unassigned scope.</span>
                     </div>
                     <button class="btn-success optimize-panel-submit" type="submit">
                       <span class="material-symbols-outlined">rocket_launch</span>
@@ -807,8 +807,8 @@
           <div class="orders-shell-header orders-shell-header-center">
             <div class="orders-list-bar">
               <div class="orders-list-title">
-                <h3>Active Orders Grid</h3>
-                <span class="meta-chip">{{ summary.total_orders }} Orders</span>
+                <h3>Active Unassigned Orders Grid</h3>
+                <span class="meta-chip">{{ summary.total_orders }} Unassigned</span>
               </div>
               <div class="orders-list-actions">
                 <div class="orders-search">
@@ -856,9 +856,7 @@
                 <label>
                   Assignment
                   <select name="assigned">
-                    <option value="" {% if not assignment_filter %}selected{% endif %}>All</option>
-                    <option value="ASSIGNED" {% if assignment_filter == 'ASSIGNED' %}selected{% endif %}>Assigned</option>
-                    <option value="UNASSIGNED" {% if assignment_filter == 'UNASSIGNED' %}selected{% endif %}>Unassigned</option>
+                    <option value="UNASSIGNED" selected>Unassigned Only</option>
                   </select>
                 </label>
                 <label>
@@ -1420,10 +1418,10 @@
         }
         optimizeScopeCount.textContent = `${ordersInScope}`;
         if (ordersInScope === 0) {
-          optimizeScopeDetail.textContent = 'No eligible orders match the current filters.';
+          optimizeScopeDetail.textContent = 'No eligible unassigned orders match the current filters.';
           return;
         }
-        optimizeScopeDetail.textContent = `${linesInScope} eligible lines (${categoryLabel})`;
+        optimizeScopeDetail.textContent = `${linesInScope} eligible unassigned lines (${categoryLabel})`;
       }
 
       function requestOptimizeScopeSummary() {
@@ -1562,7 +1560,7 @@
 
       if (optimizeOrdersStart) {
         optimizeOrdersStart.disabled = !autoMode;
-        optimizeOrdersStart.required = autoMode;
+        optimizeOrdersStart.required = false;
       }
 
       if (optimizeBatchEnd) {

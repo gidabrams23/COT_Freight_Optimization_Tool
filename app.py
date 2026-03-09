@@ -1379,8 +1379,6 @@ def _default_optimize_form(plant_code=None):
         default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
     )
     form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
-    if not form_data.get("orders_start_date"):
-        form_data["orders_start_date"] = date.today().strftime("%Y-%m-%d")
     resolved_plant = _normalize_plant_code(plant_code) or _normalize_plant_code(form_data.get("origin_plant"))
     if not resolved_plant and PLANT_CODES:
         resolved_plant = PLANT_CODES[0]
@@ -3599,7 +3597,16 @@ def _manual_order_scope_snapshot(
     matched_so_nums = []
     matched_set = set()
     matched_plants = set()
-    rows = db.list_orders_by_so_nums_any(parsed_so_nums, include_closed=False)
+    order_filters = {
+        "include_closed": False,
+        "assignment_status": "UNASSIGNED",
+        "so_nums": parsed_so_nums,
+    }
+    if origin:
+        order_filters["plant"] = origin
+    elif allowed:
+        order_filters["plants"] = sorted(allowed)
+    rows = db.list_orders(filters=order_filters, sort_key="due_date")
     for row in rows:
         so_num = str(row.get("so_num") or "").strip()
         plant_code = _normalize_plant_code(row.get("plant"))
@@ -5868,7 +5875,8 @@ def _build_orders_snapshot(orders, today=None, load_assignment_map=None):
 
     for order in active_orders:
         so_num = _normalize_so_num_for_load_report_match(order.get("so_num"))
-        if so_num and normalized_assignment_map.get(so_num):
+        is_assigned = bool(so_num and normalized_assignment_map.get(so_num))
+        if is_assigned:
             snapshot["on_load"] += 1
             continue
         snapshot["unassigned"] += 1
@@ -8220,16 +8228,23 @@ def orders():
     elif not due_filter and (due_start or due_end):
         due_filter = "CUSTOM"
 
-    assignment_filter = (request.args.get("assigned") or "").upper()
-    filters = {
+    base_filters = {
         "plants": plant_scope,
         "state": request.args.get("state", ""),
         "cust_name": request.args.get("customer", ""),
         "due_start": due_start or None,
         "due_end": due_end or None,
-        "assignment_status": assignment_filter,
     }
     sort_key = request.args.get("sort", "due_date")
+    snapshot_data = order_service.list_orders(filters=base_filters, sort_key=sort_key)
+    snapshot_orders = snapshot_data["orders"]
+    _annotate_orders_due_status(snapshot_orders, today=today)
+    if hide_past_due:
+        snapshot_orders = _filter_out_past_due_orders(snapshot_orders)
+
+    assignment_filter = "UNASSIGNED"
+    filters = dict(base_filters)
+    filters["assignment_status"] = assignment_filter
     data = order_service.list_orders(filters=filters, sort_key=sort_key)
     orders_list = data["orders"]
     _annotate_orders_due_status(orders_list, today=today)
@@ -8238,24 +8253,27 @@ def orders():
         data["summary"] = order_service.summarize_orders(orders_list)
     snapshot_so_nums = [
         _normalize_so_num_for_load_report_match(order.get("so_num"))
-        for order in orders_list
+        for order in snapshot_orders
         if _normalize_so_num_for_load_report_match(order.get("so_num"))
     ]
     load_report_assignments = db.list_latest_load_report_assignments_by_so_nums(snapshot_so_nums)
     orders_snapshot = _build_orders_snapshot(
-        orders_list,
+        snapshot_orders,
         today=today,
         load_assignment_map=load_report_assignments,
     )
 
     plants = allowed_plants
-    states = _distinct([order.get("state") for order in orders_list])
-    customers = _distinct([order.get("cust_name") for order in orders_list])
+    states = _distinct([order.get("state") for order in snapshot_orders])
+    customers = _distinct([order.get("cust_name") for order in snapshot_orders])
 
     card_filters = {
         "plants": allowed_plants,
         "state": filters.get("state", ""),
         "cust_name": filters.get("cust_name", ""),
+        "due_start": filters.get("due_start"),
+        "due_end": filters.get("due_end"),
+        "assignment_status": assignment_filter,
     }
     if hide_past_due:
         orders_by_plant = _count_active_orders_by_plant_from_rows(
@@ -8287,7 +8305,7 @@ def orders():
     optimize_defaults["enforce_time_window"] = True
     optimize_defaults["batch_horizon_enabled"] = True
     optimize_defaults["batch_end_date"] = _default_batch_end_date().strftime("%Y-%m-%d")
-    optimize_defaults["orders_start_date"] = date.today().strftime("%Y-%m-%d")
+    optimize_defaults["orders_start_date"] = ""
     optimize_defaults["ignore_due_date"] = False
     optimize_defaults["algorithm_version"] = "v2"
     optimize_defaults["compare_algorithms"] = False
@@ -8350,8 +8368,6 @@ def orders():
             optimize_defaults["customer_filters"] = config.get("customer_filters") or []
             optimize_defaults["ignore_due_date"] = bool(config.get("ignore_due_date", False))
             config_start_date = (config.get("orders_start_date") or "").strip()
-            if not config_start_date and config.get("ignore_past_due", True):
-                config_start_date = date.today().strftime("%Y-%m-%d")
             optimize_defaults["orders_start_date"] = config_start_date or optimize_defaults["orders_start_date"]
             optimize_defaults["algorithm_version"] = "v2"
             optimize_defaults["compare_algorithms"] = False
@@ -8638,20 +8654,14 @@ def orders_optimize():
         optimize_form["batch_end_date"] = ""
 
         raw_manual = str(optimize_form.get("manual_order_input") or "").strip()
-        manual_so_nums = _parse_manual_so_nums(raw_manual)
-
-        if manual_so_nums:
-            manual_lines = db.list_order_lines_by_so_nums(manual_so_nums)
-            matched_plants = sorted(
-                {
-                    _normalize_plant_code(line.get("plant"))
-                    for line in manual_lines
-                    if not _coerce_bool_value(line.get("is_excluded"))
-                    and _normalize_plant_code(line.get("plant"))
-                }
-            )
+        manual_scope = _manual_order_scope_snapshot(
+            raw_manual,
+            allowed_plants=allowed_plants,
+        )
+        if manual_scope.get("pasted_count"):
+            matched_plants = manual_scope.get("matched_plants") or []
             if not matched_plants:
-                manual_mode_error = "No eligible open orders were found for the pasted order numbers."
+                manual_mode_error = "No eligible unassigned open orders were found for the pasted order numbers."
             elif len(matched_plants) > 1:
                 manual_mode_error = (
                     "Pasted orders span multiple plants. Paste orders from one plant only."
@@ -8759,7 +8769,7 @@ def orders_optimize():
         form_data["batch_end_date"] = optimize_form.get("batch_end_date") or _default_batch_end_date().strftime(
             "%Y-%m-%d"
         )
-        form_data["orders_start_date"] = optimize_form.get("orders_start_date") or date.today().strftime("%Y-%m-%d")
+        form_data["orders_start_date"] = optimize_form.get("orders_start_date") or ""
         form_data["algorithm_version"] = "v2"
         form_data["compare_algorithms"] = False
         mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
@@ -8877,15 +8887,22 @@ def orders_optimize():
     elif not due_filter and (due_start or due_end):
         due_filter = "CUSTOM"
 
-    assignment_filter = (request.args.get("assigned") or "").upper()
-    filters = {
+    base_filters = {
         "plants": plant_scope,
         "state": request.args.get("state", ""),
         "cust_name": request.args.get("customer", ""),
         "due_start": due_start or None,
         "due_end": due_end or None,
-        "assignment_status": assignment_filter,
     }
+    snapshot_data = order_service.list_orders(filters=base_filters, sort_key="due_date")
+    snapshot_orders = snapshot_data["orders"]
+    _annotate_orders_due_status(snapshot_orders, today=today)
+    if hide_past_due:
+        snapshot_orders = _filter_out_past_due_orders(snapshot_orders)
+
+    assignment_filter = "UNASSIGNED"
+    filters = dict(base_filters)
+    filters["assignment_status"] = assignment_filter
     data = order_service.list_orders(filters=filters, sort_key="due_date")
     orders_list = data["orders"]
     _annotate_orders_due_status(orders_list, today=today)
@@ -8894,18 +8911,18 @@ def orders_optimize():
         data["summary"] = order_service.summarize_orders(orders_list)
     snapshot_so_nums = [
         _normalize_so_num_for_load_report_match(order.get("so_num"))
-        for order in orders_list
+        for order in snapshot_orders
         if _normalize_so_num_for_load_report_match(order.get("so_num"))
     ]
     load_report_assignments = db.list_latest_load_report_assignments_by_so_nums(snapshot_so_nums)
     orders_snapshot = _build_orders_snapshot(
-        orders_list,
+        snapshot_orders,
         today=today,
         load_assignment_map=load_report_assignments,
     )
     plants = allowed_plants
-    states = _distinct([order.get("state") for order in orders_list])
-    customers = _distinct([order.get("cust_name") for order in orders_list])
+    states = _distinct([order.get("state") for order in snapshot_orders])
+    customers = _distinct([order.get("cust_name") for order in snapshot_orders])
     last_upload = db.get_last_upload()
     upload_history = db.list_upload_history(limit=12)
     last_load_report_upload = db.get_last_load_report_upload()
@@ -8914,6 +8931,9 @@ def orders_optimize():
         "plants": allowed_plants,
         "state": filters.get("state", ""),
         "cust_name": filters.get("cust_name", ""),
+        "due_start": filters.get("due_start"),
+        "due_end": filters.get("due_end"),
+        "assignment_status": assignment_filter,
     }
     if hide_past_due:
         orders_by_plant = _count_active_orders_by_plant_from_rows(
