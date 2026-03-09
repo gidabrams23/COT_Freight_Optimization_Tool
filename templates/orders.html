@@ -482,6 +482,16 @@
       </div>
     </header>
 
+    {% if load_report_status == "ok" %}
+      <div class="session-alert">
+        Loads report uploaded. Snapshot now reflects SO-to-load assignments from the latest report.
+      </div>
+    {% elif load_report_status == "error" %}
+      <div class="session-alert danger">
+        Load report upload failed: {{ load_report_message or "Please confirm the file includes Load Number and Name columns." }}
+      </div>
+    {% endif %}
+
     <div class="orders-top-grid">
       <div class="card-widget orders-snapshot-card">
         <div class="panel-header">
@@ -517,28 +527,33 @@
         </div>
         <div class="panel-body orders-snapshot-body">
           <div class="orders-snapshot-grid orders-metrics-grid">
-            <div class="snapshot-card">
-              <span class="material-symbols-outlined snapshot-icon">inventory</span>
-              <span class="snapshot-label">Total Active Orders</span>
+            <div class="snapshot-card kpi total">
+              <span class="snapshot-label">Total Unique Orders</span>
               <span class="snapshot-value">{{ orders_snapshot.total }}</span>
-              <span class="snapshot-meta">Active Backlog In System</span>
+              <span class="snapshot-meta">Unique SOs in system</span>
             </div>
-            <div class="snapshot-card warning">
-              <span class="material-symbols-outlined snapshot-icon">assignment_late</span>
-              <span class="snapshot-label">Unassigned Orders</span>
+            <div class="snapshot-card kpi success">
+              <span class="snapshot-label">On a Load</span>
+              <span class="snapshot-value">{{ orders_snapshot.on_load }}</span>
+              <span class="snapshot-meta">Load assigned</span>
+              <span class="snapshot-pill success">{{ orders_snapshot.on_load_pct | round(1) }}%</span>
+            </div>
+            <div class="snapshot-card kpi warning">
+              <span class="snapshot-label">Unassigned</span>
               <span class="snapshot-value">{{ orders_snapshot.unassigned }}</span>
               <span class="snapshot-meta">Awaiting Load Planning</span>
+              <span class="snapshot-pill warning">{{ orders_snapshot.unassigned_pct | round(1) }}%</span>
             </div>
-            {% set timeline_total = orders_snapshot.past_due + orders_snapshot.due_next_14 + orders_snapshot.due_14_plus %}
+            {% set timeline_total = orders_snapshot.timeline_total %}
             {% set past_pct = (orders_snapshot.past_due / timeline_total * 100) if timeline_total else 0 %}
             {% set next_pct = (orders_snapshot.due_next_14 / timeline_total * 100) if timeline_total else 0 %}
             {% set future_pct = (orders_snapshot.due_14_plus / timeline_total * 100) if timeline_total else 0 %}
             <div class="snapshot-card orders-timeline-card">
               <div class="orders-timeline-header">
                 <span class="orders-timeline-title">Delivery Timeline</span>
-                <span class="orders-timeline-total">{{ timeline_total }} Orders</span>
+                <span class="orders-timeline-total">{{ timeline_total }} Unassigned</span>
               </div>
-              <div class="orders-timeline-bar" role="img" aria-label="Delivery timeline showing {{ orders_snapshot.past_due }} past due, {{ orders_snapshot.due_next_14 }} due in the next 14 days, and {{ orders_snapshot.due_14_plus }} due in 14 or more days.">
+              <div class="orders-timeline-bar" role="img" aria-label="Unassigned delivery timeline showing {{ orders_snapshot.past_due }} past due, {{ orders_snapshot.due_next_14 }} due in the next 14 days, and {{ orders_snapshot.due_14_plus }} due in 14 or more days.">
                 <div class="orders-timeline-segment past-due" style="width: {{ past_pct | round(1) }}%;">
                   <span class="segment-value">{{ orders_snapshot.past_due }}</span>
                   <span class="segment-label">Past Due</span>
@@ -572,8 +587,20 @@
                 <button class="btn-primary btn-xs" type="submit">Upload</button>
               </noscript>
             </form>
+            <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_load_report_upload') }}" data-load-report-form>
+              <label class="btn-secondary btn-xs upload-inline-button">
+                <input type="file" name="file" accept=".csv,.xlsx,.xls" required data-load-report-input>
+                Add Loads Report
+              </label>
+              <noscript>
+                <button class="btn-secondary btn-xs" type="submit">Upload</button>
+              </noscript>
+            </form>
             {% if last_upload %}
               <span class="meta-chip">Last import {{ last_upload.uploaded_at }}</span>
+            {% endif %}
+            {% if last_load_report_upload %}
+              <span class="meta-chip">Loads report {{ last_load_report_upload.uploaded_at }}</span>
             {% endif %}
             {% if upload_history %}
               <button class="btn-ghost btn-xs" type="button">View All</button>
@@ -626,6 +653,18 @@
                     <strong>{{ (last_upload.unchanged_orders or 0) if last_upload else 0 }}</strong>
                   </div>
                 </div>
+                {% if last_load_report_upload %}
+                  <div class="integrity-changes">
+                    <div class="integrity-change-item">
+                      <span>Load Report SOs</span>
+                      <strong>{{ last_load_report_upload.unique_orders or 0 }}</strong>
+                    </div>
+                    <div class="integrity-change-item">
+                      <span>Open Orders Matched</span>
+                      <strong>{{ last_load_report_upload.matched_open_orders or 0 }}</strong>
+                    </div>
+                  </div>
+                {% endif %}
               </div>
             </div>
             <div class="intake-pane intake-recent-pane">
@@ -3185,6 +3224,25 @@
       });
     }
 
+    function initLoadReportUploadForm() {
+      const form = document.querySelector('[data-load-report-form]');
+      const input = document.querySelector('[data-load-report-input]');
+      if (!form || !input) return;
+
+      form.addEventListener('submit', (event) => {
+        const hasFile = input.files && input.files[0];
+        if (!hasFile) {
+          event.preventDefault();
+        }
+      });
+
+      input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        form.submit();
+      });
+    }
+
     function initSchematicHoverTooltips() {
       if (window.__schematicHoverTooltipsBound) return;
       window.__schematicHoverTooltipsBound = true;
@@ -3286,6 +3344,7 @@
     window.addEventListener('load', syncIntakeHubHeight);
 
     initOrderUploadModal();
+    initLoadReportUploadForm();
     initSchematicHoverTooltips();
     bindOrderRows();
     const initialOrderRow = document.querySelector('.order-row:not(.group-hidden)') || document.querySelector('.order-row');

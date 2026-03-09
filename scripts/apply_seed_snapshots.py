@@ -50,7 +50,7 @@ UPSERT_TABLES = {
         "key_columns": ["key"],
     },
     "access_profiles": {
-        "columns": ["name", "is_admin", "allowed_plants", "default_plants", "created_at"],
+        "columns": ["name", "is_admin", "is_sandbox", "allowed_plants", "default_plants", "created_at"],
         "key_columns": ["name"],
     },
     "zip_coordinates": {

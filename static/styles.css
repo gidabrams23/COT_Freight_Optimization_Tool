@@ -5642,8 +5642,8 @@ button.plant-card {
 }
 
 .orders-page .orders-top-grid .orders-snapshot-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: auto;
   align-content: stretch;
   height: 100%;
   margin-bottom: 0;
@@ -5651,7 +5651,7 @@ button.plant-card {
 }
 
 .orders-page .orders-top-grid .snapshot-card {
-  min-height: 115px;
+  min-height: 108px;
   padding: 10px 12px;
   gap: 2px;
 }
@@ -5702,6 +5702,27 @@ button.plant-card {
   color: var(--warning);
 }
 
+.orders-page .snapshot-card.success .snapshot-value {
+  color: #2dd4bf;
+}
+
+.orders-page .snapshot-card.kpi {
+  border-top: 3px solid transparent;
+  align-content: start;
+}
+
+.orders-page .snapshot-card.kpi.total {
+  border-top-color: #3b82f6;
+}
+
+.orders-page .snapshot-card.kpi.success {
+  border-top-color: #14b8a6;
+}
+
+.orders-page .snapshot-card.kpi.warning {
+  border-top-color: #f59e0b;
+}
+
 .orders-page .snapshot-label {
   font-size: 10px;
   text-transform: uppercase;
@@ -5717,6 +5738,7 @@ button.plant-card {
 .orders-page .orders-snapshot-grid.orders-metrics-grid {
   grid-auto-rows: auto;
   height: auto;
+  align-items: stretch;
 }
 
 .orders-page .orders-timeline-card {
@@ -5743,6 +5765,29 @@ button.plant-card {
 .orders-page .orders-timeline-total {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.orders-page .snapshot-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  justify-self: start;
+  margin-top: 2px;
+}
+
+.orders-page .snapshot-pill.success {
+  color: #99f6e4;
+  background: rgba(13, 148, 136, 0.24);
+}
+
+.orders-page .snapshot-pill.warning {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.2);
 }
 
 .orders-page .orders-timeline-bar {

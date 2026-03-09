@@ -625,7 +625,7 @@ def _seed_reference_data(connection):
         (
             "access_profiles",
             "access_profiles.csv",
-            ["name", "is_admin", "allowed_plants", "default_plants", "created_at"],
+            ["name", "is_admin", "is_sandbox", "allowed_plants", "default_plants", "created_at"],
         ),
         (
             "zip_coordinates",
@@ -1028,6 +1028,36 @@ def init_db():
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS load_report_uploads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
+                filename TEXT,
+                total_rows INTEGER DEFAULT 0,
+                valid_rows INTEGER DEFAULT 0,
+                unique_orders INTEGER DEFAULT 0,
+                unique_loads INTEGER DEFAULT 0,
+                duplicate_rows INTEGER DEFAULT 0,
+                conflicting_orders INTEGER DEFAULT 0,
+                matched_open_orders INTEGER DEFAULT 0,
+                unmatched_open_orders INTEGER DEFAULT 0
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS load_report_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                upload_id INTEGER NOT NULL,
+                so_num TEXT NOT NULL,
+                load_number TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(upload_id, so_num),
+                FOREIGN KEY (upload_id) REFERENCES load_report_uploads(id)
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS app_feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 category TEXT NOT NULL,
@@ -1392,6 +1422,15 @@ def init_db():
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_replay_eval_source_rows_run_date ON replay_eval_source_rows(run_id, date_created, plant_code)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_load_report_uploads_uploaded_at ON load_report_uploads(uploaded_at DESC)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_load_report_assignments_upload_so ON load_report_assignments(upload_id, so_num)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_load_report_assignments_so_num ON load_report_assignments(so_num)"
         )
         connection.commit()
         _seed_plants(connection)
@@ -3051,6 +3090,126 @@ def list_upload_unmapped_items(upload_id, limit=10):
                 (upload_id,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+
+def add_load_report_upload(entry):
+    entry = entry or {}
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO load_report_uploads (
+                filename,
+                total_rows,
+                valid_rows,
+                unique_orders,
+                unique_loads,
+                duplicate_rows,
+                conflicting_orders,
+                matched_open_orders,
+                unmatched_open_orders
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                entry.get("filename"),
+                entry.get("total_rows"),
+                entry.get("valid_rows"),
+                entry.get("unique_orders"),
+                entry.get("unique_loads"),
+                entry.get("duplicate_rows"),
+                entry.get("conflicting_orders"),
+                entry.get("matched_open_orders"),
+                entry.get("unmatched_open_orders"),
+            ),
+        )
+        connection.commit()
+        return cursor.lastrowid
+
+
+def replace_latest_load_report_assignments(upload_id, assignments):
+    if not upload_id:
+        return
+    rows = []
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
+    for entry in assignments or []:
+        so_num = str(entry.get("so_num") or "").strip()
+        load_number = str(entry.get("load_number") or "").strip()
+        if not so_num or not load_number:
+            continue
+        rows.append((upload_id, so_num, load_number, created_at))
+
+    with get_connection() as connection:
+        connection.execute("DELETE FROM load_report_assignments")
+        if rows:
+            connection.executemany(
+                """
+                INSERT INTO load_report_assignments (
+                    upload_id, so_num, load_number, created_at
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                rows,
+            )
+        connection.commit()
+
+
+def get_last_load_report_upload():
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                uploaded_at,
+                filename,
+                total_rows,
+                valid_rows,
+                unique_orders,
+                unique_loads,
+                duplicate_rows,
+                conflicting_orders,
+                matched_open_orders,
+                unmatched_open_orders
+            FROM load_report_uploads
+            ORDER BY uploaded_at DESC, id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_latest_load_report_assignments_by_so_nums(so_nums):
+    cleaned = [str(value).strip() for value in so_nums or [] if str(value or "").strip()]
+    if not cleaned:
+        return {}
+    placeholders = ", ".join("?" for _ in cleaned)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            WITH latest_upload AS (
+                SELECT id
+                FROM load_report_uploads
+                ORDER BY uploaded_at DESC, id DESC
+                LIMIT 1
+            )
+            SELECT a.so_num, a.load_number
+            FROM load_report_assignments a
+            JOIN latest_upload lu ON lu.id = a.upload_id
+            WHERE a.so_num IN ({placeholders})
+            """,
+            cleaned,
+        ).fetchall()
+        return {
+            str(row["so_num"]).strip(): str(row["load_number"]).strip()
+            for row in rows
+            if row["so_num"] and row["load_number"]
+        }
+
+
+def clear_load_report_data():
+    with get_connection() as connection:
+        connection.execute("DELETE FROM load_report_assignments")
+        connection.execute("DELETE FROM load_report_uploads")
+        connection.commit()
 
 
 def upsert_optimizer_settings(settings):

@@ -1027,6 +1027,147 @@ def _handle_order_upload(file):
     return summary
 
 
+def _normalize_so_num_for_load_report_match(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if re.fullmatch(r"\d+\.0+", text):
+        text = text.split(".", 1)[0]
+    return text
+
+
+def _normalize_load_report_column(value):
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    return text.strip("_")
+
+
+def _parse_load_report_rows(file):
+    filename = str(getattr(file, "filename", "") or "").strip()
+    suffix = os.path.splitext(filename)[1].lower()
+
+    if suffix in {".xlsx", ".xlsm", ".xls"}:
+        parsed = replay_evaluator.parse_report(file)
+        return parsed.get("rows") or []
+
+    stream = file
+    if hasattr(file, "stream"):
+        stream = file.stream
+    if hasattr(stream, "seek"):
+        stream.seek(0)
+    raw_bytes = stream.read()
+    if hasattr(stream, "seek"):
+        stream.seek(0)
+    if not raw_bytes:
+        raise ValueError("Upload is empty.")
+
+    text = raw_bytes.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        raise ValueError("Load report is missing a header row.")
+
+    aliases = {
+        "load_number": {
+            "load_number",
+            "load_no",
+            "load",
+            "load_id",
+        },
+        "order_number": {
+            "order_number",
+            "order_no",
+            "order",
+            "so_num",
+            "sonum",
+            "sales_order",
+            "name",
+        },
+    }
+    field_lookup = {}
+    for raw_name in reader.fieldnames:
+        normalized = _normalize_load_report_column(raw_name)
+        for canonical, alias_set in aliases.items():
+            if canonical in field_lookup:
+                continue
+            if normalized in alias_set:
+                field_lookup[canonical] = raw_name
+
+    missing = [field for field in ("load_number", "order_number") if field not in field_lookup]
+    if missing:
+        raise ValueError(
+            "Missing required columns: "
+            + ", ".join(missing)
+            + ". Expected Load Number and Name (SO #)."
+        )
+
+    rows = []
+    for raw in reader:
+        load_number = str(raw.get(field_lookup["load_number"]) or "").strip().strip('"')
+        order_number = _normalize_so_num_for_load_report_match(raw.get(field_lookup["order_number"]))
+        if not load_number or not order_number:
+            continue
+        rows.append(
+            {
+                "load_number": load_number,
+                "order_number": order_number,
+            }
+        )
+    return rows
+
+
+def _handle_load_report_upload(file):
+    report_rows = _parse_load_report_rows(file)
+    if not report_rows:
+        raise ValueError("Load report has no valid rows.")
+
+    assignments_by_so = {}
+    duplicate_rows = 0
+    conflicting_orders = 0
+    for row in report_rows:
+        so_num = _normalize_so_num_for_load_report_match(row.get("order_number"))
+        load_number = str(row.get("load_number") or "").strip()
+        if not so_num or not load_number:
+            continue
+        existing_load = assignments_by_so.get(so_num)
+        if existing_load:
+            duplicate_rows += 1
+            if existing_load != load_number:
+                conflicting_orders += 1
+            continue
+        assignments_by_so[so_num] = load_number
+
+    if not assignments_by_so:
+        raise ValueError("Load report has no usable SO # and Load Number pairs.")
+
+    assignments = [
+        {"so_num": so_num, "load_number": load_number}
+        for so_num, load_number in assignments_by_so.items()
+    ]
+    open_orders = db.list_orders_by_so_nums_any(list(assignments_by_so.keys()), include_closed=False)
+    open_so_nums = {
+        _normalize_so_num_for_load_report_match(row.get("so_num"))
+        for row in open_orders
+        if _normalize_so_num_for_load_report_match(row.get("so_num"))
+    }
+    matched_open_orders = sum(1 for so_num in assignments_by_so if so_num in open_so_nums)
+
+    summary = {
+        "filename": getattr(file, "filename", ""),
+        "total_rows": len(report_rows),
+        "valid_rows": len(report_rows),
+        "unique_orders": len(assignments_by_so),
+        "unique_loads": len({value for value in assignments_by_so.values() if value}),
+        "duplicate_rows": duplicate_rows,
+        "conflicting_orders": conflicting_orders,
+        "matched_open_orders": matched_open_orders,
+        "unmatched_open_orders": max(len(assignments_by_so) - matched_open_orders, 0),
+    }
+    upload_id = db.add_load_report_upload(summary)
+    db.replace_latest_load_report_assignments(upload_id, assignments)
+    summary["upload_id"] = upload_id
+    return summary
+
+
 @app.route("/access/switch", methods=["POST"])
 def access_switch():
     session_redirect = _require_session()
@@ -5705,18 +5846,33 @@ def _build_load_schematic_edit_payload(load_id):
     }
 
 
-def _build_orders_snapshot(orders, today=None):
+def _build_orders_snapshot(orders, today=None, load_assignment_map=None):
     today = today or date.today()
     active_orders = [order for order in orders if not order.get("is_excluded")]
+    load_assignment_map = load_assignment_map or {}
     next_14_end = today + timedelta(days=14)
     snapshot = {
         "total": len(active_orders),
+        "on_load": 0,
         "past_due": 0,
         "due_next_14": 0,
         "due_14_plus": 0,
         "unassigned": 0,
     }
+
+    normalized_assignment_map = {
+        _normalize_so_num_for_load_report_match(key): value
+        for key, value in (load_assignment_map or {}).items()
+        if _normalize_so_num_for_load_report_match(key) and str(value or "").strip()
+    }
+
     for order in active_orders:
+        so_num = _normalize_so_num_for_load_report_match(order.get("so_num"))
+        if so_num and normalized_assignment_map.get(so_num):
+            snapshot["on_load"] += 1
+            continue
+        snapshot["unassigned"] += 1
+
         due_date = _parse_date(order.get("due_date"))
         if due_date:
             if due_date < today:
@@ -5727,8 +5883,11 @@ def _build_orders_snapshot(orders, today=None):
                 snapshot["due_14_plus"] += 1
         else:
             snapshot["due_14_plus"] += 1
-        if not order.get("is_assigned"):
-            snapshot["unassigned"] += 1
+
+    total_orders = snapshot["total"] or 0
+    snapshot["on_load_pct"] = round((snapshot["on_load"] / total_orders) * 100, 1) if total_orders else 0.0
+    snapshot["unassigned_pct"] = round((snapshot["unassigned"] / total_orders) * 100, 1) if total_orders else 0.0
+    snapshot["timeline_total"] = snapshot["past_due"] + snapshot["due_next_14"] + snapshot["due_14_plus"]
     return snapshot
 
 
@@ -7877,6 +8036,29 @@ def orders_upload():
     return redirect(url_for("orders"))
 
 
+@app.route("/orders/load-report/upload", methods=["POST"])
+def orders_load_report_upload():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    file = request.files.get("file")
+    if not file or not getattr(file, "filename", ""):
+        return redirect(url_for("orders"))
+    try:
+        _handle_load_report_upload(file)
+    except Exception as exc:
+        logger.exception("Load report upload failed.")
+        message = str(exc).strip() or "Load report upload failed."
+        return redirect(
+            url_for(
+                "orders",
+                load_report_status="error",
+                load_report_message=message[:200],
+            )
+        )
+    return redirect(url_for("orders", load_report_status="ok"))
+
+
 @app.route("/api/orders/upload", methods=["POST"])
 def api_orders_upload():
     session_redirect = _require_session()
@@ -8054,7 +8236,17 @@ def orders():
     if hide_past_due:
         orders_list = _filter_out_past_due_orders(orders_list)
         data["summary"] = order_service.summarize_orders(orders_list)
-    orders_snapshot = _build_orders_snapshot(orders_list, today=today)
+    snapshot_so_nums = [
+        _normalize_so_num_for_load_report_match(order.get("so_num"))
+        for order in orders_list
+        if _normalize_so_num_for_load_report_match(order.get("so_num"))
+    ]
+    load_report_assignments = db.list_latest_load_report_assignments_by_so_nums(snapshot_so_nums)
+    orders_snapshot = _build_orders_snapshot(
+        orders_list,
+        today=today,
+        load_assignment_map=load_report_assignments,
+    )
 
     plants = allowed_plants
     states = _distinct([order.get("state") for order in orders_list])
@@ -8177,6 +8369,7 @@ def orders():
     )
     last_upload = db.get_last_upload()
     upload_history = db.list_upload_history(limit=12)
+    last_load_report_upload = db.get_last_load_report_upload()
     rejected_orders = sum(1 for order in orders_list if order.get("is_excluded"))
     due_dates = [
         _parse_date(order.get("due_date"))
@@ -8282,6 +8475,10 @@ def orders():
     today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
+    load_report_status = (request.args.get("load_report_status") or "").strip().lower()
+    if load_report_status not in {"ok", "error"}:
+        load_report_status = ""
+    load_report_message = (request.args.get("load_report_message") or "").strip()
     plant_filter_param = ",".join(plant_filters) if plant_filters else ""
     reset_args = {}
     if plant_filter_param:
@@ -8320,6 +8517,7 @@ def orders():
         optimize_summary=None,
         last_upload=last_upload,
         upload_history=upload_history,
+        last_load_report_upload=last_load_report_upload,
         rejected_orders=rejected_orders,
         ship_date_range=ship_date_range,
         plant_filters=plant_filters,
@@ -8337,6 +8535,8 @@ def orders():
         today_override_value=today_override_value,
         today_override_label=today_override_label,
         today_display_label=today_display_label,
+        load_report_status=load_report_status,
+        load_report_message=load_report_message,
         profile_default_plants=profile_default_plants,
         show_more_plants=show_more_plants,
         active_session=active_session,
@@ -8358,6 +8558,7 @@ def clear_orders():
     db.clear_loads()
     db.clear_orders()
     db.mark_upload_history_deleted()
+    db.clear_load_report_data()
     return redirect(url_for("orders"))
 
 
@@ -8691,12 +8892,23 @@ def orders_optimize():
     if hide_past_due:
         orders_list = _filter_out_past_due_orders(orders_list)
         data["summary"] = order_service.summarize_orders(orders_list)
-    orders_snapshot = _build_orders_snapshot(orders_list, today=today)
+    snapshot_so_nums = [
+        _normalize_so_num_for_load_report_match(order.get("so_num"))
+        for order in orders_list
+        if _normalize_so_num_for_load_report_match(order.get("so_num"))
+    ]
+    load_report_assignments = db.list_latest_load_report_assignments_by_so_nums(snapshot_so_nums)
+    orders_snapshot = _build_orders_snapshot(
+        orders_list,
+        today=today,
+        load_assignment_map=load_report_assignments,
+    )
     plants = allowed_plants
     states = _distinct([order.get("state") for order in orders_list])
     customers = _distinct([order.get("cust_name") for order in orders_list])
     last_upload = db.get_last_upload()
     upload_history = db.list_upload_history(limit=12)
+    last_load_report_upload = db.get_last_load_report_upload()
 
     card_filters = {
         "plants": allowed_plants,
@@ -8825,6 +9037,10 @@ def orders_optimize():
     today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
+    load_report_status = (request.args.get("load_report_status") or "").strip().lower()
+    if load_report_status not in {"ok", "error"}:
+        load_report_status = ""
+    load_report_message = (request.args.get("load_report_message") or "").strip()
     plant_filter_param = ",".join(plant_filters) if plant_filters else ""
     reset_args = {}
     if plant_filter_param:
@@ -8863,6 +9079,7 @@ def orders_optimize():
         optimize_summary=result["summary"],
         last_upload=last_upload,
         upload_history=upload_history,
+        last_load_report_upload=last_load_report_upload,
         rejected_orders=rejected_orders,
         ship_date_range=ship_date_range,
         plant_filters=plant_filters,
@@ -8880,6 +9097,8 @@ def orders_optimize():
         today_override_value=today_override_value,
         today_override_label=today_override_label,
         today_display_label=today_display_label,
+        load_report_status=load_report_status,
+        load_report_message=load_report_message,
         profile_default_plants=profile_default_plants,
         show_more_plants=show_more_plants,
         active_session=active_session,

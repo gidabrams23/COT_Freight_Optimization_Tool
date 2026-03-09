@@ -49,7 +49,7 @@ TABLES = {
         "order_by": "key ASC",
     },
     "access_profiles": {
-        "columns": ["name", "is_admin", "allowed_plants", "default_plants", "created_at"],
+        "columns": ["name", "is_admin", "is_sandbox", "allowed_plants", "default_plants", "created_at"],
         "order_by": "is_admin DESC, name ASC",
     },
     "zip_coordinates": {
