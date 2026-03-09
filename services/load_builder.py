@@ -25,6 +25,9 @@ DEFAULT_BUILD_PARAMS = {
     "manual_order_input": "",
     "ignore_due_date": False,
     "order_category_scope": order_categories.ORDER_CATEGORY_SCOPE_ALL,
+    "order_category_scopes": [],
+    "order_category_tokens": [],
+    "excluded_skus": [],
 }
 PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES = {
     "VA": "FLATBED_48",
@@ -96,6 +99,42 @@ def _clean_list(values, upper=False):
             continue
         cleaned.append(item.upper() if upper else item)
     return cleaned
+
+
+def _normalize_excluded_skus(values):
+    if values is None:
+        return []
+    if isinstance(values, str):
+        source = re.split(r"[\s,;]+", values)
+    elif isinstance(values, (list, tuple, set)):
+        source = []
+        for value in values:
+            source.extend(re.split(r"[\s,;]+", str(value or "")))
+    else:
+        source = re.split(r"[\s,;]+", str(values or ""))
+    cleaned = []
+    seen = set()
+    for raw in source:
+        sku = str(raw or "").strip().upper()
+        canonical = re.sub(r"[^A-Z0-9]+", "", sku)
+        if not sku or not canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        cleaned.append(sku)
+    return cleaned
+
+
+def _normalize_selected_order_category_scopes(form):
+    selected = order_categories.normalize_order_category_scopes(
+        _get_list(form, "order_category_scopes"),
+        default=None,
+    )
+    if selected:
+        return selected
+    return order_categories.normalize_order_category_scopes(
+        form.get("order_category_scope") if form else None,
+        default=None,
+    )
 
 
 def _parse_manual_so_nums(raw_text):
@@ -171,19 +210,36 @@ def _build_no_eligible_orders_message(params, diagnostics):
     ):
         return "No eligible orders match the selected states within the current filters."
 
-    selected_order_category_scope = order_categories.normalize_order_category_scope(
-        params.get("order_category_scope"),
+    selected_order_category_scopes = order_categories.normalize_order_category_scopes(
+        params.get("order_category_scopes"),
+        default=params.get("order_category_scope"),
     )
     if (
-        selected_order_category_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL
+        selected_order_category_scopes
         and diagnostics.get("groups_after_all_filters", 0) == 0
         and diagnostics.get("groups_without_order_category_filter", 0) > 0
     ):
-        label = order_categories.ORDER_CATEGORY_SCOPE_LABELS.get(
-            selected_order_category_scope,
-            "selected order category",
-        )
-        return f"No eligible orders match {label.lower()}."
+        if len(selected_order_category_scopes) == 1:
+            label = order_categories.ORDER_CATEGORY_SCOPE_LABELS.get(
+                selected_order_category_scopes[0],
+                "selected order category",
+            )
+            return f"No eligible orders match {label.lower()}."
+        return "No eligible orders match the selected order categories."
+
+    if (
+        order_categories.normalize_order_category_tokens(params.get("order_category_tokens"))
+        and diagnostics.get("groups_after_all_filters", 0) == 0
+        and diagnostics.get("groups_without_order_category_token_filter", 0) > 0
+    ):
+        return "No eligible orders match the selected individual categories."
+
+    if (
+        _normalize_excluded_skus(params.get("excluded_skus"))
+        and diagnostics.get("groups_after_all_filters", 0) == 0
+        and diagnostics.get("groups_without_excluded_sku_filter", 0) > 0
+    ):
+        return "No eligible orders remain after applying excluded SKU filters."
 
     return message
 
@@ -270,6 +326,16 @@ def build_loads(
     fast_reopt = reopt_speed == "fast"
     manual_order_input = _clean_value(form.get("manual_order_input", "")) if form else ""
     selected_so_nums = _parse_manual_so_nums(manual_order_input) if optimize_mode == "manual" else []
+    selected_order_category_scopes = _normalize_selected_order_category_scopes(form)
+    selected_order_category_scope = order_categories.primary_order_category_scope(
+        selected_order_category_scopes
+    )
+    selected_order_category_tokens = order_categories.normalize_order_category_tokens(
+        _get_list(form, "order_category_tokens") + _get_list(form, "order_category_token")
+    )
+    excluded_skus = _normalize_excluded_skus(
+        _get_list(form, "excluded_skus") + _get_list(form, "excluded_sku")
+    )
     reference_date = _parse_date(form.get("today")) if form else None
     if not reference_date:
         reference_date = date.today()
@@ -325,9 +391,10 @@ def build_loads(
         "compare_algorithms": compare_algorithms,
         "optimize_mode": optimize_mode,
         "manual_order_input": manual_order_input,
-        "order_category_scope": order_categories.normalize_order_category_scope(
-            form.get("order_category_scope", DEFAULT_BUILD_PARAMS.get("order_category_scope", "all"))
-        ),
+        "order_category_scope": selected_order_category_scope,
+        "order_category_scopes": selected_order_category_scopes,
+        "order_category_tokens": selected_order_category_tokens,
+        "excluded_skus": excluded_skus,
     }
 
     errors = {}
@@ -444,6 +511,9 @@ def build_loads(
         "selected_so_nums": selected_so_nums,
         "optimize_mode": optimize_mode,
         "order_category_scope": form_data["order_category_scope"],
+        "order_category_scopes": form_data["order_category_scopes"],
+        "order_category_tokens": form_data["order_category_tokens"],
+        "excluded_skus": form_data["excluded_skus"],
         "orders_start_date": parsed_orders_start_date,
         "ignore_due_date": ignore_due_date,
         # Backward compatibility for logic that still checks this flag.
@@ -550,11 +620,15 @@ def build_loads(
                 "summary": None,
             }
         if optimize_mode == "manual":
-            selected_scope = order_categories.normalize_order_category_scope(
-                form_data.get("order_category_scope"),
-                default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+            selected_scopes = order_categories.normalize_order_category_scopes(
+                form_data.get("order_category_scopes"),
+                default=form_data.get("order_category_scope"),
             )
-            if selected_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL:
+            selected_tokens = order_categories.normalize_order_category_tokens(
+                form_data.get("order_category_tokens")
+            )
+            if len(selected_scopes) == 1:
+                selected_scope = selected_scopes[0]
                 scope_label = order_categories.ORDER_CATEGORY_SCOPE_LABELS.get(
                     selected_scope,
                     "selected order category",
@@ -562,6 +636,16 @@ def build_loads(
                 message = (
                     "No eligible draft orders were found for the pasted order numbers "
                     f"within {scope_label.lower()}."
+                )
+            elif selected_scopes:
+                message = (
+                    "No eligible draft orders were found for the pasted order numbers "
+                    "within the selected order categories."
+                )
+            elif selected_tokens:
+                message = (
+                    "No eligible draft orders were found for the pasted order numbers "
+                    "within the selected individual categories."
                 )
             else:
                 message = "No eligible draft orders were found for the pasted order numbers."

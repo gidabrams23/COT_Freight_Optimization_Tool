@@ -52,6 +52,8 @@
                   {% for category in (optimize_defaults.upper_deck_exception_categories or ['USA', 'UTA']) %}
                     <input type="hidden" name="upper_deck_exception_categories" value="{{ category }}">
                   {% endfor %}
+                  <input type="hidden" name="order_category_scope" value="{{ optimize_defaults.order_category_scope or 'all' }}" id="optimize-order-category-primary">
+                  <input type="hidden" name="excluded_skus" value="{{ (optimize_defaults.excluded_skus or []) | join(',') }}" id="optimize-excluded-skus-input">
                   <input type="hidden" name="enforce_time_window" value="1">
                   <input type="hidden" name="batch_horizon_enabled" value="{% if optimize_defaults.batch_horizon_enabled %}1{% endif %}" id="optimize-batch-toggle">
                   <input type="hidden" name="algorithm_version" value="v2">
@@ -88,36 +90,62 @@
                   </div>
 
                   <div class="optimize-mode-top-left">
-                    <div class="optimize-mode-row">
-                      <span class="optimize-mode-prefix">Strategy</span>
-                      <div class="optimize-mode-tabs" role="tablist" aria-label="Draft load generation mode">
-                        <button class="optimize-mode-tab{% if optimize_mode != 'manual' %} is-active{% endif %}" type="button" role="tab" aria-selected="{% if optimize_mode != 'manual' %}true{% else %}false{% endif %}" data-optimize-tab="auto">
-                          Auto Optimize
-                        </button>
-                        <button class="optimize-mode-tab{% if optimize_mode == 'manual' %} is-active{% endif %}" type="button" role="tab" aria-selected="{% if optimize_mode == 'manual' %}true{% else %}false{% endif %}" data-optimize-tab="manual">
-                          Paste Orders
-                        </button>
+                    <div class="workbench-top-row">
+                      <div class="optimize-mode-row">
+                        <span class="optimize-mode-prefix">Strategy</span>
+                        <div class="optimize-mode-tabs" role="tablist" aria-label="Draft load generation mode">
+                          <button class="optimize-mode-tab{% if optimize_mode != 'manual' %} is-active{% endif %}" type="button" role="tab" aria-selected="{% if optimize_mode != 'manual' %}true{% else %}false{% endif %}" data-optimize-tab="auto">
+                            Auto Optimize
+                          </button>
+                          <button class="optimize-mode-tab{% if optimize_mode == 'manual' %} is-active{% endif %}" type="button" role="tab" aria-selected="{% if optimize_mode == 'manual' %}true{% else %}false{% endif %}" data-optimize-tab="manual">
+                            Paste Orders
+                          </button>
+                        </div>
                       </div>
+                      <span class="workbench-top-hint">
+                        {% if active_session and active_session.session_code %}
+                          Session {{ active_session.session_code }}
+                        {% elif optimize_defaults.origin_plant %}
+                          Plant {{ optimize_defaults.origin_plant }}
+                        {% else %}
+                          Draft planning scope
+                        {% endif %}
+                      </span>
                     </div>
                   </div>
 
                   {% set selected_order_category_scope = optimize_defaults.order_category_scope or 'all' %}
+                  {% set selected_order_category_scopes = optimize_defaults.order_category_scopes or [] %}
+                  {% set selected_order_category_tokens = optimize_defaults.order_category_tokens or [] %}
+                  {% if not selected_order_category_scopes and selected_order_category_scope != 'all' %}
+                    {% set selected_order_category_scopes = [selected_order_category_scope] %}
+                  {% endif %}
                   <div class="optimize-workbench-grid{% if optimize_mode == 'manual' %} is-manual{% endif %}">
-                    <section class="optimize-section-card optimize-origin-equipment-card">
-                      <div class="optimize-section-title optimize-section-title-origin">Origin & Equipment</div>
-                      <div class="optimize-origin-equipment-grid">
-                        <label class="optimize-field optimize-origin-field">
-                          Origin Plant
-                          <select class="select-field" name="origin_plant">
-                            <option value="">Select a plant</option>
-                            {% for plant in plants %}
-                              <option value="{{ plant }}" {% if optimize_defaults.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
-                            {% endfor %}
-                          </select>
-                        </label>
-                        <div class="optimize-trailer-field-wrap">
-                          <label class="optimize-field optimize-origin-field">
-                            Preferred Trailer Profile
+                    <section class="optimize-section-card optimize-origin-equipment-card workbench-section workbench-section-cyan" id="optimize-sec-origin">
+                      <button class="workbench-section-head" type="button" data-workbench-section-toggle aria-expanded="true">
+                        <span class="workbench-section-head-left">
+                          <span class="workbench-section-label">1) Origin & Equipment</span>
+                          <span class="workbench-section-badge workbench-section-badge-set" id="optimize-origin-badge">
+                            {{ optimize_defaults.origin_plant or 'No plant' }} - {{ selected_trailer_type }}
+                          </span>
+                        </span>
+                        <span class="material-symbols-outlined workbench-chevron">expand_more</span>
+                      </button>
+                      <div class="workbench-section-body">
+                        <div class="workbench-inline-row">
+                          <span class="workbench-inline-label">Origin Plant</span>
+                          <div class="workbench-inline-control">
+                            <select class="select-field" name="origin_plant">
+                              <option value="">Select a plant</option>
+                              {% for plant in plants %}
+                                <option value="{{ plant }}" {% if optimize_defaults.origin_plant == plant %}selected{% endif %}>{{ plant }}</option>
+                              {% endfor %}
+                            </select>
+                          </div>
+                        </div>
+                        <div class="workbench-inline-row">
+                          <span class="workbench-inline-label">Preferred Trailer Profile</span>
+                          <div class="workbench-inline-control">
                             <select class="select-field" name="trailer_type" id="optimize-trailer-select">
                               {% for trailer_option in trailer_profile_options %}
                                 <option
@@ -127,56 +155,55 @@
                                 >{{ trailer_option.label }}</option>
                               {% endfor %}
                             </select>
-                          </label>
-                          <div class="optimize-trailer-note-rail">
-                            <span class="form-hint optimize-trailer-default-note" id="optimize-trailer-default-note">
-                              Preferred profile defaults from the selected origin plant.
-                            </span>
-                            <span class="form-hint optimize-trailer-policy-note hidden" id="optimize-trailer-policy-note">
-                              Policy reminder: NV Lowe's defaults should remain on 48' Step Deck.
-                            </span>
                           </div>
+                        </div>
+                        <div class="optimize-trailer-note-rail">
+                          <span class="form-hint optimize-trailer-default-note" id="optimize-trailer-default-note">
+                            Preferred profile defaults from the selected origin plant.
+                          </span>
+                          <span class="form-hint optimize-trailer-policy-note hidden" id="optimize-trailer-policy-note">
+                            Policy reminder: NV Lowe's defaults should remain on 48' Step Deck.
+                          </span>
                         </div>
                       </div>
                     </section>
-                    <section class="optimize-section-card optimize-destination-card{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto">
-                      <div class="optimize-section-title optimize-section-title-destination">Destination Filter</div>
-                      <div class="optimize-filter-row optimize-filter-row-single">
-                        <div class="optimize-field">
-                          <span class="meta-label">State Scope</span>
-                          <button class="dropdown-trigger" type="button" data-dropdown-toggle="states">
-                            <span data-state-label>All States</span>
-                            <span class="material-symbols-outlined">expand_more</span>
-                          </button>
-                          <div class="dropdown-panel hidden" data-dropdown-panel="states">
-                            <div class="dropdown-actions">
-                              <span class="meta-label">Select States</span>
-                              <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
-                              <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
-                            </div>
-                            {% if states %}
-                              <div class="dropdown-scroll" data-filter-list="states">
-                                {% for state in states %}
-                                  <label class="checkbox-pill">
-                                    <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
-                                    <span>{{ state }}</span>
-                                  </label>
-                                {% endfor %}
+                    <section class="optimize-section-card optimize-workbench-span-2 optimize-destination-card workbench-section workbench-section-green{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto" id="optimize-sec-destination">
+                      <button class="workbench-section-head" type="button" data-workbench-section-toggle aria-expanded="true">
+                        <span class="workbench-section-head-left">
+                          <span class="workbench-section-label">3) Scope Filters</span>
+                          <span class="workbench-section-badge" id="optimize-scope-filter-badge">All states - All customers</span>
+                        </span>
+                        <span class="material-symbols-outlined workbench-chevron">expand_more</span>
+                      </button>
+                      <div class="workbench-section-body optimize-filter-block optimize-filter-two-col">
+                        <div class="optimize-filter-col optimize-filter-col-state">
+                          <div class="optimize-field">
+                            <span class="meta-label">State Scope</span>
+                            <button class="dropdown-trigger" type="button" data-dropdown-toggle="states">
+                              <span data-state-label>All States</span>
+                              <span class="material-symbols-outlined">expand_more</span>
+                            </button>
+                            <div class="dropdown-panel hidden" data-dropdown-panel="states">
+                              <div class="dropdown-actions">
+                                <span class="meta-label">Select States</span>
+                                <button class="btn-ghost btn-xs" type="button" data-select-all="states">Select all</button>
+                                <button class="btn-ghost btn-xs" type="button" data-clear-all="states">Clear</button>
                               </div>
-                            {% else %}
-                              <div class="empty-state">No states available.</div>
-                            {% endif %}
+                              {% if states %}
+                                <div class="dropdown-scroll" data-filter-list="states">
+                                  {% for state in states %}
+                                    <label class="checkbox-pill">
+                                      <input type="checkbox" name="opt_states" value="{{ state }}" {% if state in selected_states %}checked{% endif %}>
+                                      <span>{{ state }}</span>
+                                    </label>
+                                  {% endfor %}
+                                </div>
+                              {% else %}
+                                <div class="empty-state">No states available.</div>
+                              {% endif %}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </section>
-
-                    <section class="optimize-section-card optimize-customer-card{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto">
-                      <div class="optimize-section-head">
-                        <div class="optimize-section-title optimize-section-title-customer">Customer Filter</div>
-                        <span class="optimize-section-meta">All included</span>
-                      </div>
-                      <div class="optimize-filter-block">
                         {% set ns = namespace(lowes=None, tractor=None, ace=None, trailers=None) %}
                         {% for group in strategic_customer_groups or [] %}
                           {% set label = group.label | lower %}
@@ -190,74 +217,82 @@
                             {% set ns.trailers = group %}
                           {% endif %}
                         {% endfor %}
-                        <div class="optimize-filter-actions">
-                          <span class="meta-label">Customer Selection</span>
-                          <div class="optimize-filter-action-buttons">
-                            <label class="checkbox-pill optimize-all-customers-pill">
-                              <input type="checkbox" data-customer-all>
-                              <span>All Customers</span>
-                            </label>
-                            <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
-                          </div>
-                        </div>
-                        <div class="customer-chip-row customer-chip-row-static" data-customer-chips>
-                          {% if ns.lowes %}
-                            <label class="checkbox-pill">
-                              <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
-                              <span>{{ ns.lowes.label }}</span>
-                            </label>
-                          {% endif %}
-                          {% if ns.tractor %}
-                            <label class="checkbox-pill">
-                              <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
-                              <span>{{ ns.tractor.label }}</span>
-                            </label>
-                          {% endif %}
-                          {% if ns.ace %}
-                            <label class="checkbox-pill">
-                              <input type="checkbox" data-strategic-key="{{ ns.ace.key }}">
-                              <span>{{ ns.ace.label }}</span>
-                            </label>
-                          {% endif %}
-                          {% if ns.trailers %}
-                            <label class="checkbox-pill">
-                              <input type="checkbox" data-strategic-key="{{ ns.trailers.key }}">
-                              <span>{{ ns.trailers.label }}</span>
-                            </label>
-                          {% endif %}
-                        </div>
-                        <p class="customer-selected-summary" data-selected-summary></p>
-                        <div class="customer-selected hidden" data-selected-chips></div>
-                        <div class="optimize-dropdown">
-                          <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
-                            Add Customers
-                            <span class="material-symbols-outlined">expand_more</span>
-                          </button>
-                          <div class="dropdown-panel hidden" data-dropdown-panel="customers">
-                            <div class="dropdown-search">
-                              <span class="material-symbols-outlined">search</span>
-                              <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                        <div class="optimize-filter-col optimize-filter-col-customers">
+                          <div class="optimize-filter-actions">
+                            <span class="meta-label">Customer Selection</span>
+                            <div class="optimize-filter-action-buttons">
+                              <label class="checkbox-pill optimize-all-customers-pill">
+                                <input type="checkbox" data-customer-all>
+                                <span>All Customers</span>
+                              </label>
+                              <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
                             </div>
-                            {% if customers %}
-                              <div class="dropdown-scroll" data-customer-list>
-                                {% for cust in customers %}
-                                  <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
-                                    <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input>
-                                    <span>{{ cust }}</span>
-                                  </label>
-                                {% endfor %}
-                              </div>
-                            {% else %}
-                              <div class="empty-state">No customers available.</div>
+                          </div>
+                          <div class="customer-chip-row customer-chip-row-static" data-customer-chips>
+                            {% if ns.lowes %}
+                              <label class="checkbox-pill">
+                                <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
+                                <span>{{ ns.lowes.label }}</span>
+                              </label>
                             {% endif %}
+                            {% if ns.tractor %}
+                              <label class="checkbox-pill">
+                                <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
+                                <span>{{ ns.tractor.label }}</span>
+                              </label>
+                            {% endif %}
+                            {% if ns.ace %}
+                              <label class="checkbox-pill">
+                                <input type="checkbox" data-strategic-key="{{ ns.ace.key }}">
+                                <span>{{ ns.ace.label }}</span>
+                              </label>
+                            {% endif %}
+                            {% if ns.trailers %}
+                              <label class="checkbox-pill">
+                                <input type="checkbox" data-strategic-key="{{ ns.trailers.key }}">
+                                <span>{{ ns.trailers.label }}</span>
+                              </label>
+                            {% endif %}
+                          </div>
+                          <p class="customer-selected-summary" data-selected-summary></p>
+                          <div class="customer-selected hidden" data-selected-chips></div>
+                          <div class="optimize-dropdown">
+                            <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
+                              Add Customers
+                              <span class="material-symbols-outlined">expand_more</span>
+                            </button>
+                            <div class="dropdown-panel hidden" data-dropdown-panel="customers">
+                              <div class="dropdown-search">
+                                <span class="material-symbols-outlined">search</span>
+                                <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                              </div>
+                              {% if customers %}
+                                <div class="dropdown-scroll" data-customer-list>
+                                  {% for cust in customers %}
+                                    <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
+                                      <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input>
+                                      <span>{{ cust }}</span>
+                                    </label>
+                                  {% endfor %}
+                                </div>
+                              {% else %}
+                                <div class="empty-state">No customers available.</div>
+                              {% endif %}
+                            </div>
                           </div>
                         </div>
                       </div>
                     </section>
 
-                    <section class="optimize-section-card optimize-workbench-span-2 optimize-manual-card{% if optimize_mode != 'manual' %} hidden{% endif %}" data-optimize-content="manual">
-                      <div class="optimize-section-title optimize-section-title-origin">Paste Orders</div>
-                      <div class="optimize-tab-content">
+                    <section class="optimize-section-card optimize-workbench-span-2 optimize-manual-card workbench-section workbench-section-cyan{% if optimize_mode != 'manual' %} hidden{% endif %}" data-optimize-content="manual" id="optimize-sec-manual">
+                      <button class="workbench-section-head" type="button" data-workbench-section-toggle aria-expanded="true">
+                        <span class="workbench-section-head-left">
+                          <span class="workbench-section-label">Manual Order Selection</span>
+                          <span class="workbench-section-badge workbench-section-badge-set">Paste SO numbers</span>
+                        </span>
+                        <span class="material-symbols-outlined workbench-chevron">expand_more</span>
+                      </button>
+                      <div class="workbench-section-body optimize-tab-content">
                         <label class="optimize-manual-field">
                           Paste Order Numbers
                           <textarea
@@ -269,7 +304,7 @@
                           >{{ optimize_defaults.manual_order_input or '' }}</textarea>
                         </label>
                         <p class="form-hint optimize-manual-hint">
-                          Paste orders directly from Excel. The optimizer will include matching open orders without state/customer/plant filters.
+                          Paste orders directly from Excel. The optimizer will include matching unassigned orders without state/customer filters.
                         </p>
                         <div class="optimize-manual-callout hidden" data-manual-validate>
                           <div class="optimize-manual-callout-summary" data-manual-summary></div>
@@ -282,36 +317,35 @@
                       </div>
                     </section>
 
-                    <section class="optimize-section-card optimize-scheduling-card{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto">
-                      <div class="optimize-section-title optimize-section-title-scheduling">Scheduling Logic</div>
-                      <div class="optimize-date-row{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto">
-                        <label class="optimize-field">
-                          <span class="optimize-field-label-row">
-                            <span>Start Date</span>
-                            <span class="optimize-field-inline-note">optional</span>
-                          </span>
-                          <input class="select-field" type="date" name="orders_start_date"
-                                 value="{{ optimize_defaults.orders_start_date }}">
-                        </label>
-                        <label class="optimize-field">
-                          <span class="optimize-field-label-row">
-                            <span>Batch Until</span>
-                            <span class="optimize-field-inline-note">optional</span>
-                          </span>
-                          <input class="select-field" type="date" name="batch_end_date"
-                                 value="{{ optimize_defaults.batch_end_date }}"
-                                 id="optimize-batch-end">
-                        </label>
-                      </div>
-                      <div class="optimize-flex-row">
-                        <label class="optimize-flex-inline-row" for="optimize-flex-days">
-                          <span class="optimize-flex-inline-label">Due Date Flexibility</span>
-                          <input class="select-field optimize-flex-inline-input" type="number" name="time_window_days" min="1" step="1"
-                                 value="{{ optimize_defaults.time_window_days }}"
-                                 id="optimize-flex-days"
-                                 required>
-                          <span class="optimize-flex-inline-unit">days</span>
-                        </label>
+                    <section class="optimize-section-card optimize-scheduling-card workbench-section workbench-section-amber{% if optimize_mode == 'manual' %} hidden{% endif %}" data-optimize-content="auto" id="optimize-sec-scheduling">
+                      <button class="workbench-section-head" type="button" data-workbench-section-toggle aria-expanded="true">
+                        <span class="workbench-section-head-left">
+                          <span class="workbench-section-label">2) Scheduling Logic</span>
+                          <span class="workbench-section-badge workbench-section-badge-amber" id="optimize-schedule-badge">Date window + flex</span>
+                        </span>
+                        <span class="material-symbols-outlined workbench-chevron">expand_more</span>
+                      </button>
+                      <div class="workbench-section-body">
+                        <div class="workbench-inline-row">
+                          <span class="workbench-inline-label">Order Window</span>
+                          <div class="workbench-inline-control workbench-date-pair">
+                            <input class="select-field" type="date" name="orders_start_date" value="{{ optimize_defaults.orders_start_date }}">
+                            <span class="workbench-date-separator">to</span>
+                            <input class="select-field" type="date" name="batch_end_date" value="{{ optimize_defaults.batch_end_date }}" id="optimize-batch-end">
+                          </div>
+                        </div>
+                        <div class="workbench-inline-row">
+                          <span class="workbench-inline-label">Due Date Flexibility</span>
+                          <div class="workbench-inline-control">
+                            <label class="optimize-flex-inline-row" for="optimize-flex-days">
+                              <input class="select-field optimize-flex-inline-input" type="number" name="time_window_days" min="1" step="1"
+                                     value="{{ optimize_defaults.time_window_days }}"
+                                     id="optimize-flex-days"
+                                     required>
+                              <span class="optimize-flex-inline-unit">days</span>
+                            </label>
+                          </div>
+                        </div>
                         <div class="optimize-unlimited-flex-inline">
                           <label class="checkbox-pill optimize-unlimited-inline-pill">
                             <input type="checkbox" name="ignore_due_date" value="1" id="optimize-ignore-due"
@@ -319,60 +353,97 @@
                             <span>Unlimited Due-Date Flexibility</span>
                           </label>
                           <p class="form-hint optimize-manual-hint optimize-unlimited-flex-hint">
-                            Removes due-date spacing limits. Start & Batch End still apply.
+                            Removes due-date spacing limits. Start and Batch Until still apply.
                           </p>
                         </div>
                       </div>
                     </section>
 
-                    <section class="optimize-section-card optimize-workbench-span-2 optimize-category-section-card" data-optimize-category-section>
-                      <div class="optimize-section-head">
-                        <div class="optimize-section-title optimize-section-title-category">Order Category Scope</div>
-                        <span class="optimize-section-meta">All categories</span>
-                      </div>
-                      <div class="optimize-category-options">
-                        <label class="checkbox-pill optimize-category-pill">
-                          <input type="radio" name="order_category_scope" value="all" data-order-category-scope {% if selected_order_category_scope == 'all' %}checked{% endif %}>
-                          <span>
-                            <span>All</span>
-                            <strong class="optimize-category-pill-badge" data-optimize-category-count="all">0</strong>
-                          </span>
-                        </label>
-                        <label class="checkbox-pill optimize-category-pill">
-                          <input type="radio" name="order_category_scope" value="utilities" data-order-category-scope {% if selected_order_category_scope == 'utilities' %}checked{% endif %}>
-                          <span>
-                            <span>Utilities</span>
-                            <strong class="optimize-category-pill-badge" data-optimize-category-count="utilities">0</strong>
-                          </span>
-                        </label>
-                        <label class="checkbox-pill optimize-category-pill">
-                          <input type="radio" name="order_category_scope" value="dump" data-order-category-scope {% if selected_order_category_scope == 'dump' %}checked{% endif %}>
-                          <span>
-                            <span>Dump</span>
-                            <strong class="optimize-category-pill-badge" data-optimize-category-count="dump">0</strong>
-                          </span>
-                        </label>
-                        <label class="checkbox-pill optimize-category-pill">
-                          <input type="radio" name="order_category_scope" value="cargo" data-order-category-scope {% if selected_order_category_scope == 'cargo' %}checked{% endif %}>
-                          <span>
-                            <span>Cargo</span>
-                            <strong class="optimize-category-pill-badge" data-optimize-category-count="cargo">0</strong>
-                          </span>
-                        </label>
-                        <label class="checkbox-pill optimize-category-pill">
-                          <input type="radio" name="order_category_scope" value="other" data-order-category-scope {% if selected_order_category_scope == 'other' %}checked{% endif %}>
-                          <span>
-                            <span>Other</span>
-                            <strong class="optimize-category-pill-badge" data-optimize-category-count="other">0</strong>
-                          </span>
-                        </label>
-                        <label class="checkbox-pill optimize-category-pill optimize-category-pill-mixed">
-                          <input type="radio" name="order_category_scope" value="mixed" data-order-category-scope {% if selected_order_category_scope == 'mixed' %}checked{% endif %}>
-                          <span>
-                            <span>Mixed</span>
-                            <strong class="optimize-category-pill-badge" data-optimize-category-count="mixed">0</strong>
-                          </span>
-                        </label>
+                    <section class="optimize-section-card optimize-workbench-span-2 optimize-category-section-card workbench-section workbench-section-purple" data-optimize-category-section id="optimize-sec-category">
+                      <button class="workbench-section-head" type="button" data-workbench-section-toggle aria-expanded="true">
+                        <span class="workbench-section-head-left">
+                          <span class="workbench-section-label">4) Order Category Scope</span>
+                          <span class="workbench-section-badge" data-optimize-category-meta>All categories</span>
+                        </span>
+                        <span class="material-symbols-outlined workbench-chevron">expand_more</span>
+                      </button>
+                      <div class="workbench-section-body">
+                        <div class="optimize-category-options">
+                          <label class="checkbox-pill optimize-category-pill">
+                            <input type="checkbox" data-order-category-all {% if not selected_order_category_scopes %}checked{% endif %}>
+                            <span>
+                              <span>All</span>
+                              <strong class="optimize-category-pill-badge" data-optimize-category-count="all">0</strong>
+                            </span>
+                          </label>
+                          <div class="optimize-category-group" data-order-category-group="utilities">
+                            <div class="optimize-category-group-head">
+                              <label class="checkbox-pill optimize-category-pill optimize-category-pill-expandable">
+                                <input type="checkbox" name="order_category_scopes" value="utilities" data-order-category-scope {% if 'utilities' in selected_order_category_scopes %}checked{% endif %}>
+                                <span>
+                                  <span>Utilities</span>
+                                  <strong class="optimize-category-pill-badge" data-optimize-category-count="utilities">0</strong>
+                                </span>
+                              </label>
+                              <button class="optimize-category-expand" type="button" data-category-expand="utilities" aria-expanded="false" title="Show utility categories">
+                                <span class="material-symbols-outlined">expand_more</span>
+                              </button>
+                            </div>
+                            <div class="optimize-category-token-list hidden" data-category-token-list="utilities"></div>
+                          </div>
+                          <label class="checkbox-pill optimize-category-pill">
+                            <input type="checkbox" name="order_category_scopes" value="dump" data-order-category-scope {% if 'dump' in selected_order_category_scopes %}checked{% endif %}>
+                            <span>
+                              <span>Dump</span>
+                              <strong class="optimize-category-pill-badge" data-optimize-category-count="dump">0</strong>
+                            </span>
+                          </label>
+                          <label class="checkbox-pill optimize-category-pill">
+                            <input type="checkbox" name="order_category_scopes" value="cargo" data-order-category-scope {% if 'cargo' in selected_order_category_scopes %}checked{% endif %}>
+                            <span>
+                              <span>Cargo</span>
+                              <strong class="optimize-category-pill-badge" data-optimize-category-count="cargo">0</strong>
+                            </span>
+                          </label>
+                          <div class="optimize-category-group" data-order-category-group="other">
+                            <div class="optimize-category-group-head">
+                              <label class="checkbox-pill optimize-category-pill optimize-category-pill-expandable">
+                                <input type="checkbox" name="order_category_scopes" value="other" data-order-category-scope {% if 'other' in selected_order_category_scopes %}checked{% endif %}>
+                                <span>
+                                  <span>Other</span>
+                                  <strong class="optimize-category-pill-badge" data-optimize-category-count="other">0</strong>
+                                </span>
+                              </label>
+                              <button class="optimize-category-expand" type="button" data-category-expand="other" aria-expanded="false" title="Show other categories">
+                                <span class="material-symbols-outlined">expand_more</span>
+                              </button>
+                            </div>
+                            <div class="optimize-category-token-list hidden" data-category-token-list="other"></div>
+                          </div>
+                          <label class="checkbox-pill optimize-category-pill optimize-category-pill-mixed">
+                            <input type="checkbox" name="order_category_scopes" value="mixed" data-order-category-scope {% if 'mixed' in selected_order_category_scopes %}checked{% endif %}>
+                            <span>
+                              <span>Mixed</span>
+                              <strong class="optimize-category-pill-badge" data-optimize-category-count="mixed">0</strong>
+                            </span>
+                          </label>
+                        </div>
+                        <p class="optimize-category-note" data-optimize-category-note>All order categories included.</p>
+                        <div class="optimize-sku-exclusion">
+                          <button class="optimize-sku-toggle" type="button" data-optimize-sku-toggle aria-expanded="false">
+                            <span class="material-symbols-outlined optimize-sku-toggle-icon">add</span>
+                            Exclude orders by SKU
+                            <span class="optimize-sku-count-badge hidden" data-optimize-sku-count></span>
+                          </button>
+                          <div class="optimize-sku-panel hidden" data-optimize-sku-panel>
+                            <div class="optimize-sku-input-row">
+                              <input class="select-field optimize-sku-input" type="text" data-optimize-sku-input placeholder="e.g. HDEQ-4800, 7x14-TA">
+                              <button class="btn-secondary btn-xs" type="button" data-optimize-sku-add>Add</button>
+                            </div>
+                            <div class="optimize-sku-tags" data-optimize-sku-tags></div>
+                            <p class="optimize-sku-hint" data-optimize-sku-hint>Orders containing any excluded SKU will be removed from scope and optimization.</p>
+                          </div>
+                        </div>
                       </div>
                     </section>
                   </div>
@@ -578,35 +649,39 @@
             <h3>Data Intake Hub</h3>
           </div>
           <div class="panel-actions intake-actions">
-            <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_upload') }}" data-upload-form>
-              <label class="btn-primary btn-xs upload-inline-button">
-                <input type="file" name="file" accept=".csv" required data-upload-input>
-                Upload Orders
-              </label>
-              <noscript>
-                <button class="btn-primary btn-xs" type="submit">Upload</button>
-              </noscript>
-            </form>
-            <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_load_report_upload') }}" data-load-report-form>
-              <label class="btn-secondary btn-xs upload-inline-button">
-                <input type="file" name="file" accept=".csv,.xlsx,.xls" required data-load-report-input>
-                Add Loads Report
-              </label>
-              <noscript>
-                <button class="btn-secondary btn-xs" type="submit">Upload</button>
-              </noscript>
-            </form>
-            {% if last_upload %}
-              <span class="meta-chip">Last import {{ last_upload.uploaded_at }}</span>
-            {% endif %}
-            {% if last_load_report_upload %}
-              <span class="meta-chip">Loads report {{ last_load_report_upload.uploaded_at }}</span>
-            {% endif %}
+            <div class="intake-action-cluster">
+              <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_upload') }}" data-upload-form>
+                <label class="btn-primary btn-xs upload-inline-button">
+                  <input type="file" name="file" accept=".csv" required data-upload-input>
+                  Upload Orders
+                </label>
+                <noscript>
+                  <button class="btn-primary btn-xs" type="submit">Upload</button>
+                </noscript>
+              </form>
+              {% if last_upload %}
+                <span class="intake-time-chip intake-time-chip-import">Last Import {{ last_upload.uploaded_at_display or last_upload.uploaded_at }}</span>
+              {% endif %}
+            </div>
+            <div class="intake-action-cluster">
+              <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_load_report_upload') }}" data-load-report-form>
+                <label class="btn-secondary btn-xs upload-inline-button">
+                  <input type="file" name="file" accept=".csv,.xlsx,.xls" required data-load-report-input>
+                  Add Loads Report
+                </label>
+                <noscript>
+                  <button class="btn-secondary btn-xs" type="submit">Upload</button>
+                </noscript>
+              </form>
+              {% if last_load_report_upload %}
+                <span class="intake-time-chip intake-time-chip-report">Loads Report {{ last_load_report_upload.uploaded_at_display or last_load_report_upload.uploaded_at }}</span>
+              {% endif %}
+            </div>
             {% if upload_history %}
-              <button class="btn-ghost btn-xs" type="button">View All</button>
+              <button class="btn-ghost btn-xs intake-view-all" type="button">View All</button>
             {% endif %}
             {% if is_admin %}
-              <form method="post" action="{{ url_for('clear_orders') }}" onsubmit="return confirm('Delete all orders? This cannot be undone.');">
+              <form class="intake-clear-form" method="post" action="{{ url_for('clear_orders') }}" onsubmit="return confirm('Delete all orders? This cannot be undone.');">
                 <button class="btn-danger btn-xs" type="submit">
                   <span class="material-symbols-outlined">delete_forever</span>
                   Delete All Orders
@@ -622,7 +697,7 @@
                 <div class="intake-pane-title">
                   <span class="metric-label">Recent Upload Results</span>
                   {% if last_upload %}
-                    <span class="meta-chip">Last run {{ last_upload.uploaded_at }}</span>
+                    <span class="meta-chip">Last run {{ last_upload.uploaded_at_display or last_upload.uploaded_at }}</span>
                   {% endif %}
                 </div>
               </div>
@@ -683,7 +758,7 @@
                       <div class="import-item{% if upload.deleted_at %} is-deleted{% endif %}">
                         <div class="import-info">
                           <span class="import-file">{{ upload.filename or "Untitled CSV" }}</span>
-                          <span class="import-meta">{{ upload.uploaded_at }}</span>
+                          <span class="import-meta">{{ upload.uploaded_at_display or upload.uploaded_at }}</span>
                         </div>
                         <div class="import-mapping">
                           <div class="mapping-header">
@@ -1071,6 +1146,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const strategicGroups = {{ (strategic_customer_groups or []) | tojson }};
+    const selectedOrderCategoryTokensInitial = {{ (selected_order_category_tokens or []) | tojson }};
     const plantTrailerDefaults = {{ (optimize_plant_trailer_defaults or {}) | tojson }};
     const dueFilter = document.getElementById('due-filter');
     const dueStart = document.getElementById('due-start');
@@ -1093,13 +1169,47 @@
       const optimizeManualInput = document.getElementById('optimize-manual-input');
       const optimizeScopeCount = document.querySelector('[data-optimize-scope-count]');
       const optimizeScopeDetail = document.querySelector('[data-optimize-scope-detail]');
+      const optimizeOriginBadge = document.getElementById('optimize-origin-badge');
+      const optimizeScheduleBadge = document.getElementById('optimize-schedule-badge');
+      const optimizeScopeFilterBadge = document.getElementById('optimize-scope-filter-badge');
+      const optimizeCategoryMeta = document.querySelector('[data-optimize-category-meta]');
+      const optimizeCategoryNote = document.querySelector('[data-optimize-category-note]');
+      const optimizeCategoryPrimaryInput = document.getElementById('optimize-order-category-primary');
+      const optimizeCategoryAllInput = document.querySelector('[data-order-category-all]');
       const optimizeCategoryInputs = Array.from(document.querySelectorAll('[data-order-category-scope]'));
+      const optimizeCategoryTokenContainers = new Map(
+        Array.from(document.querySelectorAll('[data-category-token-list]')).map((el) => [
+          (el.dataset.categoryTokenList || '').trim().toLowerCase(),
+          el,
+        ]),
+      );
+      const optimizeCategoryExpandButtons = new Map(
+        Array.from(document.querySelectorAll('[data-category-expand]')).map((button) => [
+          (button.dataset.categoryExpand || '').trim().toLowerCase(),
+          button,
+        ]),
+      );
+      const selectedOrderCategoryTokensSeed = new Set(
+        (Array.isArray(selectedOrderCategoryTokensInitial) ? selectedOrderCategoryTokensInitial : [])
+          .map((value) => (value || '').toString().trim().toUpperCase())
+          .filter(Boolean),
+      );
+      let lastCategoryTokenCounts = null;
+      let categoryTokensSeedApplied = false;
       const optimizeCategoryCountTargets = new Map(
         Array.from(document.querySelectorAll('[data-optimize-category-count]')).map((el) => [
           (el.dataset.optimizeCategoryCount || '').trim().toLowerCase(),
           el,
         ]),
       );
+      const optimizeExcludedSkusInput = document.getElementById('optimize-excluded-skus-input');
+      const optimizeSkuToggle = document.querySelector('[data-optimize-sku-toggle]');
+      const optimizeSkuPanel = document.querySelector('[data-optimize-sku-panel]');
+      const optimizeSkuInput = document.querySelector('[data-optimize-sku-input]');
+      const optimizeSkuAddButton = document.querySelector('[data-optimize-sku-add]');
+      const optimizeSkuTags = document.querySelector('[data-optimize-sku-tags]');
+      const optimizeSkuCount = document.querySelector('[data-optimize-sku-count]');
+      const optimizeSkuHint = document.querySelector('[data-optimize-sku-hint]');
       const manualValidateCallout = document.querySelector('[data-manual-validate]');
       const manualValidateSummary = document.querySelector('[data-manual-summary]');
       const manualValidateDetail = document.querySelector('[data-manual-detail]');
@@ -1206,6 +1316,7 @@
         const plantDefault = defaultTrailerForPlant();
         if (!optimizeTrailerSelect || !plantDefault) {
           syncTrailerSelectionMeta();
+          updateOriginBadge();
           scheduleOptimizeScopeRefresh();
           return;
         }
@@ -1222,7 +1333,295 @@
           optimizeTrailerSelect.value = optionMatch.value;
         }
         syncTrailerSelectionMeta();
+        updateOriginBadge();
         scheduleOptimizeScopeRefresh();
+      }
+
+      function updateOriginBadge() {
+        if (!optimizeOriginBadge) return;
+        const plant = optimizeOriginSelect ? ((optimizeOriginSelect.value || '').trim().toUpperCase() || 'No plant') : 'No plant';
+        const trailer = selectedTrailerLabel() || 'No trailer';
+        optimizeOriginBadge.textContent = `${plant} - ${trailer}`;
+      }
+
+      function formatShortDate(value) {
+        const text = (value || '').trim();
+        if (!text) return '';
+        const parsed = new Date(`${text}T00:00:00`);
+        if (Number.isNaN(parsed.getTime())) return text;
+        return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      }
+
+      function updateScheduleBadge() {
+        if (!optimizeScheduleBadge) return;
+        const startLabel = formatShortDate(optimizeOrdersStart ? optimizeOrdersStart.value : '');
+        const endLabel = formatShortDate(optimizeBatchEnd ? optimizeBatchEnd.value : '');
+        const flexDays = Number(optimizeFlexDays ? optimizeFlexDays.value : 0);
+        const ignoreDue = !!(optimizeIgnoreDue && optimizeIgnoreDue.checked);
+        const windowLabel = [startLabel || 'Start: none', endLabel || 'Batch: none'].join(' to ');
+        const flexLabel = ignoreDue ? 'Unlimited flex' : `${Number.isFinite(flexDays) ? flexDays : 0}d flex`;
+        optimizeScheduleBadge.textContent = `${windowLabel} - ${flexLabel}`;
+      }
+
+      function selectedOrderCategoryScopes() {
+        return optimizeCategoryInputs
+          .filter((input) => input.checked)
+          .map((input) => (input.value || '').toString().trim().toLowerCase())
+          .filter(Boolean);
+      }
+
+      function selectedOrderCategoryTokens() {
+        return Array.from(document.querySelectorAll('[data-order-category-token]:checked'))
+          .map((input) => (input.value || '').toString().trim().toUpperCase())
+          .filter(Boolean);
+      }
+
+      function tokenBucketFromValue(value) {
+        const token = (value || '').toString().trim().toUpperCase();
+        if (!token) return 'other';
+        if (
+          token === 'UTILITY'
+          || token === 'UTILITIES'
+          || token.startsWith('USA')
+          || token.startsWith('UTA')
+          || token.startsWith('ECOM')
+          || token.startsWith('HDEQ')
+          || token.startsWith('UTIL')
+        ) {
+          return 'utilities';
+        }
+        if (token.includes('CARGO')) return 'cargo';
+        if (token.includes('DUMP')) return 'dump';
+        return 'other';
+      }
+
+      function normalizeCategoryTokenCounts(raw) {
+        const source = raw && typeof raw === 'object' ? raw : {};
+        return {
+          utilities: source.utilities && typeof source.utilities === 'object' ? source.utilities : {},
+          dump: source.dump && typeof source.dump === 'object' ? source.dump : {},
+          cargo: source.cargo && typeof source.cargo === 'object' ? source.cargo : {},
+          other: source.other && typeof source.other === 'object' ? source.other : {},
+        };
+      }
+
+      function selectedOrderCategoryScope() {
+        const selected = selectedOrderCategoryScopes();
+        return selected.length === 1 ? selected[0] : 'all';
+      }
+
+      function syncCategoryAllToggle() {
+        if (!optimizeCategoryAllInput) return;
+        optimizeCategoryAllInput.checked = (
+          selectedOrderCategoryScopes().length === 0
+          && selectedOrderCategoryTokens().length === 0
+        );
+      }
+
+      function updateCategoryMeta() {
+        if (optimizeCategoryPrimaryInput) {
+          optimizeCategoryPrimaryInput.value = selectedOrderCategoryScope();
+        }
+        const selected = selectedOrderCategoryScopes();
+        const selectedTokens = selectedOrderCategoryTokens();
+        const selectedScopeLabel = selected
+          .map((value) => (value || '').charAt(0).toUpperCase() + (value || '').slice(1))
+          .join(', ');
+        if (optimizeCategoryMeta) {
+          if (!selected.length && !selectedTokens.length) {
+            optimizeCategoryMeta.textContent = 'All categories';
+          } else if (!selected.length) {
+            optimizeCategoryMeta.textContent = `${selectedTokens.length} individual categories`;
+          } else if (!selectedTokens.length) {
+            optimizeCategoryMeta.textContent = selectedScopeLabel;
+          } else {
+            optimizeCategoryMeta.textContent = `${selectedScopeLabel} + ${selectedTokens.length} individual`;
+          }
+        }
+        if (optimizeCategoryNote) {
+          if (!selected.length && !selectedTokens.length) {
+            optimizeCategoryNote.textContent = 'All order categories included.';
+          } else if (!selected.length) {
+            optimizeCategoryNote.textContent = `${selectedTokens.length} individual categories selected.`;
+          } else if (!selectedTokens.length && selected.length === 1) {
+            optimizeCategoryNote.textContent = `${selected[0].charAt(0).toUpperCase()}${selected[0].slice(1)} orders selected.`;
+          } else if (!selectedTokens.length) {
+            optimizeCategoryNote.textContent = `${selected.length} order categories selected.`;
+          } else if (selected.length === 1) {
+            optimizeCategoryNote.textContent = (
+              `${selected[0].charAt(0).toUpperCase()}${selected[0].slice(1)} + `
+              + `${selectedTokens.length} individual categories selected.`
+            );
+          } else {
+            optimizeCategoryNote.textContent = (
+              `${selected.length} order categories + `
+              + `${selectedTokens.length} individual categories selected.`
+            );
+          }
+        }
+      }
+
+      function clearCategoryTokens(scope) {
+        document.querySelectorAll(`[data-order-category-token][data-token-bucket="${scope}"]`).forEach((input) => {
+          input.checked = false;
+        });
+      }
+
+      function ensureCategoryScopeSelected(scope) {
+        const parentInput = optimizeCategoryInputs.find(
+          (input) => ((input.value || '').toString().trim().toLowerCase() === scope),
+        );
+        if (parentInput) parentInput.checked = true;
+      }
+
+      function toggleCategoryTokenPanel(scope, open) {
+        const key = (scope || '').toString().trim().toLowerCase();
+        const panel = optimizeCategoryTokenContainers.get(key);
+        const button = optimizeCategoryExpandButtons.get(key);
+        if (!panel || !button) return;
+        const isOpen = typeof open === 'boolean' ? open : panel.classList.contains('hidden');
+        panel.classList.toggle('hidden', !isOpen);
+        button.classList.toggle('is-open', isOpen);
+        button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      }
+
+      function renderCategoryTokenListForScope(scope, tokensByCount) {
+        const key = (scope || '').toString().trim().toLowerCase();
+        const panel = optimizeCategoryTokenContainers.get(key);
+        if (!panel) return;
+        const counts = tokensByCount && typeof tokensByCount === 'object' ? tokensByCount : {};
+        const existingSelection = new Set(selectedOrderCategoryTokens());
+        const tokenSet = new Set(
+          Object.keys(counts)
+            .map((value) => (value || '').toString().trim().toUpperCase())
+            .filter(Boolean),
+        );
+        selectedOrderCategoryTokensSeed.forEach((token) => {
+          if (tokenBucketFromValue(token) === key) tokenSet.add(token);
+        });
+        if (key === 'utilities') {
+          ['USA', 'UTA', 'ECOM', 'HDEQ', 'UTILITIES'].forEach((token) => tokenSet.add(token));
+        }
+
+        const sortedTokens = Array.from(tokenSet).sort((left, right) => {
+          const leftCount = Number(counts[left] || 0);
+          const rightCount = Number(counts[right] || 0);
+          if (leftCount !== rightCount) return rightCount - leftCount;
+          return left.localeCompare(right);
+        });
+
+        panel.innerHTML = '';
+        if (!sortedTokens.length) {
+          const empty = document.createElement('p');
+          empty.className = 'optimize-category-token-empty';
+          empty.textContent = 'No individual categories available for the current scope.';
+          panel.appendChild(empty);
+          return;
+        }
+
+        sortedTokens.forEach((token) => {
+          const pill = document.createElement('label');
+          pill.className = 'checkbox-pill optimize-category-pill optimize-category-token-pill';
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.name = 'order_category_tokens';
+          input.value = token;
+          input.dataset.orderCategoryToken = '1';
+          input.dataset.tokenBucket = key;
+          const useSeed = !categoryTokensSeedApplied && selectedOrderCategoryTokensSeed.has(token);
+          input.checked = existingSelection.has(token) || useSeed;
+
+          const content = document.createElement('span');
+          const tokenLabel = document.createElement('span');
+          tokenLabel.textContent = token;
+          const badge = document.createElement('strong');
+          badge.className = 'optimize-category-pill-badge';
+          badge.textContent = `${Number(counts[token] || 0)}`;
+          content.appendChild(tokenLabel);
+          content.appendChild(badge);
+          pill.appendChild(input);
+          pill.appendChild(content);
+          panel.appendChild(pill);
+        });
+      }
+
+      function renderCategoryTokenLists(categoryTokenCounts) {
+        const normalized = normalizeCategoryTokenCounts(categoryTokenCounts);
+        lastCategoryTokenCounts = normalized;
+        renderCategoryTokenListForScope('utilities', normalized.utilities);
+        renderCategoryTokenListForScope('other', normalized.other);
+        categoryTokensSeedApplied = true;
+      }
+
+      function parseSkuEntries(raw) {
+        if (!raw) return [];
+        return raw
+          .split(/[\s,;]+/)
+          .map((value) => value.trim().toUpperCase())
+          .filter(Boolean);
+      }
+
+      function currentExcludedSkus() {
+        if (!optimizeSkuTags) return [];
+        return Array.from(optimizeSkuTags.querySelectorAll('[data-excluded-sku]'))
+          .map((tag) => (tag.dataset.excludedSku || '').trim().toUpperCase())
+          .filter(Boolean);
+      }
+
+      function writeExcludedSkusToHidden() {
+        if (!optimizeExcludedSkusInput) return;
+        optimizeExcludedSkusInput.value = currentExcludedSkus().join(',');
+      }
+
+      function updateSkuUi() {
+        const skus = currentExcludedSkus();
+        const count = skus.length;
+        if (optimizeSkuCount) {
+          optimizeSkuCount.classList.toggle('hidden', count === 0);
+          optimizeSkuCount.textContent = count > 0 ? `${count} excluded` : '';
+        }
+        if (optimizeSkuHint) {
+          optimizeSkuHint.textContent = count > 0
+            ? `${count} restricted SKU${count > 1 ? 's' : ''} active. Orders containing these SKUs are excluded from scope and optimization.`
+            : 'Orders containing any excluded SKU will be removed from scope and optimization.';
+        }
+        writeExcludedSkusToHidden();
+      }
+
+      function renderExcludedSkuTags(values) {
+        if (!optimizeSkuTags) return;
+        const unique = [];
+        const seen = new Set();
+        (values || []).forEach((raw) => {
+          const sku = (raw || '').toString().trim().toUpperCase();
+          if (!sku || seen.has(sku)) return;
+          seen.add(sku);
+          unique.push(sku);
+        });
+        optimizeSkuTags.innerHTML = '';
+        unique.forEach((sku) => {
+          const tag = document.createElement('span');
+          tag.className = 'optimize-sku-tag';
+          tag.dataset.excludedSku = sku;
+          tag.innerHTML = `<span>${sku}</span><button type="button" data-remove-excluded-sku="${sku}" aria-label="Remove ${sku}">×</button>`;
+          optimizeSkuTags.appendChild(tag);
+        });
+        updateSkuUi();
+      }
+
+      function addExcludedSkus(values) {
+        const existing = currentExcludedSkus();
+        renderExcludedSkuTags(existing.concat(values || []));
+        scheduleOptimizeScopeRefresh();
+      }
+
+      function toggleSkuPanel(open) {
+        if (!optimizeSkuPanel || !optimizeSkuToggle) return;
+        const isOpen = typeof open === 'boolean' ? open : optimizeSkuPanel.classList.contains('hidden');
+        optimizeSkuPanel.classList.toggle('hidden', !isOpen);
+        optimizeSkuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        optimizeSkuToggle.classList.toggle('is-open', isOpen);
+        if (isOpen && optimizeSkuInput) optimizeSkuInput.focus();
       }
 
       function clearManualValidation() {
@@ -1356,12 +1755,6 @@
           .filter(Boolean);
       }
 
-      function selectedOrderCategoryScope() {
-        const selected = optimizeCategoryInputs.find((input) => input.checked);
-        const value = (selected ? selected.value : 'all') || 'all';
-        return value.toString().trim().toLowerCase() || 'all';
-      }
-
       function renderCategoryScopeSummary(payload) {
         const counts = (payload && payload.category_counts) || {};
         const normalized = {
@@ -1381,6 +1774,24 @@
           const value = Number(normalized[key] || 0);
           target.textContent = Number.isFinite(value) ? `${value}` : '0';
         });
+        renderCategoryTokenLists((payload && payload.category_token_counts) || {});
+      }
+
+      function categoryLabelFromScopeAndTokens(scopes, tokens) {
+        const categoryLabelMap = {
+          utilities: 'utilities',
+          dump: 'dump',
+          cargo: 'cargo',
+          other: 'other',
+          mixed: 'mixed',
+        };
+        const scopeLabel = scopes.length
+          ? scopes.map((scope) => categoryLabelMap[scope] || scope).join(', ')
+          : 'all categories';
+        if (!tokens.length) return scopeLabel;
+        const tokenLabel = `${tokens.length} individual categor${tokens.length > 1 ? 'ies' : 'y'}`;
+        if (!scopes.length) return tokenLabel;
+        return `${scopeLabel} + ${tokenLabel}`;
       }
 
       function renderOptimizeScopeSummary(payload) {
@@ -1389,19 +1800,22 @@
         const mode = ((payload && payload.mode) || 'auto').toString().trim().toLowerCase();
         const ordersInScope = Number((payload && payload.orders_in_scope) || 0);
         const linesInScope = Number((payload && payload.lines_in_scope) || 0);
-        const selectedCategoryScope = ((payload && payload.order_category_scope) || selectedOrderCategoryScope() || 'all')
-          .toString()
-          .trim()
-          .toLowerCase();
-        const categoryLabelMap = {
-          all: 'all categories',
-          utilities: 'utilities only',
-          dump: 'dump only',
-          cargo: 'cargo only',
-          other: 'other only',
-          mixed: 'mixed only',
-        };
-        const categoryLabel = categoryLabelMap[selectedCategoryScope] || 'selected category';
+        const selectedCategoryScopes = Array.isArray(payload && payload.order_category_scopes)
+          ? payload.order_category_scopes
+              .map((value) => (value || '').toString().trim().toLowerCase())
+              .filter(Boolean)
+          : selectedOrderCategoryScopes();
+        const selectedCategoryTokens = Array.isArray(payload && payload.order_category_tokens)
+          ? payload.order_category_tokens
+              .map((value) => (value || '').toString().trim().toUpperCase())
+              .filter(Boolean)
+          : selectedOrderCategoryTokens();
+        const categoryLabel = categoryLabelFromScopeAndTokens(
+          selectedCategoryScopes,
+          selectedCategoryTokens,
+        );
+        const excludedSkus = Array.isArray(payload && payload.excluded_skus) ? payload.excluded_skus : currentExcludedSkus();
+        const excludedLabel = excludedSkus.length ? ` - excluding ${excludedSkus.length} SKU${excludedSkus.length > 1 ? 's' : ''}` : '';
         if (mode === 'manual') {
           const pastedCount = Number((payload && payload.pasted_count) || 0);
           const matchedCount = Number((payload && payload.matched_count) || ordersInScope);
@@ -1412,7 +1826,7 @@
           } else if (!matchedCount) {
             optimizeScopeDetail.textContent = `0/${pastedCount} pasted orders matched`;
           } else {
-            optimizeScopeDetail.textContent = `${matchedInScopeCount}/${matchedCount} matched orders in ${categoryLabel} (${pastedCount} pasted)`;
+            optimizeScopeDetail.textContent = `${matchedInScopeCount}/${matchedCount} matched orders in ${categoryLabel}${excludedLabel} (${pastedCount} pasted)`;
           }
           return;
         }
@@ -1421,7 +1835,7 @@
           optimizeScopeDetail.textContent = 'No eligible unassigned orders match the current filters.';
           return;
         }
-        optimizeScopeDetail.textContent = `${linesInScope} eligible unassigned lines (${categoryLabel})`;
+        optimizeScopeDetail.textContent = `${linesInScope} eligible unassigned lines (${categoryLabel}${excludedLabel})`;
       }
 
       function requestOptimizeScopeSummary() {
@@ -1438,6 +1852,9 @@
           optimize_mode: mode,
           origin_plant: originPlant,
           order_category_scope: selectedOrderCategoryScope(),
+          order_category_scopes: selectedOrderCategoryScopes(),
+          order_category_tokens: selectedOrderCategoryTokens(),
+          excluded_skus: currentExcludedSkus(),
           opt_states: selectedOptimizeScopeStates(),
           opt_customers: selectedOptimizeScopeCustomers(),
           orders_start_date: optimizeOrdersStart ? (optimizeOrdersStart.value || '') : '',
@@ -1567,6 +1984,7 @@
         optimizeBatchEnd.disabled = !autoMode;
       }
       setBatchToggle();
+      updateScheduleBadge();
     }
 
     function openOptimizePanel() {
@@ -1630,6 +2048,7 @@
       }
       syncIgnoreDueDateState();
       syncTrailerSelectionMeta();
+      updateOriginBadge();
       closeAllDropdowns();
       scheduleOptimizeScopeRefresh();
     }
@@ -1656,10 +2075,12 @@
       setBatchToggle();
       optimizeBatchEnd.addEventListener('input', () => {
         setBatchToggle();
+        updateScheduleBadge();
         scheduleOptimizeScopeRefresh();
       });
       optimizeBatchEnd.addEventListener('change', () => {
         setBatchToggle();
+        updateScheduleBadge();
         scheduleOptimizeScopeRefresh();
       });
     }
@@ -1667,25 +2088,123 @@
       optimizeIgnoreDue.addEventListener('change', syncIgnoreDueDateState);
     }
     if (optimizeOrdersStart) {
-      optimizeOrdersStart.addEventListener('input', scheduleOptimizeScopeRefresh);
-      optimizeOrdersStart.addEventListener('change', scheduleOptimizeScopeRefresh);
+      optimizeOrdersStart.addEventListener('input', () => {
+        updateScheduleBadge();
+        scheduleOptimizeScopeRefresh();
+      });
+      optimizeOrdersStart.addEventListener('change', () => {
+        updateScheduleBadge();
+        scheduleOptimizeScopeRefresh();
+      });
     }
     if (optimizeOriginSelect) {
       optimizeOriginSelect.addEventListener('change', () => {
         applyPlantDefaultTrailerSelection();
+        updateOriginBadge();
         scheduleOptimizeScopeRefresh();
       });
     }
     if (optimizeTrailerSelect) {
-      optimizeTrailerSelect.addEventListener('change', syncTrailerSelectionMeta);
+      optimizeTrailerSelect.addEventListener('change', () => {
+        syncTrailerSelectionMeta();
+        updateOriginBadge();
+      });
+    }
+    if (optimizeFlexDays) {
+      optimizeFlexDays.addEventListener('input', updateScheduleBadge);
+      optimizeFlexDays.addEventListener('change', updateScheduleBadge);
+    }
+    if (optimizeIgnoreDue) {
+      optimizeIgnoreDue.addEventListener('change', updateScheduleBadge);
+    }
+    if (optimizeCategoryAllInput) {
+      optimizeCategoryAllInput.addEventListener('change', () => {
+        if (optimizeCategoryAllInput.checked) {
+          optimizeCategoryInputs.forEach((input) => {
+            input.checked = false;
+          });
+          document.querySelectorAll('[data-order-category-token]').forEach((input) => {
+            input.checked = false;
+          });
+        } else if (selectedOrderCategoryScopes().length === 0 && selectedOrderCategoryTokens().length === 0) {
+          optimizeCategoryAllInput.checked = true;
+        }
+        syncCategoryAllToggle();
+        updateCategoryMeta();
+        scheduleOptimizeScopeRefresh();
+      });
     }
     optimizeCategoryInputs.forEach((input) => {
-      input.addEventListener('change', scheduleOptimizeScopeRefresh);
+      input.addEventListener('change', () => {
+        if (!input.checked) {
+          clearCategoryTokens((input.value || '').toString().trim().toLowerCase());
+        }
+        syncCategoryAllToggle();
+        updateCategoryMeta();
+        scheduleOptimizeScopeRefresh();
+      });
     });
-
-    if (optimizePanel && optimizePanel.dataset.optimizeAutoshow === 'true') {
-      openOptimizePanel();
+    optimizeCategoryExpandButtons.forEach((button, scope) => {
+      button.addEventListener('click', () => {
+        toggleCategoryTokenPanel(scope);
+      });
+    });
+    if (optimizePanel) {
+      optimizePanel.addEventListener('change', (event) => {
+        const tokenInput = event.target.closest('[data-order-category-token]');
+        if (!tokenInput) return;
+        const bucket = (tokenInput.dataset.tokenBucket || '').toString().trim().toLowerCase();
+        if (tokenInput.checked && bucket) {
+          ensureCategoryScopeSelected(bucket);
+        }
+        syncCategoryAllToggle();
+        updateCategoryMeta();
+        scheduleOptimizeScopeRefresh();
+      });
     }
+    if (optimizeSkuToggle) {
+      optimizeSkuToggle.addEventListener('click', () => {
+        toggleSkuPanel();
+      });
+    }
+    if (optimizeSkuAddButton) {
+      optimizeSkuAddButton.addEventListener('click', () => {
+        const entries = parseSkuEntries(optimizeSkuInput ? optimizeSkuInput.value : '');
+        if (!entries.length) return;
+        addExcludedSkus(entries);
+        if (optimizeSkuInput) optimizeSkuInput.value = '';
+      });
+    }
+    if (optimizeSkuInput) {
+      optimizeSkuInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        const entries = parseSkuEntries(optimizeSkuInput.value);
+        if (!entries.length) return;
+        addExcludedSkus(entries);
+        optimizeSkuInput.value = '';
+      });
+    }
+    if (optimizeSkuTags) {
+      optimizeSkuTags.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-remove-excluded-sku]');
+        if (!button) return;
+        const sku = (button.dataset.removeExcludedSku || '').trim().toUpperCase();
+        if (!sku) return;
+        const remaining = currentExcludedSkus().filter((value) => value !== sku);
+        renderExcludedSkuTags(remaining);
+        scheduleOptimizeScopeRefresh();
+      });
+    }
+
+    document.querySelectorAll('[data-workbench-section-toggle]').forEach((toggle) => {
+      toggle.addEventListener('click', () => {
+        const section = toggle.closest('.workbench-section');
+        if (!section) return;
+        const collapsed = section.classList.toggle('is-collapsed');
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      });
+    });
 
     function openTodayPanel() {
       if (!todayPanel || !todayToggle) return;
@@ -1737,6 +2256,22 @@
     });
     setOptimizeMode(optimizeModeInput ? optimizeModeInput.value : 'auto');
     syncTrailerSelectionMeta();
+    updateOriginBadge();
+    updateScheduleBadge();
+    renderCategoryTokenLists(lastCategoryTokenCounts || {});
+    if (selectedOrderCategoryTokens().some((token) => tokenBucketFromValue(token) === 'utilities')) {
+      toggleCategoryTokenPanel('utilities', true);
+    }
+    if (selectedOrderCategoryTokens().some((token) => tokenBucketFromValue(token) === 'other')) {
+      toggleCategoryTokenPanel('other', true);
+    }
+    syncCategoryAllToggle();
+    updateCategoryMeta();
+    renderExcludedSkuTags(parseSkuEntries(optimizeExcludedSkusInput ? optimizeExcludedSkusInput.value : ''));
+    scheduleOptimizeScopeRefresh();
+    if (optimizePanel && optimizePanel.dataset.optimizeAutoshow === 'true') {
+      openOptimizePanel();
+    }
 
     if (todayApply) {
       todayApply.addEventListener('click', () => {
@@ -1818,6 +2353,21 @@
     const stateList = document.querySelector('[data-filter-list="states"]');
     const stateLabel = document.querySelector('[data-state-label]');
 
+    function updateScopeFilterBadge() {
+      if (!optimizeScopeFilterBadge) return;
+      const selectedStates = stateList
+        ? Array.from(stateList.querySelectorAll('input[type="checkbox"]:checked'))
+        : [];
+      const stateText = selectedStates.length === 0
+        ? 'All states'
+        : selectedStates.length === 1
+          ? selectedStates[0].value
+          : `${selectedStates.length} states`;
+      const selectedCustomers = Array.from(document.querySelectorAll('input[name="opt_customers"]:checked')).length;
+      const customerText = selectedCustomers === 0 ? 'All customers' : `${selectedCustomers} customer${selectedCustomers > 1 ? 's' : ''}`;
+      optimizeScopeFilterBadge.textContent = `${stateText} - ${customerText}`;
+    }
+
     function updateStateLabel() {
       if (!stateLabel) return;
       const selected = stateList
@@ -1825,15 +2375,18 @@
         : [];
       if (!selected.length) {
         stateLabel.textContent = 'All States';
+        updateScopeFilterBadge();
         scheduleOptimizeScopeRefresh();
         return;
       }
       if (selected.length === 1) {
         stateLabel.textContent = selected[0].value;
+        updateScopeFilterBadge();
         scheduleOptimizeScopeRefresh();
         return;
       }
       stateLabel.textContent = `${selected.length} States`;
+      updateScopeFilterBadge();
       scheduleOptimizeScopeRefresh();
     }
 
@@ -1956,6 +2509,8 @@
       if (allCustomersToggle && allCustomersToggle.checked) {
         selectedSummary.textContent = 'All customers selected.';
         if (selectedChips) selectedChips.classList.add('hidden');
+        updateScopeFilterBadge();
+        scheduleOptimizeScopeRefresh();
         return;
       }
       const selectedEntries = Array.from(customerInputs.entries()).filter(([, input]) => input.checked);
@@ -1968,7 +2523,11 @@
       } else {
         selectedSummary.textContent = '';
       }
-      if (!selectedChips) return;
+      if (!selectedChips) {
+        updateScopeFilterBadge();
+        scheduleOptimizeScopeRefresh();
+        return;
+      }
       let chipCount = 0;
       selectedEntries.forEach(([name, input]) => {
         if (excludedCustomers.has(name)) return;
@@ -1995,6 +2554,7 @@
           selectedSummary.textContent = selectedCount === 1 ? '1 customer selected.' : `${selectedCount} customers selected.`;
         }
       }
+      updateScopeFilterBadge();
       scheduleOptimizeScopeRefresh();
     }
 

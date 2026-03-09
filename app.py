@@ -1374,10 +1374,17 @@ def _default_optimize_form(plant_code=None):
         optimizer_defaults.get("upper_deck_exception_categories"),
         default=DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES,
     )
-    form_data["order_category_scope"] = order_categories.normalize_order_category_scope(
-        form_data.get("order_category_scope"),
-        default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+    form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
+        form_data.get("order_category_scopes"),
+        fallback=form_data.get("order_category_scope"),
     )
+    form_data["order_category_scope"] = order_categories.primary_order_category_scope(
+        form_data.get("order_category_scopes")
+    )
+    form_data["order_category_tokens"] = _coerce_selected_order_category_tokens(
+        form_data.get("order_category_tokens")
+    )
+    form_data["excluded_skus"] = _coerce_excluded_skus(form_data.get("excluded_skus"))
     form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
     resolved_plant = _normalize_plant_code(plant_code) or _normalize_plant_code(form_data.get("origin_plant"))
     if not resolved_plant and PLANT_CODES:
@@ -3154,6 +3161,29 @@ def _format_datetime_label(value):
     return _format_est_datetime_label(value)
 
 
+def _format_intake_datetime_label(value):
+    parsed = _to_est_datetime(value)
+    if not parsed:
+        return ""
+    hour_label = parsed.strftime("%I").lstrip("0") or "0"
+    return f"{parsed.strftime('%m/%d/%Y')} at {hour_label}:{parsed.strftime('%M %p')}"
+
+
+def _with_uploaded_at_display(record):
+    if not record:
+        return None
+    cloned = dict(record)
+    cloned["uploaded_at_display"] = (
+        _format_intake_datetime_label(cloned.get("uploaded_at"))
+        or str(cloned.get("uploaded_at") or "")
+    )
+    return cloned
+
+
+def _with_uploaded_at_display_many(records):
+    return [_with_uploaded_at_display(record) for record in (records or []) if record]
+
+
 def _resolve_today_override(value):
     token = (value or "").strip().lower()
     if token == "clear":
@@ -3553,14 +3583,101 @@ def _group_order_category_scope(lines, sku_category_by_sku=None):
     return order_categories.order_category_scope_from_tokens(tokens)
 
 
-def _scope_snapshot_base(mode, selected_order_category_scope):
+def _coerce_selected_order_category_scopes(values, fallback=None):
+    selected = order_categories.normalize_order_category_scopes(values, default=None)
+    if selected:
+        return selected
+    return order_categories.normalize_order_category_scopes(fallback, default=None)
+
+
+def _canonicalize_sku_token(value):
+    text = str(value or "").strip().upper()
+    if not text:
+        return ""
+    return re.sub(r"[^A-Z0-9]+", "", text)
+
+
+def _coerce_excluded_skus(values):
+    if values is None:
+        source = []
+    elif isinstance(values, str):
+        source = re.split(r"[\s,;]+", values)
+    elif isinstance(values, (list, tuple, set)):
+        source = []
+        for value in values:
+            source.extend(re.split(r"[\s,;]+", str(value or "")))
+    else:
+        source = re.split(r"[\s,;]+", str(values or ""))
+    cleaned = []
+    seen = set()
+    for raw in source:
+        sku = str(raw or "").strip().upper()
+        canonical = _canonicalize_sku_token(sku)
+        if not sku or not canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        cleaned.append(sku)
+    return cleaned
+
+
+def _coerce_selected_order_category_tokens(values):
+    return order_categories.normalize_order_category_tokens(values)
+
+
+def _group_contains_excluded_sku(lines, excluded_skus):
+    if not excluded_skus:
+        return False
+    excluded = set()
+    for value in excluded_skus:
+        canonical = _canonicalize_sku_token(value)
+        if canonical:
+            excluded.add(canonical)
+    if not excluded:
+        return False
+    for line in (lines or []):
+        for candidate in ((line or {}).get("sku"), (line or {}).get("item")):
+            token = _canonicalize_sku_token(candidate)
+            if token and token in excluded:
+                return True
+    return False
+
+
+def _group_category_tokens(lines, sku_category_by_sku=None):
+    tokens = set()
+    for line in (lines or []):
+        token = str(
+            _line_order_category_token(line, sku_category_by_sku=sku_category_by_sku) or ""
+        ).strip().upper()
+        if token:
+            tokens.add(token)
+    return tokens
+
+
+def _empty_category_token_counts():
+    return {
+        order_categories.ORDER_CATEGORY_SCOPE_UTILITIES: {},
+        order_categories.ORDER_CATEGORY_SCOPE_DUMP: {},
+        order_categories.ORDER_CATEGORY_SCOPE_CARGO: {},
+        order_categories.ORDER_CATEGORY_SCOPE_OTHER: {},
+    }
+
+
+def _scope_snapshot_base(
+    mode,
+    selected_order_category_scopes,
+    order_category_tokens=None,
+    excluded_skus=None,
+):
+    normalized_scopes = _coerce_selected_order_category_scopes(selected_order_category_scopes)
+    normalized_tokens = _coerce_selected_order_category_tokens(order_category_tokens)
     return {
         "mode": mode,
-        "order_category_scope": order_categories.normalize_order_category_scope(
-            selected_order_category_scope,
-            default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
-        ),
+        "order_category_scope": order_categories.primary_order_category_scope(normalized_scopes),
+        "order_category_scopes": normalized_scopes,
+        "order_category_tokens": normalized_tokens,
+        "excluded_skus": _coerce_excluded_skus(excluded_skus),
         "category_counts": order_categories.empty_category_counts(),
+        "category_token_counts": _empty_category_token_counts(),
         "orders_in_scope": 0,
         "lines_in_scope": 0,
     }
@@ -3570,11 +3687,21 @@ def _manual_order_scope_snapshot(
     raw_text,
     origin_plant=None,
     allowed_plants=None,
-    order_category_scope=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+    order_category_scopes=None,
+    order_category_tokens=None,
+    excluded_skus=None,
 ):
     parsed_so_nums = _parse_manual_so_nums(raw_text)
+    normalized_scopes = _coerce_selected_order_category_scopes(order_category_scopes)
+    normalized_tokens = _coerce_selected_order_category_tokens(order_category_tokens)
+    normalized_excluded_skus = _coerce_excluded_skus(excluded_skus)
     snapshot = {
-        **_scope_snapshot_base("manual", order_category_scope),
+        **_scope_snapshot_base(
+            "manual",
+            normalized_scopes,
+            order_category_tokens=normalized_tokens,
+            excluded_skus=normalized_excluded_skus,
+        ),
         "pasted_count": len(parsed_so_nums),
         "matched_count": 0,
         "matched_in_scope_count": 0,
@@ -3647,14 +3774,24 @@ def _manual_order_scope_snapshot(
     snapshot["matched_plants"] = sorted(matched_plants)
     snapshot["matched_plant"] = snapshot["matched_plants"][0] if len(snapshot["matched_plants"]) == 1 else ""
 
-    selected_scope = snapshot["order_category_scope"]
+    selected_scopes = set(snapshot.get("order_category_scopes") or [])
+    selected_tokens = set(snapshot.get("order_category_tokens") or [])
     for so_num in matched_so_nums:
         lines = grouped_lines.get(so_num) or []
         if not lines:
             continue
+        if _group_contains_excluded_sku(lines, normalized_excluded_skus):
+            continue
+        group_tokens = _group_category_tokens(lines, sku_category_by_sku=sku_category_by_sku)
+        for token in group_tokens:
+            bucket = order_categories.line_category_bucket(token)
+            bucket_counts = snapshot["category_token_counts"].setdefault(bucket, {})
+            bucket_counts[token] = int(bucket_counts.get(token) or 0) + 1
         group_scope = _group_order_category_scope(lines, sku_category_by_sku=sku_category_by_sku)
         snapshot["category_counts"][group_scope] += 1
-        if selected_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL and group_scope != selected_scope:
+        if selected_scopes and group_scope not in selected_scopes:
+            continue
+        if selected_tokens and not group_tokens.intersection(selected_tokens):
             continue
         snapshot["orders_in_scope"] += 1
         snapshot["lines_in_scope"] += len(lines)
@@ -3670,10 +3807,20 @@ def _auto_order_scope_snapshot(
     orders_start_date=None,
     batch_end_date=None,
     batch_horizon_enabled=False,
-    order_category_scope=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+    order_category_scopes=None,
+    order_category_tokens=None,
+    excluded_skus=None,
 ):
     origin = _normalize_plant_code(origin_plant)
-    snapshot = _scope_snapshot_base("auto", order_category_scope)
+    normalized_scopes = _coerce_selected_order_category_scopes(order_category_scopes)
+    normalized_tokens = _coerce_selected_order_category_tokens(order_category_tokens)
+    normalized_excluded_skus = _coerce_excluded_skus(excluded_skus)
+    snapshot = _scope_snapshot_base(
+        "auto",
+        normalized_scopes,
+        order_category_tokens=normalized_tokens,
+        excluded_skus=normalized_excluded_skus,
+    )
     if not origin:
         return snapshot
 
@@ -3711,7 +3858,8 @@ def _auto_order_scope_snapshot(
             continue
         grouped_lines.setdefault(so_num, []).append(line)
 
-    selected_scope = snapshot["order_category_scope"]
+    selected_scopes = set(snapshot.get("order_category_scopes") or [])
+    selected_tokens = set(snapshot.get("order_category_tokens") or [])
     for so_num, lines in grouped_lines.items():
         if not lines:
             continue
@@ -3726,9 +3874,18 @@ def _auto_order_scope_snapshot(
             due_date_value = _parse_date(summary.get("due_date") or lines[0].get("due_date"))
             if due_date_value and due_date_value > batch_due_date:
                 continue
+        if _group_contains_excluded_sku(lines, normalized_excluded_skus):
+            continue
+        group_tokens = _group_category_tokens(lines, sku_category_by_sku=sku_category_by_sku)
+        for token in group_tokens:
+            bucket = order_categories.line_category_bucket(token)
+            bucket_counts = snapshot["category_token_counts"].setdefault(bucket, {})
+            bucket_counts[token] = int(bucket_counts.get(token) or 0) + 1
         group_scope = _group_order_category_scope(lines, sku_category_by_sku=sku_category_by_sku)
         snapshot["category_counts"][group_scope] += 1
-        if selected_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL and group_scope != selected_scope:
+        if selected_scopes and group_scope not in selected_scopes:
+            continue
+        if selected_tokens and not group_tokens.intersection(selected_tokens):
             continue
         snapshot["orders_in_scope"] += 1
         snapshot["lines_in_scope"] += len(lines)
@@ -4319,9 +4476,21 @@ def _serialize_session_config(form_data, params):
             "optimize_mode": params.get("optimize_mode") or "auto",
             "manual_order_input": form_data.get("manual_order_input") or "",
             "selected_so_nums": params.get("selected_so_nums") or [],
-            "order_category_scope": order_categories.normalize_order_category_scope(
-                params.get("order_category_scope"),
-                default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+            "order_category_scope": order_categories.primary_order_category_scope(
+                _coerce_selected_order_category_scopes(
+                    params.get("order_category_scopes"),
+                    fallback=params.get("order_category_scope"),
+                )
+            ),
+            "order_category_scopes": _coerce_selected_order_category_scopes(
+                params.get("order_category_scopes"),
+                fallback=params.get("order_category_scope"),
+            ),
+            "order_category_tokens": _coerce_selected_order_category_tokens(
+                params.get("order_category_tokens") or form_data.get("order_category_tokens")
+            ),
+            "excluded_skus": _coerce_excluded_skus(
+                params.get("excluded_skus") or form_data.get("excluded_skus")
             ),
         }
     )
@@ -6361,10 +6530,17 @@ def _reoptimize_form_data(plant_code, session_id=None):
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
     form_data["optimize_mode"] = optimize_mode
-    form_data["order_category_scope"] = order_categories.normalize_order_category_scope(
-        session_config.get("order_category_scope"),
-        default=form_data.get("order_category_scope", order_categories.ORDER_CATEGORY_SCOPE_ALL),
+    form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
+        session_config.get("order_category_scopes"),
+        fallback=session_config.get("order_category_scope"),
     )
+    form_data["order_category_scope"] = order_categories.primary_order_category_scope(
+        form_data.get("order_category_scopes")
+    )
+    form_data["order_category_tokens"] = _coerce_selected_order_category_tokens(
+        session_config.get("order_category_tokens")
+    )
+    form_data["excluded_skus"] = _coerce_excluded_skus(session_config.get("excluded_skus"))
     manual_order_input = (session_config.get("manual_order_input") or "").strip()
     if not manual_order_input and optimize_mode == "manual":
         selected_so_nums = session_config.get("selected_so_nums")
@@ -8307,6 +8483,17 @@ def orders():
     optimize_defaults["batch_end_date"] = _default_batch_end_date().strftime("%Y-%m-%d")
     optimize_defaults["orders_start_date"] = ""
     optimize_defaults["ignore_due_date"] = False
+    optimize_defaults["order_category_scopes"] = _coerce_selected_order_category_scopes(
+        optimize_defaults.get("order_category_scopes"),
+        fallback=optimize_defaults.get("order_category_scope"),
+    )
+    optimize_defaults["order_category_scope"] = order_categories.primary_order_category_scope(
+        optimize_defaults.get("order_category_scopes")
+    )
+    optimize_defaults["order_category_tokens"] = _coerce_selected_order_category_tokens(
+        optimize_defaults.get("order_category_tokens")
+    )
+    optimize_defaults["excluded_skus"] = []
     optimize_defaults["algorithm_version"] = "v2"
     optimize_defaults["compare_algorithms"] = False
 
@@ -8367,6 +8554,17 @@ def orders():
             optimize_defaults["state_filters"] = config.get("state_filters") or []
             optimize_defaults["customer_filters"] = config.get("customer_filters") or []
             optimize_defaults["ignore_due_date"] = bool(config.get("ignore_due_date", False))
+            optimize_defaults["order_category_scopes"] = _coerce_selected_order_category_scopes(
+                config.get("order_category_scopes"),
+                fallback=config.get("order_category_scope"),
+            )
+            optimize_defaults["order_category_scope"] = order_categories.primary_order_category_scope(
+                optimize_defaults.get("order_category_scopes")
+            )
+            optimize_defaults["order_category_tokens"] = _coerce_selected_order_category_tokens(
+                config.get("order_category_tokens")
+            )
+            optimize_defaults["excluded_skus"] = _coerce_excluded_skus(config.get("excluded_skus"))
             config_start_date = (config.get("orders_start_date") or "").strip()
             optimize_defaults["orders_start_date"] = config_start_date or optimize_defaults["orders_start_date"]
             optimize_defaults["algorithm_version"] = "v2"
@@ -8383,9 +8581,20 @@ def orders():
             default_capacity=_get_optimizer_default_settings().get("capacity_feet", 53.0),
         )
     )
-    last_upload = db.get_last_upload()
-    upload_history = db.list_upload_history(limit=12)
-    last_load_report_upload = db.get_last_load_report_upload()
+    optimize_defaults["order_category_scopes"] = _coerce_selected_order_category_scopes(
+        optimize_defaults.get("order_category_scopes"),
+        fallback=optimize_defaults.get("order_category_scope"),
+    )
+    optimize_defaults["order_category_scope"] = order_categories.primary_order_category_scope(
+        optimize_defaults.get("order_category_scopes")
+    )
+    optimize_defaults["order_category_tokens"] = _coerce_selected_order_category_tokens(
+        optimize_defaults.get("order_category_tokens")
+    )
+    optimize_defaults["excluded_skus"] = _coerce_excluded_skus(optimize_defaults.get("excluded_skus"))
+    last_upload = _with_uploaded_at_display(db.get_last_upload())
+    upload_history = _with_uploaded_at_display_many(db.list_upload_history(limit=12))
+    last_load_report_upload = _with_uploaded_at_display(db.get_last_load_report_upload())
     rejected_orders = sum(1 for order in orders_list if order.get("is_excluded"))
     due_dates = [
         _parse_date(order.get("due_date"))
@@ -8775,10 +8984,18 @@ def orders_optimize():
         mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
         form_data["optimize_mode"] = mode if mode in {"auto", "manual"} else "auto"
         form_data["manual_order_input"] = optimize_form.get("manual_order_input", "")
-        form_data["order_category_scope"] = order_categories.normalize_order_category_scope(
-            optimize_form.get("order_category_scope"),
-            default=form_data.get("order_category_scope", order_categories.ORDER_CATEGORY_SCOPE_ALL),
+        form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
+            optimize_form.getlist("order_category_scopes"),
+            fallback=optimize_form.get("order_category_scope"),
         )
+        form_data["order_category_scope"] = order_categories.primary_order_category_scope(
+            form_data.get("order_category_scopes")
+        )
+        form_data["order_category_tokens"] = _coerce_selected_order_category_tokens(
+            optimize_form.getlist("order_category_tokens")
+            + optimize_form.getlist("order_category_token")
+        )
+        form_data["excluded_skus"] = _coerce_excluded_skus(optimize_form.getlist("excluded_skus"))
         return form_data
 
     if active_session and active_session_status == "DRAFT" and not replace_session:
@@ -8923,9 +9140,9 @@ def orders_optimize():
     plants = allowed_plants
     states = _distinct([order.get("state") for order in snapshot_orders])
     customers = _distinct([order.get("cust_name") for order in snapshot_orders])
-    last_upload = db.get_last_upload()
-    upload_history = db.list_upload_history(limit=12)
-    last_load_report_upload = db.get_last_load_report_upload()
+    last_upload = _with_uploaded_at_display(db.get_last_upload())
+    upload_history = _with_uploaded_at_display_many(db.list_upload_history(limit=12))
+    last_load_report_upload = _with_uploaded_at_display(db.get_last_load_report_upload())
 
     card_filters = {
         "plants": allowed_plants,
@@ -9156,10 +9373,14 @@ def api_orders_scope_count():
     optimize_mode = (payload.get("optimize_mode") or "auto").strip().lower()
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
-    selected_order_category_scope = order_categories.normalize_order_category_scope(
-        payload.get("order_category_scope"),
-        default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
+    selected_order_category_scopes = _coerce_selected_order_category_scopes(
+        payload.get("order_category_scopes"),
+        fallback=payload.get("order_category_scope"),
     )
+    selected_order_category_tokens = _coerce_selected_order_category_tokens(
+        payload.get("order_category_tokens")
+    )
+    excluded_skus = _coerce_excluded_skus(payload.get("excluded_skus"))
 
     allowed_plants = _get_allowed_plants()
     origin_plant = _normalize_plant_code(payload.get("origin_plant"))
@@ -9167,8 +9388,14 @@ def api_orders_scope_count():
         return jsonify(
             {
                 "mode": optimize_mode,
-                "order_category_scope": selected_order_category_scope,
+                "order_category_scope": order_categories.primary_order_category_scope(
+                    selected_order_category_scopes
+                ),
+                "order_category_scopes": selected_order_category_scopes,
+                "order_category_tokens": selected_order_category_tokens,
+                "excluded_skus": excluded_skus,
                 "category_counts": order_categories.empty_category_counts(),
+                "category_token_counts": _empty_category_token_counts(),
                 "orders_in_scope": 0,
                 "lines_in_scope": 0,
             }
@@ -9179,7 +9406,9 @@ def api_orders_scope_count():
             payload.get("manual_order_input") or "",
             origin_plant=origin_plant,
             allowed_plants=allowed_plants,
-            order_category_scope=selected_order_category_scope,
+            order_category_scopes=selected_order_category_scopes,
+            order_category_tokens=selected_order_category_tokens,
+            excluded_skus=excluded_skus,
         )
         return jsonify(snapshot)
 
@@ -9190,7 +9419,9 @@ def api_orders_scope_count():
         orders_start_date=payload.get("orders_start_date"),
         batch_end_date=payload.get("batch_end_date"),
         batch_horizon_enabled=_coerce_bool_value(payload.get("batch_horizon_enabled")),
-        order_category_scope=selected_order_category_scope,
+        order_category_scopes=selected_order_category_scopes,
+        order_category_tokens=selected_order_category_tokens,
+        excluded_skus=excluded_skus,
     )
     return jsonify(snapshot)
 

@@ -3,6 +3,7 @@ from datetime import datetime, date
 import heapq
 import json
 import math
+import re
 
 import db
 from services import geo_utils, order_categories, stack_calculator
@@ -307,6 +308,8 @@ class Optimizer:
             "groups_without_customer_filter": 0,
             "groups_without_state_filter": 0,
             "groups_without_order_category_filter": 0,
+            "groups_without_order_category_token_filter": 0,
+            "groups_without_excluded_sku_filter": 0,
             "first_due_no_batch": None,
         }
         if not origin_plant:
@@ -366,10 +369,31 @@ class Optimizer:
 
         params_without_order_category = dict(params)
         params_without_order_category["order_category_scope"] = order_categories.ORDER_CATEGORY_SCOPE_ALL
+        params_without_order_category["order_category_scopes"] = []
         diagnostics["groups_without_order_category_filter"] = len(
             self._apply_order_group_filters(
                 grouped,
                 params_without_order_category,
+                min_due_date=min_due_date,
+                include_batch=True,
+            )
+        )
+        params_without_category_tokens = dict(params)
+        params_without_category_tokens["order_category_tokens"] = []
+        diagnostics["groups_without_order_category_token_filter"] = len(
+            self._apply_order_group_filters(
+                grouped,
+                params_without_category_tokens,
+                min_due_date=min_due_date,
+                include_batch=True,
+            )
+        )
+        params_without_excluded_skus = dict(params)
+        params_without_excluded_skus["excluded_skus"] = []
+        diagnostics["groups_without_excluded_sku_filter"] = len(
+            self._apply_order_group_filters(
+                grouped,
+                params_without_excluded_skus,
                 min_due_date=min_due_date,
                 include_batch=True,
             )
@@ -459,15 +483,33 @@ class Optimizer:
             sequence = {so_num: idx for idx, so_num in enumerate(selected_so_nums)}
             filtered.sort(key=lambda group: sequence.get(group.get("key"), len(sequence)))
 
-        order_category_scope = order_categories.normalize_order_category_scope(
-            params.get("order_category_scope"),
-            default=order_categories.ORDER_CATEGORY_SCOPE_ALL,
-        )
-        if order_category_scope != order_categories.ORDER_CATEGORY_SCOPE_ALL:
+        excluded_skus = self._normalize_excluded_skus(params.get("excluded_skus"))
+        if excluded_skus:
             filtered = [
                 group
                 for group in filtered
-                if self._group_order_category_scope(group) == order_category_scope
+                if not self._group_has_excluded_sku(group, excluded_skus)
+            ]
+
+        order_category_scopes = order_categories.normalize_order_category_scopes(
+            params.get("order_category_scopes"),
+            default=params.get("order_category_scope"),
+        )
+        if order_category_scopes:
+            allowed_scopes = set(order_category_scopes)
+            filtered = [
+                group
+                for group in filtered
+                if self._group_order_category_scope(group) in allowed_scopes
+            ]
+        selected_category_tokens = set(
+            order_categories.normalize_order_category_tokens(params.get("order_category_tokens"))
+        )
+        if selected_category_tokens:
+            filtered = [
+                group
+                for group in filtered
+                if self._group_matches_category_tokens(group, selected_category_tokens)
             ]
         return filtered
 
@@ -2358,6 +2400,63 @@ class Optimizer:
         )
         group["order_category_scope"] = resolved_scope
         return resolved_scope
+
+    def _normalize_excluded_skus(self, values):
+        if values is None:
+            source = []
+        elif isinstance(values, str):
+            source = [part.strip() for part in re.split(r"[\s,;]+", values)]
+        elif isinstance(values, (list, tuple, set)):
+            source = []
+            for value in values:
+                source.extend([part.strip() for part in re.split(r"[\s,;]+", str(value or ""))])
+        else:
+            source = [str(values or "").strip()]
+        cleaned = []
+        seen = set()
+        for raw in source:
+            sku = str(raw or "").strip().upper()
+            canonical = self._canonicalize_sku_token(sku)
+            if not sku or not canonical or canonical in seen:
+                continue
+            seen.add(canonical)
+            cleaned.append(sku)
+        return cleaned
+
+    def _canonicalize_sku_token(self, value):
+        text = str(value or "").strip().upper()
+        if not text:
+            return ""
+        return re.sub(r"[^A-Z0-9]+", "", text)
+
+    def _group_has_excluded_sku(self, group, excluded_skus):
+        if not group or not excluded_skus:
+            return False
+        excluded = set()
+        for value in excluded_skus:
+            canonical = self._canonicalize_sku_token(value)
+            if canonical:
+                excluded.add(canonical)
+        if not excluded:
+            return False
+        for line in (group.get("lines") or []):
+            for candidate in (line.get("sku"), line.get("item")):
+                token = self._canonicalize_sku_token(candidate)
+                if token and token in excluded:
+                    return True
+        return False
+
+    def _group_matches_category_tokens(self, group, selected_tokens):
+        if not selected_tokens:
+            return True
+        if not isinstance(group, dict):
+            return False
+        category_tokens = {
+            str(token or "").strip().upper()
+            for token in (group.get("categories") or [])
+            if str(token or "").strip()
+        }
+        return bool(category_tokens.intersection(selected_tokens))
 
     def _coerce_optional_non_negative_int(self, value):
         if value is None:

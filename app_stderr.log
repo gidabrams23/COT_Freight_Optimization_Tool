@@ -1,0 +1,507 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\order_categories.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\load_builder.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\load_builder.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+127.0.0.1 - - [09/Mar/2026 16:58:05] "GET /upload HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 16:58:05] "GET /login?next=/upload? HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:05] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:05] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [09/Mar/2026 16:58:08] "POST /login?next=/upload? HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 16:58:08] "GET /upload HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 16:58:10] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:10] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 16:58:10] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 16:58:10] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 16:58:11] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:11] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:12] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:57] "GET /loads HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 16:58:58] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:59] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 16:58:59] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 16:58:59] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 16:58:59] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:58:59] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:59:27] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:59:31] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 16:59:33] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:00:02] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:00:29] "GET /settings HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:00:29] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:00:29] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:00:29] "GET /static/rates_v2.js HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:00:29] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:00:42] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:00:42] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:00:42] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:00:42] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:00:42] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:00:43] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:00:43] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:01:46] "GET /orders?plants=NV HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:01:46] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:01:46] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:01:46] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:01:46] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:01:46] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:01:52] "GET /api/orders/12546915/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:02:22] "POST /api/orders/scope-count HTTP/1.1" 200 -
+C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\app.py:950: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  seen_at = datetime.utcnow().isoformat(timespec="seconds")
+127.0.0.1 - - [09/Mar/2026 17:02:58] "POST /api/orders/upload HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:17] "POST /orders/load-report/upload HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:03:17] "GET /orders?load_report_status=ok HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:18] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:03:18] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:03:18] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:03:18] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:18] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:20] "GET /orders?load_report_status=ok HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:20] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:03:20] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:03:20] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:03:20] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:21] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:24] "GET /api/orders/12547030/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:25] "GET /api/orders/12546044/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:27] "GET /api/orders/12603387/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:28] "GET /api/orders/12606584/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:29] "GET /api/orders/12603077/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:39] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:44] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:49] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:03:55] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:04:03] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:04:27] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:13:24] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:15:44] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:15:45] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:15:50] "GET /orders?load_report_status=ok HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:15:50] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:15:50] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:15:50] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:15:51] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:15:51] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:15:52] "POST /api/orders/scope-count HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\order_categories.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\load_builder.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\load_builder.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+127.0.0.1 - - [09/Mar/2026 17:22:40] "GET /orders?load_report_status=ok&plants=ALL HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:22:40] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:22:40] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:22:40] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:22:41] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:22:41] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:26] "GET /loads HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:25:27] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:27] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:27] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:27] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:27] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:28] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:28] "GET /planning-sessions HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:28] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:28] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:28] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:28] "GET /planning-sessions/250/summary HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:30] "GET /planning-sessions/250/resume HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:25:31] "GET /loads?session_id=250 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:31] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:31] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:32] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:25:32] "GET /loads/491/schematic?tab=draft HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+Routing provider failed, using fallback: Routing matrix returned unreachable leg(s).
+127.0.0.1 - - [09/Mar/2026 17:25:41] "GET /api/loads/500/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:41] "GET /loads/501/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:41] "GET /loads/503/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:42] "GET /loads/509/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:42] "GET /loads/499/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:42] "GET /loads/500/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:25:42] "GET /api/loads/503/route-geometry HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+127.0.0.1 - - [09/Mar/2026 17:26:38] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:26:38] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:26:38] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:26:38] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:26:38] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:26:39] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:26:39] "POST /api/orders/scope-count HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+127.0.0.1 - - [09/Mar/2026 17:42:49] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:42:49] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:42:49] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:42:49] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:42:50] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:42:50] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:42:50] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:43:35] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:43:55] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:43:56] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:43:57] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:00] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:01] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:02] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:04] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:05] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:06] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:07] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:44:07] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:03] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:06] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:08] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:10] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:10] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:11] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:12] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:13] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:14] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:17] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:17] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:20] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:20] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:22] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:26] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:28] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:32] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:34] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:35] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:36] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:37] "POST /orders/optimize HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:46:38] "GET /loads?plants=GA&session_id=251 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:38] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:46:38] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:46:38] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:46:38] "GET /loads/513/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:39] "GET /api/loads/513/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:46] "POST /loads/clear HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:46:46] "GET /loads?plants=GA&tab=draft&sort=flow HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:46:47] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:47] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:46:47] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:46:47] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:46:47] "GET /api/orders/12605555/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:46:47] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:48:56] "POST /api/orders/scope-count HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+127.0.0.1 - - [09/Mar/2026 17:54:06] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:54:06] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:54:06] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:54:06] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:54:07] "GET /api/orders/12605555/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:54:07] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:00] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:02] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:02] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:02] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:02] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:02] "GET /api/orders/12605555/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:02] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:03] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:15] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:42] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:44] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:45] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:46] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:47] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:48] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:49] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:51] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:52] "POST /orders/optimize HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:55:52] "GET /loads?plants=GA&session_id=252 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:52] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:52] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:52] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:52] "GET /loads/514/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:54] "GET /api/loads/514/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "POST /loads/clear HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "GET /loads?plants=GA&tab=draft&sort=flow HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "GET /api/orders/12605555/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:55:58] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:56:02] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:52] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:53] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:53] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:53] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:57:53] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:57:53] "GET /api/orders/12605555/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:53] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:54] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:56] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:57:58] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:27] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:36] "GET /orders?needs_session=1&plants=NV HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:36] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:59:36] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:59:36] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 17:59:37] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:37] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:41] "GET /api/orders/12547030/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:42] "GET /api/orders/12546044/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:44] "GET /api/orders/12603077/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:48] "GET /api/orders/12604251/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:49] "GET /api/orders/12604252/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:50] "GET /api/orders/12604741/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:51] "GET /api/orders/12606584/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 17:59:52] "GET /api/orders/12603387/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:00:02] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:00:08] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:00:17] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:00:20] "POST /orders/optimize HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:00:20] "GET /loads?plants=NV&session_id=253 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:00:20] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:00:20] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:00:20] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:00:20] "GET /loads/519/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:00:22] "GET /api/loads/519/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:00:28] "GET /loads/520/schematic?tab=draft HTTP/1.1" 200 -
+Routing provider failed, using fallback: Routing matrix returned unreachable leg(s).
+127.0.0.1 - - [09/Mar/2026 18:00:28] "GET /api/loads/520/route-geometry HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\load_builder.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+127.0.0.1 - - [09/Mar/2026 18:07:00] "POST /loads/clear HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:07:00] "GET /loads?plants=NV&tab=draft&sort=flow HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:07:01] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:01] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:07:01] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:07:01] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:07:02] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:02] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:03] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:09] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:20] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:21] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:22] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:25] "POST /orders/optimize HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:07:25] "GET /loads?plants=NV&session_id=254 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:25] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:07:25] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:07:25] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:07:26] "GET /loads/532/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:07:27] "GET /api/loads/532/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:00] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:00] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:00] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:00] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:01] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:01] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:02] "GET /planning-sessions HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:02] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:02] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:02] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:02] "GET /planning-sessions/254/summary HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:05] "POST /planning-sessions/254/archive HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:11:05] "GET /planning-sessions?plant=&planner=&start=&end=&archived_session_id=254 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:05] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:05] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:05] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:05] "GET /planning-sessions/254/summary HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:06] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:07] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:07] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:07] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:07] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:07] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:07] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:11] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:11] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:12] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:22] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:27] "GET /api/orders/12603077/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:47] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:49] "POST /orders/optimize HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:11:50] "GET /loads?plants=NV&session_id=255 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:50] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:50] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:50] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:11:50] "GET /api/loads/548/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:50] "GET /loads/548/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:52] "GET /loads/557/schematic?tab=draft HTTP/1.1" 200 -
+Routing provider failed, using fallback: Routing matrix returned unreachable leg(s).
+127.0.0.1 - - [09/Mar/2026 18:11:52] "GET /api/loads/557/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:53] "GET /loads/546/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:54] "GET /api/loads/546/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:11:54] "GET /loads/547/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:12:02] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:12:02] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:12:02] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:12:02] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:12:03] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:12:03] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:12:04] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:12:04] "GET /api/loads/547/route-geometry HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+ * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 115-064-639
+127.0.0.1 - - [09/Mar/2026 18:15:23] "GET /orders HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:23] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:15:23] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:15:23] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:15:23] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:23] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:29] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:35] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:37] "POST /api/orders/scope-count HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:40] "POST /orders/optimize HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:15:41] "GET /loads?plants=NV&session_id=256 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:41] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:15:41] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:15:41] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:15:41] "GET /loads/563/schematic?tab=draft HTTP/1.1" 200 -
+Routing provider failed, using fallback: Routing matrix returned unreachable leg(s).
+127.0.0.1 - - [09/Mar/2026 18:15:42] "GET /api/loads/563/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:46] "GET /loads/562/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:47] "GET /api/loads/562/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:50] "GET /loads/565/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:51] "GET /api/loads/565/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:15:55] "GET /loads/566/schematic?tab=draft HTTP/1.1" 200 -
+Routing provider failed, using fallback: Routing matrix returned unreachable leg(s).
+127.0.0.1 - - [09/Mar/2026 18:15:55] "GET /api/loads/566/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:16:21] "GET /loads/564/schematic?tab=draft HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:16:27] "GET /api/loads/564/route-geometry HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:16:31] "POST /loads/clear HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:16:31] "GET /loads?plants=NV&tab=draft&sort=flow HTTP/1.1" 302 -
+127.0.0.1 - - [09/Mar/2026 18:16:31] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:16:31] "GET /static/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:16:31] "GET /static/images/cot-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:16:31] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Mar/2026 18:16:32] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2026 18:16:32] "POST /api/orders/scope-count HTTP/1.1" 200 -
