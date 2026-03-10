@@ -204,82 +204,54 @@
                             </div>
                           </div>
                         </div>
-                        {% set ns = namespace(lowes=None, tractor=None, ace=None, trailers=None) %}
-                        {% for group in strategic_customer_groups or [] %}
-                          {% set label = group.label | lower %}
-                          {% if ns.lowes is none and 'lowe' in label %}
-                            {% set ns.lowes = group %}
-                          {% elif ns.tractor is none and 'tractor' in label %}
-                            {% set ns.tractor = group %}
-                          {% elif ns.ace is none and 'ace' in label %}
-                            {% set ns.ace = group %}
-                          {% elif ns.trailers is none and 'trailer' in label %}
-                            {% set ns.trailers = group %}
-                          {% endif %}
-                        {% endfor %}
                         <div class="optimize-filter-col optimize-filter-col-customers">
-                          <div class="optimize-filter-actions">
-                            <span class="meta-label">Customer Selection</span>
-                            <div class="optimize-filter-action-buttons">
-                              <label class="checkbox-pill optimize-all-customers-pill">
-                                <input type="checkbox" data-customer-all>
-                                <span>All Customers</span>
-                              </label>
-                              <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
+                          <div class="optimize-filter-customer-head">
+                            <div class="optimize-filter-actions">
+                              <span class="meta-label">Customer Selection</span>
+                              <div class="optimize-filter-action-buttons">
+                                <label class="checkbox-pill optimize-all-customers-pill">
+                                  <input type="checkbox" data-customer-all>
+                                  <span>All Customers</span>
+                                </label>
+                                <button class="btn-ghost btn-xs" type="button" data-clear-all="customers">Clear</button>
+                              </div>
+                            </div>
+                            <div class="optimize-dropdown optimize-dropdown-inline">
+                              <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
+                                Add Customers
+                                <span class="material-symbols-outlined">expand_more</span>
+                              </button>
+                              <div class="dropdown-panel hidden" data-dropdown-panel="customers">
+                                <div class="dropdown-search">
+                                  <span class="material-symbols-outlined">search</span>
+                                  <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
+                                </div>
+                                {% if customers %}
+                                  <div class="dropdown-scroll" data-customer-list>
+                                    {% for cust in customers %}
+                                      <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
+                                        <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input>
+                                        <span>{{ cust }}</span>
+                                      </label>
+                                    {% endfor %}
+                                  </div>
+                                  <div class="empty-state hidden" data-customer-search-empty>No matching customers.</div>
+                                {% else %}
+                                  <div class="empty-state">No customers available.</div>
+                                {% endif %}
+                              </div>
                             </div>
                           </div>
                           <div class="customer-chip-row customer-chip-row-static" data-customer-chips>
-                            {% if ns.lowes %}
+                            {% for group in strategic_customer_groups or [] %}
                               <label class="checkbox-pill">
-                                <input type="checkbox" data-strategic-key="{{ ns.lowes.key }}">
-                                <span>{{ ns.lowes.label }}</span>
+                                <input type="checkbox" data-strategic-key="{{ group.key }}">
+                                <span>{{ group.label }}</span>
                               </label>
-                            {% endif %}
-                            {% if ns.tractor %}
-                              <label class="checkbox-pill">
-                                <input type="checkbox" data-strategic-key="{{ ns.tractor.key }}">
-                                <span>{{ ns.tractor.label }}</span>
-                              </label>
-                            {% endif %}
-                            {% if ns.ace %}
-                              <label class="checkbox-pill">
-                                <input type="checkbox" data-strategic-key="{{ ns.ace.key }}">
-                                <span>{{ ns.ace.label }}</span>
-                              </label>
-                            {% endif %}
-                            {% if ns.trailers %}
-                              <label class="checkbox-pill">
-                                <input type="checkbox" data-strategic-key="{{ ns.trailers.key }}">
-                                <span>{{ ns.trailers.label }}</span>
-                              </label>
-                            {% endif %}
+                            {% endfor %}
                           </div>
                           <p class="customer-selected-summary" data-selected-summary></p>
                           <div class="customer-selected hidden" data-selected-chips></div>
-                          <div class="optimize-dropdown">
-                            <button class="dropdown-trigger" type="button" data-dropdown-toggle="customers">
-                              Add Customers
-                              <span class="material-symbols-outlined">expand_more</span>
-                            </button>
-                            <div class="dropdown-panel hidden" data-dropdown-panel="customers">
-                              <div class="dropdown-search">
-                                <span class="material-symbols-outlined">search</span>
-                                <input class="select-field" type="text" placeholder="Search customers..." data-customer-search>
-                              </div>
-                              {% if customers %}
-                                <div class="dropdown-scroll" data-customer-list>
-                                  {% for cust in customers %}
-                                    <label class="checkbox-pill" data-customer-item="{{ cust | lower }}">
-                                      <input type="checkbox" name="opt_customers" value="{{ cust }}" data-customer-input>
-                                      <span>{{ cust }}</span>
-                                    </label>
-                                  {% endfor %}
-                                </div>
-                              {% else %}
-                                <div class="empty-state">No customers available.</div>
-                              {% endif %}
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </section>
@@ -1461,25 +1433,23 @@
         }
       }
 
-      function clearCategoryTokens(scope) {
-        document.querySelectorAll(`[data-order-category-token][data-token-bucket="${scope}"]`).forEach((input) => {
-          input.checked = false;
-        });
-      }
-
-      function ensureCategoryScopeSelected(scope) {
-        const parentInput = optimizeCategoryInputs.find(
-          (input) => ((input.value || '').toString().trim().toLowerCase() === scope),
-        );
-        if (parentInput) parentInput.checked = true;
-      }
-
       function toggleCategoryTokenPanel(scope, open) {
         const key = (scope || '').toString().trim().toLowerCase();
         const panel = optimizeCategoryTokenContainers.get(key);
         const button = optimizeCategoryExpandButtons.get(key);
         if (!panel || !button) return;
         const isOpen = typeof open === 'boolean' ? open : panel.classList.contains('hidden');
+        if (isOpen) {
+          optimizeCategoryTokenContainers.forEach((otherPanel, otherScope) => {
+            if (otherScope === key) return;
+            const otherButton = optimizeCategoryExpandButtons.get(otherScope);
+            if (otherPanel) otherPanel.classList.add('hidden');
+            if (otherButton) {
+              otherButton.classList.remove('is-open');
+              otherButton.setAttribute('aria-expanded', 'false');
+            }
+          });
+        }
         panel.classList.toggle('hidden', !isOpen);
         button.classList.toggle('is-open', isOpen);
         button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
@@ -2136,9 +2106,6 @@
     }
     optimizeCategoryInputs.forEach((input) => {
       input.addEventListener('change', () => {
-        if (!input.checked) {
-          clearCategoryTokens((input.value || '').toString().trim().toLowerCase());
-        }
         syncCategoryAllToggle();
         updateCategoryMeta();
         scheduleOptimizeScopeRefresh();
@@ -2149,14 +2116,21 @@
         toggleCategoryTokenPanel(scope);
       });
     });
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('[data-order-category-group]')) return;
+      optimizeCategoryTokenContainers.forEach((panel, scope) => {
+        if (panel) panel.classList.add('hidden');
+        const button = optimizeCategoryExpandButtons.get(scope);
+        if (button) {
+          button.classList.remove('is-open');
+          button.setAttribute('aria-expanded', 'false');
+        }
+      });
+    });
     if (optimizePanel) {
       optimizePanel.addEventListener('change', (event) => {
         const tokenInput = event.target.closest('[data-order-category-token]');
         if (!tokenInput) return;
-        const bucket = (tokenInput.dataset.tokenBucket || '').toString().trim().toLowerCase();
-        if (tokenInput.checked && bucket) {
-          ensureCategoryScopeSelected(bucket);
-        }
         syncCategoryAllToggle();
         updateCategoryMeta();
         scheduleOptimizeScopeRefresh();
@@ -2336,6 +2310,18 @@
         const isOpen = !panel.classList.contains('hidden');
         closeAllDropdowns();
         panel.classList.toggle('hidden', isOpen);
+        if (!isOpen && key === 'customers') {
+          const searchInput = panel.querySelector('[data-customer-search]');
+          if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+          }
+          panel.querySelectorAll('[data-customer-item]').forEach((item) => {
+            item.style.display = '';
+          });
+          const emptyState = panel.querySelector('[data-customer-search-empty]');
+          if (emptyState) emptyState.classList.add('hidden');
+        }
       });
     });
 
@@ -2411,6 +2397,7 @@
 
     const customerList = document.querySelector('[data-customer-list]');
     const customerSearch = document.querySelector('[data-customer-search]');
+    const customerSearchEmpty = document.querySelector('[data-customer-search-empty]');
     const customerInputs = new Map();
     const selectedSummary = document.querySelector('[data-selected-summary]');
     const selectedChips = document.querySelector('[data-selected-chips]');
@@ -2455,6 +2442,29 @@
       } else {
         checkbox.checked = false;
         checkbox.indeterminate = true;
+      }
+    }
+
+    function normalizeCustomerSearchValue(value) {
+      return (value || '')
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+    }
+
+    function applyCustomerSearchFilter() {
+      if (!customerList) return;
+      const term = normalizeCustomerSearchValue(customerSearch ? customerSearch.value : '');
+      let visibleCount = 0;
+      customerList.querySelectorAll('[data-customer-item]').forEach((item) => {
+        const label = normalizeCustomerSearchValue(item.textContent || item.dataset.customerItem || '');
+        const matches = !term || label.includes(term);
+        item.style.display = matches ? '' : 'none';
+        if (matches) visibleCount += 1;
+      });
+      if (customerSearchEmpty) {
+        customerSearchEmpty.classList.toggle('hidden', visibleCount !== 0);
       }
     }
 
@@ -2560,12 +2570,10 @@
 
     if (customerSearch && customerList) {
       customerSearch.addEventListener('input', () => {
-        const term = customerSearch.value.trim().toLowerCase();
-        customerList.querySelectorAll('[data-customer-item]').forEach((item) => {
-          const label = (item.dataset.customerItem || '').toLowerCase();
-          const matches = !term || label.includes(term);
-          item.classList.toggle('hidden', !matches);
-        });
+        applyCustomerSearchFilter();
+      });
+      customerSearch.addEventListener('search', () => {
+        applyCustomerSearchFilter();
       });
     }
 
