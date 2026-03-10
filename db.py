@@ -2519,12 +2519,16 @@ def list_eligible_manual_orders(origin_plant, search=None, limit=25):
         return [dict(row) for row in rows]
 
 
-def list_order_lines_for_optimization(origin_plant, min_due_date=None):
+def list_order_lines_for_optimization(origin_plant, min_due_date=None, session_id=None):
     due_clause = ""
     params = [origin_plant]
     if min_due_date:
         due_clause = "AND DATE(ol.due_date) >= DATE(?)"
         params.append(min_due_date)
+    manual_exclusion_clause = ""
+    if session_id:
+        manual_exclusion_clause = "AND l.planning_session_id = ?"
+        params.append(session_id)
     params.append(origin_plant)
     with get_connection() as connection:
         rows = connection.execute(
@@ -2534,6 +2538,21 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None):
             WHERE ol.is_excluded = 0
               AND ol.plant = ?
               {due_clause}
+              AND NOT EXISTS (
+                SELECT 1
+                FROM load_lines ll
+                JOIN loads l ON l.id = ll.load_id
+                JOIN order_lines assigned ON assigned.id = ll.order_line_id
+                LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
+                WHERE assigned.so_num = ol.so_num
+                  AND l.origin_plant = ol.plant
+                  AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'MANUAL'
+                  AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT', 'APPROVED')
+                  AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+                  AND COALESCE(ps.is_sandbox, 0) = 0
+                  {manual_exclusion_clause}
+                LIMIT 1
+              )
               AND ol.so_num IN (
                 SELECT so_num
                 FROM orders
@@ -2559,15 +2578,35 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None):
         return [dict(row) for row in rows]
 
 
-def list_orders_for_optimization(origin_plant):
+def list_orders_for_optimization(origin_plant, session_id=None):
+    params = [origin_plant]
+    manual_exclusion_clause = ""
+    if session_id:
+        manual_exclusion_clause = "AND l.planning_session_id = ?"
+        params.append(session_id)
     with get_connection() as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT *
             FROM orders
             WHERE is_excluded = 0
               AND plant = ?
               AND COALESCE(UPPER(status), 'OPEN') != 'CLOSED'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM load_lines ll
+                JOIN loads l ON l.id = ll.load_id
+                JOIN order_lines assigned ON assigned.id = ll.order_line_id
+                LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
+                WHERE assigned.so_num = orders.so_num
+                  AND l.origin_plant = orders.plant
+                  AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'MANUAL'
+                  AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT', 'APPROVED')
+                  AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+                  AND COALESCE(ps.is_sandbox, 0) = 0
+                  {manual_exclusion_clause}
+                LIMIT 1
+              )
               AND NOT EXISTS (
                 SELECT 1
                 FROM load_report_assignments lra
@@ -2582,7 +2621,7 @@ def list_orders_for_optimization(origin_plant):
               )
             ORDER BY due_date ASC, id ASC
             """,
-            (origin_plant,),
+            params,
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -2636,6 +2675,33 @@ def update_orders_excluded(order_ids, is_excluded):
                 [(1 if is_excluded else 0, so_num) for so_num in so_nums],
             )
         connection.commit()
+
+
+def set_order_excluded_by_so_num(origin_plant, so_num, is_excluded):
+    if not origin_plant or not so_num:
+        return 0
+    excluded_value = 1 if is_excluded else 0
+    with get_connection() as connection:
+        order_cursor = connection.execute(
+            """
+            UPDATE orders
+            SET is_excluded = ?
+            WHERE plant = ?
+              AND so_num = ?
+            """,
+            (excluded_value, origin_plant, so_num),
+        )
+        connection.execute(
+            """
+            UPDATE order_lines
+            SET is_excluded = ?
+            WHERE plant = ?
+              AND so_num = ?
+            """,
+            (excluded_value, origin_plant, so_num),
+        )
+        connection.commit()
+        return int(order_cursor.rowcount or 0)
 
 
 def include_orders_for_plants(plants=None):
@@ -4401,6 +4467,86 @@ def remove_order_from_load(load_id, order_id):
             (load_id,),
         )
         connection.commit()
+
+
+def remove_orders_from_unapproved_loads(
+    origin_plant,
+    so_nums,
+    session_id=None,
+    exclude_load_id=None,
+):
+    cleaned_so_nums = [str(value).strip() for value in (so_nums or []) if str(value or "").strip()]
+    if not origin_plant or not cleaned_so_nums:
+        return {"removed_lines": 0, "deleted_loads": 0}
+
+    so_placeholders = ", ".join("?" for _ in cleaned_so_nums)
+    where_parts = [
+        "l.origin_plant = ?",
+        "COALESCE(UPPER(l.status), '') != 'APPROVED'",
+    ]
+    params = [origin_plant]
+    if session_id:
+        where_parts.append("l.planning_session_id = ?")
+        params.append(session_id)
+    if exclude_load_id:
+        where_parts.append("l.id != ?")
+        params.append(exclude_load_id)
+    where_clause = " AND ".join(where_parts)
+
+    with get_connection() as connection:
+        matching_load_rows = connection.execute(
+            f"""
+            SELECT DISTINCT l.id
+            FROM loads l
+            JOIN load_lines ll ON ll.load_id = l.id
+            JOIN order_lines ol ON ol.id = ll.order_line_id
+            WHERE {where_clause}
+              AND ol.so_num IN ({so_placeholders})
+            """,
+            params + cleaned_so_nums,
+        ).fetchall()
+        affected_load_ids = [int(row["id"]) for row in matching_load_rows if row["id"] is not None]
+        if not affected_load_ids:
+            return {"removed_lines": 0, "deleted_loads": 0}
+
+        load_placeholders = ", ".join("?" for _ in affected_load_ids)
+        deleted_cursor = connection.execute(
+            f"""
+            DELETE FROM load_lines
+            WHERE load_id IN ({load_placeholders})
+              AND order_line_id IN (
+                SELECT id
+                FROM order_lines
+                WHERE so_num IN ({so_placeholders})
+              )
+            """,
+            affected_load_ids + cleaned_so_nums,
+        )
+        connection.execute(
+            f"DELETE FROM load_schematic_overrides WHERE load_id IN ({load_placeholders})",
+            affected_load_ids,
+        )
+
+        deleted_load_count = 0
+        for target_load_id in affected_load_ids:
+            remaining = connection.execute(
+                "SELECT COUNT(*) AS total FROM load_lines WHERE load_id = ?",
+                (target_load_id,),
+            ).fetchone()
+            remaining_total = int(remaining["total"] or 0) if remaining else 0
+            if remaining_total > 0:
+                continue
+            connection.execute(
+                "DELETE FROM load_schematic_overrides WHERE load_id = ?",
+                (target_load_id,),
+            )
+            connection.execute("DELETE FROM loads WHERE id = ?", (target_load_id,))
+            deleted_load_count += 1
+        connection.commit()
+        return {
+            "removed_lines": int(deleted_cursor.rowcount or 0),
+            "deleted_loads": deleted_load_count,
+        }
 
 
 def count_load_lines(load_id):

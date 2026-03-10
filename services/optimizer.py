@@ -281,9 +281,11 @@ class Optimizer:
 
     def _build_order_groups(self, params):
         min_due_date = self._resolve_min_due_date(params)
+        session_id = params.get("session_id")
         orders = db.list_order_lines_for_optimization(
             params["origin_plant"],
             min_due_date=min_due_date,
+            session_id=session_id,
         )
         if not orders:
             return []
@@ -315,9 +317,16 @@ class Optimizer:
         if not origin_plant:
             return diagnostics
 
-        diagnostics["open_orders_total"] = len(db.list_orders_for_optimization(origin_plant))
+        session_id = params.get("session_id")
+        diagnostics["open_orders_total"] = len(
+            db.list_orders_for_optimization(origin_plant, session_id=session_id)
+        )
         min_due_date = self._resolve_min_due_date(params)
-        order_lines = db.list_order_lines_for_optimization(origin_plant, min_due_date=min_due_date)
+        order_lines = db.list_order_lines_for_optimization(
+            origin_plant,
+            min_due_date=min_due_date,
+            session_id=session_id,
+        )
         diagnostics["eligible_order_lines"] = len(order_lines)
         if not order_lines:
             return diagnostics

@@ -9339,10 +9339,10 @@ button.plant-card {
   font-size: 9px;
   font-weight: 700;
   justify-content: center;
-  max-width: 84px;
+  max-width: 148px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   align-self: flex-start;
   cursor: pointer;
   pointer-events: auto;

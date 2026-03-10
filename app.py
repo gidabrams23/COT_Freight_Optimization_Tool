@@ -9,6 +9,7 @@ import threading
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from zoneinfo import ZoneInfo
 
 from flask import (
@@ -712,6 +713,26 @@ def _safe_next_url(value):
     if value.startswith("/"):
         return value
     return None
+
+
+def _append_query_param(url_value, key, value):
+    text = (url_value or "").strip()
+    if not text or not key:
+        return url_value
+    parsed = urlparse(text)
+    params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    params[str(key)] = str(value)
+    updated_query = urlencode(params, doseq=True)
+    return urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            updated_query,
+            parsed.fragment,
+        )
+    )
 
 
 def _is_admin_only_path(path_value):
@@ -3206,20 +3227,13 @@ def _compute_load_progress_snapshot(plant_scope=None, all_loads=None, allowed_pl
     all_loads = [load for load in all_loads if load.get("origin_plant") in allowed_plants]
     loads_for_progress = [load for load in all_loads if load.get("origin_plant") in plant_scope]
 
-    optimized_loads = []
-    for load in loads_for_progress:
-        build_source = (load.get("build_source") or "OPTIMIZED").upper()
-        if build_source == "MANUAL":
-            continue
-        optimized_loads.append(load)
-
-    optimized_order_ids = {
+    scoped_order_ids = {
         line.get("so_num")
-        for load in optimized_loads
+        for load in loads_for_progress
         for line in load.get("lines", [])
         if line.get("so_num")
     }
-    order_status_map = {so_num: "UNASSIGNED" for so_num in optimized_order_ids if so_num}
+    order_status_map = {so_num: "UNASSIGNED" for so_num in scoped_order_ids if so_num}
 
     status_priority = {
         "UNASSIGNED": 0,
@@ -4959,6 +4973,24 @@ def _calculate_load_schematic(
         upper_deck_exception_overhang_allowance_ft=assumptions.get("upper_deck_exception_overhang_allowance_ft"),
         upper_deck_exception_categories=assumptions.get("upper_deck_exception_categories"),
     )
+    for pos in schematic.get("positions", []) or []:
+        order_stop_map = {}
+        for item in pos.get("items", []) or []:
+            order_id = _normalize_order_identifier(item.get("order_id"))
+            if not order_id:
+                continue
+            stop_value = _coerce_int_value(item.get("stop_sequence"), 0)
+            normalized_stop = stop_value if stop_value > 0 else 999999
+            current = order_stop_map.get(order_id)
+            if current is None or normalized_stop < current:
+                order_stop_map[order_id] = normalized_stop
+        pos["order_action_ids"] = [
+            order_id
+            for order_id, _ in sorted(
+                order_stop_map.items(),
+                key=lambda entry: (entry[1], entry[0]),
+            )
+        ]
     return schematic, line_items, order_numbers
 
 
@@ -9748,21 +9780,25 @@ def loads():
         group_map = {}
         for line in lines:
             order_id = _normalize_order_identifier(line.get("so_num"), fallback="UNKNOWN")
-            group = group_map.get(order_id)
+            stop_state = (line.get("state") or "").strip().upper()
+            stop_zip = geo_utils.normalize_zip(line.get("zip")) or (line.get("zip") or "").strip()
+            group_key = f"{order_id}|{stop_state}|{stop_zip}"
+            group = group_map.get(group_key)
             if not group:
                 group = {
+                    "group_key": group_key,
                     "order_id": order_id,
                     "due_date": line.get("due_date") or "",
                     "cust_name": line.get("cust_name") or "",
                     "city": line.get("city") or "",
-                    "state": line.get("state") or "",
-                    "zip": line.get("zip") or "",
+                    "state": stop_state,
+                    "zip": stop_zip,
                     "total_qty": 0,
                     "status_label": "",
                     "sku_set": set(),
                     "lines": [],
                 }
-                group_map[order_id] = group
+                group_map[group_key] = group
                 manifest_groups.append(group)
 
             group["total_qty"] += line.get("qty") or 0
@@ -10105,28 +10141,30 @@ def loads():
             map_stops[-1]["type"] = "final"
         load["map_stops"] = map_stops
 
-    optimized_loads = []
-    for load in loads_data:
-        build_source = (load.get("build_source") or "OPTIMIZED").upper()
-        if build_source == "MANUAL":
-            continue
-        optimized_loads.append(load)
-    optimized_order_ids = {
+    summary_loads = [
+        load
+        for load in loads_data
+        if (load.get("status") or STATUS_PROPOSED).upper() in {STATUS_PROPOSED, STATUS_DRAFT}
+    ]
+    if not summary_loads:
+        summary_loads = list(loads_data)
+
+    summary_order_ids = {
         line.get("so_num")
-        for load in optimized_loads
+        for load in summary_loads
         for line in load.get("lines", [])
         if line.get("so_num")
     }
-    optimized_total_spend = sum((load.get("estimated_cost") or 0) for load in optimized_loads)
-    optimized_total_units = sum((load.get("total_units") or 0) for load in optimized_loads)
-    optimized_util_values = [load.get("utilization_pct") or 0 for load in optimized_loads]
-    optimized_avg_util = (
-        round(sum(optimized_util_values) / len(optimized_util_values), 1)
-        if optimized_util_values
+    summary_total_spend = sum((load.get("estimated_cost") or 0) for load in summary_loads)
+    summary_total_units = sum((load.get("total_units") or 0) for load in summary_loads)
+    summary_util_values = [load.get("utilization_pct") or 0 for load in summary_loads]
+    summary_avg_util = (
+        round(sum(summary_util_values) / len(summary_util_values), 1)
+        if summary_util_values
         else 0.0
     )
     grade_counts = {"A": 0, "B": 0, "C": 0, "D": 0, "F": 0}
-    for load in optimized_loads:
+    for load in summary_loads:
         grade = (load.get("schematic") or {}).get("utilization_grade")
         if not grade:
             grade = _utilization_grade(load.get("utilization_pct") or 0)
@@ -10143,27 +10181,27 @@ def loads():
         baseline_info = db.get_optimizer_baseline(plant_scope[0])
         baseline_cost = baseline_info.get("baseline_cost")
         baseline_set_at = baseline_info.get("baseline_set_at")
-        if baseline_cost is None and optimized_total_spend:
-            db.set_optimizer_baseline(plant_scope[0], optimized_total_spend)
-            baseline_cost = optimized_total_spend
+        if baseline_cost is None and summary_total_spend:
+            db.set_optimizer_baseline(plant_scope[0], summary_total_spend)
+            baseline_cost = summary_total_spend
             baseline_set_at = datetime.utcnow().isoformat(timespec="seconds")
         if baseline_cost is not None:
-            baseline_delta = optimized_total_spend - baseline_cost
+            baseline_delta = summary_total_spend - baseline_cost
             if baseline_delta < 0:
                 baseline_direction = "below"
             elif baseline_delta > 0:
                 baseline_direction = "above"
 
     spend_per_unit = (
-        (optimized_total_spend / optimized_total_units) if optimized_total_units else 0.0
+        (summary_total_spend / summary_total_units) if summary_total_units else 0.0
     )
     optimization_summary = {
-        "total_orders": len(optimized_order_ids),
-        "total_loads": len(optimized_loads),
-        "total_spend": optimized_total_spend,
-        "total_units": optimized_total_units,
+        "total_orders": len(summary_order_ids),
+        "total_loads": len(summary_loads),
+        "total_spend": summary_total_spend,
+        "total_units": summary_total_units,
         "spend_per_unit": spend_per_unit,
-        "avg_utilization": optimized_avg_util,
+        "avg_utilization": summary_avg_util,
         "grade_counts": grade_counts,
         "baseline_cost": baseline_cost,
         "baseline_set_at": baseline_set_at,
@@ -13253,10 +13291,17 @@ def manual_add_orders(load_id):
         return jsonify({"error": "Some selected orders are already in this load."}), 400
 
     plant_code = load.get("origin_plant")
+    session_id = load.get("planning_session_id")
     eligible = db.filter_eligible_manual_so_nums(plant_code, selected)
     if eligible != set(selected) or len(eligible) != len(selected):
         return jsonify({"error": "Some selected orders are no longer available in Draft Loads."}), 400
 
+    db.remove_orders_from_unapproved_loads(
+        plant_code,
+        selected,
+        session_id=session_id,
+        exclude_load_id=load_id,
+    )
     order_lines = db.list_order_lines_for_so_nums(plant_code, selected)
     if not order_lines:
         return jsonify({"error": "No eligible order lines found."}), 400
@@ -13266,7 +13311,6 @@ def manual_add_orders(load_id):
         db.create_load_line(load_id, line["id"], line.get("total_length_ft") or 0)
     db.delete_load_schematic_override(load_id)
 
-    session_id = load.get("planning_session_id")
     reopt_job_id = _start_reopt_job(
         plant_code,
         session_id=session_id,
@@ -14082,6 +14126,14 @@ def reverse_load_order(load_id):
         )
         return redirect(next_url or fallback)
 
+    requested_selected_load = request.form.get("selected_load") or request.args.get("selected_load")
+    try:
+        selected_load_id = int(requested_selected_load) if requested_selected_load else int(load_id)
+    except (TypeError, ValueError):
+        selected_load_id = int(load_id)
+    if next_url:
+        next_url = _append_query_param(next_url, "selected_load", selected_load_id)
+
     next_value = not _is_load_route_reversed(load)
     db.update_load_route_reversed(load_id, next_value)
 
@@ -14091,6 +14143,7 @@ def reverse_load_order(load_id):
     fallback = url_for(
         "loads",
         session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+        selected_load=selected_load_id,
     )
     return redirect(next_url or fallback)
 
@@ -14107,9 +14160,6 @@ def _build_load_schematic_payload(load_id):
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
     carrier_pricing_context = _build_load_carrier_pricing_context()
 
-    zip_coords = geo_utils.load_zip_coordinates()
-    ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
-    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     requires_return_to_origin = _requires_return_to_origin(lines)
     if _alternate_requires_return_hint(
         lines,
@@ -14120,6 +14170,14 @@ def _build_load_schematic_payload(load_id):
         requires_return_to_origin = True
     if _load_has_lowes_order(lines):
         requires_return_to_origin = True
+    zip_coords = geo_utils.load_zip_coordinates()
+    ordered_stops = _ordered_stops_for_lines(
+        lines,
+        load.get("origin_plant"),
+        zip_coords,
+        return_to_origin=requires_return_to_origin,
+    )
+    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
 
     carrier_pricing = _resolve_load_carrier_pricing(
         lines=lines,
@@ -14712,6 +14770,18 @@ def remove_order_from_load(load_id):
         }
 
     reasons_options = ORDER_REMOVAL_REASONS
+    action_options = [
+        {
+            "value": "find_next_best",
+            "label": "Move to Next Best Load",
+            "description": "Move this order off the current load and re-optimize the remaining network.",
+        },
+        {
+            "value": "return_to_pool",
+            "label": "Release Order for Later Planning",
+            "description": "Remove this order from this session and keep it available for planning later.",
+        },
+    ]
 
     lines = db.list_load_lines(load_id)
     order_lines = [line for line in lines if line.get("so_num") == order_id]
@@ -14731,6 +14801,8 @@ def remove_order_from_load(load_id):
             selected_reasons=[],
             notes="",
             error=None,
+            selected_action="find_next_best",
+            action_options=action_options,
             plant_filters=[plant_code],
             plant_filter_param=plant_code,
         )
@@ -14747,8 +14819,8 @@ def remove_order_from_load(load_id):
     if not details:
         details = notes
 
-    if not reason_category or len(details or "") < 10:
-        error_message = "Select a reason and add at least 10 characters before removing this order."
+    if not reason_category:
+        error_message = "Select a reason before removing this order."
         return redirect(
             url_for(
                 "loads",
@@ -14759,6 +14831,10 @@ def remove_order_from_load(load_id):
             )
         )
 
+    removal_action = (request.form.get("removal_action") or "find_next_best").strip().lower()
+    if removal_action not in {"find_next_best", "return_to_pool"}:
+        removal_action = "find_next_best"
+
     db.add_load_feedback(
         load_id,
         order_id=order_id,
@@ -14767,11 +14843,16 @@ def remove_order_from_load(load_id):
         details=details,
         planner_id=_get_session_profile_name() or _get_session_role(),
     )
+
+    if db.count_load_lines(load_id) > 0:
+        db.update_load_build_source(load_id, "MANUAL")
     db.remove_order_from_load(load_id, order_id)
     if db.count_load_lines(load_id) == 0:
         db.delete_load(load_id)
 
     session_id = load_data.get("planning_session_id") if load_data else None
+    if removal_action == "return_to_pool":
+        db.set_order_excluded_by_so_num(plant_code, order_id, True)
     _reoptimize_for_plant(plant_code, session_id=session_id)
     return redirect(url_for("loads", plants=plant_code, reopt="done", session_id=session_id))
 

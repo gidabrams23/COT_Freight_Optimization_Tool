@@ -505,3 +505,4 @@ Routing provider failed, using fallback: Routing matrix returned unreachable leg
 127.0.0.1 - - [09/Mar/2026 18:16:31] "GET /static/images/ssa-logo.png HTTP/1.1" 304 -
 127.0.0.1 - - [09/Mar/2026 18:16:32] "GET /api/orders/12546558/stack-config HTTP/1.1" 200 -
 127.0.0.1 - - [09/Mar/2026 18:16:32] "POST /api/orders/scope-count HTTP/1.1" 200 -
+^C

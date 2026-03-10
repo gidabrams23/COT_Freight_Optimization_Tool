@@ -48,9 +48,24 @@
         </label>
 
         <label>
-          Additional details (minimum 10 characters)
-          <textarea name="details" rows="4" minlength="10" required placeholder="Add any extra context or instructions."></textarea>
+          Additional details (optional)
+          <textarea name="details" rows="4" placeholder="Add any extra context or instructions."></textarea>
         </label>
+
+        <fieldset>
+          <legend>What should happen after removal?</legend>
+          <div class="feedback-action-options">
+            {% for action in action_options %}
+              <label class="feedback-action-option">
+                <input type="radio" name="removal_action" value="{{ action.value }}" {% if selected_action == action.value %}checked{% endif %}>
+                <span>
+                  <strong>{{ action.label }}</strong>
+                  <span class="subtext">{{ action.description }}</span>
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
 
         {% if error %}
           <div class="form-error">{{ error }}</div>
@@ -58,7 +73,7 @@
 
         <div class="form-actions">
           <a class="btn-ghost" href="{{ url_for('loads', plants=plant_filter_param) }}">Cancel</a>
-          <button class="btn-danger" type="submit">Remove Order and Re-optimize</button>
+          <button class="btn-danger" type="submit">Submit Removal</button>
         </div>
       </form>
     </div>

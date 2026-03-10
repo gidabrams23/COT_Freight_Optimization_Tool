@@ -215,9 +215,11 @@
                   </div>
                   {% if order_ids.items and not read_only_mode %}
                     <div class="position-actions">
-                      {% for order_id in order_ids.items %}
+                      {% set action_order_ids = pos.order_action_ids if pos.order_action_ids is defined and pos.order_action_ids else order_ids.items %}
+                      {% for order_id in action_order_ids %}
                           <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
-                          Remove
+                          <span class="order-color-dot" style="background: {{ load.order_colors.get(order_id, '#334155') }};" aria-hidden="true"></span>
+                          Remove #{{ order_id }}
                         </button>
                       {% endfor %}
                     </div>
@@ -394,9 +396,11 @@
                     {% endif %}
                     {% if order_ids.items and not read_only_mode %}
                       <div class="position-actions">
-                        {% for order_id in order_ids.items %}
+                        {% set action_order_ids = pos.order_action_ids if pos.order_action_ids is defined and pos.order_action_ids else order_ids.items %}
+                        {% for order_id in action_order_ids %}
                             <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
-                            Remove
+                            <span class="order-color-dot" style="background: {{ load.order_colors.get(order_id, '#334155') }};" aria-hidden="true"></span>
+                            Remove #{{ order_id }}
                           </button>
                         {% endfor %}
                       </div>
@@ -491,9 +495,11 @@
                 </div>
                 {% if order_ids.items and not read_only_mode %}
                   <div class="position-actions">
-                    {% for order_id in order_ids.items %}
+                    {% set action_order_ids = pos.order_action_ids if pos.order_action_ids is defined and pos.order_action_ids else order_ids.items %}
+                    {% for order_id in action_order_ids %}
                       <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
-                        Remove
+                        <span class="order-color-dot" style="background: {{ load.order_colors.get(order_id, '#334155') }};" aria-hidden="true"></span>
+                        Remove #{{ order_id }}
                       </button>
                     {% endfor %}
                   </div>
@@ -670,9 +676,11 @@
                   {% endif %}
                   {% if order_ids.items and not read_only_mode %}
                     <div class="position-actions">
-                      {% for order_id in order_ids.items %}
+                      {% set action_order_ids = pos.order_action_ids if pos.order_action_ids is defined and pos.order_action_ids else order_ids.items %}
+                      {% for order_id in action_order_ids %}
                         <button class="position-action-btn js-schematic-remove" type="button" data-load-id="{{ load.id }}" data-order-id="{{ order_id }}" title="Remove #{{ order_id }}">
-                          Remove
+                          <span class="order-color-dot" style="background: {{ load.order_colors.get(order_id, '#334155') }};" aria-hidden="true"></span>
+                          Remove #{{ order_id }}
                         </button>
                       {% endfor %}
                     </div>

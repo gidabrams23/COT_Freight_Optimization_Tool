@@ -489,6 +489,7 @@ def build_loads(
 
     params = {
         "origin_plant": form_data["origin_plant"],
+        "session_id": session_id,
         "capacity_feet": float(form_data["capacity_feet"]),
         "trailer_type": form_data["trailer_type"],
         "max_detour_pct": float(form_data["max_detour_pct"]),

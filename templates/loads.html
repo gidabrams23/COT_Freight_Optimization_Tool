@@ -649,15 +649,20 @@
                               </select>
                             </label>
                             <label>
-                              Additional details (minimum 10 characters)
-                              <textarea name="details" rows="3" minlength="10" required placeholder="Add context for removing this order."></textarea>
+                              Additional details (optional)
+                              <textarea name="details" rows="3" placeholder="Add context for removing this order."></textarea>
                             </label>
                           </div>
                           {% if order_error_id and feedback_error %}
                             <div class="form-error">{{ feedback_error }}</div>
                           {% endif %}
                           <div class="feedback-actions">
-                            <button class="btn-danger btn-xs" type="submit">Submit Removal</button>
+                            <button class="btn-secondary btn-xs" type="submit" name="removal_action" value="find_next_best">
+                              Move to Next Best Load
+                            </button>
+                            <button class="btn-danger btn-xs" type="submit" name="removal_action" value="return_to_pool">
+                              Release Order for Later Planning
+                            </button>
                             <button class="btn-ghost btn-xs feedback-cancel" type="button" data-feedback-cancel>Cancel</button>
                           </div>
                         </form>
@@ -686,6 +691,7 @@
                                       <div class="manifest-toolbar-right">
                                         <form method="post" action="{{ url_for('reverse_load_order', load_id=load.id) }}">
                                           <input type="hidden" name="next" value="{{ request.full_path }}">
+                                          <input type="hidden" name="selected_load" value="{{ load.id }}">
                                           <button class="btn-secondary btn-xs btn-muted-action manifest-reverse-btn" type="submit" {% if status == 'APPROVED' or (load.stop_count or 0) <= 1 %}disabled{% endif %}>
                                             <span class="material-symbols-outlined">swap_vert</span>
                                             {% if load.route_reversed %}
@@ -2406,7 +2412,14 @@
     bindAsyncApprove();
     stashAllDetailPanels();
 
-    const initialRow = document.querySelector('.load-row[data-initial-selected="true"]:not(.hidden)') || document.querySelector('.load-row:not(.hidden)');
+    const queryParams = new URLSearchParams(window.location.search || '');
+    const selectedLoadParam = (queryParams.get('selected_load') || '').trim();
+    const initialRow =
+      (selectedLoadParam
+        ? document.querySelector(`.load-row[data-load-id="${selectedLoadParam}"]:not(.hidden)`)
+        : null)
+      || document.querySelector('.load-row[data-initial-selected="true"]:not(.hidden)')
+      || document.querySelector('.load-row:not(.hidden)');
     if (initialRow?.dataset?.loadId) {
       selectLoad(initialRow.dataset.loadId, { scrollIntoView: false });
     } else {
