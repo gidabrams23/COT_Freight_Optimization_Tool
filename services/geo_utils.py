@@ -77,12 +77,6 @@ def _load_zip_coords_from_db():
     return coords
 
 
-def haversine_distance(zip1, zip2, zip_coords_dict):
-    coords1 = zip_coords_dict.get(normalize_zip(zip1))
-    coords2 = zip_coords_dict.get(normalize_zip(zip2))
-    if not coords1 or not coords2:
-        return float("inf")
-    return haversine_distance_coords(coords1, coords2)
 
 
 def haversine_distance_coords(coords1, coords2):

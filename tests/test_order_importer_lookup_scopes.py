@@ -76,6 +76,12 @@ class OrderImporterLookupScopeTests(unittest.TestCase):
         sku = importer.lookup_sku("5x8gw2k", plant="GA", bin_code="USA", bin_raw="USA-NG")
         self.assertEqual(sku, "5X8GW2K")
 
+    def test_normalize_columns_maps_orders_on_loads_loadnum_alias(self):
+        importer = OrderImporter.__new__(OrderImporter)
+        mapped = importer._normalize_columns(["Orders On Loads.LoadNum", "Load #"])
+        self.assertEqual(mapped["Orders On Loads.LoadNum"], "load #")
+        self.assertEqual(mapped["Load #"], "load #")
+
 
 if __name__ == "__main__":
     unittest.main()

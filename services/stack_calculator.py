@@ -901,48 +901,6 @@ def _assign_two_across_item_distribution(position):
             item["two_across_split"] = bool(left_units and right_units)
 
 
-def _enforce_upper_two_across_exclusive_deck_usage(
-    positions,
-    trailer_config,
-    two_across_max_length_ft,
-):
-    usage = _apply_upper_usage_metadata(
-        positions,
-        trailer_config,
-        two_across_max_length_ft,
-    )
-    active_two_across = [
-        pos
-        for pos in (positions or [])
-        if (pos.get("deck") or "lower") == "upper" and bool(pos.get("two_across_applied"))
-    ]
-    if not active_two_across:
-        return usage
-
-    active_two_across.sort(
-        key=lambda pos: (
-            -_coerce_non_negative_int(pos.get("upper_required_stack_count"), 1),
-            -_coerce_non_negative_float(pos.get("length_ft"), 0.0),
-            pos.get("position_id") or "",
-        )
-    )
-    keep_position_id = active_two_across[0].get("position_id") or ""
-    changed = False
-    for pos in (positions or []):
-        if (pos.get("deck") or "lower") != "upper":
-            continue
-        if (pos.get("position_id") or "") == keep_position_id:
-            continue
-        pos["deck"] = "lower"
-        changed = True
-
-    if changed:
-        usage = _apply_upper_usage_metadata(
-            positions,
-            trailer_config,
-            two_across_max_length_ft,
-        )
-    return usage
 
 
 def _apply_upper_usage_metadata(positions, trailer_config, two_across_max_length_ft):

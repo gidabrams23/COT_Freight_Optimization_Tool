@@ -525,13 +525,9 @@
       </div>
     </header>
 
-    {% if load_report_status == "ok" %}
+    {% if intake_notice == "load-report-deprecated" %}
       <div class="session-alert">
-        Loads report uploaded. Snapshot now reflects SO-to-load assignments from the latest report.
-      </div>
-    {% elif load_report_status == "error" %}
-      <div class="session-alert danger">
-        Load report upload failed: {{ load_report_message or "Please confirm the file includes Load Number and Name columns." }}
+        Loads report upload is no longer needed. Upload the daily orders file and load assignments will sync automatically.
       </div>
     {% endif %}
 
@@ -635,23 +631,6 @@
                 <span class="intake-time-chip intake-time-chip-import">Last Import {{ last_upload.uploaded_at_display or last_upload.uploaded_at }}</span>
               {% endif %}
             </div>
-            <div class="intake-action-cluster">
-              <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_load_report_upload') }}" data-load-report-form>
-                <label class="btn-secondary btn-xs upload-inline-button">
-                  <input type="file" name="file" accept=".csv,.xlsx,.xls" required data-load-report-input>
-                  Add Loads Report
-                </label>
-                <noscript>
-                  <button class="btn-secondary btn-xs" type="submit">Upload</button>
-                </noscript>
-              </form>
-              {% if last_load_report_upload %}
-                <span class="intake-time-chip intake-time-chip-report">Loads Report {{ last_load_report_upload.uploaded_at_display or last_load_report_upload.uploaded_at }}</span>
-              {% endif %}
-            </div>
-            {% if upload_history %}
-              <button class="btn-ghost btn-xs intake-view-all" type="button">View All</button>
-            {% endif %}
             {% if is_admin %}
               <form class="intake-clear-form" method="post" action="{{ url_for('clear_orders') }}" onsubmit="return confirm('Delete all orders? This cannot be undone.');">
                 <button class="btn-danger btn-xs" type="submit">
@@ -703,11 +682,11 @@
                 {% if last_load_report_upload %}
                   <div class="integrity-changes">
                     <div class="integrity-change-item">
-                      <span>Load Report SOs</span>
+                      <span>Orders On Load</span>
                       <strong>{{ last_load_report_upload.unique_orders or 0 }}</strong>
                     </div>
                     <div class="integrity-change-item">
-                      <span>Open Orders Matched</span>
+                      <span>Matched Open SOs</span>
                       <strong>{{ last_load_report_upload.matched_open_orders or 0 }}</strong>
                     </div>
                   </div>
@@ -3790,25 +3769,6 @@
       });
     }
 
-    function initLoadReportUploadForm() {
-      const form = document.querySelector('[data-load-report-form]');
-      const input = document.querySelector('[data-load-report-input]');
-      if (!form || !input) return;
-
-      form.addEventListener('submit', (event) => {
-        const hasFile = input.files && input.files[0];
-        if (!hasFile) {
-          event.preventDefault();
-        }
-      });
-
-      input.addEventListener('change', () => {
-        const file = input.files && input.files[0];
-        if (!file) return;
-        form.submit();
-      });
-    }
-
     function initSchematicHoverTooltips() {
       if (window.__schematicHoverTooltipsBound) return;
       window.__schematicHoverTooltipsBound = true;
@@ -3910,7 +3870,6 @@
     window.addEventListener('load', syncIntakeHubHeight);
 
     initOrderUploadModal();
-    initLoadReportUploadForm();
     initSchematicHoverTooltips();
     bindOrderRows();
     const initialOrderRow = document.querySelector('.order-row:not(.group-hidden)') || document.querySelector('.order-row');

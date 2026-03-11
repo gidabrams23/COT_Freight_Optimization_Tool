@@ -1480,89 +1480,6 @@ def clear_orders():
         connection.commit()
 
 
-def add_order_lines(order_lines):
-    if not order_lines:
-        return
-    created_at = datetime.utcnow().isoformat(timespec="seconds")
-    rows = []
-    for order in order_lines:
-        rows.append(
-            (
-                order.get("due_date"),
-                order.get("customer"),
-                order.get("plant_full"),
-                order.get("plant2"),
-                order.get("plant"),
-                order.get("item"),
-                order.get("item_desc"),
-                order.get("qty"),
-                order.get("sales"),
-                order.get("so_num"),
-                order.get("cust_name"),
-                order.get("cpo"),
-                order.get("salesman"),
-                order.get("cust_num"),
-                order.get("bin"),
-                order.get("load_num"),
-                order.get("address1"),
-                order.get("address2"),
-                order.get("city"),
-                order.get("state"),
-                order.get("zip"),
-                order.get("created_date"),
-                order.get("ship_date"),
-                order.get("sku"),
-                order.get("unit_length_ft"),
-                order.get("total_length_ft"),
-                order.get("max_stack_height"),
-                order.get("stack_position", 1),
-                order.get("utilization_pct"),
-                order.get("is_excluded", 0),
-                created_at,
-            )
-        )
-
-    with get_connection() as connection:
-        connection.executemany(
-            """
-            INSERT INTO order_lines (
-                due_date,
-                customer,
-                plant_full,
-                plant2,
-                plant,
-                item,
-                item_desc,
-                qty,
-                sales,
-                so_num,
-                cust_name,
-                cpo,
-                salesman,
-                cust_num,
-                bin,
-                load_num,
-                address1,
-                address2,
-                city,
-                state,
-                zip,
-                created_date,
-                ship_date,
-                sku,
-                unit_length_ft,
-                total_length_ft,
-                max_stack_height,
-                stack_position,
-                utilization_pct,
-                is_excluded,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
-        connection.commit()
 
 
 def upsert_order_lines(order_lines):
@@ -1758,76 +1675,6 @@ def upsert_order_lines(order_lines):
         connection.commit()
 
 
-def add_orders(orders):
-    if not orders:
-        return
-    created_at = datetime.utcnow().isoformat(timespec="seconds")
-    rows = []
-    for order in orders:
-        rows.append(
-            (
-                order.get("so_num"),
-                order.get("due_date"),
-                order.get("created_date"),
-                order.get("ship_date"),
-                order.get("plant"),
-                order.get("customer"),
-                order.get("cust_name"),
-                order.get("address1"),
-                order.get("address2"),
-                order.get("city"),
-                order.get("state"),
-                order.get("zip"),
-                order.get("total_qty"),
-                order.get("total_sales"),
-                order.get("total_length_ft"),
-                order.get("utilization_pct"),
-                order.get("utilization_grade"),
-                order.get("utilization_credit_ft"),
-                order.get("exceeds_capacity", 0),
-                order.get("line_count"),
-                order.get("is_excluded", 0),
-                order.get("status", "OPEN"),
-                order.get("last_seen_at"),
-                order.get("closed_at"),
-                created_at,
-            )
-        )
-    with get_connection() as connection:
-        connection.executemany(
-            """
-            INSERT INTO orders (
-                so_num,
-                due_date,
-                created_date,
-                ship_date,
-                plant,
-                customer,
-                cust_name,
-                address1,
-                address2,
-                city,
-                state,
-                zip,
-                total_qty,
-                total_sales,
-                total_length_ft,
-                utilization_pct,
-                utilization_grade,
-                utilization_credit_ft,
-                exceeds_capacity,
-                line_count,
-                is_excluded,
-                status,
-                last_seen_at,
-                closed_at,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
-        connection.commit()
 
 
 def upsert_orders(orders):
@@ -2149,32 +1996,6 @@ def add_upload_order_changes(upload_id, changes):
         connection.commit()
 
 
-def list_upload_order_changes(upload_id, limit=None):
-    if not upload_id:
-        return []
-    with get_connection() as connection:
-        if limit:
-            rows = connection.execute(
-                """
-                SELECT so_num, plant, changes_json, created_at
-                FROM upload_order_changes
-                WHERE upload_id = ?
-                ORDER BY id ASC
-                LIMIT ?
-                """,
-                (upload_id, limit),
-            ).fetchall()
-        else:
-            rows = connection.execute(
-                """
-                SELECT so_num, plant, changes_json, created_at
-                FROM upload_order_changes
-                WHERE upload_id = ?
-                ORDER BY id ASC
-                """,
-                (upload_id,),
-            ).fetchall()
-        return [dict(row) for row in rows]
 
 
 def list_orders(filters=None, sort_key="due_date"):
@@ -2329,13 +2150,6 @@ def count_orders_by_plant(filters=None):
         return {row["plant"]: row["order_count"] for row in rows if row["plant"]}
 
 
-def list_order_lines_by_sonum(so_num):
-    with get_connection() as connection:
-        rows = connection.execute(
-            "SELECT * FROM order_lines WHERE so_num = ? ORDER BY id",
-            (so_num,),
-        ).fetchall()
-        return [dict(row) for row in rows]
 
 
 def list_order_lines_by_so_nums(so_nums):
@@ -2405,34 +2219,6 @@ def list_orders_by_so_nums(origin_plant, so_nums):
         return [dict(row) for row in rows]
 
 
-def list_order_line_aggregates_by_so_nums(so_nums):
-    cleaned = [str(value).strip() for value in so_nums or [] if str(value or "").strip()]
-    if not cleaned:
-        return {}
-    placeholders = ", ".join("?" for _ in cleaned)
-    with get_connection() as connection:
-        rows = connection.execute(
-            f"""
-            SELECT
-                so_num,
-                COUNT(*) AS line_count,
-                SUM(COALESCE(qty, 0)) AS total_qty,
-                SUM(COALESCE(total_length_ft, 0)) AS total_length_ft
-            FROM order_lines
-            WHERE so_num IN ({placeholders})
-            GROUP BY so_num
-            """,
-            cleaned,
-        ).fetchall()
-        return {
-            str(row["so_num"]): {
-                "line_count": int(row["line_count"] or 0),
-                "total_qty": float(row["total_qty"] or 0.0),
-                "total_length_ft": float(row["total_length_ft"] or 0.0),
-            }
-            for row in rows
-            if row["so_num"]
-        }
 
 
 def filter_eligible_manual_so_nums(origin_plant, so_nums):
@@ -3175,32 +2961,6 @@ def list_upload_history(limit=None):
         return [dict(row) for row in rows]
 
 
-def list_upload_unmapped_items(upload_id, limit=10):
-    if not upload_id:
-        return []
-    with get_connection() as connection:
-        if limit:
-            rows = connection.execute(
-                """
-                SELECT plant, bin, item, sku, reason, created_at
-                FROM upload_unmapped_items
-                WHERE upload_id = ?
-                ORDER BY id ASC
-                LIMIT ?
-                """,
-                (upload_id, limit),
-            ).fetchall()
-        else:
-            rows = connection.execute(
-                """
-                SELECT plant, bin, item, sku, reason, created_at
-                FROM upload_unmapped_items
-                WHERE upload_id = ?
-                ORDER BY id ASC
-                """,
-                (upload_id,),
-            ).fetchall()
-        return [dict(row) for row in rows]
 
 
 def add_load_report_upload(entry):
@@ -3594,28 +3354,6 @@ def archive_planning_session(session_id):
         connection.commit()
 
 
-def delete_planning_session(session_id, clear_loads=True):
-    if not session_id:
-        return
-    with get_connection() as connection:
-        if clear_loads:
-            connection.execute(
-                "DELETE FROM load_schematic_overrides WHERE load_id IN (SELECT id FROM loads WHERE planning_session_id = ?)",
-                (session_id,),
-            )
-            connection.execute(
-                "DELETE FROM load_lines WHERE load_id IN (SELECT id FROM loads WHERE planning_session_id = ?)",
-                (session_id,),
-            )
-            connection.execute(
-                "DELETE FROM loads WHERE planning_session_id = ?",
-                (session_id,),
-            )
-        connection.execute(
-            "DELETE FROM planning_sessions WHERE id = ?",
-            (session_id,),
-        )
-        connection.commit()
 
 
 def compute_planning_session_status(session_id):

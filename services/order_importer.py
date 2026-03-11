@@ -52,6 +52,7 @@ COLUMN_ALIASES = {
     "ship via": "shipvia",
     "linenum": "linenum",
     "desc": "desc",
+    "orders on loads.loadnum": "load #",
 }
 
 

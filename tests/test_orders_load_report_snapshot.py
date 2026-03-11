@@ -7,6 +7,14 @@ from unittest.mock import patch
 os.environ.setdefault("FLASK_SECRET_KEY", "test-secret")
 
 import app as app_module
+import db
+
+
+def _set_authenticated_session(client):
+    profiles = db.list_access_profiles()
+    assert profiles
+    with client.session_transaction() as session_state:
+        session_state[app_module.SESSION_PROFILE_ID_KEY] = profiles[0]["id"]
 
 
 class OrdersLoadReportSnapshotTests(unittest.TestCase):
@@ -91,6 +99,123 @@ class OrdersLoadReportSnapshotTests(unittest.TestCase):
         self.assertEqual(rows[0]["order_number"], "12607204")
         self.assertEqual(rows[1]["load_number"], "VA26-1499")
         self.assertEqual(rows[1]["order_number"], "12608040")
+
+    def test_build_load_assignments_from_order_lines_presence_based(self):
+        payload = app_module._build_load_assignments_from_order_lines(
+            [
+                {"so_num": "SO-1", "load_num": "GA26-1001"},
+                {"so_num": "SO-1", "load_num": "GA26-1002"},
+                {"so_num": "SO-2", "load_num": "Not On Load"},
+                {"so_num": "SO-3", "load_num": "#N/A"},
+                {"so_num": "SO-4", "load_num": "GA26-2001"},
+                {"so_num": "SO-4", "load_num": "GA26-2001"},
+            ]
+        )
+
+        assignments = {
+            entry["so_num"]: entry["load_number"]
+            for entry in (payload.get("assignments") or [])
+        }
+        self.assertEqual(assignments, {"SO-1": "GA26-1001", "SO-4": "GA26-2001"})
+        self.assertEqual(payload["unique_orders"], 2)
+        self.assertEqual(payload["unique_loads"], 2)
+        self.assertEqual(payload["assignment_rows"], 4)
+        self.assertEqual(payload["duplicate_rows"], 2)
+        self.assertEqual(payload["conflicting_orders"], 1)
+
+    def test_handle_order_upload_refreshes_assignments_from_order_file(self):
+        parse_summary = {
+            "orders": [
+                {"so_num": "SO-1", "plant": "GA"},
+                {"so_num": "SO-2", "plant": "GA"},
+                {"so_num": "SO-3", "plant": "GA"},
+            ],
+            "order_lines": [
+                {"so_num": "SO-1", "load_num": "GA26-1001"},
+                {"so_num": "SO-2", "load_num": "Not On Load"},
+                {"so_num": "SO-3", "load_num": "GA26-2001"},
+                {"so_num": "SO-3", "load_num": "GA26-2002"},
+            ],
+            "unmapped_items": [],
+            "total_rows": 4,
+            "mapping_rate": 100.0,
+        }
+        fake_file = SimpleNamespace(filename="orders.csv")
+        fake_importer = SimpleNamespace(parse_csv=lambda _stream: parse_summary)
+
+        with patch.object(app_module, "OrderImporter", return_value=fake_importer), patch.object(
+            app_module.db,
+            "list_orders_by_so_nums_any",
+            return_value=[],
+        ), patch.object(
+            app_module.db,
+            "upsert_order_lines",
+        ), patch.object(
+            app_module.db,
+            "upsert_orders",
+        ), patch.object(
+            app_module.db,
+            "mark_orders_seen",
+        ), patch.object(
+            app_module.db,
+            "list_open_order_so_nums",
+            return_value=[],
+        ), patch.object(
+            app_module.db,
+            "mark_orders_closed",
+        ), patch.object(
+            app_module.db,
+            "purge_closed_orders",
+        ), patch.object(
+            app_module.db,
+            "add_upload_history",
+            return_value=101,
+        ), patch.object(
+            app_module.db,
+            "add_upload_order_changes",
+        ), patch.object(
+            app_module.db,
+            "update_orders_upload_meta",
+        ), patch.object(
+            app_module.db,
+            "add_upload_unmapped_items",
+        ), patch.object(
+            app_module.db,
+            "add_load_report_upload",
+            return_value=202,
+        ) as add_load_upload, patch.object(
+            app_module.db,
+            "replace_latest_load_report_assignments",
+        ) as replace_assignments:
+            summary = app_module._handle_order_upload(fake_file)
+
+        self.assertEqual(summary["load_assignment_upload_id"], 202)
+        self.assertEqual(summary["load_assignment_summary"]["unique_orders"], 2)
+        self.assertEqual(summary["load_assignment_summary"]["conflicting_orders"], 1)
+        self.assertEqual(summary["load_assignment_summary"]["matched_open_orders"], 2)
+        self.assertEqual(summary["load_assignment_summary"]["unmatched_open_orders"], 0)
+
+        add_load_upload.assert_called_once()
+        replace_assignments.assert_called_once()
+        call_args = replace_assignments.call_args[0]
+        self.assertEqual(call_args[0], 202)
+        assignment_pairs = {
+            (entry.get("so_num"), entry.get("load_number")) for entry in call_args[1]
+        }
+        self.assertEqual(
+            assignment_pairs,
+            {("SO-1", "GA26-1001"), ("SO-3", "GA26-2001")},
+        )
+
+    def test_orders_load_report_upload_route_redirects_to_single_file_notice(self):
+        client = app_module.app.test_client()
+        _set_authenticated_session(client)
+
+        response = client.post("/orders/load-report/upload")
+        self.assertEqual(response.status_code, 302)
+        location = response.headers.get("Location") or ""
+        self.assertIn("/orders", location)
+        self.assertIn("intake_notice=load-report-deprecated", location)
 
 
 if __name__ == "__main__":

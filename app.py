@@ -3,7 +3,6 @@ import logging
 import math
 import os
 import re
-import secrets
 import subprocess
 import threading
 import uuid
@@ -621,6 +620,11 @@ def _backfill_legacy_sessions():
 _backfill_legacy_sessions()
 
 
+@app.route("/robots933456.txt")
+def warmup():
+    return "", 200
+
+
 @app.route("/session", methods=["GET", "POST"])
 def session_setup():
     # Kept for backwards-compatibility with older links/bookmarks.
@@ -1037,6 +1041,34 @@ def _handle_order_upload(file):
     if so_nums:
         db.update_orders_upload_meta(so_nums, upload_id, changed_keys)
     db.add_upload_unmapped_items(upload_id, summary.get("unmapped_items") or [])
+    assignment_snapshot = _build_load_assignments_from_order_lines(summary.get("order_lines") or [])
+    current_so_nums = {
+        _normalize_so_num_for_load_report_match(value)
+        for value in so_nums
+        if _normalize_so_num_for_load_report_match(value)
+    }
+    assigned_so_nums = {
+        _normalize_so_num_for_load_report_match(entry.get("so_num"))
+        for entry in assignment_snapshot.get("assignments") or []
+        if _normalize_so_num_for_load_report_match(entry.get("so_num"))
+    }
+    matched_open_orders = sum(1 for so_num in assigned_so_nums if so_num in current_so_nums)
+    assignment_upload_summary = {
+        "filename": getattr(file, "filename", ""),
+        "total_rows": summary.get("total_rows") or 0,
+        "valid_rows": assignment_snapshot.get("assignment_rows") or 0,
+        "unique_orders": assignment_snapshot.get("unique_orders") or 0,
+        "unique_loads": assignment_snapshot.get("unique_loads") or 0,
+        "duplicate_rows": assignment_snapshot.get("duplicate_rows") or 0,
+        "conflicting_orders": assignment_snapshot.get("conflicting_orders") or 0,
+        "matched_open_orders": matched_open_orders,
+        "unmatched_open_orders": max(len(assigned_so_nums) - matched_open_orders, 0),
+    }
+    assignment_upload_id = db.add_load_report_upload(assignment_upload_summary)
+    db.replace_latest_load_report_assignments(
+        assignment_upload_id,
+        assignment_snapshot.get("assignments") or [],
+    )
 
     summary["upload_id"] = upload_id
     summary["duplicate_orders"] = existing_orders
@@ -1045,6 +1077,8 @@ def _handle_order_upload(file):
     summary["unchanged_orders"] = unchanged_orders
     summary["reopened_orders"] = reopened_orders
     summary["dropped_orders"] = len(dropped) if so_nums else 0
+    summary["load_assignment_upload_id"] = assignment_upload_id
+    summary["load_assignment_summary"] = assignment_upload_summary
     return summary
 
 
@@ -1061,6 +1095,62 @@ def _normalize_load_report_column(value):
     text = str(value or "").strip().lower()
     text = re.sub(r"[^a-z0-9]+", "_", text)
     return text.strip("_")
+
+
+_UNASSIGNED_LOAD_TOKENS = {
+    "not on load",
+    "not onload",
+    "#n/a",
+    "n/a",
+    "na",
+    "none",
+    "null",
+}
+
+
+def _normalize_order_line_load_number(value):
+    text = str(value or "").strip().strip('"')
+    if not text:
+        return ""
+    normalized = text.lower().replace("-", " ").replace("_", " ")
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if normalized in _UNASSIGNED_LOAD_TOKENS:
+        return ""
+    return text
+
+
+def _build_load_assignments_from_order_lines(order_lines):
+    assignments_by_so = {}
+    assignment_rows = 0
+    duplicate_rows = 0
+    conflicting_orders = 0
+
+    for line in order_lines or []:
+        so_num = _normalize_so_num_for_load_report_match(line.get("so_num"))
+        load_number = _normalize_order_line_load_number(line.get("load_num"))
+        if not so_num or not load_number:
+            continue
+        assignment_rows += 1
+        existing = assignments_by_so.get(so_num)
+        if existing:
+            duplicate_rows += 1
+            if existing != load_number:
+                conflicting_orders += 1
+            continue
+        assignments_by_so[so_num] = load_number
+
+    assignments = [
+        {"so_num": so_num, "load_number": load_number}
+        for so_num, load_number in assignments_by_so.items()
+    ]
+    return {
+        "assignments": assignments,
+        "assignment_rows": assignment_rows,
+        "unique_orders": len(assignments_by_so),
+        "unique_loads": len({value for value in assignments_by_so.values() if value}),
+        "duplicate_rows": duplicate_rows,
+        "conflicting_orders": conflicting_orders,
+    }
 
 
 def _parse_load_report_rows(file):
@@ -4345,19 +4435,6 @@ def _resolve_plant_filters(selected):
     return current
 
 
-def _get_current_plant_filters():
-    allowed = _get_allowed_plants()
-    current = session.get("plant_filters")
-    if current is None:
-        legacy = session.get("plant_filter")
-        if legacy and legacy != "ALL":
-            current = [legacy] if legacy in allowed else []
-        else:
-            current = []
-    current = [code for code in current if code in allowed]
-    if not current or len(current) >= len(allowed):
-        return []
-    return current
 
 
 def _format_plant_filter_label(selected, allowed):
@@ -5906,24 +5983,6 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
     )
 
 
-def _remap_layout_for_trailer(layout, trailer_type):
-    config = _trailer_config_for_type(trailer_type)
-    has_upper = config["upper"] > 0
-    remapped = {"positions": []}
-    for pos in (layout or {}).get("positions") or []:
-        deck = (pos.get("deck") or "lower").strip().lower()
-        if deck not in {"lower", "upper"}:
-            deck = "lower"
-        if deck == "upper" and not has_upper:
-            deck = "lower"
-        remapped["positions"].append(
-            {
-                "position_id": pos.get("position_id"),
-                "deck": deck,
-                "unit_ids": list(pos.get("unit_ids") or []),
-            }
-        )
-    return remapped
 
 
 def _build_schematic_fragment_payload(load_data, status=None, tab=None):
@@ -6802,584 +6861,6 @@ def inject_session_context():
     }
 
 
-def _build_command_center_dashboard_context():
-    allowed_plants = _get_allowed_plants()
-    plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
-    plant_scope = plant_filters or allowed_plants
-
-    period_options = [
-        ("last_30_days", "Last 30 Days"),
-        ("last_7_days", "Last 7 Days"),
-        ("this_month", "This Month"),
-        ("today", "Today"),
-    ]
-    period_label_map = dict(period_options)
-    period = (request.args.get("period") or "last_30_days").strip().lower()
-    if period not in period_label_map:
-        period = "last_30_days"
-
-    today = date.today()
-    start_date, end_date = _period_range(period, today)
-    period_len_days = (end_date - start_date).days + 1
-    prev_end = start_date - timedelta(days=1)
-    prev_start = prev_end - timedelta(days=period_len_days - 1)
-
-    def _iso(value):
-        return value.strftime("%Y-%m-%d")
-
-    start_iso = _iso(start_date)
-    end_iso = _iso(end_date)
-    prev_start_iso = _iso(prev_start)
-    prev_end_iso = _iso(prev_end)
-
-    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
-    plant_scope_label = (
-        ", ".join([PLANT_NAMES.get(code, code) for code in plant_filters])
-        if plant_filters
-        else "All Plants"
-    )
-    period_label = period_label_map.get(period, "Last 30 Days")
-    date_range_label = f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d')}"
-
-    def _format_int(value):
-        try:
-            return f"{int(value or 0):,}"
-        except (TypeError, ValueError):
-            return "0"
-
-    def _format_currency(amount, decimals=2):
-        amount = float(amount or 0)
-        return f"${amount:,.{decimals}f}"
-
-    def _format_compact_currency(amount):
-        amount = float(amount or 0)
-        abs_amount = abs(amount)
-        if abs_amount >= 1_000_000:
-            return f"${amount / 1_000_000:.2f}M"
-        if abs_amount >= 100_000:
-            return f"${amount / 1_000:.0f}K"
-        if abs_amount >= 10_000:
-            return f"${amount / 1_000:.1f}K"
-        return f"${amount:,.0f}"
-
-    def _pct_change(current, previous):
-        if current is None or previous is None:
-            return None
-        current = float(current or 0)
-        previous = float(previous or 0)
-        if previous == 0:
-            return None
-        return (current - previous) / previous * 100.0
-
-    def _trend_meta(delta_pct):
-        if delta_pct is None:
-            return {"display": None, "icon": "trending_flat", "class": ""}
-        icon = "trending_up" if delta_pct >= 0 else "trending_down"
-        cls = "positive" if delta_pct >= 0 else "negative"
-        return {"display": f"{delta_pct:+.1f}%", "icon": icon, "class": cls}
-
-    def _point_delta_meta(delta_points):
-        if delta_points is None:
-            return {"display": None, "icon": "trending_flat", "class": ""}
-        icon = "trending_up" if delta_points >= 0 else "trending_down"
-        cls = "positive" if delta_points >= 0 else "negative"
-        return {"display": f"{delta_points:+.1f} pts", "icon": icon, "class": cls}
-
-    def _bucket_series(items, bucket_count=7):
-        if not items:
-            return []
-        if len(items) <= bucket_count:
-            return [
-                {
-                    "start": entry["date"],
-                    "end": entry["date"],
-                    "spend": float(entry.get("spend") or 0),
-                    "qty": float(entry.get("qty") or 0),
-                }
-                for entry in items
-            ]
-        size = len(items)
-        base = size // bucket_count
-        remainder = size % bucket_count
-        buckets = []
-        idx = 0
-        for bucket_index in range(bucket_count):
-            take = base + (1 if bucket_index < remainder else 0)
-            segment = items[idx:idx + take]
-            idx += take
-            if not segment:
-                continue
-            buckets.append(
-                {
-                    "start": segment[0]["date"],
-                    "end": segment[-1]["date"],
-                    "spend": sum(float(item.get("spend") or 0) for item in segment),
-                    "qty": sum(float(item.get("qty") or 0) for item in segment),
-                }
-            )
-        return buckets
-
-    def _axis_label(value_date):
-        if not value_date:
-            return ""
-        if value_date == today:
-            return "Today"
-        return value_date.strftime("%b %d")
-
-    def _fetch_period_totals(connection, plants, start_value, end_value):
-        if not plants:
-            return {"loads": 0, "avg_util": 0.0, "spend": 0.0, "qty": 0.0}
-        placeholders = ", ".join("?" for _ in plants)
-        params = list(plants) + [start_value, end_value]
-        loads_row = connection.execute(
-            f"""
-            SELECT
-                COUNT(*) AS load_count,
-                AVG(utilization_pct) AS avg_util,
-                SUM(COALESCE(estimated_cost, 0)) AS total_spend
-            FROM loads
-            WHERE status = 'APPROVED'
-              AND origin_plant IN ({placeholders})
-              AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            """,
-            params,
-        ).fetchone()
-        qty_row = connection.execute(
-            f"""
-            SELECT
-                SUM(COALESCE(ol.qty, 0)) AS total_qty
-            FROM loads l
-            JOIN load_lines ll ON ll.load_id = l.id
-            JOIN order_lines ol ON ol.id = ll.order_line_id
-            WHERE l.status = 'APPROVED'
-              AND l.origin_plant IN ({placeholders})
-              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
-              AND COALESCE(ol.is_excluded, 0) = 0
-            """,
-            params,
-        ).fetchone()
-        return {
-            "loads": int(loads_row["load_count"] or 0) if loads_row else 0,
-            "avg_util": float(loads_row["avg_util"] or 0) if loads_row else 0.0,
-            "spend": float(loads_row["total_spend"] or 0) if loads_row else 0.0,
-            "qty": float(qty_row["total_qty"] or 0) if qty_row else 0.0,
-        }
-
-    with db.get_connection() as connection:
-        current_totals = _fetch_period_totals(connection, plant_scope, start_iso, end_iso)
-        prev_totals = _fetch_period_totals(connection, plant_scope, prev_start_iso, prev_end_iso)
-
-        current_cpu = (
-            (current_totals["spend"] / current_totals["qty"]) if current_totals["qty"] else None
-        )
-        prev_cpu = (prev_totals["spend"] / prev_totals["qty"]) if prev_totals["qty"] else None
-
-        loads_trend = _trend_meta(_pct_change(current_totals["loads"], prev_totals["loads"]))
-        spend_trend = _trend_meta(_pct_change(current_totals["spend"], prev_totals["spend"]))
-        cpu_trend = _trend_meta(_pct_change(current_cpu, prev_cpu))
-        util_trend = _point_delta_meta(
-            (current_totals["avg_util"] - prev_totals["avg_util"]) if prev_totals["loads"] else None
-        )
-
-        avg_util = float(current_totals["avg_util"] or 0)
-        health_label = "NO DATA"
-        health_class = "neutral"
-        if current_totals["loads"]:
-            if avg_util >= 80:
-                health_label = "OPTIMAL"
-                health_class = "success"
-            elif avg_util >= 70:
-                health_label = "MONITOR"
-                health_class = "warning"
-            else:
-                health_label = "AT RISK"
-                health_class = "danger"
-
-        kpis = [
-            {
-                "label": "Total Loads Batched",
-                "icon": "inventory_2",
-                "value": _format_int(current_totals["loads"]),
-                "unit": "",
-                "delta_display": loads_trend["display"],
-                "delta_icon": loads_trend["icon"],
-                "delta_class": loads_trend["class"],
-                "footer": "vs previous period",
-            },
-            {
-                "label": "Average Utilization",
-                "icon": "speed",
-                "value": f"{avg_util:.1f}%",
-                "unit": "",
-                "delta_display": util_trend["display"],
-                "delta_icon": util_trend["icon"],
-                "delta_class": util_trend["class"],
-                "footer": "vs previous period",
-            },
-            {
-                "label": "Total Logistics Spend",
-                "icon": "payments",
-                "value": _format_compact_currency(current_totals["spend"]),
-                "unit": "",
-                "delta_display": spend_trend["display"],
-                "delta_icon": spend_trend["icon"],
-                "delta_class": spend_trend["class"],
-                "footer": "vs previous period",
-            },
-            {
-                "label": "Cost Per Unit",
-                "icon": "straighten",
-                "value": _format_currency(current_cpu, decimals=2) if current_cpu is not None else "—",
-                "unit": "/ unit",
-                "delta_display": cpu_trend["display"],
-                "delta_icon": cpu_trend["icon"],
-                "delta_class": cpu_trend["class"],
-                "footer": "vs previous period",
-            },
-        ]
-
-        # Plant cards.
-        open_orders_by_plant = {plant: 0 for plant in allowed_plants}
-        planned_loads_by_plant = {plant: 0 for plant in allowed_plants}
-        plant_spend = {plant: 0.0 for plant in allowed_plants}
-        plant_avg_util = {plant: None for plant in allowed_plants}
-        plant_qty = {plant: 0.0 for plant in allowed_plants}
-
-        allowed_placeholders = ", ".join("?" for _ in allowed_plants) if allowed_plants else "''"
-
-        assigned_clause = """
-            EXISTS (
-                SELECT 1
-                FROM order_lines ol
-                JOIN load_lines ll ON ll.order_line_id = ol.id
-                JOIN loads l ON l.id = ll.load_id
-                LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
-                WHERE ol.so_num = orders.so_num
-                  AND (
-                    COALESCE(UPPER(l.status), '') = 'APPROVED'
-                    OR COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
-                  )
-                LIMIT 1
-            )
-        """
-
-        for row in connection.execute(
-            f"""
-            SELECT plant, COUNT(*) AS open_orders
-            FROM orders
-            WHERE is_excluded = 0
-              AND plant IN ({allowed_placeholders})
-              AND COALESCE(UPPER(status), 'OPEN') != 'CLOSED'
-              AND NOT {assigned_clause}
-            GROUP BY plant
-            """,
-            list(allowed_plants),
-        ).fetchall():
-            open_orders_by_plant[row["plant"]] = int(row["open_orders"] or 0)
-
-        for row in connection.execute(
-            f"""
-            SELECT l.origin_plant, COUNT(*) AS planned_loads
-            FROM loads l
-            LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
-            WHERE UPPER(l.status) IN ('PROPOSED', 'DRAFT')
-              AND l.origin_plant IN ({allowed_placeholders})
-              AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
-            GROUP BY l.origin_plant
-            """,
-            list(allowed_plants),
-        ).fetchall():
-            planned_loads_by_plant[row["origin_plant"]] = int(row["planned_loads"] or 0)
-
-        for row in connection.execute(
-            f"""
-            SELECT
-                origin_plant,
-                AVG(utilization_pct) AS avg_util,
-                SUM(COALESCE(estimated_cost, 0)) AS spend
-            FROM loads
-            WHERE status = 'APPROVED'
-              AND origin_plant IN ({allowed_placeholders})
-              AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY origin_plant
-            """,
-            list(allowed_plants) + [start_iso, end_iso],
-        ).fetchall():
-            plant = row["origin_plant"]
-            plant_spend[plant] = float(row["spend"] or 0)
-            plant_avg_util[plant] = float(row["avg_util"]) if row["avg_util"] is not None else None
-
-        for row in connection.execute(
-            f"""
-            SELECT
-                l.origin_plant AS origin_plant,
-                SUM(COALESCE(ol.qty, 0)) AS qty
-            FROM loads l
-            JOIN load_lines ll ON ll.load_id = l.id
-            JOIN order_lines ol ON ol.id = ll.order_line_id
-            WHERE l.status = 'APPROVED'
-              AND l.origin_plant IN ({allowed_placeholders})
-              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
-              AND COALESCE(ol.is_excluded, 0) = 0
-            GROUP BY l.origin_plant
-            """,
-            list(allowed_plants) + [start_iso, end_iso],
-        ).fetchall():
-            plant_qty[row["origin_plant"]] = float(row["qty"] or 0)
-
-        selected_set = set(plant_filters or [])
-        plant_cards = []
-        for plant in allowed_plants:
-            avg_util_value = plant_avg_util.get(plant)
-            status = "neutral"
-            if avg_util_value is not None:
-                if avg_util_value >= 80:
-                    status = "success"
-                elif avg_util_value >= 70:
-                    status = "warning"
-                else:
-                    status = "error"
-
-            qty_value = float(plant_qty.get(plant) or 0)
-            spend_value = float(plant_spend.get(plant) or 0)
-            cost_unit_value = (spend_value / qty_value) if qty_value else None
-            plant_cards.append(
-                {
-                    "code": plant,
-                    "name": PLANT_NAMES.get(plant, plant),
-                    "open_orders": open_orders_by_plant.get(plant, 0),
-                    "planned_loads": planned_loads_by_plant.get(plant, 0),
-                    "cost_per_unit_display": _format_currency(cost_unit_value, decimals=2)
-                    if cost_unit_value is not None
-                    else "—",
-                    "status": status,
-                    "selected": plant in selected_set,
-                }
-            )
-
-        # Spend vs Volume trend.
-        spend_by_day = {}
-        qty_by_day = {}
-        if plant_scope:
-            scope_placeholders = ", ".join("?" for _ in plant_scope)
-            for row in connection.execute(
-                f"""
-                SELECT DATE(created_at) AS day, SUM(COALESCE(estimated_cost, 0)) AS spend
-                FROM loads
-                WHERE status = 'APPROVED'
-                  AND origin_plant IN ({scope_placeholders})
-                  AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-                GROUP BY day
-                ORDER BY day
-                """,
-                list(plant_scope) + [start_iso, end_iso],
-            ).fetchall():
-                if row["day"]:
-                    spend_by_day[row["day"]] = float(row["spend"] or 0)
-
-            for row in connection.execute(
-                f"""
-                SELECT DATE(l.created_at) AS day, SUM(COALESCE(ol.qty, 0)) AS qty
-                FROM loads l
-                JOIN load_lines ll ON ll.load_id = l.id
-                JOIN order_lines ol ON ol.id = ll.order_line_id
-                WHERE l.status = 'APPROVED'
-                  AND l.origin_plant IN ({scope_placeholders})
-                  AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
-                  AND COALESCE(ol.is_excluded, 0) = 0
-                GROUP BY day
-                ORDER BY day
-                """,
-                list(plant_scope) + [start_iso, end_iso],
-            ).fetchall():
-                if row["day"]:
-                    qty_by_day[row["day"]] = float(row["qty"] or 0)
-
-        daily_items = []
-        for offset in range(period_len_days):
-            day = start_date + timedelta(days=offset)
-            day_key = _iso(day)
-            daily_items.append(
-                {
-                    "date": day,
-                    "spend": float(spend_by_day.get(day_key) or 0),
-                    "qty": float(qty_by_day.get(day_key) or 0),
-                }
-            )
-
-        raw_buckets = _bucket_series(daily_items, bucket_count=7)
-        max_spend = max((bucket["spend"] for bucket in raw_buckets), default=0.0)
-        max_qty = max((bucket["qty"] for bucket in raw_buckets), default=0.0)
-        trend_buckets = []
-        for bucket in raw_buckets:
-            spend_height = 0
-            volume_height = 0
-            if max_spend and bucket["spend"]:
-                spend_height = max(4, round((bucket["spend"] / max_spend) * 100))
-            if max_qty and bucket["qty"]:
-                volume_height = max(4, round((bucket["qty"] / max_qty) * 100))
-            trend_buckets.append(
-                {
-                    "start": bucket["start"],
-                    "end": bucket["end"],
-                    "spend": bucket["spend"],
-                    "qty": bucket["qty"],
-                    "spend_height": spend_height,
-                    "volume_height": volume_height,
-                }
-            )
-
-        trend_axis = {"start": "", "mid1": "", "mid2": "", "end": ""}
-        if trend_buckets:
-            if len(trend_buckets) == 1:
-                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
-                trend_axis["end"] = _axis_label(trend_buckets[0]["end"])
-            elif len(trend_buckets) == 2:
-                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
-                trend_axis["end"] = _axis_label(trend_buckets[1]["end"])
-            elif len(trend_buckets) == 3:
-                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
-                trend_axis["mid1"] = _axis_label(trend_buckets[1]["start"])
-                trend_axis["end"] = _axis_label(trend_buckets[2]["end"])
-            else:
-                idx1 = len(trend_buckets) // 3
-                idx2 = (len(trend_buckets) * 2) // 3
-                idx1 = min(max(idx1, 1), len(trend_buckets) - 2)
-                idx2 = min(max(idx2, idx1 + 1), len(trend_buckets) - 2)
-                trend_axis["start"] = _axis_label(trend_buckets[0]["start"])
-                trend_axis["mid1"] = _axis_label(trend_buckets[idx1]["start"])
-                trend_axis["mid2"] = _axis_label(trend_buckets[idx2]["start"])
-                trend_axis["end"] = _axis_label(trend_buckets[-1]["end"])
-
-        # Efficiency distribution bins.
-        efficiency = {"a": 0, "b": 0, "c": 0, "df": 0, "total": 0}
-        if plant_scope:
-            scope_placeholders = ", ".join("?" for _ in plant_scope)
-            row = connection.execute(
-                f"""
-                SELECT
-                    SUM(CASE WHEN utilization_pct >= 95 THEN 1 ELSE 0 END) AS grade_a,
-                    SUM(CASE WHEN utilization_pct >= 85 AND utilization_pct < 95 THEN 1 ELSE 0 END) AS grade_b,
-                    SUM(CASE WHEN utilization_pct >= 70 AND utilization_pct < 85 THEN 1 ELSE 0 END) AS grade_c,
-                    SUM(CASE WHEN utilization_pct < 70 THEN 1 ELSE 0 END) AS grade_df,
-                    COUNT(*) AS total
-                FROM loads
-                WHERE status = 'APPROVED'
-                  AND origin_plant IN ({scope_placeholders})
-                  AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-                """,
-                list(plant_scope) + [start_iso, end_iso],
-            ).fetchone()
-            if row:
-                efficiency = {
-                    "a": int(row["grade_a"] or 0),
-                    "b": int(row["grade_b"] or 0),
-                    "c": int(row["grade_c"] or 0),
-                    "df": int(row["grade_df"] or 0),
-                    "total": int(row["total"] or 0),
-                }
-
-        eff_total = efficiency["total"] or 0
-        efficiency_rows = [
-            {
-                "label": "Grade A (95%+)",
-                "count": efficiency["a"],
-                "width": round((efficiency["a"] / eff_total) * 100) if eff_total else 0,
-                "class": "success",
-            },
-            {
-                "label": "Grade B (85-94%)",
-                "count": efficiency["b"],
-                "width": round((efficiency["b"] / eff_total) * 100) if eff_total else 0,
-                "class": "info",
-            },
-            {
-                "label": "Grade C (70-84%)",
-                "count": efficiency["c"],
-                "width": round((efficiency["c"] / eff_total) * 100) if eff_total else 0,
-                "class": "neutral",
-            },
-            {
-                "label": "Grade D/F (<70%)",
-                "count": efficiency["df"],
-                "width": round((efficiency["df"] / eff_total) * 100) if eff_total else 0,
-                "class": "danger",
-            },
-        ]
-
-        # Load review widgets.
-        sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
-        stop_color_palette = _get_stop_color_palette()
-
-        def _fetch_loads(limit, ascending, max_util=None):
-            if not plant_scope:
-                return []
-            scope_placeholders = ", ".join("?" for _ in plant_scope)
-            util_clause = ""
-            params = list(plant_scope)
-            if max_util is not None:
-                util_clause = " AND utilization_pct < ?"
-                params.append(max_util)
-            params.extend([start_iso, end_iso, limit])
-            order_dir = "ASC" if ascending else "DESC"
-            rows = connection.execute(
-                f"""
-                SELECT id, load_number, origin_plant, utilization_pct, created_at, trailer_type
-                FROM loads
-                WHERE status = 'APPROVED'
-                  AND origin_plant IN ({scope_placeholders})
-                  AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-                  {util_clause}
-                ORDER BY utilization_pct {order_dir}, created_at DESC
-                LIMIT ?
-                """,
-                params,
-            ).fetchall()
-            return [dict(row) for row in rows]
-
-        def _format_load_rows(loads):
-            formatted = []
-            for load in loads:
-                created_at = load.get("created_at") or ""
-                ship_date = ""
-                try:
-                    ship_date = datetime.fromisoformat(created_at).strftime("%m/%d")
-                except (TypeError, ValueError):
-                    parsed = _parse_date(created_at)
-                    ship_date = parsed.strftime("%m/%d") if parsed else ""
-                formatted.append(
-                    {
-                        "id": load["id"],
-                        "load_number": load.get("load_number") or f"Load #{load['id']}",
-                        "origin_plant": load.get("origin_plant"),
-                        "utilization_pct": round(load.get("utilization_pct") or 0, 1),
-                        "ship_date": ship_date,
-                        "thumbnail": _build_load_thumbnail(load, sku_specs, stop_color_palette),
-                    }
-                )
-            return formatted
-
-        top_loads = _format_load_rows(_fetch_loads(limit=5, ascending=False))
-        problem_loads = _format_load_rows(_fetch_loads(limit=5, ascending=True, max_util=70))
-
-    return {
-        "period": period,
-        "period_label": period_label,
-        "period_options": period_options,
-        "date_range_label": date_range_label,
-        "start_date": start_date,
-        "end_date": end_date,
-        "plant_scope_label": plant_scope_label,
-        "plant_filter_param": plant_filter_param,
-        "network_health": {"label": health_label, "class": health_class},
-        "kpis": kpis,
-        "plant_cards": plant_cards,
-        "trend_buckets": trend_buckets,
-        "trend_axis": trend_axis,
-        "efficiency_rows": efficiency_rows,
-        "top_loads": top_loads,
-        "problem_loads": problem_loads,
-    }
 
 
 def _build_performance_dashboard_context():
@@ -8257,22 +7738,7 @@ def orders_load_report_upload():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    file = request.files.get("file")
-    if not file or not getattr(file, "filename", ""):
-        return redirect(url_for("orders"))
-    try:
-        _handle_load_report_upload(file)
-    except Exception as exc:
-        logger.exception("Load report upload failed.")
-        message = str(exc).strip() or "Load report upload failed."
-        return redirect(
-            url_for(
-                "orders",
-                load_report_status="error",
-                load_report_message=message[:200],
-            )
-        )
-    return redirect(url_for("orders", load_report_status="ok"))
+    return redirect(url_for("orders", intake_notice="load-report-deprecated"))
 
 
 @app.route("/api/orders/upload", methods=["POST"])
@@ -8732,10 +8198,9 @@ def orders():
     today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
-    load_report_status = (request.args.get("load_report_status") or "").strip().lower()
-    if load_report_status not in {"ok", "error"}:
-        load_report_status = ""
-    load_report_message = (request.args.get("load_report_message") or "").strip()
+    intake_notice = (request.args.get("intake_notice") or "").strip().lower()
+    if intake_notice not in {"load-report-deprecated"}:
+        intake_notice = ""
     plant_filter_param = ",".join(plant_filters) if plant_filters else ""
     reset_args = {}
     if plant_filter_param:
@@ -8792,8 +8257,7 @@ def orders():
         today_override_value=today_override_value,
         today_override_label=today_override_label,
         today_display_label=today_display_label,
-        load_report_status=load_report_status,
-        load_report_message=load_report_message,
+        intake_notice=intake_notice,
         profile_default_plants=profile_default_plants,
         show_more_plants=show_more_plants,
         active_session=active_session,
@@ -9306,10 +8770,9 @@ def orders_optimize():
     today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
-    load_report_status = (request.args.get("load_report_status") or "").strip().lower()
-    if load_report_status not in {"ok", "error"}:
-        load_report_status = ""
-    load_report_message = (request.args.get("load_report_message") or "").strip()
+    intake_notice = (request.args.get("intake_notice") or "").strip().lower()
+    if intake_notice not in {"load-report-deprecated"}:
+        intake_notice = ""
     plant_filter_param = ",".join(plant_filters) if plant_filters else ""
     reset_args = {}
     if plant_filter_param:
@@ -9366,8 +8829,7 @@ def orders_optimize():
         today_override_value=today_override_value,
         today_override_label=today_override_label,
         today_display_label=today_display_label,
-        load_report_status=load_report_status,
-        load_report_message=load_report_message,
+        intake_notice=intake_notice,
         profile_default_plants=profile_default_plants,
         show_more_plants=show_more_plants,
         active_session=active_session,
@@ -10564,37 +10026,6 @@ def planning_sessions():
     )
 
 
-def _build_replay_totals(network_rows):
-    actual_loads = sum(int(row.get("actual_loads") or 0) for row in network_rows)
-    optimized_loads = sum(int(row.get("optimized_loads") or 0) for row in network_rows)
-    actual_util_num = sum(
-        float(row.get("actual_avg_utilization") or 0.0) * int(row.get("actual_loads") or 0)
-        for row in network_rows
-    )
-    optimized_util_num = sum(
-        float(row.get("optimized_avg_utilization") or 0.0) * int(row.get("optimized_loads") or 0)
-        for row in network_rows
-    )
-    actual_avg_util = (actual_util_num / actual_loads) if actual_loads else 0.0
-    optimized_avg_util = (optimized_util_num / optimized_loads) if optimized_loads else 0.0
-    actual_total_cost = sum(float(row.get("actual_total_cost") or 0.0) for row in network_rows)
-    optimized_total_cost = sum(float(row.get("optimized_total_cost") or 0.0) for row in network_rows)
-    delta_total_cost = optimized_total_cost - actual_total_cost
-    return {
-        "days": len(network_rows),
-        "matched_orders": sum(int(row.get("matched_orders") or 0) for row in network_rows),
-        "missing_orders": sum(int(row.get("missing_orders") or 0) for row in network_rows),
-        "actual_loads": actual_loads,
-        "optimized_loads": optimized_loads,
-        "actual_avg_utilization": actual_avg_util,
-        "optimized_avg_utilization": optimized_avg_util,
-        "actual_total_miles": sum(float(row.get("actual_total_miles") or 0.0) for row in network_rows),
-        "optimized_total_miles": sum(float(row.get("optimized_total_miles") or 0.0) for row in network_rows),
-        "actual_total_cost": actual_total_cost,
-        "optimized_total_cost": optimized_total_cost,
-        "delta_total_cost": delta_total_cost,
-        "delta_cost_pct": ((delta_total_cost / actual_total_cost) * 100.0) if actual_total_cost else None,
-    }
 
 
 def _parse_replay_load_json(raw_json):
@@ -11687,120 +11118,6 @@ def _measure_text(draw_ctx, text):
         return draw_ctx.textsize(text)
 
 
-def _build_excel_schematic_image(load):
-    if not (PILImage and ImageDraw and OpenPyxlImage):
-        return None
-
-    schematic = load.get("schematic") or {}
-    positions = schematic.get("positions") or []
-    if not positions:
-        return None
-
-    image_width = 360
-    image_height = 118
-    border_rgb = (177, 194, 216)
-    text_rgb = (44, 62, 92)
-    muted_text_rgb = (92, 112, 142)
-    track_fill_rgb = (233, 241, 252)
-    deck_title_rgb = (62, 89, 129)
-
-    image = PILImage.new("RGB", (image_width, image_height), (248, 251, 255))
-    draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(
-        (4, 4, image_width - 5, image_height - 5),
-        radius=10,
-        fill=(243, 248, 255),
-        outline=border_rgb,
-        width=1,
-    )
-
-    trailer_label = (schematic.get("trailer_type") or load.get("trailer_type") or "TRAILER")
-    trailer_label = trailer_label.replace("_", " ")
-    draw.text((12, 10), f"{trailer_label} schematic", fill=text_rgb)
-
-    deck_meta = [("lower", "Lower Deck", 34, 67)]
-    has_upper = any((pos.get("deck") or "lower") == "upper" for pos in positions)
-    if has_upper:
-        deck_meta.append(("upper", "Upper Deck", 74, 106))
-
-    order_color_map = load.get("order_colors") or {}
-    for deck_key, deck_label, top_y, bottom_y in deck_meta:
-        deck_positions = [
-            pos for pos in positions
-            if (pos.get("deck") or "lower") == deck_key
-        ]
-        if not deck_positions:
-            continue
-
-        draw.text((12, top_y - 13), deck_label, fill=deck_title_rgb)
-        left_x = 12
-        right_x = image_width - 12
-        draw.rounded_rectangle(
-            (left_x, top_y, right_x, bottom_y),
-            radius=6,
-            fill=track_fill_rgb,
-            outline=border_rgb,
-            width=1,
-        )
-
-        usable_width = right_x - left_x - 4
-        lengths = [max(float(pos.get("length_ft") or 0), 0.0) for pos in deck_positions]
-        total_length = sum(lengths) or float(len(deck_positions))
-        cursor_x = left_x + 2
-
-        for idx, pos in enumerate(deck_positions):
-            segment_ratio = (lengths[idx] / total_length) if total_length else (1.0 / len(deck_positions))
-            segment_width = max(int(round(usable_width * segment_ratio)), 18)
-            segment_right = (
-                right_x - 2
-                if idx == len(deck_positions) - 1
-                else min(cursor_x + segment_width, right_x - 2)
-            )
-
-            item_order_ids = []
-            for item in pos.get("items") or []:
-                order_id = str(item.get("order_id") or "").strip()
-                if order_id and order_id not in item_order_ids:
-                    item_order_ids.append(order_id)
-
-            primary_order = item_order_ids[0] if item_order_ids else ""
-            color_hex = order_color_map.get(primary_order, "#94A3B8")
-            base_rgb = _hex_to_rgb_tuple(color_hex, (148, 163, 184))
-            fill_rgb = _blend_rgb(base_rgb, (255, 255, 255), 0.72)
-            outline_rgb = _blend_rgb(base_rgb, (32, 43, 63), 0.25)
-
-            draw.rounded_rectangle(
-                (cursor_x, top_y + 2, segment_right, bottom_y - 2),
-                radius=4,
-                fill=fill_rgb,
-                outline=outline_rgb,
-                width=1,
-            )
-
-            if primary_order:
-                label = primary_order
-                if len(item_order_ids) > 1:
-                    label = f"{primary_order}+{len(item_order_ids) - 1}"
-            else:
-                label = "OPEN"
-            if len(label) > 12:
-                label = f"{label[:11]}~"
-
-            text_w, text_h = _measure_text(draw, label)
-            label_x = cursor_x + max(((segment_right - cursor_x) - text_w) // 2, 2)
-            label_y = top_y + max(((bottom_y - top_y) - text_h) // 2, 1)
-            draw.text((label_x, label_y), label, fill=text_rgb)
-            cursor_x = segment_right + 2
-
-    draw.text((12, image_height - 17), "Generated from current load stacking plan", fill=muted_text_rgb)
-
-    image_stream = io.BytesIO()
-    image.save(image_stream, format="PNG")
-    image_stream.seek(0)
-    excel_image = OpenPyxlImage(image_stream)
-    excel_image.width = 270
-    excel_image.height = 88 if has_upper else 72
-    return excel_image
 
 
 def _hex_to_excel_argb(hex_color, fallback="#94A3B8"):
