@@ -12,6 +12,7 @@ env/
 # Local databases / outputs
 data/db/*.db
 data/db/*.db-*
+data/db/*.db.bak_*
 data/exports/
 logs/
 

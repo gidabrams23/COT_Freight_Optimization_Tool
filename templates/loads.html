@@ -1293,13 +1293,14 @@
     function createStopIcon(stop) {
       const type = stop.type || 'stop';
       const sequence = stop.sequence || '';
+      const color = (typeof stop.color === 'string' && stop.color.trim()) ? stop.color.trim() : '#38bdf8';
       let html = '';
       if (type === 'origin') {
-        html = '<div class="stop-marker origin"><span class="material-symbols-outlined">home</span></div>';
+        html = `<div class="stop-marker origin" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">home</span></div>`;
       } else if (type === 'final') {
-        html = `<div class="stop-marker final"><span class="material-symbols-outlined">flag</span><span class="stop-num">${sequence}</span></div>`;
+        html = `<div class="stop-marker final" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">flag</span><span class="stop-num">${sequence}</span></div>`;
       } else {
-        html = `<div class="stop-marker"><span class="stop-num">${sequence}</span></div>`;
+        html = `<div class="stop-marker" style="background:${color}; border-color:#0f172a;"><span class="stop-num">${sequence}</span></div>`;
       }
       return L.divIcon({
         className: 'stop-marker-wrapper',

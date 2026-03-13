@@ -34,6 +34,9 @@ DEFAULT_V2_FD_ABSORB_MAX_COST_INCREASE_F = 5000.0
 DEFAULT_V2_FD_ABSORB_MAX_COST_INCREASE_D = 2200.0
 DEFAULT_V2_FD_ABSORB_DETOUR_CAP = 999.0
 DEFAULT_V2_FD_CANDIDATE_LIMIT = 120
+DEFAULT_V2_GROUP_REASSIGN_PASSES = 3
+DEFAULT_V2_GROUP_REASSIGN_MIN_SAVINGS = 25.0
+DEFAULT_V2_GROUP_REASSIGN_CANDIDATE_LIMIT = 16
 DEFAULT_V2_ALLOW_ORDER_INTERLEAVE = True
 DEFAULT_V2_PAIR_NEIGHBORS = 18
 DEFAULT_V2_PAIR_NEIGHBORS_LOW_UTIL = 56
@@ -268,6 +271,11 @@ class Optimizer:
             active,
             runtime_params,
             objective_weights,
+            time_window_days,
+        )
+        active = self._reassign_single_group_outliers(
+            active,
+            runtime_params,
             time_window_days,
         )
         active = self._apply_auto_hotshot_tail_assignments(active, runtime_params)
@@ -1105,6 +1113,157 @@ class Optimizer:
 
             if not changed:
                 break
+
+        return active_loads
+
+    def _reassign_single_group_outliers(
+        self,
+        active_loads,
+        params,
+        time_window_days,
+    ):
+        passes = int(
+            params.get("v2_group_reassign_passes", DEFAULT_V2_GROUP_REASSIGN_PASSES)
+            or DEFAULT_V2_GROUP_REASSIGN_PASSES
+        )
+        if passes <= 0:
+            return active_loads
+
+        min_savings = float(
+            params.get("v2_group_reassign_min_savings", DEFAULT_V2_GROUP_REASSIGN_MIN_SAVINGS)
+            or DEFAULT_V2_GROUP_REASSIGN_MIN_SAVINGS
+        )
+        candidate_limit = int(
+            params.get("v2_group_reassign_candidate_limit", DEFAULT_V2_GROUP_REASSIGN_CANDIDATE_LIMIT)
+            or DEFAULT_V2_GROUP_REASSIGN_CANDIDATE_LIMIT
+        )
+        detour_cap = float(
+            params.get(
+                "v2_group_reassign_detour_cap",
+                max(
+                    self._rescue_detour_pct(params.get("max_detour_pct")),
+                    DEFAULT_V2_DIRECTIONAL_DETOUR_FLOOR,
+                ),
+            )
+            or max(
+                self._rescue_detour_pct(params.get("max_detour_pct")),
+                DEFAULT_V2_DIRECTIONAL_DETOUR_FLOOR,
+            )
+        )
+
+        for _ in range(passes):
+            best = None
+            current_loads = list(active_loads.values())
+            for source in current_loads:
+                source_id = source.get("_merge_id")
+                if source_id not in active_loads:
+                    continue
+                source_groups = list(source.get("groups") or [])
+                if len(source_groups) <= 1:
+                    continue
+                recipients = [
+                    load
+                    for load in current_loads
+                    if load.get("_merge_id") != source_id
+                    and load.get("_merge_id") in active_loads
+                    and load.get("origin_plant") == source.get("origin_plant")
+                ]
+                if not recipients:
+                    continue
+
+                for group in source_groups:
+                    group_key = str(group.get("key") or "").strip()
+                    if not group_key:
+                        continue
+                    remaining_groups = [
+                        existing
+                        for existing in source_groups
+                        if str(existing.get("key") or "").strip() != group_key
+                    ]
+                    if len(remaining_groups) == len(source_groups) or not remaining_groups:
+                        continue
+                    source_remainder = self._build_load(remaining_groups, params)
+                    if self._load_is_multi_order_capacity_violation(source_remainder):
+                        continue
+
+                    group_load = self._build_load([group], params)
+                    ranked_recipients = self._recipient_candidates_for_target(
+                        source,
+                        group_load,
+                        recipients,
+                        params,
+                        time_window_days,
+                        candidate_limit,
+                    )
+                    for recipient in ranked_recipients:
+                        recipient_id = recipient.get("_merge_id")
+                        if recipient_id not in active_loads:
+                            continue
+                        if not self._loads_date_compatible(recipient, group_load, time_window_days):
+                            continue
+                        recipient_groups = list(recipient.get("groups") or [])
+                        merged_groups = recipient_groups + [group]
+                        standalone_cost = (
+                            (recipient.get("standalone_cost") or recipient.get("estimated_cost") or 0)
+                            + (group_load.get("standalone_cost") or group_load.get("estimated_cost") or 0)
+                        )
+                        merged = self._build_load(
+                            merged_groups,
+                            params,
+                            standalone_cost=standalone_cost,
+                        )
+                        if self._load_is_multi_order_capacity_violation(merged):
+                            continue
+                        savings = (
+                            (source.get("estimated_cost") or 0)
+                            + (recipient.get("estimated_cost") or 0)
+                            - (source_remainder.get("estimated_cost") or 0)
+                            - (merged.get("estimated_cost") or 0)
+                        )
+                        if savings < min_savings:
+                            continue
+                        if not self._detour_allowed(
+                            recipient,
+                            group_load,
+                            merged,
+                            detour_cap,
+                            params,
+                            savings=savings,
+                        ):
+                            continue
+                        score = (
+                            savings
+                            + max(
+                                (merged.get("utilization_pct") or 0)
+                                - (recipient.get("utilization_pct") or 0),
+                                0.0,
+                            )
+                            + max(
+                                (source_remainder.get("utilization_pct") or 0)
+                                - (source.get("utilization_pct") or 0),
+                                0.0,
+                            )
+                        )
+                        if best is None or score > best[0]:
+                            best = (
+                                score,
+                                source_id,
+                                recipient_id,
+                                source_remainder,
+                                merged,
+                                savings,
+                            )
+
+            if not best:
+                break
+
+            _, source_id, recipient_id, source_remainder, merged, _ = best
+            if source_id not in active_loads or recipient_id not in active_loads:
+                continue
+            del active_loads[source_id]
+            del active_loads[recipient_id]
+            active_loads[source_remainder["_merge_id"]] = source_remainder
+            active_loads[merged["_merge_id"]] = merged
 
         return active_loads
 

@@ -8329,8 +8329,8 @@ button.plant-card {
 }
 
 .stop-marker {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
   background: var(--primary);
   color: #0f172a;
@@ -8338,7 +8338,7 @@ button.plant-card {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 10px;
   border: 2px solid #0f172a;
   position: relative;
 }
@@ -8351,18 +8351,18 @@ button.plant-card {
 }
 
 .stop-marker .material-symbols-outlined {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .stop-marker.final .stop-num {
   position: absolute;
-  bottom: -6px;
-  right: -6px;
+  bottom: -5px;
+  right: -5px;
   background: var(--danger);
   color: #fff;
-  font-size: 9px;
+  font-size: 8px;
   border-radius: 999px;
-  padding: 1px 4px;
+  padding: 1px 3px;
 }
 
 .route-arrow {

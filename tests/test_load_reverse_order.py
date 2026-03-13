@@ -278,3 +278,192 @@ def test_build_load_schematic_payload_uses_return_hint_for_ordering(monkeypatch)
 
     assert payload is not None
     assert captured["return_to_origin"] is True
+
+
+def test_ordered_stops_for_lines_uses_local_tsp_sequence(monkeypatch):
+    lines = [
+        {"state": "TX", "zip": "73301", "city": "Austin", "cust_name": "A"},
+        {"state": "OK", "zip": "73008", "city": "Bethany", "cust_name": "B"},
+    ]
+    zip_coords = {
+        "73301": (30.2672, -97.7431),
+        "73008": (35.5187, -97.6323),
+    }
+    captured = {"called": False}
+
+    class _RoutingServiceProbe:
+        def build_route(self, *_args, **_kwargs):
+            raise AssertionError("routing_service should not be used for stop sequencing")
+
+    monkeypatch.setattr(
+        app_module.routing_service,
+        "get_routing_service",
+        lambda: _RoutingServiceProbe(),
+    )
+    monkeypatch.setattr(app_module.geo_utils, "plant_coords_for_code", lambda _plant: (33.0, -84.0))
+
+    def _fake_solve_route(_origin, stops, return_to_origin=False):
+        captured["called"] = True
+        captured["return_to_origin"] = return_to_origin
+        return list(reversed(stops))
+
+    monkeypatch.setattr(app_module.tsp_solver, "solve_route", _fake_solve_route)
+
+    ordered = app_module._ordered_stops_for_lines(
+        lines,
+        origin_plant="ATL",
+        zip_coords=zip_coords,
+        return_to_origin=True,
+    )
+
+    assert captured["called"] is True
+    assert captured["return_to_origin"] is True
+    assert [stop.get("zip") for stop in ordered] == ["73008", "73301"]
+
+
+def test_schematic_and_edit_payloads_share_reversed_stop_color_mapping(monkeypatch):
+    load_id = 55
+    load = {
+        "id": load_id,
+        "origin_plant": "ATL",
+        "trailer_type": "STEP_DECK",
+        "status": "DRAFT",
+        "carrier_override_key": "",
+        "route_legs": [],
+        "route_total_miles": 0.0,
+        "estimated_miles": 0.0,
+        "utilization_pct": 0.0,
+        "estimated_cost": 0.0,
+        "route_reversed": 1,
+    }
+    lines = [
+        {
+            "id": 1,
+            "so_num": "SO-1",
+            "item": "ITEM-1",
+            "item_desc": "Item 1",
+            "sku": "SKU-1",
+            "qty": 1,
+            "unit_length_ft": 8.0,
+            "state": "VA",
+            "zip": "11111",
+        },
+        {
+            "id": 2,
+            "so_num": "SO-2",
+            "item": "ITEM-2",
+            "item_desc": "Item 2",
+            "sku": "SKU-2",
+            "qty": 1,
+            "unit_length_ft": 8.0,
+            "state": "MD",
+            "zip": "22222",
+        },
+        {
+            "id": 3,
+            "so_num": "SO-3",
+            "item": "ITEM-3",
+            "item_desc": "Item 3",
+            "sku": "SKU-3",
+            "qty": 1,
+            "unit_length_ft": 8.0,
+            "state": "NY",
+            "zip": "33333",
+        },
+    ]
+    zip_coords = {
+        "11111": (37.0, -77.0),
+        "22222": (39.0, -76.0),
+        "33333": (43.0, -75.0),
+    }
+    palette = ["#111111", "#222222", "#333333", "#FFFFFF"]
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda _load_id: dict(load) if _load_id == load_id else None)
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: list(lines))
+    monkeypatch.setattr(app_module.db, "list_sku_specs", lambda: [])
+    monkeypatch.setattr(app_module.db, "get_load_schematic_override", lambda _load_id: None)
+    monkeypatch.setattr(app_module.geo_utils, "load_zip_coordinates", lambda: dict(zip_coords))
+    monkeypatch.setattr(app_module.geo_utils, "plant_coords_for_code", lambda _plant: (34.0, -84.0))
+    monkeypatch.setattr(app_module.tsp_solver, "solve_route", lambda _origin, stops, return_to_origin=False: list(stops))
+    monkeypatch.setattr(app_module, "_get_stop_color_palette", lambda: list(palette))
+    monkeypatch.setattr(app_module, "_requires_return_to_origin", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_alternate_requires_return_hint", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(app_module, "_load_has_lowes_order", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_build_load_carrier_pricing_context", lambda: {})
+    monkeypatch.setattr(
+        app_module,
+        "_resolve_load_carrier_pricing",
+        lambda **_kwargs: {
+            "carrier_key": "default",
+            "carrier_label": "FLS",
+            "rate_source_label": "",
+            "selection_reason": "",
+            "rate_per_mile": 0.0,
+            "total_cost": 0.0,
+        },
+    )
+    monkeypatch.setattr(app_module, "_build_freight_breakdown", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(app_module, "_get_effective_trailer_assignment_rules", lambda: {})
+    monkeypatch.setattr(app_module, "_resolve_auto_hotshot_enabled_for_plant", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(app_module, "_get_effective_planning_setting", lambda _key: {"value_text": ""})
+    monkeypatch.setattr(app_module, "_parse_strategic_customers", lambda _value: [])
+    monkeypatch.setattr(app_module, "_auto_trailer_rule_annotation", lambda **_kwargs: ("", ""))
+    monkeypatch.setattr(app_module, "_get_stop_fee_amount", lambda: 0.0)
+    monkeypatch.setattr(app_module, "_get_fuel_surcharge_per_mile", lambda: 0.0)
+    monkeypatch.setattr(app_module, "_get_load_minimum_amount", lambda: 0.0)
+
+    payload = app_module._build_load_schematic_payload(load_id)
+    edit_payload = app_module._build_load_schematic_edit_payload(load_id)
+
+    ordered_stops = app_module._ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+    ordered_stops = app_module._apply_load_route_direction(ordered_stops, load=load)
+    stop_sequence_map = app_module._stop_sequence_map_from_ordered_stops(ordered_stops)
+    expected_colors = app_module._build_order_colors_for_lines(
+        lines,
+        stop_sequence_map=stop_sequence_map,
+        stop_palette=palette,
+    )
+
+    assert payload is not None
+    assert edit_payload is not None
+    assert payload["order_colors"] == expected_colors
+    assert edit_payload["order_colors"] == expected_colors
+
+    unit_stop_by_order = {}
+    for unit in edit_payload.get("units") or []:
+        order_id = unit.get("order_id")
+        if order_id not in unit_stop_by_order:
+            unit_stop_by_order[order_id] = unit.get("stop_sequence")
+    assert unit_stop_by_order == {
+        "SO-1": 3,
+        "SO-2": 2,
+        "SO-3": 1,
+    }
+
+
+def test_order_colors_after_manual_addition_follow_stop_sequence():
+    ordered_stops = [
+        {"state": "VA", "zip": "11111"},
+        {"state": "MD", "zip": "22222"},
+        {"state": "NY", "zip": "33333"},
+    ]
+    stop_sequence_map = app_module._stop_sequence_map_from_ordered_stops(ordered_stops)
+    palette = ["#00AA00", "#0088FF", "#FF9900", "#FFFFFF"]
+    lines = [
+        {"so_num": "SO-1", "state": "VA", "zip": "11111"},
+        {"so_num": "SO-2", "state": "MD", "zip": "22222"},
+        # Represents a manually added order to an existing stop.
+        {"so_num": "SO-NEW", "state": "MD", "zip": "22222"},
+        {"so_num": "SO-3", "state": "NY", "zip": "33333"},
+    ]
+
+    order_colors = app_module._build_order_colors_for_lines(
+        lines,
+        stop_sequence_map=stop_sequence_map,
+        stop_palette=palette,
+    )
+
+    assert order_colors["SO-1"] == app_module._color_for_stop_sequence(1, palette)
+    assert order_colors["SO-2"] == app_module._color_for_stop_sequence(2, palette)
+    assert order_colors["SO-NEW"] == app_module._color_for_stop_sequence(2, palette)
+    assert order_colors["SO-3"] == app_module._color_for_stop_sequence(3, palette)

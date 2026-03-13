@@ -178,6 +178,26 @@ if _configured_web_concurrency > 1:
         _configured_web_concurrency,
     )
 
+WARMUP_PATH = "/robots933456.txt"
+
+
+@app.before_request
+def skip_auth_for_warmup():
+    if request.path == WARMUP_PATH:
+        return "", 200
+    return None
+
+
+@app.route(WARMUP_PATH)
+def health_check():
+    return "", 200
+
+
+@app.route("/healthz")
+def healthz():
+    return "ok", 200
+
+
 @app.template_filter("short_date")
 def short_date(value):
     if value is None:
@@ -618,11 +638,6 @@ def _backfill_legacy_sessions():
 
 
 _backfill_legacy_sessions()
-
-
-@app.route("/robots933456.txt")
-def warmup():
-    return "", 200
 
 
 @app.route("/session", methods=["GET", "POST"])
@@ -4840,35 +4855,11 @@ def _requires_return_to_origin(lines):
 
 
 def _ordered_stops_for_lines(lines, origin_plant, zip_coords, return_to_origin=None):
-    stop_map = {}
-    for line in lines or []:
-        state = (line.get("state") or "").strip().upper()
-        zip_code = (line.get("zip") or "").strip()
-        key = _line_stop_key(state, zip_code)
-        if key in stop_map:
-            continue
-        normalized_zip = geo_utils.normalize_zip(zip_code)
-        coords = zip_coords.get(normalized_zip) if normalized_zip else None
-        stop_map[key] = {
-            "state": state,
-            "zip": zip_code,
-            "coords": coords,
-        }
-    stops = list(stop_map.values())
+    stops = _build_route_stops_for_lines(lines, zip_coords)
     origin_coords = geo_utils.plant_coords_for_code(origin_plant)
     if return_to_origin is None:
         return_to_origin = _requires_return_to_origin(lines)
     if origin_coords:
-        route_result = routing_service.get_routing_service().build_route(
-            origin_coords,
-            stops,
-            return_to_origin=bool(return_to_origin),
-            objective="distance",
-            include_geometry=False,
-        )
-        ordered_stops = route_result.get("ordered_stops") or []
-        if ordered_stops:
-            return ordered_stops
         return tsp_solver.solve_route(
             origin_coords,
             stops,
