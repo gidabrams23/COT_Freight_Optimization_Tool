@@ -27,6 +27,7 @@ OPTIONAL_COLUMNS = [
     "cpo",
     "salesman",
     "custnum",
+    "load_name",
     "load #",
     "address1",
     "address2",
@@ -52,6 +53,7 @@ COLUMN_ALIASES = {
     "ship via": "shipvia",
     "linenum": "linenum",
     "desc": "desc",
+    "load name": "load_name",
     "orders on loads.loadnum": "load #",
 }
 
@@ -165,6 +167,11 @@ class OrderImporter:
         ship_date = self._parse_date(row.get("shipdate"))
         item_desc = self._clean_value(row.get("desc"))
 
+        load_num = (
+            self._clean_value(row.get("load_name"))
+            or self._clean_value(row.get("load #"))
+        )
+
         line = {
             "due_date": due_date,
             "plant": plant,
@@ -181,7 +188,7 @@ class OrderImporter:
             "salesman": self._clean_value(row.get("salesman")),
             "cust_num": self._clean_value(row.get("custnum")),
             "bin": bin_code,
-            "load_num": self._clean_value(row.get("load #")),
+            "load_num": load_num,
             "address1": self._clean_value(row.get("address1")),
             "address2": self._clean_value(row.get("address2")),
             "city": self._clean_value(row.get("city")),

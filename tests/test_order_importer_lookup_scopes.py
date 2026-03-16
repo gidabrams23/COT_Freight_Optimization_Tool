@@ -78,9 +78,36 @@ class OrderImporterLookupScopeTests(unittest.TestCase):
 
     def test_normalize_columns_maps_orders_on_loads_loadnum_alias(self):
         importer = OrderImporter.__new__(OrderImporter)
-        mapped = importer._normalize_columns(["Orders On Loads.LoadNum", "Load #"])
+        mapped = importer._normalize_columns(["Orders On Loads.LoadNum", "Load #", "load_name"])
         self.assertEqual(mapped["Orders On Loads.LoadNum"], "load #")
         self.assertEqual(mapped["Load #"], "load #")
+        self.assertEqual(mapped["load_name"], "load_name")
+
+    def test_parse_order_line_prefers_load_name_over_legacy_load_number(self):
+        importer = OrderImporter.__new__(OrderImporter)
+        importer.sku_specs = {
+            "SKU-1": {
+                "sku": "SKU-1",
+                "length_with_tongue_ft": 10.0,
+                "max_stack_flat_bed": 1,
+            }
+        }
+        importer.lookup_sku = lambda *args, **kwargs: "SKU-1"
+        row = {
+            "shipvia": "2026-03-13",
+            "plant": "GA-TRLR",
+            "item": "ITEM-1",
+            "qty": "1",
+            "state": "GA",
+            "zip": "30301",
+            "bin": "USA",
+            "sonum": "SO-1",
+            "load_name": "GA26-3001",
+            "load #": "GA26-1001",
+        }
+
+        line = importer.parse_order_line(row)
+        self.assertEqual(line["load_num"], "GA26-3001")
 
 
 if __name__ == "__main__":
