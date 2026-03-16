@@ -1,5 +1,15 @@
-import json
 import logging
+import sys
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
+logger.info("Verbose startup logging enabled.")
+
+import json
 import math
 import os
 import re
@@ -63,8 +73,29 @@ from services.cost_calculator import (
 from services.optimizer_engine import OptimizerEngine
 from services.order_importer import OrderImporter
 
-logger = logging.getLogger(__name__)
 ROOT_DIR = Path(__file__).resolve().parent
+_startup_host = "0.0.0.0"
+_startup_port_raw = (
+    (os.environ.get("PORT") or "").strip()
+    or (os.environ.get("WEBSITES_PORT") or "").strip()
+    or "5000"
+)
+try:
+    _startup_port = int(_startup_port_raw)
+except ValueError:
+    _startup_port = 5000
+    logger.warning(
+        "Invalid startup port value '%s'; defaulting to %s.",
+        _startup_port_raw,
+        _startup_port,
+    )
+logger.info(
+    "App starting - host: %s, port: %s (PORT=%s, WEBSITES_PORT=%s)",
+    _startup_host,
+    _startup_port,
+    os.environ.get("PORT"),
+    os.environ.get("WEBSITES_PORT"),
+)
 
 
 def _coerce_iso_date(raw_value):
@@ -148,9 +179,13 @@ def _env_bool(name, default=False):
     return bool(default)
 
 
+logger.info("Starting app initialization.")
 app = Flask(__name__)
+logger.info("Flask app initialization complete.")
+logger.info("Blueprint registration check: no blueprints configured (routes are defined directly on app).")
 _configured_secret = (os.environ.get("FLASK_SECRET_KEY") or "").strip()
 if not _configured_secret and not _is_local_dev_mode():
+    logger.error("FLASK_SECRET_KEY missing for non-development environment; aborting startup.")
     raise RuntimeError(
         "FLASK_SECRET_KEY must be set for non-development environments."
     )
@@ -183,18 +218,22 @@ WARMUP_PATH = "/robots933456.txt"
 
 @app.before_request
 def skip_auth_for_warmup():
+    logger.debug("before_request fired: method=%s path=%s", request.method, request.path)
     if request.path == WARMUP_PATH:
+        logger.info("Warmup probe hit at %s - returning 200.", WARMUP_PATH)
         return "", 200
     return None
 
 
 @app.route(WARMUP_PATH)
 def health_check():
+    logger.info("Warmup route handler hit at %s - returning 200.", WARMUP_PATH)
     return "", 200
 
 
 @app.route("/healthz")
 def healthz():
+    logger.info("Health check route hit at /healthz - returning 200.")
     return "ok", 200
 
 
@@ -446,7 +485,10 @@ def _sync_access_profiles_seed_snapshot():
         logger.warning("Unable to sync access profile seed snapshot at %s", ACCESS_PROFILES_SEED_PATH)
 
 
+logger.info("Database init starting.")
 db.init_db()
+logger.info("Database init complete.")
+logger.info("Ensuring default access profiles.")
 db.ensure_default_access_profiles(
     [
         {
@@ -500,7 +542,10 @@ db.ensure_default_access_profiles(
         },
     ]
 )
+logger.info("Default access profiles ensured.")
+logger.info("Syncing access profile seed snapshot.")
 _sync_access_profiles_seed_snapshot()
+logger.info("Access profile seed snapshot sync complete.")
 db.ensure_default_planning_settings(
     {
         "strategic_customers": json.dumps(
