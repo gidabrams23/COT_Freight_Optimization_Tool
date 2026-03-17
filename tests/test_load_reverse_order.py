@@ -159,6 +159,179 @@ def test_reverse_route_sequence_updates_order_color_mapping():
     assert order_colors["SO-TX"] == app_module._color_for_stop_sequence(2, palette)
 
 
+def test_apply_route_stop_order_reorders_and_keeps_unlisted_stops():
+    stops = [
+        {"state": "VA", "zip": "23061"},
+        {"state": "VA", "zip": "23456"},
+        {"state": "VA", "zip": "20190"},
+    ]
+
+    reordered = app_module._apply_route_stop_order(
+        stops,
+        stop_order=["VA|23456", "VA|23061"],
+    )
+
+    assert [app_module._line_stop_key(stop["state"], stop["zip"]) for stop in reordered] == [
+        "VA|23456",
+        "VA|23061",
+        "VA|20190",
+    ]
+
+
+def test_save_manifest_sequence_endpoint_persists_stop_order(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 42,
+        "origin_plant": "ATL",
+        "planning_session_id": 7,
+        "status": "DRAFT",
+        "trailer_type": "STEP_DECK",
+        "route_reversed": 0,
+    }
+    lines = [
+        {"so_num": "SO-1", "state": "VA", "zip": "23061", "cust_name": "A"},
+        {"so_num": "SO-2", "state": "VA", "zip": "23456", "cust_name": "B"},
+    ]
+    captured = {}
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: dict(load) if load_id == 42 else None)
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: list(lines))
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module, "_requires_return_to_origin", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_alternate_requires_return_hint", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(app_module, "_load_has_lowes_order", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_build_load_carrier_pricing_context", lambda: {})
+    monkeypatch.setattr(app_module.geo_utils, "load_zip_coordinates", lambda: {})
+    monkeypatch.setattr(app_module.geo_utils, "plant_coords_for_code", lambda _plant: (33.0, -84.0))
+    monkeypatch.setattr(
+        app_module.tsp_solver,
+        "solve_route",
+        lambda _origin, stops, return_to_origin=False: list(stops),
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "update_load_route_stop_order",
+        lambda load_id, stop_order: captured.update(
+            {"load_id": load_id, "stop_order": list(stop_order)}
+        ),
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "update_load_route_reversed",
+        lambda load_id, route_reversed: captured.update(
+            {"route_reversed": (load_id, route_reversed)}
+        ),
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "delete_load_schematic_override",
+        lambda load_id: captured.update({"override_deleted": load_id}),
+    )
+
+    response = client.post(
+        "/loads/42/manifest-sequence",
+        json={"stop_order": ["VA|23456", "VA|23061"]},
+        headers={
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert captured["load_id"] == 42
+    assert captured["stop_order"] == ["VA|23456", "VA|23061"]
+    assert captured["route_reversed"] == (42, False)
+    assert captured["override_deleted"] == 42
+
+
+def test_approve_lock_status_update_dedupes_orders_from_unapproved_loads(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 42,
+        "origin_plant": "ATL",
+        "planning_session_id": 7,
+        "status": "DRAFT",
+        "load_number": "ATL26-0007-D",
+    }
+    captured = {}
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: dict(load) if load_id == 42 else None)
+    monkeypatch.setattr(app_module.db, "get_planning_session", lambda _session_id: {"id": 7, "plant_code": "ATL"})
+    monkeypatch.setattr(app_module, "_get_allowed_plants", lambda: ["ATL"])
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module, "_is_session_sandbox", lambda: False)
+    monkeypatch.setattr(
+        app_module.db,
+        "update_load_status",
+        lambda load_id, status, load_number=None: captured.update(
+            {"status_update": (load_id, status, load_number)}
+        ),
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "list_load_lines",
+        lambda _load_id: [
+            {"so_num": "SO-1"},
+            {"so_num": "SO-2"},
+            {"so_num": "SO-2"},
+        ],
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "remove_orders_from_unapproved_loads",
+        lambda plant, so_nums, session_id=None, exclude_load_id=None: captured.update(
+            {
+                "dedupe_args": {
+                    "plant": plant,
+                    "so_nums": list(so_nums),
+                    "session_id": session_id,
+                    "exclude_load_id": exclude_load_id,
+                }
+            }
+        )
+        or {"removed_lines": 3, "deleted_loads": 1},
+    )
+    monkeypatch.setattr(app_module, "_sync_planning_session_status", lambda _session_id: "DRAFT")
+    monkeypatch.setattr(app_module.load_builder, "list_loads", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        app_module,
+        "_compute_load_progress_snapshot",
+        lambda **_kwargs: {
+            "approved_orders": 2,
+            "total_orders": 2,
+            "progress_pct": 100.0,
+            "draft_tab_count": 0,
+            "final_tab_count": 1,
+        },
+    )
+
+    response = client.post(
+        "/loads/42/status",
+        data={"action": "approve_lock"},
+        headers={
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert captured["status_update"] == (42, app_module.STATUS_APPROVED, "ATL26-0007")
+    assert captured["dedupe_args"] == {
+        "plant": "ATL",
+        "so_nums": ["SO-1", "SO-2"],
+        "session_id": 7,
+        "exclude_load_id": 42,
+    }
+    assert payload["dedupe"] == {"removed_lines": 3, "deleted_loads": 1}
+
+
 def test_progress_snapshot_counts_manual_load_orders_in_total():
     loads = [
         {

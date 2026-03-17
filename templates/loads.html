@@ -675,8 +675,16 @@
                       <div class="manifest-card">
                         {% set manifest_total_miles = (load.route_distance if load.route_distance is not none else (load.estimated_miles or 0)) | round(0) | int %}
                         {% set manifest_stop_count = load.stop_count or 0 %}
+                        {% set manifest_order_count = (load.manifest_groups | rejectattr('is_terminal_stop') | list | length) %}
+                        {% set manifest_can_resequence = (tab != 'final' and not is_replay and status != 'APPROVED' and manifest_order_count > 1) %}
+                        {% set manifest_reverse_label = 'Restore Sequence' if load.route_reversed else 'Reverse Sequence' %}
                         <div class="table-container">
-                          <table class="manifest-table manifest-grouped">
+                          <table
+                            class="manifest-table manifest-grouped"
+                            data-manifest-table
+                            data-load-id="{{ load.id }}"
+                            data-can-resequence="{{ 1 if manifest_can_resequence else 0 }}"
+                          >
                             <thead>
                               <tr class="manifest-toolbar-row">
                                 <th colspan="3">
@@ -689,16 +697,18 @@
                                     </div>
                                     {% if tab != 'final' and not is_replay %}
                                       <div class="manifest-toolbar-right">
-                                        <form method="post" action="{{ url_for('reverse_load_order', load_id=load.id) }}">
+                                        <form method="post" action="{{ url_for('reverse_load_order', load_id=load.id) }}" data-manifest-reverse-form data-load-id="{{ load.id }}">
                                           <input type="hidden" name="next" value="{{ request.full_path }}">
                                           <input type="hidden" name="selected_load" value="{{ load.id }}">
-                                          <button class="btn-secondary btn-xs btn-muted-action manifest-reverse-btn" type="submit" {% if status == 'APPROVED' or (load.stop_count or 0) <= 1 %}disabled{% endif %}>
-                                            <span class="material-symbols-outlined">swap_vert</span>
-                                            {% if load.route_reversed %}
-                                              Restore Sequence
-                                            {% else %}
-                                              Reverse Sequence
-                                            {% endif %}
+                                          <button
+                                            class="btn-secondary btn-xs btn-muted-action manifest-reverse-btn manifest-action-btn"
+                                            type="submit"
+                                            data-manifest-action
+                                            data-default-label="{{ manifest_reverse_label }}"
+                                            {% if status == 'APPROVED' or (load.stop_count or 0) <= 1 %}disabled{% endif %}
+                                          >
+                                            <span class="material-symbols-outlined" data-manifest-action-icon>swap_vert</span>
+                                            <span data-manifest-action-label>{{ manifest_reverse_label }}</span>
                                           </button>
                                         </form>
                                       </div>
@@ -734,7 +744,15 @@
                                   ) or 0
                                 ) | round(0) | int %}
                                 {% set show_incoming_leg = incoming_leg_miles > 0 and not prev_same_stop %}
-                                <tr class="manifest-order-row{% if group.is_terminal_stop %} is-terminal{% endif %}"{% if not group.is_terminal_stop %} data-target="{{ row_id }}"{% endif %}>
+                                <tr
+                                  class="manifest-order-row{% if group.is_terminal_stop %} is-terminal{% endif %}"
+                                  {% if not group.is_terminal_stop %}
+                                    data-target="{{ row_id }}"
+                                    data-order-id="{{ group.order_id }}"
+                                    data-stop-key="{{ group.stop_key }}"
+                                    data-stop-anchor="{{ 1 if not prev_same_stop else 0 }}"
+                                  {% endif %}
+                                >
                                   <td class="manifest-dist-cell">
                                     {% if show_incoming_leg %}
                                       <span class="manifest-inline-leg{% if group.is_terminal_stop %} is-return{% endif %}">
@@ -782,6 +800,11 @@
                                     <div class="manifest-customer-cell">
                                       <div class="manifest-customer-head">
                                         <div class="manifest-customer-name">{{ group.cust_name }}</div>
+                                        {% if manifest_can_resequence and not group.is_terminal_stop and not prev_same_stop %}
+                                          <button class="manifest-drag-handle" type="button" draggable="true" title="Drag stop to resequence" aria-label="Drag stop to resequence">
+                                            <span class="material-symbols-outlined">drag_indicator</span>
+                                          </button>
+                                        {% endif %}
                                         {% if group.is_terminal_stop %}
                                           <span class="manifest-end-tag">End</span>
                                         {% endif %}
@@ -2406,11 +2429,232 @@
       loadSearchInput.addEventListener('input', applySearch);
     }
 
+    function bindManifestResequence(root = document) {
+      root.querySelectorAll('[data-manifest-table]').forEach((table) => {
+        if (table.dataset.resequenceBound === 'true') return;
+        table.dataset.resequenceBound = 'true';
+
+        const loadId = (table.dataset.loadId || '').trim();
+        if (!loadId) return;
+        const canResequence = table.dataset.canResequence === '1';
+        const tbody = table.querySelector('tbody');
+        const manifestCard = table.closest('.manifest-card');
+        const reverseForm = manifestCard ? manifestCard.querySelector(`form[data-manifest-reverse-form][data-load-id="${loadId}"]`) : null;
+        const actionButton = reverseForm ? reverseForm.querySelector('[data-manifest-action]') : null;
+        const actionIcon = actionButton ? actionButton.querySelector('[data-manifest-action-icon]') : null;
+        const actionLabel = actionButton ? actionButton.querySelector('[data-manifest-action-label]') : null;
+        const defaultActionLabel = (actionButton?.dataset?.defaultLabel || '').trim() || 'Reverse Sequence';
+        if (!tbody || !reverseForm || !actionButton) return;
+
+        const stopAnchorRows = () => Array.from(tbody.querySelectorAll('.manifest-order-row[data-stop-key][data-stop-anchor="1"]'));
+        const stopOrderHash = () => stopAnchorRows().map((row) => `${row.dataset.stopKey || ''}`).join('|');
+        let baselineHash = stopOrderHash();
+        let hasChanged = false;
+
+        const updateActionButtonState = () => {
+          if (actionIcon) actionIcon.textContent = 'swap_vert';
+          if (actionLabel) actionLabel.textContent = defaultActionLabel;
+          actionButton.classList.remove('is-save-state');
+
+          if (!canResequence) {
+            return;
+          }
+
+          hasChanged = stopOrderHash() !== baselineHash;
+          if (hasChanged) {
+            if (actionIcon) actionIcon.textContent = 'save';
+            if (actionLabel) actionLabel.textContent = 'Save Sequence';
+            actionButton.classList.add('is-save-state');
+          }
+        };
+
+        const saveManifestSequence = async () => {
+          if (!canResequence || !hasChanged) return;
+          const stopOrder = stopAnchorRows()
+            .map((row) => (row.dataset.stopKey || '').trim())
+            .filter((value) => value);
+          if (stopOrder.length <= 1) return;
+
+          actionButton.setAttribute('disabled', 'true');
+          try {
+            const response = await fetch(`/loads/${loadId}/manifest-sequence`, {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+              body: JSON.stringify({
+                stop_order: stopOrder,
+                next: `${window.location.pathname}${window.location.search}`,
+                selected_load: loadId,
+              }),
+            });
+            const payload = await parseJsonResponseSafe(response);
+            if (!response.ok || !payload || payload.error) {
+              throw new Error((payload && payload.error) || `Unable to save sequence (${response.status})`);
+            }
+            const redirectUrl = payload.redirect_url || (() => {
+              const nextUrl = new URL(window.location.href);
+              nextUrl.searchParams.set('selected_load', loadId);
+              return nextUrl.toString();
+            })();
+            window.location.href = redirectUrl;
+          } catch (error) {
+            window.alert((error && error.message) || 'Unable to save sequence. Please try again.');
+            actionButton.removeAttribute('disabled');
+            updateActionButtonState();
+          }
+        };
+
+        reverseForm.addEventListener('submit', (event) => {
+          if (!canResequence || !hasChanged) return;
+          event.preventDefault();
+          saveManifestSequence();
+        });
+
+        if (!canResequence) {
+          updateActionButtonState();
+          return;
+        }
+
+        let draggingAnchorRow = null;
+
+        const stopBlock = (anchorRow) => {
+          if (!anchorRow) return [];
+          const stopKey = (anchorRow.dataset.stopKey || '').trim();
+          if (!stopKey) return [];
+          const nodes = [];
+          let cursor = anchorRow;
+          while (cursor) {
+            if (
+              cursor !== anchorRow
+              && cursor.classList?.contains('manifest-order-row')
+              && cursor.dataset?.stopAnchor === '1'
+            ) {
+              break;
+            }
+            if (
+              cursor !== anchorRow
+              && cursor.classList?.contains('manifest-order-row')
+              && (cursor.dataset?.stopKey || '').trim()
+              && (cursor.dataset?.stopKey || '').trim() !== stopKey
+            ) {
+              break;
+            }
+            if (
+              cursor !== anchorRow
+              && cursor.classList?.contains('manifest-order-row')
+              && !(cursor.dataset?.stopKey || '').trim()
+            ) {
+              break;
+            }
+            nodes.push(cursor);
+            cursor = cursor.nextElementSibling;
+          }
+          return nodes;
+        };
+
+        const moveStopBlockBefore = (sourceAnchor, targetAnchor) => {
+          if (!sourceAnchor || !targetAnchor || sourceAnchor === targetAnchor) return;
+          const sourceNodes = stopBlock(sourceAnchor);
+          if (!sourceNodes.length) return;
+          sourceNodes.forEach((node) => {
+            tbody.insertBefore(node, targetAnchor);
+          });
+        };
+
+        const moveStopBlockAfter = (sourceAnchor, targetAnchor) => {
+          if (!sourceAnchor || !targetAnchor || sourceAnchor === targetAnchor) return;
+          const sourceNodes = stopBlock(sourceAnchor);
+          const targetNodes = stopBlock(targetAnchor);
+          if (!sourceNodes.length || !targetNodes.length) return;
+          const insertBefore = targetNodes[targetNodes.length - 1].nextSibling;
+          sourceNodes.forEach((node) => {
+            tbody.insertBefore(node, insertBefore);
+          });
+        };
+
+        const anchorForStopKey = (stopKey) => {
+          if (!stopKey) return null;
+          return stopAnchorRows().find((row) => (row.dataset.stopKey || '').trim() === stopKey) || null;
+        };
+
+        const anchorFromEventTarget = (target) => {
+          let row = target?.closest?.('.manifest-order-row[data-stop-key]');
+          if (!row) {
+            const targetRow = target?.closest?.('tr');
+            if (targetRow?.classList?.contains('manifest-item-row')) {
+              let prev = targetRow.previousElementSibling;
+              while (prev && !prev.classList?.contains('manifest-order-row')) {
+                prev = prev.previousElementSibling;
+              }
+              if (prev?.dataset?.stopKey) {
+                row = prev;
+              }
+            }
+          }
+          if (!row) return null;
+          if (row.dataset.stopAnchor === '1') return row;
+          return anchorForStopKey((row.dataset.stopKey || '').trim());
+        };
+
+        stopAnchorRows().forEach((row) => {
+          const handle = row.querySelector('.manifest-drag-handle');
+          if (!handle) return;
+          row.classList.add('manifest-draggable-row');
+
+          handle.addEventListener('dragstart', (event) => {
+            draggingAnchorRow = row;
+            row.classList.add('is-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', row.dataset.stopKey || '');
+          });
+
+          handle.addEventListener('dragend', () => {
+            row.classList.remove('is-dragging');
+            row.dataset.dragSuppress = 'true';
+            window.setTimeout(() => {
+              row.dataset.dragSuppress = '';
+            }, 120);
+            draggingAnchorRow = null;
+          });
+        });
+
+        tbody.addEventListener('dragover', (event) => {
+          if (!draggingAnchorRow) return;
+          const targetAnchor = anchorFromEventTarget(event.target);
+          if (!targetAnchor || targetAnchor === draggingAnchorRow || !tbody.contains(targetAnchor)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          const rect = targetAnchor.getBoundingClientRect();
+          const placeAfter = event.clientY >= (rect.top + rect.height / 2);
+          if (placeAfter) {
+            moveStopBlockAfter(draggingAnchorRow, targetAnchor);
+          } else {
+            moveStopBlockBefore(draggingAnchorRow, targetAnchor);
+          }
+          updateActionButtonState();
+        });
+
+        tbody.addEventListener('drop', (event) => {
+          if (!draggingAnchorRow) return;
+          event.preventDefault();
+          updateActionButtonState();
+        });
+
+        baselineHash = stopOrderHash();
+        updateActionButtonState();
+      });
+    }
+
     bindSchematicRemove();
     bindTrailerSelect();
     bindCarrierSelect();
     bindSchematicEditButtons();
     bindAsyncApprove();
+    bindManifestResequence();
     stashAllDetailPanels();
 
     const queryParams = new URLSearchParams(window.location.search || '');
@@ -2431,6 +2675,11 @@
 
     document.querySelectorAll('.manifest-order-row').forEach((row) => {
       row.addEventListener('click', (event) => {
+        if (row.dataset.dragSuppress === 'true') {
+          row.dataset.dragSuppress = '';
+          return;
+        }
+        if (event.target.closest('.manifest-drag-handle')) return;
         if (event.target.closest('.manifest-toggle')) {
           event.preventDefault();
         } else if (event.target.closest('button') || event.target.closest('form') || event.target.closest('a')) {

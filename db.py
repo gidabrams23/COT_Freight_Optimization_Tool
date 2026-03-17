@@ -260,6 +260,7 @@ def _rebuild_loads_if_needed(connection):
             route_geometry_json TEXT,
             route_fallback INTEGER DEFAULT 0,
             route_reversed INTEGER DEFAULT 0,
+            route_stop_order_json TEXT,
             standalone_cost REAL,
             consolidation_savings REAL,
             fragility_score REAL,
@@ -763,6 +764,7 @@ def init_db():
             route_geometry_json TEXT,
             route_fallback INTEGER DEFAULT 0,
             route_reversed INTEGER DEFAULT 0,
+            route_stop_order_json TEXT,
             standalone_cost REAL,
             consolidation_savings REAL,
             fragility_score REAL,
@@ -1300,6 +1302,7 @@ def init_db():
         _ensure_column(connection, "loads", "route_geometry_json", "route_geometry_json TEXT")
         _ensure_column(connection, "loads", "route_fallback", "route_fallback INTEGER DEFAULT 0")
         _ensure_column(connection, "loads", "route_reversed", "route_reversed INTEGER DEFAULT 0")
+        _ensure_column(connection, "loads", "route_stop_order_json", "route_stop_order_json TEXT")
         _ensure_column(connection, "loads", "draft_sequence", "draft_sequence INTEGER")
         _ensure_column(connection, "loads", "standalone_cost", "standalone_cost REAL")
         _ensure_column(connection, "loads", "consolidation_savings", "consolidation_savings REAL")
@@ -3217,6 +3220,15 @@ def _decode_load_route_fields(load):
         return load
     load["route_legs"] = _safe_json_loads(load.get("route_legs_json"), [])
     load["route_geometry"] = _safe_json_loads(load.get("route_geometry_json"), [])
+    raw_stop_order = _safe_json_loads(load.get("route_stop_order_json"), [])
+    if isinstance(raw_stop_order, list):
+        load["route_stop_order"] = [
+            str(value).strip()
+            for value in raw_stop_order
+            if str(value or "").strip()
+        ]
+    else:
+        load["route_stop_order"] = []
     try:
         load["route_reversed"] = 1 if int(load.get("route_reversed") or 0) else 0
     except (TypeError, ValueError):
@@ -3255,6 +3267,7 @@ def list_loads(origin_plant=None, session_id=None):
                 route_geometry_json,
                 route_fallback,
                 route_reversed,
+                route_stop_order_json,
                 standalone_cost,
                 consolidation_savings,
                 fragility_score,
@@ -3499,6 +3512,7 @@ def create_load(load, connection=None):
         json.dumps(load.get("route_legs") or []),
         json.dumps(load.get("route_geometry") or []),
         1 if load.get("route_fallback") else 0,
+        json.dumps(load.get("route_stop_order") or []),
         load.get("standalone_cost"),
         load.get("consolidation_savings"),
         load.get("fragility_score"),
@@ -3531,6 +3545,7 @@ def create_load(load, connection=None):
                 route_legs_json,
                 route_geometry_json,
                 route_fallback,
+                route_stop_order_json,
                 standalone_cost,
                 consolidation_savings,
                 fragility_score,
@@ -3545,7 +3560,7 @@ def create_load(load, connection=None):
                 created_by,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             params,
         )
@@ -3569,6 +3584,7 @@ def create_load(load, connection=None):
                 route_legs_json,
                 route_geometry_json,
                 route_fallback,
+                route_stop_order_json,
                 standalone_cost,
                 consolidation_savings,
                 fragility_score,
@@ -3583,7 +3599,7 @@ def create_load(load, connection=None):
                 created_by,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             params,
         )
@@ -3733,6 +3749,23 @@ def update_load_route_reversed(load_id, route_reversed):
         connection.execute(
             "UPDATE loads SET route_reversed = ? WHERE id = ?",
             (1 if route_reversed else 0, load_id),
+        )
+        connection.commit()
+
+
+def update_load_route_stop_order(load_id, stop_order):
+    if not load_id:
+        return
+    normalized = []
+    for value in stop_order or []:
+        key = str(value or "").strip().upper()
+        if not key or key in normalized:
+            continue
+        normalized.append(key)
+    with get_connection() as connection:
+        connection.execute(
+            "UPDATE loads SET route_stop_order_json = ? WHERE id = ?",
+            (json.dumps(normalized), load_id),
         )
         connection.commit()
 

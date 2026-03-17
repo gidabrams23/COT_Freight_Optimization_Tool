@@ -4733,6 +4733,7 @@ def _build_load_thumbnail(load, sku_specs, stop_color_palette=None, max_blocks=4
     trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+    ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
     ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
@@ -4773,6 +4774,82 @@ def _line_stop_key(state, zip_code):
     normalized_zip = geo_utils.normalize_zip(raw_zip)
     zip_value = normalized_zip or raw_zip
     return f"{state_value}|{zip_value}"
+
+
+def _normalize_route_stop_order(stop_order):
+    normalized = []
+    seen = set()
+    for entry in stop_order or []:
+        key = ""
+        if isinstance(entry, dict):
+            key = _line_stop_key(entry.get("state"), entry.get("zip"))
+        else:
+            raw = str(entry or "").strip()
+            if "|" in raw:
+                state_part, zip_part = raw.split("|", 1)
+                key = _line_stop_key(state_part, zip_part)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(key)
+    return normalized
+
+
+def _load_route_stop_order(load):
+    if not load:
+        return []
+    raw = load.get("route_stop_order")
+    if raw is None:
+        raw = load.get("route_stop_order_json")
+    if isinstance(raw, str):
+        parsed = []
+        try:
+            decoded = json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            decoded = []
+        if isinstance(decoded, list):
+            parsed = decoded
+        else:
+            parsed = []
+        return _normalize_route_stop_order(parsed)
+    if isinstance(raw, list):
+        return _normalize_route_stop_order(raw)
+    return []
+
+
+def _has_custom_route_stop_order(load):
+    return len(_load_route_stop_order(load)) > 0
+
+
+def _apply_route_stop_order(ordered_stops, load=None, stop_order=None):
+    stops = list(ordered_stops or [])
+    custom_order = _normalize_route_stop_order(
+        stop_order if stop_order is not None else _load_route_stop_order(load)
+    )
+    if len(stops) <= 1 or not custom_order:
+        return stops
+
+    stop_by_key = {}
+    for stop in stops:
+        key = _line_stop_key(stop.get("state"), stop.get("zip"))
+        if key and key not in stop_by_key:
+            stop_by_key[key] = stop
+
+    reordered = []
+    consumed = set()
+    for key in custom_order:
+        stop = stop_by_key.get(key)
+        if not stop or key in consumed:
+            continue
+        reordered.append(stop)
+        consumed.add(key)
+
+    for stop in stops:
+        key = _line_stop_key(stop.get("state"), stop.get("zip"))
+        if key and key in consumed:
+            continue
+        reordered.append(stop)
+    return reordered
 
 
 def _normalize_order_identifier(value, fallback=""):
@@ -6121,6 +6198,7 @@ def _build_load_schematic_edit_payload(load_id):
         zip_coords,
         return_to_origin=requires_return_to_origin,
     )
+    ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
     ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
@@ -9406,6 +9484,7 @@ def loads():
             if origin_coords
             else list(stops)
         )
+        ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
         ordered_stops = _apply_load_route_direction(ordered_stops, reverse_route=reverse_route)
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         order_colors = _build_order_colors_for_lines(
@@ -9417,6 +9496,7 @@ def loads():
         load["order_count"] = len(order_colors)
 
         for group in manifest_groups:
+            group["stop_key"] = _line_stop_key(group.get("state"), group.get("zip"))
             group["stop_sequence"] = stop_sequence_map.get(
                 _line_stop_key(group.get("state"), group.get("zip"))
             )
@@ -9515,7 +9595,7 @@ def loads():
         route_metrics = _load_route_display_metrics(
             load,
             route_nodes,
-            use_cached_route=not reverse_route,
+            use_cached_route=(not reverse_route and not _has_custom_route_stop_order(load)),
         )
         route_legs = route_metrics["route_legs"]
         total_route_distance = route_metrics["route_distance"]
@@ -10896,6 +10976,7 @@ def _build_load_report_rows(loads):
         lines = load.get("lines") or []
         trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
         ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+        ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
         ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         schematic, _, _ = _calculate_load_schematic(
@@ -12913,6 +12994,7 @@ def load_detail(load_id):
         if origin_coords
         else list(stops)
     )
+    ordered_stops = _apply_route_stop_order(ordered_stops, load=load_data)
     ordered_stops = _apply_load_route_direction(ordered_stops, reverse_route=reverse_route)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
 
@@ -12971,7 +13053,7 @@ def load_detail(load_id):
     route_metrics = _load_route_display_metrics(
         load_data,
         route_nodes,
-        use_cached_route=not reverse_route,
+        use_cached_route=(not reverse_route and not _has_custom_route_stop_order(load_data)),
     )
     route_legs = route_metrics["route_legs"]
     route_geometry = route_metrics["route_geometry"]
@@ -13136,6 +13218,52 @@ def load_route_geometry(load_id):
                 "route_total_miles": load.get("route_total_miles") or load.get("estimated_miles") or 0.0,
                 "route_legs": [],
                 "route_geometry": [],
+            }
+        )
+
+    if _has_custom_route_stop_order(load):
+        lines = db.list_load_lines(load_id)
+        zip_coords = geo_utils.load_zip_coordinates()
+        trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
+        carrier_pricing_context = _build_load_carrier_pricing_context()
+        requires_return_to_origin = _requires_return_to_origin(lines)
+        if _alternate_requires_return_hint(
+            lines,
+            trailer_type,
+            load.get("origin_plant"),
+            carrier_pricing_context,
+        ):
+            requires_return_to_origin = True
+        if _load_has_lowes_order(lines):
+            requires_return_to_origin = True
+        ordered_stops = _ordered_stops_for_lines(
+            lines,
+            load.get("origin_plant"),
+            zip_coords,
+            return_to_origin=requires_return_to_origin,
+        )
+        ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
+        ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
+        origin_code = load.get("origin_plant")
+        origin_coords = geo_utils.plant_coords_for_code(origin_code)
+        route_nodes = []
+        if origin_coords:
+            route_nodes.append({"coords": origin_coords, "type": "origin"})
+        for stop in ordered_stops:
+            route_nodes.append({"coords": stop.get("coords"), "type": "stop"})
+        if requires_return_to_origin and origin_coords and len(route_nodes) > 1:
+            route_nodes.append({"coords": origin_coords, "type": "final"})
+
+        metrics = _load_route_display_metrics(load, route_nodes, use_cached_route=False)
+        return jsonify(
+            {
+                "load_id": load_id,
+                "route_provider": "manual",
+                "route_profile": "",
+                "route_fallback": True,
+                "route_total_miles": metrics["route_distance"],
+                "route_legs": metrics["route_legs"],
+                "route_geometry": metrics["route_geometry"],
             }
         )
 
@@ -13324,6 +13452,7 @@ def update_load_trailer(load_id):
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
     zip_coords = geo_utils.load_zip_coordinates()
     ordered_stops = _ordered_stops_for_lines(lines, load["origin_plant"], zip_coords)
+    ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
     ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(
@@ -13538,6 +13667,145 @@ def reverse_load_order(load_id):
     return redirect(next_url or fallback)
 
 
+@app.route("/loads/<int:load_id>/manifest-sequence", methods=["POST"])
+def save_manifest_sequence(load_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+
+    wants_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    body_data = request.get_json(silent=True) or {}
+    next_url = _safe_next_url(
+        body_data.get("next") or request.form.get("next") or request.args.get("next")
+    ) or ""
+
+    load = db.get_load(load_id)
+    if not load:
+        if wants_json:
+            return jsonify({"error": "Load not found"}), 404
+        return redirect(next_url or url_for("loads", session_id=_get_active_planning_session_id()))
+
+    access_reason = _load_access_failure_reason(load)
+    if access_reason:
+        if wants_json:
+            return jsonify({"error": _load_access_error_message(access_reason)}), 403
+        fallback = url_for(
+            "loads",
+            session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+        )
+        return redirect(next_url or fallback)
+
+    status = (load.get("status") or STATUS_PROPOSED).upper()
+    if status == STATUS_APPROVED:
+        if wants_json:
+            return jsonify({"error": "Approved loads cannot be modified."}), 400
+        fallback = url_for(
+            "loads",
+            session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+        )
+        return redirect(next_url or fallback)
+
+    requested_selected_load = (
+        body_data.get("selected_load")
+        or request.form.get("selected_load")
+        or request.args.get("selected_load")
+    )
+    try:
+        selected_load_id = int(requested_selected_load) if requested_selected_load else int(load_id)
+    except (TypeError, ValueError):
+        selected_load_id = int(load_id)
+
+    requested_stop_order = body_data.get("stop_order")
+    if requested_stop_order is None:
+        raw_form_order = (request.form.get("stop_order_json") or request.form.get("stop_order") or "").strip()
+        if raw_form_order:
+            try:
+                decoded = json.loads(raw_form_order)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                decoded = [token.strip() for token in raw_form_order.split(",") if token.strip()]
+            requested_stop_order = decoded
+
+    lines = db.list_load_lines(load_id)
+    if not lines:
+        if wants_json:
+            return jsonify({"error": "Load has no lines to resequence."}), 400
+        return redirect(
+            url_for(
+                "loads",
+                session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+                selected_load=selected_load_id,
+            )
+        )
+
+    trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
+    carrier_pricing_context = _build_load_carrier_pricing_context()
+    requires_return_to_origin = _requires_return_to_origin(lines)
+    if _alternate_requires_return_hint(
+        lines,
+        trailer_type,
+        load.get("origin_plant"),
+        carrier_pricing_context,
+    ):
+        requires_return_to_origin = True
+    if _load_has_lowes_order(lines):
+        requires_return_to_origin = True
+    zip_coords = geo_utils.load_zip_coordinates()
+    ordered_stops = _ordered_stops_for_lines(
+        lines,
+        load.get("origin_plant"),
+        zip_coords,
+        return_to_origin=requires_return_to_origin,
+    )
+    ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
+    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
+    current_stop_order = _normalize_route_stop_order(
+        [_line_stop_key(stop.get("state"), stop.get("zip")) for stop in ordered_stops]
+    )
+    if len(current_stop_order) <= 1:
+        if wants_json:
+            return jsonify({"error": "At least two stops are required to resequence."}), 400
+        return redirect(
+            url_for(
+                "loads",
+                session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+                selected_load=selected_load_id,
+            )
+        )
+
+    requested_keys = _normalize_route_stop_order(requested_stop_order or [])
+    current_set = set(current_stop_order)
+    merged_stop_order = []
+    for key in requested_keys:
+        if key not in current_set or key in merged_stop_order:
+            continue
+        merged_stop_order.append(key)
+    for key in current_stop_order:
+        if key not in merged_stop_order:
+            merged_stop_order.append(key)
+
+    db.update_load_route_stop_order(load_id, merged_stop_order)
+    db.update_load_route_reversed(load_id, False)
+    db.delete_load_schematic_override(load_id)
+
+    redirect_url = url_for(
+        "loads",
+        session_id=load.get("planning_session_id") or _get_active_planning_session_id(),
+        selected_load=selected_load_id,
+    )
+    if next_url:
+        redirect_url = _append_query_param(next_url, "selected_load", selected_load_id)
+    if wants_json:
+        return jsonify(
+            {
+                "ok": True,
+                "load_id": load_id,
+                "stop_order": merged_stop_order,
+                "redirect_url": redirect_url,
+            }
+        )
+    return redirect(redirect_url)
+
+
 def _build_load_schematic_payload(load_id):
     load = db.get_load(load_id)
     if not load:
@@ -13567,6 +13835,7 @@ def _build_load_schematic_payload(load_id):
         zip_coords,
         return_to_origin=requires_return_to_origin,
     )
+    ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
     ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
 
     carrier_pricing = _resolve_load_carrier_pricing(
@@ -14071,6 +14340,21 @@ def update_load_status(load_id):
             if suffix == "D":
                 load_number = normalized[:-2] if normalized.endswith("-D") else normalized
         db.update_load_status(load_id, STATUS_APPROVED, load_number)
+        dedupe_result = {"removed_lines": 0, "deleted_loads": 0}
+        approved_so_nums = sorted(
+            {
+                _normalize_order_identifier(line.get("so_num"))
+                for line in db.list_load_lines(load_id)
+                if _normalize_order_identifier(line.get("so_num"))
+            }
+        )
+        if approved_so_nums and plant_code:
+            dedupe_result = db.remove_orders_from_unapproved_loads(
+                plant_code,
+                approved_so_nums,
+                session_id=planning_session_id,
+                exclude_load_id=load_id,
+            )
         if planning_session_id:
             next_session_status = _normalize_session_status(
                 _sync_planning_session_status(planning_session_id)
@@ -14111,6 +14395,7 @@ def update_load_status(load_id):
                         "draft": snapshot["draft_tab_count"],
                         "final": snapshot["final_tab_count"],
                     },
+                    "dedupe": dedupe_result,
                 }
             )
         if should_redirect_to_report and planning_session_id:

@@ -13066,6 +13066,7 @@ button.plant-card {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  position: relative;
 }
 
 .loads-review-pane .manifest-toolbar-left {
@@ -13086,8 +13087,40 @@ button.plant-card {
   margin: 0;
 }
 
+.loads-review-pane .manifest-toolbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  position: relative;
+}
+
 .loads-review-pane .manifest-reverse-btn {
-  min-height: 30px;
+  min-height: 24px;
+}
+
+.loads-review-pane .manifest-action-btn {
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 10px;
+}
+
+.loads-review-pane .manifest-action-btn .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.loads-review-pane .manifest-reverse-btn.is-save-state {
+  background: #22c55e;
+  border-color: #16a34a;
+  color: #fff;
+  box-shadow: 0 4px 10px -2px rgba(34, 197, 94, 0.35);
+}
+
+.loads-review-pane .manifest-reverse-btn.is-save-state:hover:not(:disabled) {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
 }
 
 .loads-review-pane .manifest-table {
@@ -13167,6 +13200,36 @@ button.plant-card {
   gap: var(--manifest-row-gap);
   white-space: nowrap;
   min-height: 18px;
+}
+
+.loads-review-pane .manifest-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  min-width: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.9);
+  cursor: grab;
+}
+
+.loads-review-pane .manifest-drag-handle .material-symbols-outlined {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.loads-review-pane .manifest-draggable-row {
+  cursor: default;
+}
+
+.loads-review-pane .manifest-draggable-row.is-dragging {
+  opacity: 0.5;
+}
+
+.loads-review-pane .manifest-draggable-row .manifest-drag-handle {
+  cursor: grab;
 }
 
 .loads-review-pane .manifest-inline-leg {
@@ -13282,6 +13345,10 @@ button.plant-card {
   gap: 8px;
 }
 
+.loads-review-pane .manifest-customer-head .manifest-drag-handle {
+  margin-left: auto;
+}
+
 .loads-review-pane .manifest-customer-name {
   font-weight: 700;
   color: var(--text-primary);
@@ -13361,6 +13428,13 @@ button.plant-card {
   padding: 9px 10px;
   border-top: 1px solid rgba(148, 163, 184, 0.12);
   background: linear-gradient(180deg, rgba(51, 65, 85, 0.5), rgba(51, 65, 85, 0.38));
+}
+
+.loads-review-pane .manifest-route-summary .manifest-save-sequence-inline {
+  margin-left: auto;
+  min-height: 22px;
+  padding: 2px 8px;
+  font-size: 10px;
 }
 
 .loads-review-pane .manifest-route-summary-label {
