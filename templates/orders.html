@@ -821,8 +821,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-ghost" type="button" data-upload-close>Close</button>
-          <button class="btn-primary hidden" type="button" data-upload-refresh>Refresh</button>
+          <button class="btn-primary" type="button" data-upload-next>Close</button>
         </div>
       </div>
     </div>
@@ -3278,7 +3277,7 @@
       if (!form || !input || !modal) return;
 
       const closeButtons = modal.querySelectorAll('[data-upload-close]');
-      const refreshButton = modal.querySelector('[data-upload-refresh]');
+      const nextButton = modal.querySelector('[data-upload-next]');
       const pctEl = modal.querySelector('[data-upload-pct]');
       const fillEl = modal.querySelector('[data-upload-fill]');
       const statusEl = modal.querySelector('[data-upload-status]');
@@ -3302,7 +3301,7 @@
       };
       let activeRequest = null;
       let processingTimer = null;
-      let lastUploadedFile = null;
+      let closeShouldReload = false;
 
       const setProgress = (pct) => {
         const safe = Math.max(0, Math.min(100, pct));
@@ -3312,6 +3311,12 @@
 
       const setStatus = (message) => {
         if (statusEl) statusEl.textContent = message || '';
+      };
+
+      const setNextActionMode = (mode = 'close') => {
+        closeShouldReload = mode === 'reload';
+        if (!nextButton) return;
+        nextButton.textContent = closeShouldReload ? 'Continue' : 'Close';
       };
 
       const startProcessingSteps = () => {
@@ -3597,7 +3602,7 @@
         modal.classList.remove('hidden');
       };
 
-      const closeModal = () => {
+      const closeModal = ({ reload = false } = {}) => {
         if (activeRequest) {
           try {
             activeRequest.abort();
@@ -3611,11 +3616,20 @@
           hideSummary();
         }
         modal.classList.add('hidden');
+        if (reload) {
+          window.location.reload();
+        }
       };
 
       closeButtons.forEach((button) => {
-        button.addEventListener('click', closeModal);
+        button.addEventListener('click', () => closeModal());
       });
+
+      if (nextButton) {
+        nextButton.addEventListener('click', () => {
+          closeModal({ reload: closeShouldReload });
+        });
+      }
 
       modal.addEventListener('click', (event) => {
         if (event.target === modal) closeModal();
@@ -3631,7 +3645,7 @@
         if (!file || activeRequest) return;
 
         if (filenameEl) filenameEl.textContent = file.name || 'Selected file';
-        if (refreshButton) refreshButton.classList.add('hidden');
+        setNextActionMode('close');
         setProgress(0);
         setStatus('Uploading file...');
         hideSummary();
@@ -3680,7 +3694,7 @@
                 showSummary(payload);
                 renderUnmappedItems(payload.unmapped_items || []);
               }
-              if (refreshButton) refreshButton.classList.remove('hidden');
+              setNextActionMode('reload');
             } else {
               let errorMessage = 'Upload failed.';
               if (payload && payload.error) {
@@ -3693,10 +3707,11 @@
               if (payload && Object.keys(payload).length) {
                 showSummary(payload);
                 renderUnmappedItems(payload.unmapped_items || []);
-                if (payload.blocked && refreshButton) refreshButton.classList.remove('hidden');
+                if (payload.blocked) setNextActionMode('reload');
               } else {
                 hideSummary();
                 hideUnmapped();
+                setNextActionMode('close');
               }
             }
           };
@@ -3708,20 +3723,11 @@
           stopProcessingSteps();
           setStatus('Upload failed. Please try again.');
           hideSummary();
+          setNextActionMode('close');
         });
 
         xhr.send(formData);
       };
-
-      if (refreshButton) {
-        refreshButton.addEventListener('click', () => {
-          if (lastUploadedFile) {
-            runUpload(lastUploadedFile);
-            return;
-          }
-          window.location.reload();
-        });
-      }
 
       if (unmappedSaveButton) {
         unmappedSaveButton.addEventListener('click', async () => {
@@ -3747,9 +3753,9 @@
               throw new Error((payload && payload.error) || 'Failed to save SKU specs.');
             }
             if (unmappedStatus) {
-              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Click Refresh to continue processing this file.`;
+              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Click Continue to finish.`;
             }
-            if (refreshButton) refreshButton.classList.remove('hidden');
+            setNextActionMode('reload');
           } catch (err) {
             if (unmappedStatus) unmappedStatus.textContent = err.message || 'Failed to save SKU specs.';
           }
@@ -3763,7 +3769,6 @@
       input.addEventListener('change', () => {
         const file = input.files && input.files[0];
         if (!file) return;
-        lastUploadedFile = file;
         runUpload(file);
         input.value = '';
       });
