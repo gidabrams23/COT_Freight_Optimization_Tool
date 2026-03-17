@@ -5205,6 +5205,9 @@ def _build_schematic_units(lines, sku_specs, trailer_type, stop_sequence_map=Non
 
 
 def _unit_item_key_from_unit(unit):
+    stop_sequence = _coerce_int_value(unit.get("stop_sequence"), 0)
+    if stop_sequence <= 0:
+        stop_sequence = None
     return (
         unit.get("order_id") or "",
         unit.get("sku") or "",
@@ -5214,10 +5217,14 @@ def _unit_item_key_from_unit(unit):
         max(_coerce_int_value(unit.get("max_stack"), 1), 1),
         max(_coerce_int_value(unit.get("upper_max_stack"), unit.get("max_stack") or 1), 1),
         unit.get("category") or "",
+        stop_sequence,
     )
 
 
 def _unit_item_key_from_schematic_item(item):
+    stop_sequence = _coerce_int_value(item.get("stop_sequence"), 0)
+    if stop_sequence <= 0:
+        stop_sequence = None
     return (
         item.get("order_id") or "",
         item.get("sku") or "",
@@ -5227,6 +5234,7 @@ def _unit_item_key_from_schematic_item(item):
         max(_coerce_int_value(item.get("max_stack"), 1), 1),
         max(_coerce_int_value(item.get("upper_max_stack"), item.get("max_stack") or 1), 1),
         item.get("category") or "",
+        stop_sequence,
     )
 
 
@@ -5238,18 +5246,27 @@ def _layout_from_schematic(schematic, units):
     remaining_by_id = {unit["unit_id"]: unit for unit in units}
     positions = []
 
-    def _pop_first_matching(order_id, sku):
-        for unit_id, unit in list(remaining_by_id.items()):
-            if (unit.get("order_id") or "") != (order_id or ""):
-                continue
-            if (unit.get("sku") or "") != (sku or ""):
-                continue
-            remaining_by_id.pop(unit_id, None)
-            key = _unit_item_key_from_unit(unit)
-            bucket = buckets.get(key) or []
-            if unit_id in bucket:
-                bucket.remove(unit_id)
-            return unit_id
+    def _pop_first_matching(order_id, sku, stop_sequence=None):
+        target_stop = _coerce_int_value(stop_sequence, 0)
+        if target_stop <= 0:
+            target_stop = None
+        require_target_stop_values = [True, False] if target_stop is not None else [False]
+        for require_target_stop in require_target_stop_values:
+            for unit_id, unit in list(remaining_by_id.items()):
+                if (unit.get("order_id") or "") != (order_id or ""):
+                    continue
+                if (unit.get("sku") or "") != (sku or ""):
+                    continue
+                if require_target_stop:
+                    unit_stop = _coerce_int_value(unit.get("stop_sequence"), 0)
+                    if unit_stop != target_stop:
+                        continue
+                remaining_by_id.pop(unit_id, None)
+                key = _unit_item_key_from_unit(unit)
+                bucket = buckets.get(key) or []
+                if unit_id in bucket:
+                    bucket.remove(unit_id)
+                return unit_id
         return None
 
     for idx, pos in enumerate((schematic or {}).get("positions") or [], start=1):
@@ -5268,7 +5285,11 @@ def _layout_from_schematic(schematic, units):
                 unit_ids.append(unit_id)
                 needed -= 1
             while needed > 0:
-                fallback_id = _pop_first_matching(item.get("order_id"), item.get("sku"))
+                fallback_id = _pop_first_matching(
+                    item.get("order_id"),
+                    item.get("sku"),
+                    stop_sequence=item.get("stop_sequence"),
+                )
                 if not fallback_id:
                     break
                 unit_ids.append(fallback_id)
@@ -6081,9 +6102,25 @@ def _build_load_schematic_edit_payload(load_id):
     lines = db.list_load_lines(load_id)
     sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
     stop_color_palette = _get_stop_color_palette()
+    carrier_pricing_context = _build_load_carrier_pricing_context()
 
     zip_coords = geo_utils.load_zip_coordinates()
-    ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
+    requires_return_to_origin = _requires_return_to_origin(lines)
+    if _alternate_requires_return_hint(
+        lines,
+        trailer_type,
+        load.get("origin_plant"),
+        carrier_pricing_context,
+    ):
+        requires_return_to_origin = True
+    if _load_has_lowes_order(lines):
+        requires_return_to_origin = True
+    ordered_stops = _ordered_stops_for_lines(
+        lines,
+        load.get("origin_plant"),
+        zip_coords,
+        return_to_origin=requires_return_to_origin,
+    )
     ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
     order_colors = _build_order_colors_for_lines(

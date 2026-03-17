@@ -280,6 +280,67 @@ def test_build_load_schematic_payload_uses_return_hint_for_ordering(monkeypatch)
     assert captured["return_to_origin"] is True
 
 
+def test_build_load_schematic_edit_payload_uses_return_hint_for_ordering(monkeypatch):
+    load_id = 8
+    captured = {}
+
+    monkeypatch.setattr(
+        app_module.db,
+        "get_load",
+        lambda _load_id: {
+            "id": load_id,
+            "origin_plant": "ATL",
+            "trailer_type": "STEP_DECK",
+            "status": "DRAFT",
+        }
+        if _load_id == load_id
+        else None,
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "list_load_lines",
+        lambda _load_id: [
+            {
+                "id": 1,
+                "order_line_id": 1,
+                "so_num": "SO-1",
+                "item": "ITEM-1",
+                "item_desc": "Item 1",
+                "sku": "SKU-1",
+                "qty": 1,
+                "unit_length_ft": 10.0,
+                "state": "TX",
+                "zip": "73301",
+            }
+        ],
+    )
+    monkeypatch.setattr(app_module.db, "list_sku_specs", lambda: [])
+    monkeypatch.setattr(app_module.db, "get_load_schematic_override", lambda _load_id: None)
+    monkeypatch.setattr(app_module.geo_utils, "load_zip_coordinates", lambda: {})
+    monkeypatch.setattr(app_module, "_requires_return_to_origin", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_alternate_requires_return_hint", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(app_module, "_load_has_lowes_order", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_build_load_carrier_pricing_context", lambda: {})
+    monkeypatch.setattr(
+        app_module,
+        "_ordered_stops_for_lines",
+        lambda lines, origin_plant, zip_coords, return_to_origin=None: captured.update(
+            {"return_to_origin": return_to_origin}
+        )
+        or [],
+    )
+    monkeypatch.setattr(
+        app_module,
+        "_apply_load_route_direction",
+        lambda ordered_stops, load=None, reverse_route=None: ordered_stops,
+    )
+
+    payload = app_module._build_load_schematic_edit_payload(load_id)
+
+    assert payload is not None
+    assert captured["return_to_origin"] is True
+
+
 def test_ordered_stops_for_lines_uses_local_tsp_sequence(monkeypatch):
     lines = [
         {"state": "TX", "zip": "73301", "city": "Austin", "cust_name": "A"},
