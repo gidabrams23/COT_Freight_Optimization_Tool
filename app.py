@@ -49,6 +49,11 @@ except Exception:  # pragma: no cover - optional dependency path
     PILImage = None
     ImageDraw = None
 
+try:
+    import msal
+except Exception:  # pragma: no cover - optional dependency path
+    msal = None
+
 import db
 from services import (
     load_builder,
@@ -201,6 +206,39 @@ app.config.update(
         default=not _is_local_dev_mode(),
     ),
 )
+ENTRA_IDP_PROVIDER = "microsoft_entra"
+ENTRA_TENANT_ID = (os.environ.get("ENTRA_TENANT_ID") or "").strip()
+ENTRA_CLIENT_ID = (os.environ.get("ENTRA_CLIENT_ID") or "").strip()
+ENTRA_CLIENT_SECRET = (os.environ.get("ENTRA_CLIENT_SECRET") or "").strip()
+ENTRA_REDIRECT_URI = (os.environ.get("ENTRA_REDIRECT_URI") or "").strip()
+ENTRA_SSO_ENABLED = _env_bool("ENTRA_SSO_ENABLED", default=False)
+ENTRA_SSO_REQUIRED = _env_bool("ENTRA_SSO_REQUIRED", default=ENTRA_SSO_ENABLED)
+ENTRA_ALLOW_LEGACY_LOGIN = _env_bool(
+    "ENTRA_ALLOW_LEGACY_LOGIN",
+    default=not ENTRA_SSO_REQUIRED,
+)
+ENTRA_SCOPES = tuple(
+    token
+    for token in (os.environ.get("ENTRA_SCOPES") or "openid profile email User.Read").split()
+    if token
+)
+ENTRA_ALLOWED_EMAIL_DOMAINS = {
+    token.strip().lower()
+    for token in (os.environ.get("ENTRA_ALLOWED_EMAIL_DOMAINS") or "").split(",")
+    if token.strip()
+}
+ENTRA_SSO_ACTIVE = bool(
+    ENTRA_SSO_ENABLED
+    and ENTRA_TENANT_ID
+    and ENTRA_CLIENT_ID
+    and ENTRA_CLIENT_SECRET
+    and msal is not None
+)
+if ENTRA_SSO_ENABLED and not ENTRA_SSO_ACTIVE:
+    logger.warning(
+        "ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); "
+        "Microsoft SSO is disabled."
+    )
 _raw_web_concurrency = (os.environ.get("WEB_CONCURRENCY") or "").strip()
 try:
     _configured_web_concurrency = int(_raw_web_concurrency) if _raw_web_concurrency else 1
@@ -306,6 +344,13 @@ SESSION_PROFILE_ID_KEY = "profile_id"
 SESSION_PROFILE_NAME_KEY = "profile_name"
 SESSION_PROFILE_DEFAULT_PLANTS_KEY = "profile_default_plants"
 SESSION_PROFILE_SANDBOX_KEY = "profile_is_sandbox"
+SESSION_ALLOWED_PROFILE_IDS_KEY = "allowed_profile_ids"
+SESSION_SSO_PROVIDER_KEY = "sso_provider"
+SESSION_SSO_EMAIL_KEY = "sso_email"
+SESSION_SSO_DISPLAY_NAME_KEY = "sso_display_name"
+SESSION_ENTRA_OAUTH_STATE_KEY = "entra_oauth_state"
+SESSION_ENTRA_OAUTH_NEXT_KEY = "entra_oauth_next"
+SESSION_LOGIN_ERROR_KEY = "login_error_message"
 SESSION_ACTIVE_PLANNING_ID_KEY = "active_planning_session_id"
 ORDER_REMOVAL_REASONS = [
     "Customer mixing conflict",
@@ -461,6 +506,13 @@ ACCESS_PROFILES_SEED_PATH = Path(
     os.environ.get("ACCESS_PROFILES_SEED_PATH", str(ROOT_DIR / "data" / "seed" / "access_profiles.csv"))
 )
 ACCESS_PROFILES_SEED_COLUMNS = ["name", "is_admin", "is_sandbox", "allowed_plants", "default_plants", "created_at"]
+ACCESS_PROFILE_IDENTITIES_SEED_PATH = Path(
+    os.environ.get(
+        "ACCESS_PROFILE_IDENTITIES_SEED_PATH",
+        str(ROOT_DIR / "data" / "seed" / "access_profile_identities.csv"),
+    )
+)
+ACCESS_PROFILE_IDENTITIES_SEED_COLUMNS = ["profile_name", "provider", "email", "created_at"]
 
 
 def _sync_access_profiles_seed_snapshot():
@@ -479,6 +531,32 @@ def _sync_access_profiles_seed_snapshot():
                         "allowed_plants": profile.get("allowed_plants") or "ALL",
                         "default_plants": profile.get("default_plants") or "ALL",
                         "created_at": profile.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                )
+
+        profile_name_by_id = {
+            int(profile.get("id")): (profile.get("name") or "").strip()
+            for profile in profiles
+            if profile.get("id")
+        }
+        identities = db.list_access_profile_identities()
+        ACCESS_PROFILE_IDENTITIES_SEED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with ACCESS_PROFILE_IDENTITIES_SEED_PATH.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=ACCESS_PROFILE_IDENTITIES_SEED_COLUMNS)
+            writer.writeheader()
+            for identity in identities:
+                profile_name = profile_name_by_id.get(int(identity.get("profile_id") or 0), "")
+                email = _normalize_identity_email(identity.get("email"))
+                provider = (identity.get("provider") or "").strip().lower() or ENTRA_IDP_PROVIDER
+                if not profile_name or not email:
+                    continue
+                writer.writerow(
+                    {
+                        "profile_name": profile_name,
+                        "provider": provider,
+                        "email": email,
+                        "created_at": identity.get("created_at")
+                        or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
     except Exception:
@@ -699,10 +777,237 @@ def session_reset():
     return redirect(url_for("login"))
 
 
+def _set_login_error_message(message):
+    text = (message or "").strip()
+    if text:
+        session[SESSION_LOGIN_ERROR_KEY] = text
+    else:
+        session.pop(SESSION_LOGIN_ERROR_KEY, None)
+
+
+def _consume_login_error_message():
+    value = session.pop(SESSION_LOGIN_ERROR_KEY, None)
+    text = (value or "").strip()
+    return text or None
+
+
+def _normalize_identity_email(value):
+    text = (value or "").strip().lower()
+    if not text:
+        return None
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", text):
+        return None
+    return text
+
+
+def _parse_identity_emails(raw_value):
+    values = []
+    seen = set()
+    for token in re.split(r"[,;\s]+", raw_value or ""):
+        email = _normalize_identity_email(token)
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        values.append(email)
+    return values
+
+
+def _clear_profile_session_state():
+    session.pop(SESSION_PROFILE_ID_KEY, None)
+    session.pop(SESSION_PROFILE_NAME_KEY, None)
+    session.pop(SESSION_PROFILE_DEFAULT_PLANTS_KEY, None)
+    session.pop(SESSION_PROFILE_SANDBOX_KEY, None)
+    session.pop(SESSION_ACTIVE_PLANNING_ID_KEY, None)
+    session.pop("role", None)
+    session.pop("allowed_plants", None)
+    session.pop("plant_filter", None)
+    session.pop("plant_filters", None)
+
+
+def _entra_authority():
+    tenant = ENTRA_TENANT_ID or "common"
+    return f"https://login.microsoftonline.com/{tenant}"
+
+
+def _entra_redirect_uri():
+    configured = (ENTRA_REDIRECT_URI or "").strip()
+    if configured:
+        return configured
+    return url_for("auth_microsoft_callback", _external=True)
+
+
+def _build_entra_client():
+    if not ENTRA_SSO_ACTIVE:
+        return None
+    return msal.ConfidentialClientApplication(
+        client_id=ENTRA_CLIENT_ID,
+        client_credential=ENTRA_CLIENT_SECRET,
+        authority=_entra_authority(),
+    )
+
+
+def _extract_entra_email(claims):
+    data = claims or {}
+    candidates = [
+        data.get("preferred_username"),
+        data.get("email"),
+        data.get("upn"),
+    ]
+    for value in candidates:
+        normalized = _normalize_identity_email(value)
+        if normalized:
+            return normalized
+    return None
+
+
+def _extract_entra_display_name(claims):
+    data = claims or {}
+    for key in ("name", "given_name"):
+        value = (data.get(key) or "").strip()
+        if value:
+            return value
+    return None
+
+
+@app.route("/auth/microsoft/start")
+def auth_microsoft_start():
+    next_url = _safe_next_url(request.values.get("next") or request.args.get("next")) or ""
+    if not ENTRA_SSO_ACTIVE:
+        _set_login_error_message("Microsoft SSO is not configured.")
+        return redirect(url_for("login", next=next_url))
+
+    state = uuid.uuid4().hex
+    session[SESSION_ENTRA_OAUTH_STATE_KEY] = state
+    session[SESSION_ENTRA_OAUTH_NEXT_KEY] = next_url
+    try:
+        client = _build_entra_client()
+        auth_url = client.get_authorization_request_url(
+            scopes=list(ENTRA_SCOPES),
+            state=state,
+            redirect_uri=_entra_redirect_uri(),
+            prompt="select_account",
+        )
+    except Exception:
+        logger.exception("Unable to start Microsoft Entra auth flow.")
+        _set_login_error_message("Unable to start Microsoft sign-in.")
+        return redirect(url_for("login", next=next_url))
+    return redirect(auth_url)
+
+
+@app.route("/auth/microsoft/callback")
+def auth_microsoft_callback():
+    next_url = _safe_next_url(session.pop(SESSION_ENTRA_OAUTH_NEXT_KEY, "")) or ""
+    expected_state = (session.pop(SESSION_ENTRA_OAUTH_STATE_KEY, "") or "").strip()
+
+    if not ENTRA_SSO_ACTIVE:
+        _set_login_error_message("Microsoft SSO is not configured.")
+        return redirect(url_for("login", next=next_url))
+
+    provider_error = (request.args.get("error") or "").strip()
+    if provider_error:
+        description = (request.args.get("error_description") or "").strip()
+        if description:
+            _set_login_error_message(f"Microsoft sign-in failed: {description}")
+        else:
+            _set_login_error_message("Microsoft sign-in was not completed.")
+        return redirect(url_for("login", next=next_url))
+
+    state = (request.args.get("state") or "").strip()
+    if not expected_state or not state or state != expected_state:
+        _set_login_error_message("Microsoft sign-in state mismatch. Please retry.")
+        return redirect(url_for("login", next=next_url))
+
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        _set_login_error_message("Microsoft sign-in did not return an authorization code.")
+        return redirect(url_for("login", next=next_url))
+
+    try:
+        client = _build_entra_client()
+        result = client.acquire_token_by_authorization_code(
+            code=code,
+            scopes=list(ENTRA_SCOPES),
+            redirect_uri=_entra_redirect_uri(),
+        )
+    except Exception:
+        logger.exception("Microsoft Entra callback token exchange failed.")
+        _set_login_error_message("Unable to complete Microsoft sign-in.")
+        return redirect(url_for("login", next=next_url))
+
+    if not isinstance(result, dict) or result.get("error"):
+        message = (result or {}).get("error_description") or "Unable to verify Microsoft identity."
+        _set_login_error_message(f"Microsoft sign-in failed: {str(message).strip()}")
+        return redirect(url_for("login", next=next_url))
+
+    claims = result.get("id_token_claims") or {}
+    email = _extract_entra_email(claims)
+    if not email:
+        _set_login_error_message("Microsoft sign-in did not include an email address.")
+        return redirect(url_for("login", next=next_url))
+    if ENTRA_ALLOWED_EMAIL_DOMAINS:
+        domain = email.split("@", 1)[-1].lower()
+        if domain not in ENTRA_ALLOWED_EMAIL_DOMAINS:
+            _set_login_error_message("Your Microsoft account domain is not authorized for this app.")
+            return redirect(url_for("login", next=next_url))
+
+    profile = db.get_access_profile_for_identity(email, provider=ENTRA_IDP_PROVIDER)
+    if not profile:
+        _set_login_error_message(
+            "Your Microsoft account is not mapped to an access profile. Contact an admin."
+        )
+        return redirect(url_for("login", next=next_url))
+
+    session[SESSION_SSO_PROVIDER_KEY] = ENTRA_IDP_PROVIDER
+    session[SESSION_SSO_EMAIL_KEY] = email
+    session[SESSION_SSO_DISPLAY_NAME_KEY] = _extract_entra_display_name(claims) or email
+    _set_session_allowed_profile_ids(profile, source="entra")
+    _clear_profile_session_state()
+    return redirect(url_for("login", next=next_url))
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     next_url = _safe_next_url(request.values.get("next")) or ""
-    profiles = db.list_access_profiles()
+    sso_gate_enabled = bool(ENTRA_SSO_ACTIVE)
+    sso_required = bool(ENTRA_SSO_ACTIVE and ENTRA_SSO_REQUIRED)
+    sso_email = _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY))
+    sso_display_name = (session.get(SESSION_SSO_DISPLAY_NAME_KEY) or "").strip()
+    linked_profile = None
+    if (
+        sso_email
+        and session.get(SESSION_SSO_PROVIDER_KEY) == ENTRA_IDP_PROVIDER
+        and ENTRA_SSO_ACTIVE
+    ):
+        linked_profile = db.get_access_profile_for_identity(
+            sso_email,
+            provider=ENTRA_IDP_PROVIDER,
+        )
+        if linked_profile:
+            _set_session_allowed_profile_ids(linked_profile, source="entra")
+        else:
+            session.pop(SESSION_ALLOWED_PROFILE_IDS_KEY, None)
+            _clear_profile_session_state()
+    elif sso_email:
+        session.pop(SESSION_SSO_PROVIDER_KEY, None)
+        session.pop(SESSION_SSO_EMAIL_KEY, None)
+        session.pop(SESSION_SSO_DISPLAY_NAME_KEY, None)
+        session.pop(SESSION_ALLOWED_PROFILE_IDS_KEY, None)
+        _clear_profile_session_state()
+        sso_email = None
+        sso_display_name = ""
+
+    sso_gate_cleared = bool(sso_gate_enabled and sso_email and linked_profile)
+    account_select_enabled = bool(
+        sso_gate_cleared
+        if sso_gate_enabled
+        else (not sso_required or ENTRA_ALLOW_LEGACY_LOGIN)
+    )
+
+    if account_select_enabled:
+        profiles = _get_switchable_profiles() if sso_gate_enabled else db.list_access_profiles()
+    else:
+        profiles = []
+
     login_profiles = []
     for profile in profiles:
         is_admin = bool(profile.get("is_admin"))
@@ -720,44 +1025,75 @@ def login():
                 "focus_plants": _profile_focus_plants(profile),
             }
         )
-    selected_profile_id = None
-    error = None
+    selected_profile_id = (
+        linked_profile.get("id")
+        if linked_profile and any(p["id"] == linked_profile.get("id") for p in login_profiles)
+        else None
+    )
+    error = _consume_login_error_message()
 
     if request.method == "POST":
-        profile_id = request.form.get("profile_id")
-        try:
-            profile_id = int(profile_id)
-        except (TypeError, ValueError):
-            profile_id = None
-        selected_profile_id = profile_id
+        if not account_select_enabled:
+            if sso_gate_enabled:
+                error = "Continue with Microsoft to unlock account selection."
+            else:
+                error = "Use Microsoft sign-in to access this app."
+        else:
+            profile_id = request.form.get("profile_id")
+            try:
+                profile_id = int(profile_id)
+            except (TypeError, ValueError):
+                profile_id = None
+            selected_profile_id = profile_id
 
-        profile = db.get_access_profile(profile_id) if profile_id else None
-        if not profile:
-            error = "Select a valid account."
-        elif profile.get("is_admin"):
-            password = request.form.get("password") or ""
-            expected = (os.environ.get("ADMIN_PASSWORD") or "").strip()
-            if not expected:
-                if _is_local_dev_mode():
-                    expected = "admin"
-                elif password == "admin":
-                    # Local fallback: allow one known default when env config is missing.
-                    expected = "admin"
-                else:
-                    error = "Admin password is not configured."
-            if not error and password != expected:
-                error = "Invalid admin password."
+            if sso_gate_enabled and not _is_profile_switch_allowed(profile_id):
+                error = "Select a valid account."
+                profile = None
+            else:
+                profile = db.get_access_profile(profile_id) if profile_id else None
+                if not profile:
+                    error = "Select a valid account."
+                elif profile.get("is_admin"):
+                    password = request.form.get("password") or ""
+                    expected = (os.environ.get("ADMIN_PASSWORD") or "").strip()
+                    if not expected:
+                        if _is_local_dev_mode():
+                            expected = "admin"
+                        elif password == "admin":
+                            # Local fallback: allow one known default when env config is missing.
+                            expected = "admin"
+                        else:
+                            error = "Admin password is not configured."
+                    if not error and password != expected:
+                        error = "Invalid admin password."
 
-        if not error and profile:
-            _apply_profile_to_session(profile, reset_filters=True)
-            return redirect(_safe_next_url_for_profile(profile, next_url))
+            if not error and profile:
+                _apply_profile_to_session(profile, reset_filters=True)
+                _set_session_allowed_profile_ids(
+                    profile,
+                    source="entra" if sso_gate_enabled else "local",
+                )
+                if not sso_gate_enabled:
+                    session.pop(SESSION_SSO_PROVIDER_KEY, None)
+                    session.pop(SESSION_SSO_EMAIL_KEY, None)
+                    session.pop(SESSION_SSO_DISPLAY_NAME_KEY, None)
+                return redirect(_safe_next_url_for_profile(profile, next_url))
 
     if selected_profile_id is None and login_profiles:
-        selected_profile_id = login_profiles[0]["id"]
+        if linked_profile:
+            selected_profile_id = linked_profile.get("id")
+        else:
+            selected_profile_id = login_profiles[0]["id"]
     selected_profile = next(
         (profile for profile in login_profiles if profile["id"] == selected_profile_id),
         None,
     )
+
+    if sso_gate_enabled and not sso_gate_cleared and not error:
+        if sso_email and not linked_profile:
+            error = "Microsoft sign-in succeeded, but no access profile is mapped to this email."
+        else:
+            error = "Continue with Microsoft to unlock account selection."
 
     return render_template(
         "login.html",
@@ -767,6 +1103,13 @@ def login():
         plant_names=PLANT_NAMES,
         error=error,
         next_url=next_url,
+        sso_enabled=ENTRA_SSO_ACTIVE,
+        sso_required=sso_required,
+        account_select_enabled=account_select_enabled,
+        sso_gate_enabled=sso_gate_enabled,
+        sso_email=sso_email,
+        sso_display_name=sso_display_name,
+        sso_profile_hint=(linked_profile or {}).get("name"),
     )
 
 
@@ -1350,6 +1693,9 @@ def access_switch():
     except (TypeError, ValueError):
         profile_id = None
 
+    if not _is_profile_switch_allowed(profile_id):
+        return redirect(url_for("orders"))
+
     profile = db.get_access_profile(profile_id) if profile_id else None
     if not profile:
         return redirect(url_for("orders"))
@@ -1371,6 +1717,7 @@ def access_manage():
     edit_profile = None
     edit_allowed = []
     edit_defaults = []
+    edit_entra_emails = []
     edit_id = request.args.get("edit_id")
     if edit_id:
         try:
@@ -1385,6 +1732,10 @@ def access_manage():
             defaults_parsed = _parse_plant_filters(edit_profile.get("default_plants"))
             # Empty means "no focus (all plants)"
             edit_defaults = defaults_parsed if defaults_parsed else []
+            edit_entra_emails = db.list_access_profile_identity_emails(
+                edit_id,
+                provider=ENTRA_IDP_PROVIDER,
+            )
 
     if request.method == "POST":
         action = (request.form.get("action") or "").strip().lower() or "create"
@@ -1411,6 +1762,11 @@ def access_manage():
         allowed = [code for code in allowed if code in PLANT_CODES]
         default_plants = [_normalize_plant_code(code) for code in request.form.getlist("default_plants")]
         default_plants = [code for code in default_plants if code in PLANT_CODES]
+        entra_emails_raw = request.form.get("entra_emails") or ""
+        entra_tokens = [token.strip() for token in re.split(r"[,;\s]+", entra_emails_raw) if token.strip()]
+        invalid_tokens = [token for token in entra_tokens if not _normalize_identity_email(token)]
+        entra_emails = _parse_identity_emails(entra_emails_raw)
+        edit_entra_emails = list(entra_emails)
 
         if not name:
             error = "Profile name is required."
@@ -1418,48 +1774,67 @@ def access_manage():
             error = "Missing profile to update."
         elif action not in {"create", "update"}:
             error = "Unsupported action."
-        elif is_admin_flag:
-            try:
-                if action == "create":
-                    db.create_access_profile(name, True, "ALL", "ALL", is_sandbox=False)
-                else:
-                    db.update_access_profile(profile_id, name, True, "ALL", "ALL", is_sandbox=False)
-                _sync_access_profiles_seed_snapshot()
-                return redirect(url_for("access_manage"))
-            except Exception:
-                error = "Unable to save profile. Profile names must be unique."
+        elif invalid_tokens:
+            error = f"Invalid email format: {', '.join(invalid_tokens[:3])}"
         else:
-            if not allowed:
+            if not is_admin_flag and not allowed:
                 error = "Select at least one allowed plant."
             else:
-                default_plants = [code for code in default_plants if code in allowed]
-                allowed_csv = ",".join(allowed) if len(allowed) < len(PLANT_CODES) else "ALL"
-                # Empty defaults => no focus (treat as ALL)
-                default_csv = ",".join(default_plants) if default_plants else "ALL"
+                created_profile_id = None
                 try:
+                    if is_admin_flag:
+                        allowed_csv = "ALL"
+                        default_csv = "ALL"
+                        is_sandbox_flag = False
+                    else:
+                        default_plants = [code for code in default_plants if code in allowed]
+                        allowed_csv = ",".join(allowed) if len(allowed) < len(PLANT_CODES) else "ALL"
+                        # Empty defaults => no focus (treat as ALL)
+                        default_csv = ",".join(default_plants) if default_plants else "ALL"
                     if action == "create":
-                        db.create_access_profile(
+                        created_profile_id = db.create_access_profile(
                             name,
-                            False,
+                            bool(is_admin_flag),
                             allowed_csv,
                             default_csv,
                             is_sandbox=is_sandbox_flag,
                         )
+                        target_profile_id = created_profile_id
                     else:
+                        target_profile_id = profile_id
                         db.update_access_profile(
                             profile_id,
                             name,
-                            False,
+                            bool(is_admin_flag),
                             allowed_csv,
                             default_csv,
                             is_sandbox=is_sandbox_flag,
                         )
+                    db.replace_access_profile_identities(
+                        target_profile_id,
+                        entra_emails,
+                        provider=ENTRA_IDP_PROVIDER,
+                    )
                     _sync_access_profiles_seed_snapshot()
                     return redirect(url_for("access_manage"))
+                except ValueError as exc:
+                    if created_profile_id:
+                        db.delete_access_profile(created_profile_id)
+                    error = str(exc)
                 except Exception:
+                    if created_profile_id:
+                        db.delete_access_profile(created_profile_id)
                     error = "Unable to save profile. Profile names must be unique."
 
     profiles = db.list_access_profiles()
+    identities = db.list_access_profile_identities(provider=ENTRA_IDP_PROVIDER)
+    profile_identity_map = {}
+    for entry in identities:
+        profile_key = entry.get("profile_id")
+        email = (entry.get("email") or "").strip().lower()
+        if not profile_key or not email:
+            continue
+        profile_identity_map.setdefault(profile_key, []).append(email)
     return render_template(
         "access_manage.html",
         profiles=profiles,
@@ -1469,6 +1844,8 @@ def access_manage():
         edit_profile=edit_profile,
         edit_allowed=edit_allowed,
         edit_defaults=edit_defaults,
+        edit_entra_emails=edit_entra_emails,
+        profile_identity_map=profile_identity_map,
     )
 
 
@@ -1499,13 +1876,20 @@ def access_delete():
 
     # If deleting the active session profile, switch to Admin first.
     if session.get(SESSION_PROFILE_ID_KEY) == profile_id:
+        auth_source = (
+            "entra"
+            if (session.get(SESSION_SSO_PROVIDER_KEY) or "").strip().lower() == ENTRA_IDP_PROVIDER
+            else "local"
+        )
         fallback = db.get_access_profile_by_name("Admin")
         if fallback and fallback.get("id") != profile_id:
             _apply_profile_to_session(fallback, reset_filters=True)
+            _set_session_allowed_profile_ids(fallback, source=auth_source)
         else:
             other = next((p for p in profiles if p.get("id") != profile_id), None)
             if other:
                 _apply_profile_to_session(other, reset_filters=True)
+                _set_session_allowed_profile_ids(other, source=auth_source)
 
     db.delete_access_profile(profile_id)
     _sync_access_profiles_seed_snapshot()
@@ -4396,6 +4780,68 @@ def _profile_focus_plants(profile):
     return defaults or allowed or list(PLANT_CODES)
 
 
+def _get_session_allowed_profile_ids():
+    raw_ids = session.get(SESSION_ALLOWED_PROFILE_IDS_KEY)
+    if not isinstance(raw_ids, (list, tuple, set)):
+        return []
+    values = []
+    for value in raw_ids:
+        try:
+            values.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return values
+
+
+def _set_session_allowed_profile_ids(profile, source="local"):
+    if not profile or not profile.get("id"):
+        session.pop(SESSION_ALLOWED_PROFILE_IDS_KEY, None)
+        return
+    profile_id = int(profile["id"])
+    if source == "entra" and not bool(profile.get("is_admin")):
+        session[SESSION_ALLOWED_PROFILE_IDS_KEY] = [profile_id]
+        return
+    if bool(profile.get("is_admin")):
+        session[SESSION_ALLOWED_PROFILE_IDS_KEY] = [
+            int(entry.get("id"))
+            for entry in db.list_access_profiles()
+            if entry.get("id")
+        ]
+    else:
+        session[SESSION_ALLOWED_PROFILE_IDS_KEY] = [profile_id]
+
+
+def _is_profile_switch_allowed(profile_id):
+    try:
+        normalized = int(profile_id)
+    except (TypeError, ValueError):
+        return False
+    allowed_ids = set(_get_session_allowed_profile_ids())
+    if not allowed_ids:
+        if _get_session_role() == ROLE_ADMIN:
+            return True
+        current_profile_id = session.get(SESSION_PROFILE_ID_KEY)
+        try:
+            return int(current_profile_id) == normalized
+        except (TypeError, ValueError):
+            return False
+    return normalized in allowed_ids
+
+
+def _get_switchable_profiles():
+    profiles = db.list_access_profiles()
+    allowed_ids = set(_get_session_allowed_profile_ids())
+    if not allowed_ids:
+        if _get_session_role() == ROLE_ADMIN:
+            return profiles
+        current_profile_id = session.get(SESSION_PROFILE_ID_KEY)
+        try:
+            allowed_ids = {int(current_profile_id)}
+        except (TypeError, ValueError):
+            allowed_ids = set()
+    return [profile for profile in profiles if profile.get("id") in allowed_ids]
+
+
 def _apply_profile_to_session(profile, *, reset_filters=False):
     allowed = _profile_allowed_plants(profile)
     default_plants = _profile_default_plants(profile, allowed)
@@ -4429,6 +4875,8 @@ def _ensure_active_profile():
         or bool(session.get(SESSION_PROFILE_SANDBOX_KEY)) != bool(profile.get("is_sandbox"))
     ):
         _apply_profile_to_session(profile, reset_filters=True)
+    if not _get_session_allowed_profile_ids():
+        _set_session_allowed_profile_ids(profile, source="local")
     return profile
 
 
@@ -4795,6 +5243,27 @@ def _normalize_route_stop_order(stop_order):
     return normalized
 
 
+def _route_stop_keys_from_ordered_stops(ordered_stops):
+    return _normalize_route_stop_order(
+        [
+            _line_stop_key(stop.get("state"), stop.get("zip"))
+            for stop in (ordered_stops or [])
+        ]
+    )
+
+
+def _is_custom_route_stop_order_applicable(custom_order, ordered_stops):
+    normalized_custom = _normalize_route_stop_order(custom_order or [])
+    if not normalized_custom:
+        return False
+    current_keys = _route_stop_keys_from_ordered_stops(ordered_stops)
+    if len(current_keys) <= 1:
+        return False
+    if len(normalized_custom) != len(current_keys):
+        return False
+    return set(normalized_custom) == set(current_keys)
+
+
 def _load_route_stop_order(load):
     if not load:
         return []
@@ -4817,8 +5286,13 @@ def _load_route_stop_order(load):
     return []
 
 
-def _has_custom_route_stop_order(load):
-    return len(_load_route_stop_order(load)) > 0
+def _has_custom_route_stop_order(load, ordered_stops=None):
+    custom_order = _load_route_stop_order(load)
+    if not custom_order:
+        return False
+    if ordered_stops is None:
+        return True
+    return _is_custom_route_stop_order_applicable(custom_order, ordered_stops)
 
 
 def _apply_route_stop_order(ordered_stops, load=None, stop_order=None):
@@ -4827,6 +5301,8 @@ def _apply_route_stop_order(ordered_stops, load=None, stop_order=None):
         stop_order if stop_order is not None else _load_route_stop_order(load)
     )
     if len(stops) <= 1 or not custom_order:
+        return stops
+    if not _is_custom_route_stop_order_applicable(custom_order, stops):
         return stops
 
     stop_by_key = {}
@@ -6349,6 +6825,24 @@ def _clean_query_params(values):
 
 def _require_session():
     profile = _ensure_active_profile()
+    if ENTRA_SSO_ACTIVE and ENTRA_SSO_REQUIRED:
+        sso_email = _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY))
+        sso_provider = (session.get(SESSION_SSO_PROVIDER_KEY) or "").strip().lower()
+        if not sso_email or sso_provider != ENTRA_IDP_PROVIDER:
+            next_url = request.full_path if request else ""
+            return redirect(url_for("login", next=next_url))
+        mapped_profile = db.get_access_profile_for_identity(sso_email, provider=ENTRA_IDP_PROVIDER)
+        if not mapped_profile:
+            _set_login_error_message(
+                "Your Microsoft account is no longer mapped to an access profile. Contact an admin."
+            )
+            next_url = request.full_path if request else ""
+            return redirect(url_for("login", next=next_url))
+        if not bool(mapped_profile.get("is_admin")):
+            if not profile or int(profile.get("id") or 0) != int(mapped_profile.get("id") or 0):
+                _apply_profile_to_session(mapped_profile, reset_filters=True)
+                profile = mapped_profile
+        _set_session_allowed_profile_ids(mapped_profile, source="entra")
     if not profile or not _get_allowed_plants():
         next_url = request.full_path if request else ""
         return redirect(url_for("login", next=next_url))
@@ -6999,13 +7493,14 @@ def inject_session_context():
         "session_is_sandbox": _is_session_sandbox(),
         "session_profile_id": session.get(SESSION_PROFILE_ID_KEY),
         "session_profile_default_plants": session.get(SESSION_PROFILE_DEFAULT_PLANTS_KEY) or [],
-        "access_profiles": db.list_access_profiles(),
+        "access_profiles": _get_switchable_profiles(),
         "session_allowed_plants": allowed_plants,
         "session_plant_filter": session.get("plant_filter"),
         "session_plant_filters": selected_plants,
         "session_plant_filter_label": _format_plant_filter_label(selected_plants, allowed_plants),
         "plant_filter_cards": _build_plant_filter_cards(allowed_plants, selected_plants),
         "is_admin": role == ROLE_ADMIN,
+        "session_sso_email": _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY)),
         "show_tutorial_nav": TUTORIAL_NAV_ENABLED,
         "trailer_profile_options": TRAILER_PROFILE_OPTIONS,
         "app_release_label": APP_RELEASE_LABEL,
@@ -9595,7 +10090,10 @@ def loads():
         route_metrics = _load_route_display_metrics(
             load,
             route_nodes,
-            use_cached_route=(not reverse_route and not _has_custom_route_stop_order(load)),
+            use_cached_route=(
+                not reverse_route
+                and not _load_route_stop_order(load)
+            ),
         )
         route_legs = route_metrics["route_legs"]
         total_route_distance = route_metrics["route_distance"]
@@ -12781,6 +13279,7 @@ def manual_add_orders(load_id):
     for line in order_lines:
         db.create_load_line(load_id, line["id"], line.get("total_length_ft") or 0)
     db.delete_load_schematic_override(load_id)
+    db.reset_load_route_state(load_id)
 
     reopt_job_id = _start_reopt_job(
         plant_code,
@@ -13053,7 +13552,10 @@ def load_detail(load_id):
     route_metrics = _load_route_display_metrics(
         load_data,
         route_nodes,
-        use_cached_route=(not reverse_route and not _has_custom_route_stop_order(load_data)),
+        use_cached_route=(
+            not reverse_route
+            and not _load_route_stop_order(load_data)
+        ),
     )
     route_legs = route_metrics["route_legs"]
     route_geometry = route_metrics["route_geometry"]
@@ -13221,7 +13723,8 @@ def load_route_geometry(load_id):
             }
         )
 
-    if _has_custom_route_stop_order(load):
+    custom_route_stop_order = _load_route_stop_order(load)
+    if custom_route_stop_order:
         lines = db.list_load_lines(load_id)
         zip_coords = geo_utils.load_zip_coordinates()
         trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
@@ -13242,30 +13745,34 @@ def load_route_geometry(load_id):
             zip_coords,
             return_to_origin=requires_return_to_origin,
         )
-        ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
-        ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
-        origin_code = load.get("origin_plant")
-        origin_coords = geo_utils.plant_coords_for_code(origin_code)
-        route_nodes = []
-        if origin_coords:
-            route_nodes.append({"coords": origin_coords, "type": "origin"})
-        for stop in ordered_stops:
-            route_nodes.append({"coords": stop.get("coords"), "type": "stop"})
-        if requires_return_to_origin and origin_coords and len(route_nodes) > 1:
-            route_nodes.append({"coords": origin_coords, "type": "final"})
+        if _is_custom_route_stop_order_applicable(custom_route_stop_order, ordered_stops):
+            ordered_stops = _apply_route_stop_order(
+                ordered_stops,
+                stop_order=custom_route_stop_order,
+            )
+            ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
+            origin_code = load.get("origin_plant")
+            origin_coords = geo_utils.plant_coords_for_code(origin_code)
+            route_nodes = []
+            if origin_coords:
+                route_nodes.append({"coords": origin_coords, "type": "origin"})
+            for stop in ordered_stops:
+                route_nodes.append({"coords": stop.get("coords"), "type": "stop"})
+            if requires_return_to_origin and origin_coords and len(route_nodes) > 1:
+                route_nodes.append({"coords": origin_coords, "type": "final"})
 
-        metrics = _load_route_display_metrics(load, route_nodes, use_cached_route=False)
-        return jsonify(
-            {
-                "load_id": load_id,
-                "route_provider": "manual",
-                "route_profile": "",
-                "route_fallback": True,
-                "route_total_miles": metrics["route_distance"],
-                "route_legs": metrics["route_legs"],
-                "route_geometry": metrics["route_geometry"],
-            }
-        )
+            metrics = _load_route_display_metrics(load, route_nodes, use_cached_route=False)
+            return jsonify(
+                {
+                    "load_id": load_id,
+                    "route_provider": "manual",
+                    "route_profile": "",
+                    "route_fallback": True,
+                    "route_total_miles": metrics["route_distance"],
+                    "route_legs": metrics["route_legs"],
+                    "route_geometry": metrics["route_geometry"],
+                }
+            )
 
     existing_geometry = load.get("route_geometry") or []
     existing_provider = (load.get("route_provider") or "").strip().lower()

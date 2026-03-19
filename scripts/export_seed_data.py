@@ -52,6 +52,19 @@ TABLES = {
         "columns": ["name", "is_admin", "is_sandbox", "allowed_plants", "default_plants", "created_at"],
         "order_by": "is_admin DESC, name ASC",
     },
+    "access_profile_identities": {
+        "columns": ["profile_name", "provider", "email", "created_at"],
+        "query": """
+            SELECT
+                p.name AS profile_name,
+                i.provider AS provider,
+                i.email AS email,
+                i.created_at AS created_at
+            FROM access_profile_identities i
+            JOIN access_profiles p ON p.id = i.profile_id
+            ORDER BY p.name ASC, i.provider ASC, i.email ASC
+        """,
+    },
     "zip_coordinates": {
         "columns": ["zip", "lat", "lng", "city", "state", "created_at"],
         "order_by": "zip ASC",
@@ -74,10 +87,12 @@ TABLES = {
 }
 
 
-def _export_table(cursor, seed_dir, table_name, columns, order_by):
-    query = f"SELECT {', '.join(columns)} FROM {table_name}"
-    if order_by:
-        query += f" ORDER BY {order_by}"
+def _export_table(cursor, seed_dir, table_name, columns, order_by=None, query_override=None):
+    query = (query_override or "").strip()
+    if not query:
+        query = f"SELECT {', '.join(columns)} FROM {table_name}"
+        if order_by:
+            query += f" ORDER BY {order_by}"
     rows = cursor.execute(query).fetchall()
 
     path = seed_dir / f"{table_name}.csv"
@@ -130,6 +145,7 @@ def main():
                 table,
                 meta["columns"],
                 meta.get("order_by"),
+                meta.get("query"),
             )
             print(f"{table}: {count} rows")
 

@@ -13134,8 +13134,8 @@ button.plant-card {
 
 .loads-review-pane .manifest-table th,
 .loads-review-pane .manifest-table td {
-  overflow: visible;
-  text-overflow: clip;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .loads-review-pane .manifest-table th:nth-child(1),
@@ -13146,13 +13146,13 @@ button.plant-card {
 
 .loads-review-pane .manifest-table th:nth-child(2),
 .loads-review-pane .manifest-table td:nth-child(2) {
-  width: 39%;
+  width: 43%;
   min-width: 0;
 }
 
 .loads-review-pane .manifest-table th:nth-child(3),
 .loads-review-pane .manifest-table td:nth-child(3) {
-  width: 60%;
+  width: 56%;
   min-width: 0;
 }
 
@@ -13163,7 +13163,13 @@ button.plant-card {
 
 .loads-review-pane .manifest-table td:nth-child(1) {
   overflow: visible;
-  padding-right: 4px;
+  padding-left: 1px;
+  padding-right: 1px;
+}
+
+.loads-review-pane .manifest-table th:nth-child(1) {
+  padding-left: 1px;
+  padding-right: 1px;
 }
 
 .loads-review-pane .manifest-table td:nth-child(2) {
@@ -13183,23 +13189,28 @@ button.plant-card {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
 .loads-review-pane .due-cell {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   flex-wrap: nowrap;
   white-space: nowrap;
-  margin-left: calc(var(--manifest-toggle-width) + var(--manifest-row-gap));
+  margin-left: 0;
+  padding-left: calc(var(--manifest-toggle-width) + var(--manifest-row-gap));
+  min-width: 0;
 }
 
 .loads-review-pane .manifest-order-top {
   display: flex;
   align-items: center;
   gap: var(--manifest-row-gap);
-  white-space: nowrap;
+  flex-wrap: wrap;
+  white-space: normal;
   min-height: 18px;
+  min-width: 0;
 }
 
 .loads-review-pane .manifest-drag-handle {
@@ -13237,15 +13248,15 @@ button.plant-card {
   align-items: center;
   justify-content: center;
   flex-wrap: nowrap;
-  gap: 4px;
+  gap: 3px;
   width: auto;
   min-width: 0;
-  padding: 1px 7px;
+  padding: 1px 5px;
   border-radius: 999px;
   border: 1px solid rgba(96, 165, 250, 0.34);
   background: rgba(15, 23, 42, 0.74);
   color: #bfdbfe;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -13257,7 +13268,7 @@ button.plant-card {
 }
 
 .loads-review-pane .manifest-leg-arrow {
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
 }
 
@@ -13335,23 +13346,31 @@ button.plant-card {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  white-space: nowrap;
+  white-space: normal;
+  min-width: 0;
 }
 
 .loads-review-pane .manifest-customer-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .loads-review-pane .manifest-customer-head .manifest-drag-handle {
   margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
 }
 
 .loads-review-pane .manifest-customer-name {
   font-weight: 700;
   color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .loads-review-pane .manifest-end-tag {
@@ -13367,6 +13386,8 @@ button.plant-card {
 .loads-review-pane .manifest-customer-location {
   font-size: 10px;
   color: var(--text-secondary);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .loads-review-pane .manifest-due-inline {
@@ -13408,7 +13429,8 @@ button.plant-card {
 }
 
 .loads-review-pane .manifest-card .table-container {
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   flex: 1;
 }
@@ -13534,7 +13556,8 @@ button.plant-card {
 .loads-review-pane .load-detail-panel.single-screen .manifest-card .table-container {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .loads-review-pane .load-detail-panel.single-screen .map-card .load-map {
@@ -15518,6 +15541,41 @@ button.plant-card {
   border-radius: 10px;
   color: #fecaca;
   font-size: 12px;
+}
+
+.login-sso-panel {
+  width: min(760px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.login-sso-button {
+  width: 100%;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.login-sso-meta {
+  font-size: 12px;
+  color: rgba(191, 219, 254, 0.9);
+}
+
+.login-sso-hint {
+  display: block;
+  margin-top: 4px;
+  color: rgba(147, 197, 253, 0.9);
+}
+
+.login-sso-required {
+  font-size: 11px;
+  color: rgba(191, 219, 254, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .login-card {

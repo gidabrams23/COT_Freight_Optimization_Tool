@@ -53,6 +53,10 @@ UPSERT_TABLES = {
         "columns": ["name", "is_admin", "is_sandbox", "allowed_plants", "default_plants", "created_at"],
         "key_columns": ["name"],
     },
+    "access_profile_identities": {
+        "columns": ["profile_name", "provider", "email", "created_at"],
+        "key_columns": ["provider", "email"],
+    },
     "zip_coordinates": {
         "columns": ["zip", "lat", "lng", "city", "state", "created_at"],
         "key_columns": ["zip"],
@@ -112,6 +116,44 @@ def _upsert_table(connection, table_name, columns, key_columns, rows):
     return len(rows)
 
 
+def _normalize_email(value):
+    text = str(value or "").strip().lower()
+    if "@" not in text or "." not in text:
+        return None
+    return text
+
+
+def _upsert_access_profile_identities(connection, rows):
+    if not rows:
+        return 0
+    count = 0
+    for row in rows:
+        profile_name = str(row[0] or "").strip()
+        provider = str(row[1] or "microsoft_entra").strip().lower() or "microsoft_entra"
+        email = _normalize_email(row[2])
+        created_at = _normalize_seed_value(row[3])
+        if not profile_name or not email:
+            continue
+        profile = connection.execute(
+            "SELECT id FROM access_profiles WHERE name = ?",
+            (profile_name,),
+        ).fetchone()
+        if not profile:
+            continue
+        connection.execute(
+            """
+            INSERT INTO access_profile_identities (profile_id, provider, email, created_at)
+            VALUES (?, ?, ?, COALESCE(?, datetime('now')))
+            ON CONFLICT(provider, email) DO UPDATE SET
+                profile_id = excluded.profile_id,
+                created_at = COALESCE(excluded.created_at, access_profile_identities.created_at)
+            """,
+            (int(profile[0]), provider, email, created_at),
+        )
+        count += 1
+    return count
+
+
 def _parse_args():
     parser = argparse.ArgumentParser(
         description="Upsert seed snapshot CSVs into an existing SQLite database (useful for Render disk sync)."
@@ -159,13 +201,16 @@ def main():
             if args.dry_run:
                 print(f"{table_name}: {len(rows)} rows (dry-run)")
                 continue
-            count = _upsert_table(
-                connection,
-                table_name,
-                meta["columns"],
-                meta["key_columns"],
-                rows,
-            )
+            if table_name == "access_profile_identities":
+                count = _upsert_access_profile_identities(connection, rows)
+            else:
+                count = _upsert_table(
+                    connection,
+                    table_name,
+                    meta["columns"],
+                    meta["key_columns"],
+                    rows,
+                )
             print(f"{table_name}: upserted {count} rows")
         if not args.dry_run:
             connection.commit()

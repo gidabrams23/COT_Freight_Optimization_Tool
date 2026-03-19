@@ -4,3 +4,4 @@ pandas==2.3.3
 openpyxl==3.1.0
 Pillow==10.4.0
 python-dateutil==2.9.0.post0
+msal==1.28.0

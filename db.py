@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -112,6 +113,15 @@ def _chunked(values, size=900):
     if not values:
         return []
     return [values[i : i + size] for i in range(0, len(values), size)]
+
+
+def _normalize_identity_email(value):
+    text = (value or "").strip().lower()
+    if not text:
+        return None
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", text):
+        return None
+    return text
 
 
 def _get_columns(connection, table_name):
@@ -578,6 +588,51 @@ def _seed_table_from_csv(connection, table_name, filename, columns):
     return True
 
 
+def _seed_access_profile_identities_from_csv(connection):
+    path = SEED_DIR / "access_profile_identities.csv"
+    if not path.exists():
+        return False
+
+    existing = connection.execute(
+        "SELECT COUNT(*) FROM access_profile_identities"
+    ).fetchone()
+    if existing and existing[0]:
+        return False
+
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = []
+        for row in reader:
+            profile_name = (row.get("profile_name") or "").strip()
+            provider = (row.get("provider") or "microsoft_entra").strip().lower() or "microsoft_entra"
+            email = _normalize_identity_email(row.get("email"))
+            if not profile_name or not email:
+                continue
+            profile = connection.execute(
+                "SELECT id FROM access_profiles WHERE name = ?",
+                (profile_name,),
+            ).fetchone()
+            if not profile:
+                continue
+            created_at = _coerce_seed_value(row.get("created_at")) or datetime.utcnow().isoformat(
+                timespec="seconds"
+            )
+            rows.append((int(profile["id"]), provider, email, created_at))
+
+    if not rows:
+        return False
+
+    connection.executemany(
+        """
+        INSERT INTO access_profile_identities (profile_id, provider, email, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(provider, email) DO NOTHING
+        """,
+        rows,
+    )
+    return True
+
+
 def _seed_reference_data(connection):
     seeds = [
         (
@@ -656,6 +711,11 @@ def _seed_reference_data(connection):
             _seed_table_from_csv(connection, table_name, filename, columns)
         except sqlite3.Error:
             continue
+
+    try:
+        _seed_access_profile_identities_from_csv(connection)
+    except sqlite3.Error:
+        pass
 
 
 def init_db():
@@ -1087,6 +1147,31 @@ def init_db():
                 default_plants TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS access_profile_identities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id INTEGER NOT NULL,
+                provider TEXT NOT NULL DEFAULT 'microsoft_entra',
+                email TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(provider, email),
+                FOREIGN KEY (profile_id) REFERENCES access_profiles(id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_access_profile_identities_profile
+            ON access_profile_identities(profile_id)
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_access_profile_identities_provider_email
+            ON access_profile_identities(provider, email)
             """
         )
 
@@ -3770,6 +3855,28 @@ def update_load_route_stop_order(load_id, stop_order):
         connection.commit()
 
 
+def reset_load_route_state(load_id):
+    if not load_id:
+        return
+    with get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE loads
+            SET route_reversed = 0,
+                route_stop_order_json = NULL,
+                route_provider = NULL,
+                route_profile = NULL,
+                route_total_miles = NULL,
+                route_legs_json = '[]',
+                route_geometry_json = '[]',
+                route_fallback = 1
+            WHERE id = ?
+            """,
+            (load_id,),
+        )
+        connection.commit()
+
+
 def _list_load_numbers_for_prefix(prefix):
     with get_connection() as connection:
         rows = connection.execute(
@@ -4237,6 +4344,21 @@ def remove_order_from_load(load_id, order_id):
             "DELETE FROM load_schematic_overrides WHERE load_id = ?",
             (load_id,),
         )
+        connection.execute(
+            """
+            UPDATE loads
+            SET route_reversed = 0,
+                route_stop_order_json = NULL,
+                route_provider = NULL,
+                route_profile = NULL,
+                route_total_miles = NULL,
+                route_legs_json = '[]',
+                route_geometry_json = '[]',
+                route_fallback = 1
+            WHERE id = ?
+            """,
+            (load_id,),
+        )
         connection.commit()
 
 
@@ -4295,6 +4417,21 @@ def remove_orders_from_unapproved_loads(
         )
         connection.execute(
             f"DELETE FROM load_schematic_overrides WHERE load_id IN ({load_placeholders})",
+            affected_load_ids,
+        )
+        connection.execute(
+            f"""
+            UPDATE loads
+            SET route_reversed = 0,
+                route_stop_order_json = NULL,
+                route_provider = NULL,
+                route_profile = NULL,
+                route_total_miles = NULL,
+                route_legs_json = '[]',
+                route_geometry_json = '[]',
+                route_fallback = 1
+            WHERE id IN ({load_placeholders})
+            """,
             affected_load_ids,
         )
 
@@ -4600,7 +4737,107 @@ def delete_access_profile(profile_id):
     if not profile_id:
         return
     with get_connection() as connection:
+        connection.execute(
+            "DELETE FROM access_profile_identities WHERE profile_id = ?",
+            (profile_id,),
+        )
         connection.execute("DELETE FROM access_profiles WHERE id = ?", (profile_id,))
+        connection.commit()
+
+
+def list_access_profile_identities(profile_id=None, provider=None):
+    query = """
+        SELECT id, profile_id, provider, email, created_at
+        FROM access_profile_identities
+        WHERE 1=1
+    """
+    params = []
+    if profile_id:
+        query += " AND profile_id = ?"
+        params.append(profile_id)
+    provider_value = (provider or "").strip().lower()
+    if provider_value:
+        query += " AND provider = ?"
+        params.append(provider_value)
+    query += " ORDER BY profile_id ASC, email ASC"
+    with get_connection() as connection:
+        rows = connection.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
+
+def list_access_profile_identity_emails(profile_id, provider="microsoft_entra"):
+    if not profile_id:
+        return []
+    provider_value = (provider or "").strip().lower() or "microsoft_entra"
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT email
+            FROM access_profile_identities
+            WHERE profile_id = ? AND provider = ?
+            ORDER BY email ASC
+            """,
+            (profile_id, provider_value),
+        ).fetchall()
+        return [row["email"] for row in rows]
+
+
+def get_access_profile_for_identity(email, provider="microsoft_entra"):
+    normalized_email = _normalize_identity_email(email)
+    if not normalized_email:
+        return None
+    provider_value = (provider or "").strip().lower() or "microsoft_entra"
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT p.id, p.name, p.is_admin, p.is_sandbox, p.allowed_plants, p.default_plants, p.created_at
+            FROM access_profile_identities i
+            JOIN access_profiles p ON p.id = i.profile_id
+            WHERE i.provider = ? AND i.email = ?
+            """,
+            (provider_value, normalized_email),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def replace_access_profile_identities(profile_id, emails, provider="microsoft_entra"):
+    if not profile_id:
+        raise ValueError("Profile id is required.")
+    provider_value = (provider or "").strip().lower() or "microsoft_entra"
+    normalized = []
+    seen = set()
+    for value in emails or []:
+        email = _normalize_identity_email(value)
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        normalized.append(email)
+    with get_connection() as connection:
+        connection.execute(
+            """
+            DELETE FROM access_profile_identities
+            WHERE profile_id = ? AND provider = ?
+            """,
+            (profile_id, provider_value),
+        )
+        for email in normalized:
+            existing = connection.execute(
+                """
+                SELECT profile_id
+                FROM access_profile_identities
+                WHERE provider = ? AND email = ?
+                """,
+                (provider_value, email),
+            ).fetchone()
+            if existing and int(existing["profile_id"]) != int(profile_id):
+                raise ValueError(f"{email} is already assigned to another access profile.")
+            connection.execute(
+                """
+                INSERT INTO access_profile_identities (profile_id, provider, email)
+                VALUES (?, ?, ?)
+                """,
+                (profile_id, provider_value, email),
+            )
         connection.commit()
 
 

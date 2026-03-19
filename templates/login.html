@@ -15,10 +15,32 @@
       <div class="login-alert">{{ error }}</div>
     {% endif %}
 
+    {% if sso_enabled %}
+      <div class="login-sso-panel">
+        <a class="btn-primary login-sso-button" href="{{ url_for('auth_microsoft_start', next=next_url) }}">
+          <span class="material-symbols-outlined">account_circle</span>
+          <span>Continue with Microsoft</span>
+        </a>
+        <div class="login-sso-meta">
+          {% if sso_email %}
+            Signed in as <strong>{{ sso_display_name or sso_email }}</strong> ({{ sso_email }})
+            {% if sso_profile_hint %}
+              <span class="login-sso-hint">Mapped profile: {{ sso_profile_hint }}</span>
+            {% endif %}
+          {% else %}
+            Sign in with your Microsoft Entra account to unlock account selection.
+          {% endif %}
+        </div>
+        {% if sso_required %}
+          <div class="login-sso-required">Microsoft sign-in is required for this environment.</div>
+        {% endif %}
+      </div>
+    {% endif %}
+
     <div class="login-card login-card-single">
       <div class="login-column login-admin">
         <div class="login-section-label">System Access</div>
-        {% if profiles %}
+        {% if profiles and account_select_enabled %}
           <form method="post" class="login-admin-form" id="login-account-form">
             <input type="hidden" name="next" value="{{ next_url }}">
             <div class="login-field login-account-select-field">
@@ -81,6 +103,10 @@
               </div>
             </div>
           </form>
+        {% elif sso_gate_enabled %}
+          <div class="empty-state">Continue with Microsoft above to access system accounts.</div>
+        {% elif profiles %}
+          <div class="empty-state">No login methods are enabled for this environment.</div>
         {% else %}
           <div class="empty-state">No access profiles configured.</div>
         {% endif %}

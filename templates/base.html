@@ -91,6 +91,9 @@
                   </div>
                 </summary>
                 <div class="profile-menu-panel">
+                  {% if session_sso_email %}
+                    <div class="profile-menu-label">Microsoft: {{ session_sso_email }}</div>
+                  {% endif %}
                   <form method="post" action="{{ url_for('access_switch') }}">
                     <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
                     <label class="profile-menu-label">

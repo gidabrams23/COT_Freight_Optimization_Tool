@@ -801,7 +801,7 @@
                                       <div class="manifest-customer-head">
                                         <div class="manifest-customer-name">{{ group.cust_name }}</div>
                                         {% if manifest_can_resequence and not group.is_terminal_stop and not prev_same_stop %}
-                                          <button class="manifest-drag-handle" type="button" draggable="true" title="Drag stop to resequence" aria-label="Drag stop to resequence">
+                                          <button class="manifest-drag-handle" type="button" title="Drag stop to resequence" aria-label="Drag stop to resequence">
                                             <span class="material-symbols-outlined">drag_indicator</span>
                                           </button>
                                         {% endif %}
@@ -1396,7 +1396,7 @@
       const storedRoute = JSON.parse(container.dataset.route || '[]');
       const storedRouteLegs = JSON.parse(container.dataset.routeLegs || '[]');
       const routeReversed = container.dataset.routeReversed === '1';
-      const routeCoords = (Array.isArray(storedRoute) ? storedRoute : [])
+      let routeCoords = (Array.isArray(storedRoute) ? storedRoute : [])
         .map((point) => [Number(point[0]), Number(point[1])])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
       let routeLegMiles = (Array.isArray(storedRouteLegs) ? storedRouteLegs : [])
@@ -1406,6 +1406,53 @@
       const lineCoords = validStops.map((stop) => {
         return [stop.lat, stop.lng];
       });
+      const sequencedStopCoords = validStops
+        .filter((stop) => (stop.type || '').toLowerCase() === 'stop')
+        .map((stop) => [stop.lat, stop.lng])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+
+      const nearestGeometryIndex = (geometry, targetCoords) => {
+        if (!Array.isArray(geometry) || geometry.length === 0 || !targetCoords) return -1;
+        let bestIdx = -1;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (let idx = 0; idx < geometry.length; idx += 1) {
+          const point = geometry[idx];
+          if (!Array.isArray(point) || point.length < 2) continue;
+          const dLat = Number(point[0]) - Number(targetCoords[0]);
+          const dLng = Number(point[1]) - Number(targetCoords[1]);
+          const distSq = (dLat * dLat) + (dLng * dLng);
+          if (distSq < bestDist) {
+            bestDist = distSq;
+            bestIdx = idx;
+          }
+        }
+        return bestIdx;
+      };
+
+      // When a closed-loop route is rendered with dense road geometry, providers can return
+      // the same loop in the opposite traversal direction. Align geometry with manifest stop order.
+      const alignGeometryToStopSequence = (coords) => {
+        const normalized = (Array.isArray(coords) ? coords : [])
+          .map((point) => [Number(point[0]), Number(point[1])])
+          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+        if (normalized.length <= 1 || sequencedStopCoords.length <= 1) return normalized;
+
+        let monotonicScore = 0;
+        let prevIdx = nearestGeometryIndex(normalized, sequencedStopCoords[0]);
+        if (prevIdx < 0) return normalized;
+        for (let i = 1; i < sequencedStopCoords.length; i += 1) {
+          const idx = nearestGeometryIndex(normalized, sequencedStopCoords[i]);
+          if (idx < 0) continue;
+          monotonicScore += idx >= prevIdx ? 1 : -1;
+          prevIdx = idx;
+        }
+        if (monotonicScore < 0) {
+          return normalized.slice().reverse();
+        }
+        return normalized;
+      };
+
+      routeCoords = alignGeometryToStopSequence(routeCoords);
       let routeLineLayer = null;
       let routeArrowLayers = [];
       const hasDetailedRoadGeometry = routeCoords.length > lineCoords.length;
@@ -1438,7 +1485,7 @@
       };
 
       if (hasDetailedRoadGeometry) {
-        drawRoutePolyline(routeCoords);
+        drawRoutePolyline(routeCoords, true);
       }
 
       validStops.forEach((stop, stopIndex) => {
@@ -1490,8 +1537,9 @@
                 container.dataset.routeLegs = JSON.stringify(payload.route_legs || []);
               }
               if (fetched.length > 1) {
-                container.dataset.route = JSON.stringify(payload.route_geometry || []);
-                drawRoutePolyline(fetched);
+                const alignedFetched = alignGeometryToStopSequence(fetched);
+                container.dataset.route = JSON.stringify(alignedFetched);
+                drawRoutePolyline(alignedFetched, true);
                 return;
               }
               drawRoutePolyline(lineCoords, true);
@@ -2603,23 +2651,56 @@
         stopAnchorRows().forEach((row) => {
           const handle = row.querySelector('.manifest-drag-handle');
           if (!handle) return;
+          row.setAttribute('draggable', 'true');
           row.classList.add('manifest-draggable-row');
 
-          handle.addEventListener('dragstart', (event) => {
+          const armFromHandle = () => {
+            row.dataset.dragHandleArmed = '1';
+          };
+
+          const clearHandleArm = () => {
+            row.dataset.dragHandleArmed = '';
+          };
+
+          handle.addEventListener('pointerdown', armFromHandle);
+          handle.addEventListener('mousedown', armFromHandle);
+          handle.addEventListener('touchstart', armFromHandle, { passive: true });
+
+          const beginDrag = (event) => {
+            const startedFromHandle = row.dataset.dragHandleArmed === '1'
+              || !!event.target.closest('.manifest-drag-handle');
+            if (!startedFromHandle) {
+              event.preventDefault();
+              return;
+            }
             draggingAnchorRow = row;
             row.classList.add('is-dragging');
             event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', row.dataset.stopKey || '');
-          });
+            event.dataTransfer.setData('text/plain', row.dataset.stopKey || 'manifest-stop');
+            clearHandleArm();
+          };
 
-          handle.addEventListener('dragend', () => {
+          row.addEventListener('dragstart', beginDrag);
+
+          row.addEventListener('dragend', () => {
             row.classList.remove('is-dragging');
             row.dataset.dragSuppress = 'true';
             window.setTimeout(() => {
               row.dataset.dragSuppress = '';
             }, 120);
+            clearHandleArm();
             draggingAnchorRow = null;
           });
+
+          handle.addEventListener('mouseup', clearHandleArm);
+          handle.addEventListener('mouseleave', clearHandleArm);
+        });
+
+        tbody.addEventListener('dragenter', (event) => {
+          if (!draggingAnchorRow) return;
+          const targetAnchor = anchorFromEventTarget(event.target);
+          if (!targetAnchor || targetAnchor === draggingAnchorRow || !tbody.contains(targetAnchor)) return;
+          event.preventDefault();
         });
 
         tbody.addEventListener('dragover', (event) => {
@@ -4505,7 +4586,9 @@
         indexed.sort((a, b) => {
           const seqA = unitStopSequenceValue(a.unitId);
           const seqB = unitStopSequenceValue(b.unitId);
-          if (seqA !== seqB) return seqA - seqB;
+          // Stack body is rendered bottom-up (column-reverse), so later stops
+          // must sort earlier in the array to stay lower in the stack.
+          if (seqA !== seqB) return seqB - seqA;
           return a.idx - b.idx;
         });
         pos.unit_ids = indexed.map((entry) => entry.unitId);

@@ -32,6 +32,45 @@ python app.py
 
 Open `http://127.0.0.1:5000` in your browser. You should land on the home page and be able to navigate between sections using the app's navigation links or menu.
 
+## Microsoft Entra SSO
+
+This app supports Microsoft Entra (Azure AD) login with automatic access-profile mapping by email.
+
+### 1) Register an Entra app
+
+1. Create an Entra app registration.
+2. Add a Web redirect URI:
+   - Local example: `http://127.0.0.1:5000/auth/microsoft/callback`
+   - Hosted example: `https://<your-host>/auth/microsoft/callback`
+3. Create a client secret.
+4. Grant delegated permissions for `openid`, `profile`, `email`, and `User.Read`.
+
+### 2) Set environment variables
+
+```bash
+ENTRA_SSO_ENABLED=true
+ENTRA_TENANT_ID=<tenant-id-or-domain>
+ENTRA_CLIENT_ID=<application-client-id>
+ENTRA_CLIENT_SECRET=<application-client-secret>
+ENTRA_REDIRECT_URI=<optional-absolute-callback-uri>
+```
+
+Optional controls:
+
+```bash
+ENTRA_SSO_REQUIRED=true                 # force Microsoft SSO
+ENTRA_ALLOW_LEGACY_LOGIN=false          # disable old profile/password login
+ENTRA_ALLOWED_EMAIL_DOMAINS=company.com # optional comma-separated domain allowlist
+ENTRA_SCOPES="openid profile email User.Read"
+```
+
+### 3) Map Entra emails to app profiles
+
+1. Sign in as an admin.
+2. Go to `Access Profiles` (`/access/manage`).
+3. For each profile, populate `Microsoft Sign-In Emails`.
+4. Users who sign in with a mapped email are automatically assigned to that profile.
+
 ## Road Routing Defaults
 
 By default, optimization and cost calculations stay on haversine (straight-line) distance.
@@ -74,6 +113,7 @@ ROUTING_ENABLED=false
    - `ADMIN_PASSWORD`: required for admin login in non-development environments.
    - `APP_DB_PATH`: set to `/var/data/app.db` if you attach a Render disk.
    - Optional: `ACCESS_PROFILES_SEED_PATH` (defaults to `data/seed/access_profiles.csv`).
+   - Optional: `ACCESS_PROFILE_IDENTITIES_SEED_PATH` (defaults to `data/seed/access_profile_identities.csv`).
    - Optional Gunicorn tuning:
      - `WEB_CONCURRENCY` (default `1`, recommended for SQLite + in-process reoptimization jobs)
      - `GUNICORN_THREADS` (default `2`)
@@ -84,11 +124,16 @@ ROUTING_ENABLED=false
 5. Deploy. Render sets `PORT` automatically; the container binds to it.
 
 On first boot with an empty DB, app defaults (SKU specs, rate matrix, lookup tables, plants, and planning defaults) are seeded from `data/seed/`.
-Access profiles are also seeded from `data/seed/access_profiles.csv` when the `access_profiles` table is empty.
+Access profiles and Microsoft email mappings are seeded from:
+- `data/seed/access_profiles.csv`
+- `data/seed/access_profile_identities.csv`
 
 Profile persistence notes:
 - On Render, account changes persist across deploys when `APP_DB_PATH` points to a mounted disk (`/var/data/app.db`).
-- The app also snapshots access profiles to `data/seed/access_profiles.csv` on profile create/update/delete, so you can commit that file to GitHub and preserve accounts for fresh environments.
+- The app snapshots access state on profile create/update/delete to:
+  - `data/seed/access_profiles.csv`
+  - `data/seed/access_profile_identities.csv`
+  Commit both files to preserve accounts + Entra email mappings for fresh environments.
 
 ## Sync Local Settings To Render
 
@@ -96,13 +141,13 @@ If your local DB is the source of truth (plant defaults, auto-hotshot toggles, S
 
 1. Export local DB snapshots into seed CSV files:
    ```bash
-   python scripts/export_seed_data.py --tables optimizer_settings sku_specifications planning_settings
+   python scripts/export_seed_data.py --tables optimizer_settings sku_specifications planning_settings access_profiles access_profile_identities
    ```
 2. Commit and push the updated files under `data/seed/`.
 3. Deploy to Render.
 4. For an existing Render disk (already has a DB), open a Render shell and apply the seed snapshots into the live DB:
    ```bash
-   python scripts/apply_seed_snapshots.py --tables optimizer_settings sku_specifications planning_settings
+   python scripts/apply_seed_snapshots.py --tables optimizer_settings sku_specifications planning_settings access_profiles access_profile_identities
    ```
 5. Restart the service.
 

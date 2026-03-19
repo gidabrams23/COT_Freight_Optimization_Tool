@@ -37,6 +37,15 @@
                 Profile Name
                 <input type="text" name="name" placeholder="e.g., Sam" value="{{ edit_profile.name if edit_profile else '' }}" required>
               </label>
+              <label>
+                Microsoft Sign-In Emails
+                <textarea
+                  name="entra_emails"
+                  rows="3"
+                  placeholder="name@company.com, teammate@company.com"
+                >{{ (edit_entra_emails or []) | join('\n') }}</textarea>
+                <span class="muted">Users with these Entra emails will auto-map to this profile.</span>
+              </label>
             </div>
 
             <div class="access-mode-grid">
@@ -129,12 +138,14 @@
                     <th>Role</th>
                     <th>Scope</th>
                     <th>Default Focus</th>
+                    <th>Microsoft Emails</th>
                     <th>Created</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for profile in profiles %}
+                    {% set mapped_emails = profile_identity_map.get(profile.id, []) %}
                     <tr>
                       <td>
                         <strong>{{ profile.name }}</strong>
@@ -151,6 +162,7 @@
                       </td>
                       <td>{{ profile.allowed_plants or 'ALL' }}</td>
                       <td>{{ profile.default_plants or 'ALL' }}</td>
+                      <td>{{ mapped_emails | join(', ') if mapped_emails else '—' }}</td>
                       <td>{{ profile.created_at | est_datetime }}</td>
                       <td class="access-actions-cell">
                         <a class="btn-ghost btn-xs" href="{{ url_for('access_manage', edit_id=profile.id) }}">Edit</a>
