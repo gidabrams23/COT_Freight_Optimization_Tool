@@ -513,6 +513,7 @@ ACCESS_PROFILE_IDENTITIES_SEED_PATH = Path(
     )
 )
 ACCESS_PROFILE_IDENTITIES_SEED_COLUMNS = ["profile_name", "provider", "email", "created_at"]
+ACCESS_PROFILE_SEED_APPLY_ON_START = _env_bool("ACCESS_PROFILE_SEED_APPLY_ON_START", default=False)
 
 
 def _sync_access_profiles_seed_snapshot():
@@ -561,6 +562,94 @@ def _sync_access_profiles_seed_snapshot():
                 )
     except Exception:
         logger.warning("Unable to sync access profile seed snapshot at %s", ACCESS_PROFILES_SEED_PATH)
+
+
+def _apply_access_profile_seed_snapshot():
+    profile_rows = []
+    if ACCESS_PROFILES_SEED_PATH.exists():
+        with ACCESS_PROFILES_SEED_PATH.open("r", newline="", encoding="utf-8") as handle:
+            profile_rows = list(csv.DictReader(handle))
+
+    existing_profiles = {
+        (entry.get("name") or "").strip(): entry
+        for entry in db.list_access_profiles()
+        if (entry.get("name") or "").strip()
+    }
+    created_count = 0
+    updated_count = 0
+    for row in profile_rows:
+        name = (row.get("name") or "").strip()
+        if not name:
+            continue
+        is_admin = str(row.get("is_admin") or "").strip() in {"1", "true", "True"}
+        is_sandbox = str(row.get("is_sandbox") or "").strip() in {"1", "true", "True"}
+        allowed_plants = (row.get("allowed_plants") or "").strip() or "ALL"
+        default_plants = (row.get("default_plants") or "").strip() or "ALL"
+        existing = existing_profiles.get(name)
+        if existing:
+            db.update_access_profile(
+                int(existing["id"]),
+                name,
+                bool(is_admin),
+                allowed_plants,
+                default_plants,
+                is_sandbox=bool(is_sandbox),
+            )
+            updated_count += 1
+        else:
+            db.create_access_profile(
+                name,
+                bool(is_admin),
+                allowed_plants,
+                default_plants,
+                is_sandbox=bool(is_sandbox),
+            )
+            created_count += 1
+
+    profile_name_to_id = {
+        (entry.get("name") or "").strip(): int(entry["id"])
+        for entry in db.list_access_profiles()
+        if (entry.get("name") or "").strip() and entry.get("id")
+    }
+
+    identity_rows = []
+    if ACCESS_PROFILE_IDENTITIES_SEED_PATH.exists():
+        with ACCESS_PROFILE_IDENTITIES_SEED_PATH.open("r", newline="", encoding="utf-8") as handle:
+            identity_rows = list(csv.DictReader(handle))
+
+    desired_by_profile_provider = {}
+    for row in identity_rows:
+        profile_name = (row.get("profile_name") or "").strip()
+        provider = (row.get("provider") or "").strip().lower() or ENTRA_IDP_PROVIDER
+        email = _normalize_identity_email(row.get("email"))
+        profile_id = profile_name_to_id.get(profile_name)
+        if not profile_id or not email:
+            continue
+        desired_by_profile_provider.setdefault((profile_id, provider), set()).add(email)
+
+    mapped_count = 0
+    for (profile_id, provider), desired in desired_by_profile_provider.items():
+        existing = set(
+            db.list_access_profile_identity_emails(
+                profile_id,
+                provider=provider,
+            )
+        )
+        merged = sorted(existing | desired)
+        if merged != sorted(existing):
+            db.replace_access_profile_identities(
+                profile_id,
+                merged,
+                provider=provider,
+            )
+        mapped_count += len(desired)
+
+    logger.info(
+        "Applied access profile seed snapshot: %s created, %s updated, %s identity mappings processed.",
+        created_count,
+        updated_count,
+        mapped_count,
+    )
 
 
 logger.info("Database init starting.")
@@ -621,6 +710,12 @@ db.ensure_default_access_profiles(
     ]
 )
 logger.info("Default access profiles ensured.")
+if ACCESS_PROFILE_SEED_APPLY_ON_START:
+    logger.info("Applying access profile seed snapshot from CSV.")
+    try:
+        _apply_access_profile_seed_snapshot()
+    except Exception:
+        logger.exception("Failed to apply access profile seed snapshot.")
 logger.info("Syncing access profile seed snapshot.")
 _sync_access_profiles_seed_snapshot()
 logger.info("Access profile seed snapshot sync complete.")
