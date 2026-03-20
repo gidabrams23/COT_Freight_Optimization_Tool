@@ -1,0 +1,3 @@
+load_number,origin_plant_assumed,trailer_type_used,capacity_feet_used,orders_on_load,rows_in_report_load,rows_used_in_calc,units_on_load,utilization_pct,utilization_grade,utilization_credit_ft,total_linear_feet,lower_deck_used_length_ft,upper_deck_effective_length_ft,exceeds_capacity,warning_count,missing_sku_rows,missing_skus
+GA26-2001,GA,STEP_DECK,53.0,2,2,2,6,44.0,F,23.3,28.0,14.0,14.0,False,1,0,
+VA26-1001,VA,FLATBED_48,48.0,2,2,2,9,70.0,B,33.6,35.0,35.0,0.0,False,0,0,

@@ -1,0 +1,5 @@
+load_number,so_num,sku,qty,origin_plant,destination_state,destination_zip,trailer_type,capacity_feet,item_desc,stop_sequence
+GA26-2001,SO-1001,5.5X10GWPR,4,GA,NC,27513,,,
+GA26-2001,SO-1002,5X10DUMPLP10K,2,GA,SC,29601,,,
+VA26-1001,SO-2001,5X10DUMPLP10K,3,VA,VA,22572,FLATBED_48,,,
+VA26-1001,SO-2002,4X6G,6,VA,VA,22572,FLATBED_48,,,

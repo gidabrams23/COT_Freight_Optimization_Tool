@@ -1898,6 +1898,30 @@ textarea {
   box-shadow: 0 28px 70px rgba(2, 6, 23, 0.7);
 }
 
+.order-refresh-guide-card {
+  width: min(760px, 96vw);
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  background: linear-gradient(180deg, rgba(18, 18, 32, 0.97), rgba(22, 22, 38, 0.95));
+}
+
+.order-refresh-guide-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.order-refresh-guide-steps a {
+  color: #93c5fd;
+  word-break: break-all;
+}
+
+.order-refresh-guide-footer {
+  justify-content: space-between;
+}
+
 .modal-header {
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid rgba(51, 65, 85, 0.75);
@@ -11755,6 +11779,48 @@ button.plant-card {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(146, 64, 14, 0.36));
 }
 
+.intake-freshness-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.intake-freshness-pill .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.intake-freshness-pill.is-updated {
+  color: #a7f3d0;
+  border-color: rgba(34, 197, 94, 0.55);
+  background: linear-gradient(135deg, rgba(2, 44, 34, 0.85), rgba(22, 163, 74, 0.28));
+}
+
+.intake-freshness-pill.is-outdated {
+  color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.6);
+  background: linear-gradient(135deg, rgba(69, 10, 10, 0.9), rgba(185, 28, 28, 0.4));
+}
+
+.intake-freshness-detail {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.intake-freshness-detail.is-outdated {
+  color: #fca5a5;
+}
+
 .intake-view-all {
   white-space: nowrap;
 }
@@ -15558,6 +15624,20 @@ button.plant-card {
   justify-content: center;
   gap: 8px;
   text-decoration: none;
+}
+
+.login-sso-success {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(34, 197, 94, 0.6);
+  background: rgba(34, 197, 94, 0.16);
+  color: #bbf7d0;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .login-sso-meta {

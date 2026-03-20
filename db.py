@@ -2337,6 +2337,39 @@ def filter_eligible_manual_so_nums(origin_plant, so_nums):
         return {row["so_num"] for row in rows if row["so_num"]}
 
 
+def list_assigned_so_nums_for_active_loads(origin_plant, include_approved=True):
+    if not origin_plant:
+        return []
+    statuses = ["PROPOSED", "DRAFT"]
+    if include_approved:
+        statuses.append("APPROVED")
+    placeholders = ", ".join("?" for _ in statuses)
+    params = [origin_plant] + statuses
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT DISTINCT ol.so_num AS so_num
+            FROM loads l
+            JOIN load_lines ll ON ll.load_id = l.id
+            JOIN order_lines ol ON ol.id = ll.order_line_id
+            LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
+            WHERE l.origin_plant = ?
+              AND COALESCE(UPPER(l.status), '') IN ({placeholders})
+              AND (
+                l.planning_session_id IS NULL
+                OR (
+                  COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+                  AND COALESCE(ps.is_sandbox, 0) = 0
+                )
+              )
+              AND TRIM(COALESCE(ol.so_num, '')) != ''
+            """
+            ,
+            params,
+        ).fetchall()
+        return [row["so_num"] for row in rows if row["so_num"]]
+
+
 def list_eligible_manual_orders(origin_plant, search=None, limit=25):
     if not origin_plant:
         return []
@@ -2399,10 +2432,6 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None, session_i
     if min_due_date:
         due_clause = "AND DATE(ol.due_date) >= DATE(?)"
         params.append(min_due_date)
-    manual_exclusion_clause = ""
-    if session_id:
-        manual_exclusion_clause = "AND l.planning_session_id = ?"
-        params.append(session_id)
     params.append(origin_plant)
     with get_connection() as connection:
         rows = connection.execute(
@@ -2420,11 +2449,14 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None, session_i
                 LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
                 WHERE assigned.so_num = ol.so_num
                   AND l.origin_plant = ol.plant
-                  AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'MANUAL'
                   AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT', 'APPROVED')
-                  AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
-                  AND COALESCE(ps.is_sandbox, 0) = 0
-                  {manual_exclusion_clause}
+                  AND (
+                    l.planning_session_id IS NULL
+                    OR (
+                      COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+                      AND COALESCE(ps.is_sandbox, 0) = 0
+                    )
+                  )
                 LIMIT 1
               )
               AND ol.so_num IN (
@@ -2454,10 +2486,6 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None, session_i
 
 def list_orders_for_optimization(origin_plant, session_id=None):
     params = [origin_plant]
-    manual_exclusion_clause = ""
-    if session_id:
-        manual_exclusion_clause = "AND l.planning_session_id = ?"
-        params.append(session_id)
     with get_connection() as connection:
         rows = connection.execute(
             f"""
@@ -2474,11 +2502,14 @@ def list_orders_for_optimization(origin_plant, session_id=None):
                 LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
                 WHERE assigned.so_num = orders.so_num
                   AND l.origin_plant = orders.plant
-                  AND COALESCE(UPPER(l.build_source), 'OPTIMIZED') = 'MANUAL'
                   AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT', 'APPROVED')
-                  AND COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
-                  AND COALESCE(ps.is_sandbox, 0) = 0
-                  {manual_exclusion_clause}
+                  AND (
+                    l.planning_session_id IS NULL
+                    OR (
+                      COALESCE(UPPER(ps.status), 'DRAFT') IN ('DRAFT', 'ACTIVE')
+                      AND COALESCE(ps.is_sandbox, 0) = 0
+                    )
+                  )
                 LIMIT 1
               )
               AND NOT EXISTS (

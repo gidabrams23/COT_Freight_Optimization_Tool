@@ -32,6 +32,20 @@ python app.py
 
 Open `http://127.0.0.1:5000` in your browser. You should land on the home page and be able to navigate between sections using the app's navigation links or menu.
 
+## Daily Open Orders Refresh Workflow
+
+The Orders page now shows an **Up to Date / Outdated** intake status and a step-by-step guide modal.
+
+If the latest orders upload is not from today, users are prompted after login with:
+`Open order report outdated: please refresh data and upload to tool.`
+
+Guide checklist:
+1. Open SharePoint folder: `https://bigtextrailers.sharepoint.com/sites/COTLoadPlanning/Shared%20Documents/Forms/AllItems.aspx`
+2. Open `COT Freight Tool_Open Order Query.xlsm`
+3. Click **Refresh and Export** and wait for the message: `Done. File saved to...`
+4. Click **Upload Orders** in Intake Hub and select today's export from the Exports folder
+5. Wait for processing and complete upload
+
 ## Microsoft Entra SSO
 
 This app supports Microsoft Entra (Azure AD) login with automatic access-profile mapping by email.

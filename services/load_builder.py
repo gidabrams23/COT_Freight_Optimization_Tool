@@ -158,6 +158,38 @@ def _parse_manual_so_nums(raw_text):
     return cleaned
 
 
+def _enforce_singular_order_assignments(loads, optimizer, params, blocked_so_nums=None):
+    blocked = {str(value).strip() for value in (blocked_so_nums or set()) if str(value or "").strip()}
+    claimed = set(blocked)
+    sanitized = []
+    dropped_so_nums = set()
+    for load in loads or []:
+        groups = list((load or {}).get("groups") or [])
+        if not groups:
+            continue
+        kept_groups = []
+        for group in groups:
+            so_num = str((group or {}).get("key") or "").strip()
+            if so_num and so_num in claimed:
+                dropped_so_nums.add(so_num)
+                continue
+            kept_groups.append(group)
+            if so_num:
+                claimed.add(so_num)
+        if not kept_groups:
+            continue
+        if len(kept_groups) == len(groups):
+            sanitized.append(load)
+            continue
+        rebuilt = optimizer._build_load(
+            kept_groups,
+            params,
+            standalone_cost=load.get("standalone_cost"),
+        )
+        sanitized.append(rebuilt)
+    return sanitized, dropped_so_nums
+
+
 def _format_date_for_message(value):
     if isinstance(value, date):
         return value.strftime("%Y-%m-%d")
@@ -607,6 +639,26 @@ def build_loads(
         if not optimizer._load_is_multi_order_capacity_violation(load)
     ]
 
+    assigned_so_nums = set(
+        db.list_assigned_so_nums_for_active_loads(
+            params["origin_plant"],
+            include_approved=True,
+        )
+    )
+    optimized_loads, singularity_drops = _enforce_singular_order_assignments(
+        optimized_loads,
+        optimizer,
+        params,
+        blocked_so_nums=assigned_so_nums,
+    )
+    if include_baseline:
+        baseline_loads, _ = _enforce_singular_order_assignments(
+            baseline_loads,
+            optimizer,
+            params,
+            blocked_so_nums=assigned_so_nums,
+        )
+
     if not optimized_loads:
         if filtered_multi_order_capacity:
             return {
@@ -657,6 +709,9 @@ def build_loads(
                 "summary": None,
             }
         diagnostics = optimizer.describe_order_group_eligibility(params)
+        if singularity_drops:
+            diagnostics = dict(diagnostics or {})
+            diagnostics["singularity_drops"] = len(singularity_drops)
         return {
             "errors": {"order_lines": _build_no_eligible_orders_message(params, diagnostics)},
             "form_data": form_data,

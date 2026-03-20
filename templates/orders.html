@@ -529,6 +529,11 @@
       <div class="session-alert">
         Loads report upload is no longer needed. Upload the daily orders file and load assignments will sync automatically.
       </div>
+    {% elif intake_notice == "orders-outdated" %}
+      <div class="session-alert danger">
+        Open order report outdated: please refresh data and upload to tool.
+        <button type="button" class="btn-ghost btn-xs" data-open-refresh-guide>Open Guide</button>
+      </div>
     {% endif %}
 
     <div class="orders-top-grid">
@@ -627,6 +632,15 @@
                   <button class="btn-primary btn-xs" type="submit">Upload</button>
                 </noscript>
               </form>
+              <button
+                type="button"
+                class="intake-freshness-pill{% if order_upload_freshness and order_upload_freshness.is_outdated %} is-outdated{% else %} is-updated{% endif %}"
+                data-open-refresh-guide
+                aria-label="Open daily open-order refresh guide"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">{% if order_upload_freshness and order_upload_freshness.is_outdated %}warning{% else %}check_circle{% endif %}</span>
+                {{ (order_upload_freshness.status_label if order_upload_freshness else 'Outdated') }}
+              </button>
               {% if last_upload %}
                 <span class="intake-time-chip intake-time-chip-import">Last Import {{ last_upload.uploaded_at_display or last_upload.uploaded_at }}</span>
               {% endif %}
@@ -647,9 +661,6 @@
               <div class="intake-pane-header">
                 <div class="intake-pane-title">
                   <span class="metric-label">Recent Upload Results</span>
-                  {% if last_upload %}
-                    <span class="meta-chip">Last run {{ last_upload.uploaded_at_display or last_upload.uploaded_at }}</span>
-                  {% endif %}
                 </div>
               </div>
               <div class="integrity-card">
@@ -822,6 +833,41 @@
         </div>
         <div class="modal-footer">
           <button class="btn-primary" type="button" data-upload-next>Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal-backdrop hidden"
+      id="order-refresh-guide-modal"
+      data-refresh-guide-modal
+      data-auto-open="{% if show_order_refresh_guide %}true{% else %}false{% endif %}"
+    >
+      <div class="modal-card order-refresh-guide-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>{% if order_upload_freshness and order_upload_freshness.is_outdated %}Open Order Report Outdated{% else %}Daily Orders Refresh Guide{% endif %}</h3>
+            <p>{% if order_upload_freshness and order_upload_freshness.is_outdated %}Open order report outdated: please refresh data and upload to tool.{% else %}Use this checklist for a clean daily upload.{% endif %}</p>
+          </div>
+          <button class="btn-icon" type="button" data-refresh-guide-close aria-label="Close daily upload guide">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <ol class="order-refresh-guide-steps">
+            <li>
+              Open the SharePoint folder:
+              <a href="{{ open_order_sharepoint_url }}" target="_blank" rel="noopener noreferrer">{{ open_order_sharepoint_url }}</a>
+            </li>
+            <li>Open Excel file <strong>COT Freight Tool_Open Order Query.xlsm</strong>.</li>
+            <li>Click blue <strong>Refresh and Export</strong> macro button. Wait for macro to run and show <strong>"Done. File saved to..."</strong>.</li>
+            <li>Click blue <strong>Upload Orders</strong> button in this tool. Navigate to <strong>Exports</strong> folder and select today&apos;s orders report (dated today).</li>
+            <li>Wait for orders to process. Click <strong>Complete</strong>.</li>
+          </ol>
+        </div>
+        <div class="modal-footer order-refresh-guide-footer">
+          <button class="btn-ghost" type="button" data-refresh-guide-close>Close</button>
+          <button class="btn-primary" type="button" data-refresh-guide-start-upload>Upload Orders Now</button>
         </div>
       </div>
     </div>
@@ -3774,6 +3820,52 @@
       });
     }
 
+    function initOrderRefreshGuideModal() {
+      const modal = document.querySelector('[data-refresh-guide-modal]');
+      if (!modal) return;
+      const openButtons = document.querySelectorAll('[data-open-refresh-guide]');
+      const closeButtons = modal.querySelectorAll('[data-refresh-guide-close]');
+      const startUploadButton = modal.querySelector('[data-refresh-guide-start-upload]');
+      const uploadInput = document.querySelector('[data-upload-input]');
+
+      const openModal = () => {
+        modal.classList.remove('hidden');
+      };
+
+      const closeModal = () => {
+        modal.classList.add('hidden');
+      };
+
+      openButtons.forEach((button) => {
+        button.addEventListener('click', () => openModal());
+      });
+
+      closeButtons.forEach((button) => {
+        button.addEventListener('click', () => closeModal());
+      });
+
+      if (startUploadButton) {
+        startUploadButton.addEventListener('click', () => {
+          closeModal();
+          if (uploadInput) uploadInput.click();
+        });
+      }
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+          closeModal();
+        }
+      });
+
+      if ((modal.dataset.autoOpen || '').toLowerCase() === 'true') {
+        window.setTimeout(openModal, 150);
+      }
+    }
+
     function initSchematicHoverTooltips() {
       if (window.__schematicHoverTooltipsBound) return;
       window.__schematicHoverTooltipsBound = true;
@@ -3875,6 +3967,7 @@
     window.addEventListener('load', syncIntakeHubHeight);
 
     initOrderUploadModal();
+    initOrderRefreshGuideModal();
     initSchematicHoverTooltips();
     bindOrderRows();
     const initialOrderRow = document.querySelector('.order-row:not(.group-hidden)') || document.querySelector('.order-row');

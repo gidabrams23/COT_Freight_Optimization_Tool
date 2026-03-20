@@ -352,6 +352,9 @@ SESSION_ENTRA_OAUTH_STATE_KEY = "entra_oauth_state"
 SESSION_ENTRA_OAUTH_NEXT_KEY = "entra_oauth_next"
 SESSION_LOGIN_ERROR_KEY = "login_error_message"
 SESSION_ACTIVE_PLANNING_ID_KEY = "active_planning_session_id"
+SESSION_ORDER_REFRESH_PROMPT_KEY = "show_order_refresh_prompt"
+
+OPEN_ORDER_SHAREPOINT_URL = "https://bigtextrailers.sharepoint.com/sites/COTLoadPlanning/Shared%20Documents/Forms/AllItems.aspx"
 ORDER_REMOVAL_REASONS = [
     "Customer mixing conflict",
     "Capacity exceeded",
@@ -1168,6 +1171,7 @@ def login():
                     profile,
                     source="entra" if sso_gate_enabled else "local",
                 )
+                _set_order_refresh_prompt_if_outdated()
                 if not sso_gate_enabled:
                     session.pop(SESSION_SSO_PROVIDER_KEY, None)
                     session.pop(SESSION_SSO_EMAIL_KEY, None)
@@ -1202,6 +1206,7 @@ def login():
         sso_required=sso_required,
         account_select_enabled=account_select_enabled,
         sso_gate_enabled=sso_gate_enabled,
+        sso_gate_cleared=sso_gate_cleared,
         sso_email=sso_email,
         sso_display_name=sso_display_name,
         sso_profile_hint=(linked_profile or {}).get("name"),
@@ -3832,6 +3837,40 @@ def _with_uploaded_at_display(record):
 
 def _with_uploaded_at_display_many(records):
     return [_with_uploaded_at_display(record) for record in (records or []) if record]
+
+
+def _build_order_upload_freshness(last_upload, today=None):
+    reference_day = today or date.today()
+    uploaded_at = _to_est_datetime((last_upload or {}).get("uploaded_at"))
+    upload_date = uploaded_at.date() if uploaded_at else None
+    has_upload_today = bool(upload_date and upload_date == reference_day)
+    is_outdated = not has_upload_today
+
+    if has_upload_today:
+        status_label = "Up to Date"
+        detail_label = "Orders refreshed today."
+    elif upload_date:
+        status_label = "Outdated"
+        detail_label = f"Last upload: {upload_date.strftime('%m/%d/%Y')}."
+    else:
+        status_label = "Outdated"
+        detail_label = "No upload recorded yet."
+
+    return {
+        "is_outdated": is_outdated,
+        "has_upload_today": has_upload_today,
+        "status_label": status_label,
+        "detail_label": detail_label,
+        "uploaded_date": upload_date,
+    }
+
+
+def _set_order_refresh_prompt_if_outdated():
+    freshness = _build_order_upload_freshness(db.get_last_upload(), today=date.today())
+    if freshness.get("is_outdated"):
+        session[SESSION_ORDER_REFRESH_PROMPT_KEY] = True
+    else:
+        session.pop(SESSION_ORDER_REFRESH_PROMPT_KEY, None)
 
 
 def _resolve_today_override(value):
@@ -8834,6 +8873,11 @@ def orders():
     last_upload = _with_uploaded_at_display(db.get_last_upload())
     upload_history = _with_uploaded_at_display_many(db.list_upload_history(limit=12))
     last_load_report_upload = _with_uploaded_at_display(db.get_last_load_report_upload())
+    order_upload_freshness = _build_order_upload_freshness(last_upload, today=today)
+    show_order_refresh_guide = bool(
+        session.pop(SESSION_ORDER_REFRESH_PROMPT_KEY, False)
+        or _coerce_bool_value(request.args.get("show_refresh_guide"))
+    )
     rejected_orders = sum(1 for order in orders_list if order.get("is_excluded"))
     due_dates = [
         _parse_date(order.get("due_date"))
@@ -8940,7 +8984,7 @@ def orders():
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
     intake_notice = (request.args.get("intake_notice") or "").strip().lower()
-    if intake_notice not in {"load-report-deprecated"}:
+    if intake_notice not in {"load-report-deprecated", "orders-outdated"}:
         intake_notice = ""
     plant_filter_param = ",".join(plant_filters) if plant_filters else ""
     reset_args = {}
@@ -8999,6 +9043,9 @@ def orders():
         today_override_label=today_override_label,
         today_display_label=today_display_label,
         intake_notice=intake_notice,
+        order_upload_freshness=order_upload_freshness,
+        show_order_refresh_guide=show_order_refresh_guide,
+        open_order_sharepoint_url=OPEN_ORDER_SHAREPOINT_URL,
         profile_default_plants=profile_default_plants,
         show_more_plants=show_more_plants,
         active_session=active_session,
@@ -9380,6 +9427,11 @@ def orders_optimize():
     last_upload = _with_uploaded_at_display(db.get_last_upload())
     upload_history = _with_uploaded_at_display_many(db.list_upload_history(limit=12))
     last_load_report_upload = _with_uploaded_at_display(db.get_last_load_report_upload())
+    order_upload_freshness = _build_order_upload_freshness(last_upload, today=today)
+    show_order_refresh_guide = bool(
+        session.pop(SESSION_ORDER_REFRESH_PROMPT_KEY, False)
+        or _coerce_bool_value(request.args.get("show_refresh_guide"))
+    )
 
     card_filters = {
         "plants": allowed_plants,
@@ -9512,7 +9564,7 @@ def orders_optimize():
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
     today_display_label = (today_override or today).strftime("%b %d, %Y")
     intake_notice = (request.args.get("intake_notice") or "").strip().lower()
-    if intake_notice not in {"load-report-deprecated"}:
+    if intake_notice not in {"load-report-deprecated", "orders-outdated"}:
         intake_notice = ""
     plant_filter_param = ",".join(plant_filters) if plant_filters else ""
     reset_args = {}
@@ -9571,6 +9623,9 @@ def orders_optimize():
         today_override_label=today_override_label,
         today_display_label=today_display_label,
         intake_notice=intake_notice,
+        order_upload_freshness=order_upload_freshness,
+        show_order_refresh_guide=show_order_refresh_guide,
+        open_order_sharepoint_url=OPEN_ORDER_SHAREPOINT_URL,
         profile_default_plants=profile_default_plants,
         show_more_plants=show_more_plants,
         active_session=active_session,

@@ -1,0 +1,46 @@
+2026-03-17 14:17:04,435 [INFO] __main__: Verbose startup logging enabled.
+2026-03-17 14:17:06,944 [INFO] __main__: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-03-17 14:17:07,136 [INFO] __main__: Starting app initialization.
+2026-03-17 14:17:07,139 [INFO] __main__: Flask app initialization complete.
+2026-03-17 14:17:07,139 [INFO] __main__: Blueprint registration check: no blueprints configured (routes are defined directly on app).
+2026-03-17 14:17:07,177 [INFO] __main__: Database init starting.
+2026-03-17 14:17:07,266 [INFO] __main__: Database init complete.
+2026-03-17 14:17:07,266 [INFO] __main__: Ensuring default access profiles.
+2026-03-17 14:17:07,271 [INFO] __main__: Default access profiles ensured.
+2026-03-17 14:17:07,272 [INFO] __main__: Syncing access profile seed snapshot.
+2026-03-17 14:17:07,284 [INFO] __main__: Access profile seed snapshot sync complete.
+ * Serving Flask app 'app'
+ * Debug mode: on
+2026-03-17 14:17:07,615 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-03-17 14:17:07,615 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-03-17 14:17:07,622 [INFO] werkzeug:  * Restarting with stat
+2026-03-17 14:17:08,623 [INFO] __main__: Verbose startup logging enabled.
+2026-03-17 14:17:11,976 [INFO] __main__: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-03-17 14:17:12,228 [INFO] __main__: Starting app initialization.
+2026-03-17 14:17:12,231 [INFO] __main__: Flask app initialization complete.
+2026-03-17 14:17:12,231 [INFO] __main__: Blueprint registration check: no blueprints configured (routes are defined directly on app).
+2026-03-17 14:17:12,253 [INFO] __main__: Database init starting.
+2026-03-17 14:17:12,291 [INFO] __main__: Database init complete.
+2026-03-17 14:17:12,291 [INFO] __main__: Ensuring default access profiles.
+2026-03-17 14:17:12,298 [INFO] __main__: Default access profiles ensured.
+2026-03-17 14:17:12,298 [INFO] __main__: Syncing access profile seed snapshot.
+2026-03-17 14:17:12,304 [INFO] __main__: Access profile seed snapshot sync complete.
+2026-03-17 14:17:12,513 [WARNING] werkzeug:  * Debugger is active!
+2026-03-17 14:17:12,525 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-03-17 14:20:37,177 [DEBUG] __main__: before_request fired: method=GET path=/
+2026-03-17 14:20:37,179 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:37] "[32mGET / HTTP/1.1[0m" 302 -
+2026-03-17 14:20:37,180 [DEBUG] __main__: before_request fired: method=GET path=/loads
+2026-03-17 14:20:37,181 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:37] "[32mGET /loads?tab=draft HTTP/1.1[0m" 302 -
+2026-03-17 14:20:37,191 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-17 14:20:37,200 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-17 14:20:37,292 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:37] "GET /login?next=/? HTTP/1.1" 200 -
+2026-03-17 14:20:37,334 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:37] "GET /login?next=/loads?tab%3Ddraft HTTP/1.1" 200 -
+2026-03-17 14:20:46,675 [DEBUG] __main__: before_request fired: method=GET path=/loads
+2026-03-17 14:20:46,676 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:46] "[32mGET /loads?tab=draft HTTP/1.1[0m" 302 -
+2026-03-17 14:20:46,681 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-17 14:20:46,688 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:46] "GET /login?next=/loads?tab%3Ddraft HTTP/1.1" 200 -
+2026-03-17 14:20:54,199 [DEBUG] __main__: before_request fired: method=GET path=/loads
+2026-03-17 14:20:54,199 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:54] "[32mGET /loads?tab=draft HTTP/1.1[0m" 302 -
+2026-03-17 14:20:54,204 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-17 14:20:54,209 [INFO] werkzeug: 127.0.0.1 - - [17/Mar/2026 14:20:54] "GET /login?next=/loads?tab%3Ddraft HTTP/1.1" 200 -
