@@ -136,15 +136,12 @@
                   <p class="muted">Policy reminder: NV Lowe's loads should remain on 48' Step Deck by default.</p>
                 </div>
               </div>
-              {% if can_edit_settings and is_admin %}
+              {% if can_edit_settings %}
                 <div class="settings-card-actions">
                   <button class="settings-card-btn settings-card-btn-primary" type="submit" form="optimizer-plant-defaults-form">Save Plant Trailer Defaults</button>
                 </div>
               {% endif %}
             </div>
-            {% if not is_admin %}
-              <p class="muted">Plant-level trailer defaults are managed by admins.</p>
-            {% endif %}
             <form class="settings-defaults-form" id="optimizer-plant-defaults-form" method="post" action="{{ url_for('save_optimizer_defaults') }}">
               <input type="hidden" name="tab" value="overview">
               <div class="table-container table-container-compact settings-table-shell">
@@ -180,7 +177,7 @@
                         <td><input class="table-input" data-field="address" value="{{ plant.address or '' }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                         <td>
                           <input type="hidden" name="plant_defaults_present_{{ plant_code }}" value="1">
-                          <select class="select-field settings-default-input plant-trailer-default-select" name="plant_default_trailer_{{ plant_code }}" {% if not can_edit_settings or not is_admin %}disabled{% endif %}>
+                          <select class="select-field settings-default-input plant-trailer-default-select" name="plant_default_trailer_{{ plant_code }}" {% if not can_edit_settings %}disabled{% endif %}>
                             {% for trailer_option in trailer_profile_options %}
                               <option value="{{ trailer_option.value }}" {% if selected_trailer == trailer_option.value %}selected{% endif %}>{{ trailer_option.label }}</option>
                             {% endfor %}
@@ -189,7 +186,7 @@
                         <td>{{ capacity_value | round(1) }}</td>
                         <td>
                           <label class="checkbox-pill">
-                            <input type="checkbox" name="plant_auto_hotshot_enabled_{{ plant_code }}" value="1" {% if hotshot_enabled %}checked{% endif %} {% if not can_edit_settings or not is_admin %}disabled{% endif %}>
+                            <input type="checkbox" name="plant_auto_hotshot_enabled_{{ plant_code }}" value="1" {% if hotshot_enabled %}checked{% endif %} {% if not can_edit_settings %}disabled{% endif %}>
                             <span>Enabled</span>
                           </label>
                         </td>
@@ -575,28 +572,15 @@
                 <span class="material-symbols-outlined">local_shipping</span>
                 <div>
                   <h2>Trailer Assignment Rules</h2>
-                  {% if is_admin %}
-                    <p class="muted">Global trailer logic used by the planner and auto-assignment flow.</p>
-                  {% else %}
-                    <p class="muted">These settings apply only to your account and override admin defaults for your runs.</p>
-                  {% endif %}
+                  <p class="muted">Global trailer logic used by the planner and auto-assignment flow.</p>
                 </div>
               </div>
               <div class="settings-card-actions">
                 <button class="settings-card-btn settings-card-btn-primary" type="submit" form="trailer-rules-form">
-                  {% if is_admin %}Save Trailer Rules{% else %}Save My Overrides{% endif %}
+                  Save Trailer Rules
                 </button>
               </div>
             </div>
-            {% if not is_admin %}
-              <div class="settings-warning-note">
-                {% if trailer_assignment_rules_override_active %}
-                  Your account override is active. These values are replacing admin defaults for your planner account.
-                {% else %}
-                  Saving here creates an account-level override and leaves admin defaults unchanged for other users.
-                {% endif %}
-              </div>
-            {% endif %}
             <form class="settings-defaults-form" id="trailer-rules-form" method="post" action="{{ url_for('save_planning_tools') }}">
               <input type="hidden" name="tab" value="overview">
               <input type="hidden" name="trailer_rules_form" value="1">

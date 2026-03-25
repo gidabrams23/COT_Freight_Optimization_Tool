@@ -685,6 +685,11 @@
                             data-load-id="{{ load.id }}"
                             data-can-resequence="{{ 1 if manifest_can_resequence else 0 }}"
                           >
+                            <colgroup>
+                              <col class="manifest-col-dist">
+                              <col class="manifest-col-order">
+                              <col class="manifest-col-customer">
+                            </colgroup>
                             <thead>
                               <tr class="manifest-toolbar-row">
                                 <th colspan="3">
@@ -717,9 +722,9 @@
                                 </th>
                               </tr>
                               <tr>
-                                <th>Dist</th>
-                                <th>Order</th>
-                                <th>Customer Info</th>
+                                <th class="manifest-col-dist">Dist</th>
+                                <th class="manifest-col-order">Order</th>
+                                <th class="manifest-col-customer">Customer Info</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -753,7 +758,7 @@
                                     data-stop-anchor="{{ 1 if not prev_same_stop else 0 }}"
                                   {% endif %}
                                 >
-                                  <td class="manifest-dist-cell">
+                                  <td class="manifest-dist-cell manifest-col-dist">
                                     {% if show_incoming_leg %}
                                       <span class="manifest-inline-leg{% if group.is_terminal_stop %} is-return{% endif %}">
                                         <span class="manifest-leg-arrow" aria-hidden="true">&darr;</span>
@@ -762,8 +767,15 @@
                                     {% else %}
                                       <span class="manifest-inline-leg-placeholder" aria-hidden="true"></span>
                                     {% endif %}
+                                    {% if group.is_rescue_stop and not group.is_terminal_stop and not prev_same_stop %}
+                                      <span
+                                        class="manifest-dist-rescue"
+                                        title="Radius outlier: this stop is beyond the default geo radius from its nearest routed stop. Review before approval."
+                                        aria-label="Radius outlier stop"
+                                      >!</span>
+                                    {% endif %}
                                   </td>
-                                  <td>
+                                  <td class="manifest-col-order">
                                     <div class="manifest-order-cell">
                                       <div class="manifest-order-top">
                                         {% if group.is_terminal_stop %}
@@ -796,7 +808,7 @@
                                       </div>
                                     </div>
                                   </td>
-                                  <td>
+                                  <td class="manifest-col-customer">
                                     <div class="manifest-customer-cell">
                                       <div class="manifest-customer-head">
                                         <div class="manifest-customer-name">{{ group.cust_name }}</div>
@@ -1317,13 +1329,14 @@
       const type = stop.type || 'stop';
       const sequence = stop.sequence || '';
       const color = (typeof stop.color === 'string' && stop.color.trim()) ? stop.color.trim() : '#38bdf8';
+      const rescueClass = stop.is_rescue_stop ? ' rescue' : '';
       let html = '';
       if (type === 'origin') {
-        html = `<div class="stop-marker origin" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">home</span></div>`;
+        html = `<div class="stop-marker origin${rescueClass}" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">home</span></div>`;
       } else if (type === 'final') {
-        html = `<div class="stop-marker final" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">flag</span><span class="stop-num">${sequence}</span></div>`;
+        html = `<div class="stop-marker final${rescueClass}" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">flag</span><span class="stop-num">${sequence}</span></div>`;
       } else {
-        html = `<div class="stop-marker" style="background:${color}; border-color:#0f172a;"><span class="stop-num">${sequence}</span></div>`;
+        html = `<div class="stop-marker${rescueClass}" style="background:${color}; border-color:#0f172a;"><span class="stop-num">${sequence}</span></div>`;
       }
       return L.divIcon({
         className: 'stop-marker-wrapper',
@@ -1411,6 +1424,13 @@
         .map((stop) => [stop.lat, stop.lng])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
 
+      const pointDistanceSq = (pointA, pointB) => {
+        if (!Array.isArray(pointA) || !Array.isArray(pointB)) return Number.POSITIVE_INFINITY;
+        const dLat = Number(pointA[0]) - Number(pointB[0]);
+        const dLng = Number(pointA[1]) - Number(pointB[1]);
+        return (dLat * dLat) + (dLng * dLng);
+      };
+
       const nearestGeometryIndex = (geometry, targetCoords) => {
         if (!Array.isArray(geometry) || geometry.length === 0 || !targetCoords) return -1;
         let bestIdx = -1;
@@ -1418,9 +1438,7 @@
         for (let idx = 0; idx < geometry.length; idx += 1) {
           const point = geometry[idx];
           if (!Array.isArray(point) || point.length < 2) continue;
-          const dLat = Number(point[0]) - Number(targetCoords[0]);
-          const dLng = Number(point[1]) - Number(targetCoords[1]);
-          const distSq = (dLat * dLat) + (dLng * dLng);
+          const distSq = pointDistanceSq(point, targetCoords);
           if (distSq < bestDist) {
             bestDist = distSq;
             bestIdx = idx;
@@ -1432,23 +1450,56 @@
       // When a closed-loop route is rendered with dense road geometry, providers can return
       // the same loop in the opposite traversal direction. Align geometry with manifest stop order.
       const alignGeometryToStopSequence = (coords) => {
-        const normalized = (Array.isArray(coords) ? coords : [])
+        let normalized = (Array.isArray(coords) ? coords : [])
           .map((point) => [Number(point[0]), Number(point[1])])
           .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-        if (normalized.length <= 1 || sequencedStopCoords.length <= 1) return normalized;
+        if (normalized.length <= 1) return normalized;
 
-        let monotonicScore = 0;
-        let prevIdx = nearestGeometryIndex(normalized, sequencedStopCoords[0]);
-        if (prevIdx < 0) return normalized;
-        for (let i = 1; i < sequencedStopCoords.length; i += 1) {
-          const idx = nearestGeometryIndex(normalized, sequencedStopCoords[i]);
-          if (idx < 0) continue;
-          monotonicScore += idx >= prevIdx ? 1 : -1;
-          prevIdx = idx;
+        if (sequencedStopCoords.length > 1) {
+          let monotonicScore = 0;
+          let prevIdx = nearestGeometryIndex(normalized, sequencedStopCoords[0]);
+          if (prevIdx >= 0) {
+            for (let i = 1; i < sequencedStopCoords.length; i += 1) {
+              const idx = nearestGeometryIndex(normalized, sequencedStopCoords[i]);
+              if (idx < 0) continue;
+              monotonicScore += idx >= prevIdx ? 1 : -1;
+              prevIdx = idx;
+            }
+            if (monotonicScore < 0) {
+              normalized = normalized.slice().reverse();
+            }
+          }
         }
-        if (monotonicScore < 0) {
-          return normalized.slice().reverse();
+
+        // Anchor geometry to the displayed route endpoints so the origin->stop1
+        // segment is visible even when provider snapping starts/ends off the marker.
+        if (lineCoords.length > 1) {
+          const firstExpected = lineCoords[0];
+          const lastExpected = lineCoords[lineCoords.length - 1];
+          const forwardScore =
+            pointDistanceSq(normalized[0], firstExpected) +
+            pointDistanceSq(normalized[normalized.length - 1], lastExpected);
+          const reverseScore =
+            pointDistanceSq(normalized[0], lastExpected) +
+            pointDistanceSq(normalized[normalized.length - 1], firstExpected);
+          if (reverseScore + 1e-12 < forwardScore) {
+            normalized = normalized.slice().reverse();
+          }
+
+          const endpointConnectThresholdSq = 0.0001; // ~=0.01 deg (~0.7 mi) in lat/lng space.
+          if (pointDistanceSq(normalized[0], firstExpected) > endpointConnectThresholdSq) {
+            normalized = [firstExpected, ...normalized];
+          }
+          if (
+            pointDistanceSq(
+              normalized[normalized.length - 1],
+              lastExpected,
+            ) > endpointConnectThresholdSq
+          ) {
+            normalized = [...normalized, lastExpected];
+          }
         }
+
         return normalized;
       };
 

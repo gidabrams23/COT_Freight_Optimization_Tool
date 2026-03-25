@@ -7,11 +7,6 @@
         <h1>Session Audit</h1>
         <p class="muted">Review past planning sessions, resume work quickly, and open load reports (approved loads only).</p>
       </div>
-      <div class="panel-actions">
-        {% if is_admin %}
-          <a class="btn-secondary btn-xs" href="{{ url_for('planning_sessions_replay') }}">Replay Evaluation</a>
-        {% endif %}
-      </div>
     </header>
 
     {% if archived_session_id %}

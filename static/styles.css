@@ -8378,6 +8378,25 @@ button.plant-card {
   font-size: 12px;
 }
 
+.stop-marker.rescue::after {
+  content: "!";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .stop-marker.final .stop-num {
   position: absolute;
   bottom: -5px;
@@ -13202,52 +13221,68 @@ button.plant-card {
 .loads-review-pane .manifest-table td {
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: top;
 }
 
-.loads-review-pane .manifest-table th:nth-child(1),
-.loads-review-pane .manifest-table td:nth-child(1) {
-  width: 1%;
+.loads-review-pane .manifest-table th.manifest-col-dist,
+.loads-review-pane .manifest-table td.manifest-col-dist {
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
   white-space: nowrap;
+  text-align: center;
 }
 
-.loads-review-pane .manifest-table th:nth-child(2),
-.loads-review-pane .manifest-table td:nth-child(2) {
+.loads-review-pane .manifest-table th.manifest-col-order,
+.loads-review-pane .manifest-table td.manifest-col-order {
   width: 43%;
   min-width: 0;
-}
-
-.loads-review-pane .manifest-table th:nth-child(3),
-.loads-review-pane .manifest-table td:nth-child(3) {
-  width: 56%;
-  min-width: 0;
-}
-
-.loads-review-pane .manifest-table td:nth-child(2),
-.loads-review-pane .manifest-table td:nth-child(3) {
   white-space: normal;
 }
 
-.loads-review-pane .manifest-table td:nth-child(1) {
-  overflow: visible;
+.loads-review-pane .manifest-table th.manifest-col-customer,
+.loads-review-pane .manifest-table td.manifest-col-customer {
+  width: 56%;
+  min-width: 0;
+  white-space: normal;
+}
+
+.loads-review-pane .manifest-table td.manifest-col-dist {
+  overflow: hidden;
   padding-left: 1px;
   padding-right: 1px;
 }
 
-.loads-review-pane .manifest-table th:nth-child(1) {
+.loads-review-pane .manifest-table th.manifest-col-dist {
   padding-left: 1px;
   padding-right: 1px;
 }
 
-.loads-review-pane .manifest-table td:nth-child(2) {
+.loads-review-pane .manifest-table td.manifest-col-order {
   padding-left: 4px;
   padding-right: 10px;
 }
 
-.loads-review-pane .manifest-table td:nth-child(3) {
+.loads-review-pane .manifest-table td.manifest-col-customer {
   padding-left: 10px;
 }
 
+.loads-review-pane .manifest-grouped .manifest-order-row > td {
+  border-bottom: none;
+}
+
+.loads-review-pane .manifest-grouped .manifest-order-row {
+  box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.12);
+}
+
 .loads-review-pane .manifest-dist-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  width: 100%;
+  max-width: 100%;
   white-space: nowrap;
 }
 
@@ -13344,6 +13379,22 @@ button.plant-card {
   height: 0;
   display: inline-block;
   visibility: hidden;
+}
+
+.loads-review-pane .manifest-dist-rescue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.22);
+  border: 1px solid rgba(245, 158, 11, 0.58);
+  color: rgba(245, 158, 11, 0.98);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: help;
 }
 
 .loads-review-pane .manifest-order-row.is-terminal {

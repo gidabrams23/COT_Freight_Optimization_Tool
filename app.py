@@ -6989,7 +6989,7 @@ def _require_admin():
 
 
 def _require_settings_editor():
-    if _get_session_role() not in {ROLE_ADMIN, ROLE_PLANNER}:
+    if not _get_session_role():
         abort(403)
 
 
@@ -8133,7 +8133,7 @@ def _build_performance_dashboard_context():
             },
         ]
 
-        trend_month_anchor = _month_start(end_date)
+        trend_month_anchor = _month_start(today)
         trend_months = [_add_months(trend_month_anchor, offset) for offset in range(-11, 1)]
         current_series = []
         prior_series = []
@@ -8146,8 +8146,8 @@ def _build_performance_dashboard_context():
             current_series.append(month_current["cost_per_unit"])
             prior_series.append(month_prior["cost_per_unit"])
 
-        complete_month_anchor = _month_start(end_date)
-        if end_date < _month_end(complete_month_anchor):
+        complete_month_anchor = _month_start(today)
+        if today < _month_end(complete_month_anchor):
             complete_month_anchor = _add_months(complete_month_anchor, -1)
         complete_month_end = _month_end(complete_month_anchor)
         complete_prior_start = _shift_year(complete_month_anchor, years=-1)
@@ -8376,6 +8376,8 @@ def dashboard():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
+    if request.args.get("plants") is None and request.args.get("plant") is None:
+        _resolve_plant_filters("ALL")
     context = _build_performance_dashboard_context()
     if isinstance(context, Response):
         return context
@@ -10131,6 +10133,47 @@ def loads():
         )
         ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
         ordered_stops = _apply_load_route_direction(ordered_stops, reverse_route=reverse_route)
+        plant_optimizer_settings = _get_optimizer_settings_for_plant(origin_code)
+        optimizer_radius_miles = _coerce_optional_non_negative_float(
+            (plant_optimizer_settings or {}).get("geo_radius")
+        )
+        if optimizer_radius_miles is None:
+            optimizer_radius_miles = _coerce_optional_non_negative_float(
+                _get_optimizer_default_settings().get("geo_radius")
+            )
+        optimizer_radius_miles = float(optimizer_radius_miles or 0.0)
+
+        rescue_stop_sequences = set()
+        stop_coords_by_sequence = {}
+        for idx, stop in enumerate(ordered_stops, start=1):
+            coords = stop.get("coords")
+            if (
+                not coords
+                and stop.get("lat") is not None
+                and stop.get("lng") is not None
+            ):
+                coords = (stop.get("lat"), stop.get("lng"))
+            if not coords:
+                continue
+            try:
+                lat = float(coords[0])
+                lng = float(coords[1])
+            except (TypeError, ValueError, IndexError):
+                continue
+            if math.isfinite(lat) and math.isfinite(lng):
+                stop_coords_by_sequence[idx] = (lat, lng)
+        if optimizer_radius_miles > 0 and len(stop_coords_by_sequence) > 1:
+            for seq, coords in stop_coords_by_sequence.items():
+                nearest_miles = None
+                for other_seq, other_coords in stop_coords_by_sequence.items():
+                    if seq == other_seq:
+                        continue
+                    miles = geo_utils.haversine_distance_coords(coords, other_coords)
+                    if nearest_miles is None or miles < nearest_miles:
+                        nearest_miles = miles
+                if nearest_miles is not None and nearest_miles > optimizer_radius_miles:
+                    rescue_stop_sequences.add(seq)
+
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         order_colors = _build_order_colors_for_lines(
             lines,
@@ -10148,6 +10191,9 @@ def loads():
             group["color"] = order_colors.get(
                 group["order_id"],
                 _color_for_stop_sequence(group.get("stop_sequence"), stop_color_palette),
+            )
+            group["is_rescue_stop"] = bool(
+                _coerce_int_value(group.get("stop_sequence"), 0) in rescue_stop_sequences
             )
         manifest_groups.sort(
             key=lambda group: (
@@ -10178,6 +10224,7 @@ def loads():
                     "color": _color_for_stop_sequence(return_stop_sequence, stop_color_palette),
                     "is_terminal_stop": True,
                     "terminal_label": "Return to Plant",
+                    "is_rescue_stop": False,
                 }
             )
         route_nodes = [
@@ -10386,6 +10433,7 @@ def loads():
                     "label": stop.get("city") or stop.get("state") or stop.get("zip") or "",
                     "sequence": idx,
                     "color": stop_color,
+                    "is_rescue_stop": bool(idx in rescue_stop_sequences),
                 }
             )
         if requires_return_to_origin and origin_coords and map_stops:
@@ -11088,174 +11136,7 @@ def planning_sessions_replay():
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    preset = _get_replay_eval_preset()
-    error = (request.args.get("replay_error") or "").strip()
-    replay_success = (request.args.get("replay_success") or "").strip()
-    source_run_id = (request.args.get("source_run_id") or "").strip()
-    run_id_param = (request.args.get("run_id") or "").strip()
-    selected_day = (request.args.get("day") or "").strip()
-    scope_param = (request.args.get("evaluation_scope") or "").strip()
-    requested_scope = replay_evaluator.normalize_evaluation_scope(scope_param)
-    upload_scope = requested_scope
-    upload_ops_parity_enabled = _coerce_bool_value(preset.get("ops_parity_enabled"))
-    try:
-        selected_run_id = int(run_id_param) if run_id_param else None
-    except (TypeError, ValueError):
-        selected_run_id = None
-    run_id = None
-    if request.method == "POST":
-        upload_scope = replay_evaluator.normalize_evaluation_scope(request.form.get("evaluation_scope"))
-        upload_ops_parity_enabled = _coerce_bool_value(request.form.get("ops_parity_enabled"))
-        report_file = request.files.get("report_file")
-        if not report_file or not getattr(report_file, "filename", ""):
-            error = "Choose a .csv or .xlsx report file."
-        else:
-            try:
-                run_preset = dict(preset)
-                run_preset["ops_parity_enabled"] = upload_ops_parity_enabled
-                run_id = replay_evaluator.run_replay_evaluation(
-                    report_file,
-                    preset=run_preset,
-                    created_by=_get_session_profile_name() or _get_session_role(),
-                    evaluation_scope=upload_scope,
-                )
-            except Exception as exc:
-                error = str(exc)
-        if run_id:
-            return redirect(url_for("planning_sessions_replay", run_id=run_id, evaluation_scope=upload_scope))
-
-    runs = db.list_replay_eval_runs(limit=20)
-    for entry in runs:
-        entry["summary"] = _parse_replay_summary(entry.get("summary_json"))
-        entry["status"] = (entry.get("status") or "").upper()
-
-    active_run = None
-    if selected_run_id:
-        active_run = next((entry for entry in runs if int(entry.get("id") or 0) == selected_run_id), None)
-    if not active_run:
-        active_run = runs[0] if runs else None
-
-    active_summary = {}
-    active_scope = requested_scope
-    date_basis = "shipped_date"
-    active_ops_parity_enabled = upload_ops_parity_enabled
-    if active_run:
-        active_summary = active_run.get("summary") or {}
-        active_scope = replay_evaluator.normalize_evaluation_scope(
-            scope_param or active_summary.get("evaluation_scope")
-        )
-        upload_scope = active_scope
-        date_basis = (active_summary.get("date_basis") or "shipped_date").strip().lower()
-        raw_params = (active_run.get("params_json") or "").strip()
-        if raw_params:
-            try:
-                parsed_params = json.loads(raw_params)
-            except (TypeError, ValueError, json.JSONDecodeError):
-                parsed_params = None
-            if isinstance(parsed_params, dict):
-                active_ops_parity_enabled = _coerce_bool_value(
-                    parsed_params.get("ops_parity_enabled")
-                )
-        upload_ops_parity_enabled = active_ops_parity_enabled
-
-    day_values = []
-    selected_day_row = {}
-    selected_day_plants = []
-    selected_day_issues = []
-    issues_by_type = {}
-    kpis = {}
-    if active_run and active_run.get("status") == "COMPLETED":
-        active_run_id = int(active_run.get("id") or 0)
-        day_rows = db.list_replay_eval_day_plant(active_run_id)
-        network_rows = replay_evaluator.build_network_daily_rollup(day_rows)
-        day_values = sorted({row.get("date_created") for row in network_rows if row.get("date_created")})
-        if selected_day not in day_values:
-            selected_day = day_values[-1] if day_values else ""
-        selected_day_row = next(
-            (row for row in network_rows if (row.get("date_created") or "") == selected_day),
-            {},
-        )
-        selected_day_plants = sorted(
-            [row for row in day_rows if (row.get("date_created") or "") == selected_day],
-            key=lambda row: row.get("plant_code") or "",
-        )
-        issues = db.list_replay_eval_issues(active_run_id)
-        selected_day_issues = [
-            issue for issue in issues if (issue.get("date_created") or "") == selected_day
-        ] if selected_day else list(issues)
-        for issue in selected_day_issues:
-            issue_type = issue.get("issue_type") or "unknown"
-            issues_by_type[issue_type] = issues_by_type.get(issue_type, 0) + 1
-
-        actual_loads = int(selected_day_row.get("actual_loads") or 0)
-        optimized_loads = int(selected_day_row.get("optimized_loads") or 0)
-        actual_util = float(selected_day_row.get("actual_avg_utilization") or 0.0)
-        optimized_util = float(selected_day_row.get("optimized_avg_utilization") or 0.0)
-        actual_cost = float(selected_day_row.get("actual_total_cost") or 0.0)
-        optimized_cost = float(selected_day_row.get("optimized_total_cost") or 0.0)
-        actual_miles = float(selected_day_row.get("actual_total_miles") or 0.0)
-        optimized_miles = float(selected_day_row.get("optimized_total_miles") or 0.0)
-        load_delta = optimized_loads - actual_loads
-        load_reduction_pct = (
-            ((actual_loads - optimized_loads) / actual_loads) * 100.0
-            if actual_loads
-            else None
-        )
-        util_gain_pts = optimized_util - actual_util
-        util_gain_pct = ((util_gain_pts / actual_util) * 100.0) if actual_util else None
-        cost_delta = optimized_cost - actual_cost
-        cost_savings = -cost_delta
-        cost_savings_pct = ((cost_savings / actual_cost) * 100.0) if actual_cost else None
-        miles_delta = optimized_miles - actual_miles
-        miles_savings = -miles_delta
-        miles_savings_pct = ((miles_savings / actual_miles) * 100.0) if actual_miles else None
-        kpis = {
-            "actual_loads": actual_loads,
-            "optimized_loads": optimized_loads,
-            "load_delta": load_delta,
-            "load_reduction_pct": load_reduction_pct,
-            "util_gain_pts": util_gain_pts,
-            "util_gain_pct": util_gain_pct,
-            "cost_delta": cost_delta,
-            "cost_savings": cost_savings,
-            "cost_savings_pct": cost_savings_pct,
-            "miles_delta": miles_delta,
-            "miles_savings": miles_savings,
-            "miles_savings_pct": miles_savings_pct,
-            "actual_util": actual_util,
-            "optimized_util": optimized_util,
-            "actual_cost": actual_cost,
-            "optimized_cost": optimized_cost,
-            "actual_miles": actual_miles,
-            "optimized_miles": optimized_miles,
-            "matched_orders": int(selected_day_row.get("matched_orders") or 0),
-            "missing_orders": int(selected_day_row.get("missing_orders") or 0),
-        }
-
-    return render_template(
-        "replay_eval.html",
-        preset=preset,
-        active_run=active_run,
-        evaluation_scope=active_scope,
-        date_basis=date_basis,
-        day_label=("Replay Period" if active_scope == replay_evaluator.EVAL_SCOPE_WEEKLY_POOLED else "Shipped Day"),
-        upload_scope=upload_scope,
-        selected_day=selected_day,
-        day_values=day_values,
-        selected_day_row=selected_day_row,
-        selected_day_plants=selected_day_plants,
-        selected_day_issues=selected_day_issues,
-        issues_by_type=issues_by_type,
-        kpis=kpis,
-        error=error,
-        replay_success=replay_success,
-        source_run_id=source_run_id,
-        upload_ops_parity_enabled=upload_ops_parity_enabled,
-        active_ops_parity_enabled=active_ops_parity_enabled,
-        active_summary=active_summary,
-    )
+    abort(404)
 
 
 @app.route("/planning-sessions/replay/<int:run_id>")
@@ -11263,24 +11144,7 @@ def planning_sessions_replay_detail(run_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    replay_error = (request.args.get("replay_error") or "").strip()
-    replay_success = (request.args.get("replay_success") or "").strip()
-    source_run_id = (request.args.get("source_run_id") or "").strip()
-    day = (request.args.get("day") or "").strip()
-    evaluation_scope = (request.args.get("evaluation_scope") or "").strip()
-    return redirect(
-        url_for(
-            "planning_sessions_replay",
-            run_id=run_id,
-            day=day or None,
-            evaluation_scope=evaluation_scope or None,
-            replay_error=replay_error or None,
-            replay_success=replay_success or None,
-            source_run_id=source_run_id or None,
-        )
-    )
+    abort(404)
 
 
 @app.route("/planning-sessions/replay/<int:run_id>/loads")
@@ -11288,22 +11152,7 @@ def planning_sessions_replay_loads(run_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    scenario = (request.args.get("scenario") or "OPTIMIZED").strip().upper()
-    if scenario not in {"OPTIMIZED", "ACTUAL"}:
-        scenario = "OPTIMIZED"
-    date_created = (request.args.get("date_created") or "").strip()
-    plant_code = (request.args.get("plant_code") or "").strip().upper()
-    return redirect(
-        url_for(
-            "loads",
-            replay_run_id=run_id,
-            replay_scenario=scenario,
-            replay_date_created=date_created or None,
-            replay_plant_code=plant_code or None,
-        )
-    )
+    abort(404)
 
 
 @app.route("/planning-sessions/replay/<int:run_id>/reproduce", methods=["POST"])
@@ -11311,48 +11160,7 @@ def planning_sessions_replay_reproduce(run_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    date_created = (request.form.get("date_created") or "").strip()
-    plant_code = (request.form.get("plant_code") or "").strip().upper()
-    evaluation_scope = replay_evaluator.normalize_evaluation_scope(request.form.get("evaluation_scope"))
-    if not date_created or not plant_code:
-        return redirect(
-            url_for(
-                "planning_sessions_replay",
-                run_id=run_id,
-                evaluation_scope=evaluation_scope,
-                replay_error="Select a valid day and plant bucket to reproduce.",
-            )
-        )
-
-    try:
-        reproduced_run_id = replay_evaluator.reproduce_replay_bucket(
-            source_run_id=run_id,
-            date_created=date_created,
-            plant_code=plant_code,
-            created_by=_get_session_profile_name() or _get_session_role(),
-        )
-    except Exception as exc:
-        return redirect(
-            url_for(
-                "planning_sessions_replay",
-                run_id=run_id,
-                evaluation_scope=evaluation_scope,
-                replay_error=str(exc),
-            )
-        )
-
-    return redirect(
-        url_for(
-            "planning_sessions_replay",
-            run_id=reproduced_run_id,
-            day=date_created,
-            evaluation_scope=evaluation_scope,
-            replay_success=f"Reproduced bucket {date_created} / {plant_code} from run #{run_id}.",
-            source_run_id=run_id,
-        )
-    )
+    abort(404)
 
 
 @app.route("/planning-sessions/replay/<int:run_id>/export.xlsx")
@@ -11360,26 +11168,7 @@ def planning_sessions_replay_export(run_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    run = db.get_replay_eval_run(run_id)
-    if not run:
-        abort(404)
-    day_rows = db.list_replay_eval_day_plant(run_id)
-    network_rows = replay_evaluator.build_network_daily_rollup(day_rows)
-    issues = db.list_replay_eval_issues(run_id)
-    load_metrics = db.list_replay_eval_load_metrics(run_id)
-    workbook = _build_replay_workbook(run, network_rows, day_rows, issues, load_metrics)
-
-    output = io.BytesIO()
-    workbook.save(output)
-    output.seek(0)
-    filename = f"replay_eval_run_{run_id}_{date.today().isoformat()}.xlsx"
-    return Response(
-        output.getvalue(),
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    abort(404)
 
 
 @app.route("/planning-sessions/replay/<int:run_id>/issues.csv")
@@ -11387,46 +11176,7 @@ def planning_sessions_replay_issues_csv(run_id):
     session_redirect = _require_session()
     if session_redirect:
         return session_redirect
-    _require_admin()
-
-    run = db.get_replay_eval_run(run_id)
-    if not run:
-        abort(404)
-    issues = db.list_replay_eval_issues(run_id)
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "date_created",
-            "plant_code",
-            "load_number",
-            "order_number",
-            "issue_type",
-            "severity",
-            "message",
-            "meta_json",
-        ]
-    )
-    for issue in issues:
-        writer.writerow(
-            [
-                issue.get("date_created") or "",
-                issue.get("plant_code") or "",
-                issue.get("load_number") or "",
-                issue.get("order_number") or "",
-                issue.get("issue_type") or "",
-                issue.get("severity") or "",
-                issue.get("message") or "",
-                issue.get("meta_json") or "",
-            ]
-        )
-    output.seek(0)
-    filename = f"replay_eval_issues_run_{run_id}_{date.today().isoformat()}.csv"
-    return Response(
-        output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    abort(404)
 
 
 def _planning_session_filter_values(source):
@@ -15621,7 +15371,7 @@ def settings():
         return session_redirect
     current_role = _get_session_role()
     is_admin = current_role == ROLE_ADMIN
-    can_edit_settings = current_role in {ROLE_ADMIN, ROLE_PLANNER}
+    can_edit_settings = bool(current_role)
     current_profile_name = (_get_session_profile_name() or "").strip()
     tab = (request.args.get("tab") or "overview").strip().lower()
     valid_tabs = {"overview", "rates", "skus", "lookups"}
@@ -15653,16 +15403,8 @@ def settings():
     strategic_customers = []
     stop_color_rows = []
     trailer_assignment_rules_admin = _get_trailer_assignment_rules()
-    planner_trailer_overrides = (
-        _get_planner_trailer_rule_overrides(current_profile_name)
-        if current_role == ROLE_PLANNER
-        else {}
-    )
-    trailer_assignment_rules = _merge_trailer_assignment_rules(
-        trailer_assignment_rules_admin,
-        planner_trailer_overrides,
-    )
-    trailer_assignment_rules_override_active = bool(planner_trailer_overrides)
+    trailer_assignment_rules = dict(trailer_assignment_rules_admin)
+    trailer_assignment_rules_override_active = False
     rate_table_contexts = _get_rate_table_contexts()
     ryder_dedicated_rate_table = {}
     default_rate_change_metadata = {"changed_index": {}, "changed_count": 0}
@@ -15836,8 +15578,7 @@ def save_planning_tools():
     if session_redirect:
         return session_redirect
     current_role = _get_session_role()
-    is_admin = current_role == ROLE_ADMIN
-    can_edit_settings = current_role in {ROLE_ADMIN, ROLE_PLANNER}
+    can_edit_settings = bool(current_role)
     if not can_edit_settings:
         abort(403)
 
@@ -15852,27 +15593,14 @@ def save_planning_tools():
         livestock_wedge_enabled = _coerce_bool_value(
             request.form.get("livestock_wedge_enabled")
         )
-        if is_admin:
-            trailer_rules = _get_trailer_assignment_rules()
-            trailer_rules["livestock_wedge_enabled"] = livestock_wedge_enabled
-            trailer_rules.pop("auto_assign_hotshot_enabled", None)
-            trailer_rules.pop("auto_assign_hotshot_utilization_threshold_pct", None)
-            db.upsert_planning_setting(
-                TRAILER_ASSIGNMENT_RULES_SETTING_KEY,
-                json.dumps(trailer_rules),
-            )
-        else:
-            profile_name = _get_session_profile_name() or _get_session_role()
-            if not profile_name:
-                abort(403)
-            base_rules = _get_trailer_assignment_rules()
-            override_payload = {}
-            if livestock_wedge_enabled != _coerce_bool_value(base_rules.get("livestock_wedge_enabled")):
-                override_payload["livestock_wedge_enabled"] = livestock_wedge_enabled
-            db.upsert_planning_setting(
-                _planner_trailer_rules_override_setting_key(profile_name),
-                json.dumps(override_payload, separators=(",", ":")),
-            )
+        trailer_rules = _get_trailer_assignment_rules()
+        trailer_rules["livestock_wedge_enabled"] = livestock_wedge_enabled
+        trailer_rules.pop("auto_assign_hotshot_enabled", None)
+        trailer_rules.pop("auto_assign_hotshot_utilization_threshold_pct", None)
+        db.upsert_planning_setting(
+            TRAILER_ASSIGNMENT_RULES_SETTING_KEY,
+            json.dumps(trailer_rules),
+        )
     target_tab = (request.form.get("tab") or "overview").strip().lower()
     if target_tab != "overview":
         target_tab = "overview"
@@ -16321,8 +16049,6 @@ def save_optimizer_defaults():
     if session_redirect:
         return session_redirect
     _require_settings_editor()
-    is_admin = _get_session_role() == ROLE_ADMIN
-
     payload = request.get_json(silent=True) or request.form
     current = _get_optimizer_default_settings()
     raw_exception_categories = payload.get("upper_deck_exception_categories")
@@ -16415,77 +16141,76 @@ def save_optimizer_defaults():
     }
 
     _upsert_scoped_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY, json.dumps(optimized))
-    if is_admin:
-        trailer_rules = _get_trailer_assignment_rules()
+    trailer_rules = _get_trailer_assignment_rules()
 
-        def _save_plant_optimizer_default(plant_code, trailer_value, hotshot_value, hotshot_present):
-            normalized_plant = _normalize_plant_code(plant_code)
-            if not normalized_plant:
-                return
-            current_row = db.get_optimizer_settings(normalized_plant) or {}
-            current_defaults = _get_optimizer_settings_for_plant(
-                normalized_plant,
-                optimizer_defaults=optimized,
-                trailer_rules=trailer_rules,
-                settings_row=current_row,
-            )
-            trailer_key = stack_calculator.normalize_trailer_type(
-                trailer_value,
-                default=current_defaults["trailer_type"],
-            )
-            capacity_feet = _capacity_for_trailer_setting(
-                trailer_key,
-                requested_capacity=current_row.get("capacity_feet", optimized.get("capacity_feet")),
-                default_capacity=optimized.get("capacity_feet", 53.0),
-            )
-            auto_hotshot_enabled = (
-                _coerce_bool_value(hotshot_value)
-                if hotshot_present
-                else bool(current_defaults["auto_hotshot_enabled"])
-            )
-            db.upsert_optimizer_settings(
-                {
-                    "origin_plant": normalized_plant,
-                    "capacity_feet": capacity_feet,
-                    "trailer_type": trailer_key,
-                    "max_detour_pct": _coerce_non_negative_float(
-                        current_row.get("max_detour_pct"),
-                        optimized.get("max_detour_pct", 15.0),
-                    ),
-                    "time_window_days": _coerce_non_negative_int(
-                        current_row.get("time_window_days"),
-                        optimized.get("time_window_days", 7),
-                    ),
-                    "geo_radius": _coerce_non_negative_float(
-                        current_row.get("geo_radius"),
-                        optimized.get("geo_radius", 100.0),
-                    ),
-                    "auto_hotshot_enabled": 1 if auto_hotshot_enabled else 0,
-                }
-            )
+    def _save_plant_optimizer_default(plant_code, trailer_value, hotshot_value, hotshot_present):
+        normalized_plant = _normalize_plant_code(plant_code)
+        if not normalized_plant:
+            return
+        current_row = db.get_optimizer_settings(normalized_plant) or {}
+        current_defaults = _get_optimizer_settings_for_plant(
+            normalized_plant,
+            optimizer_defaults=optimized,
+            trailer_rules=trailer_rules,
+            settings_row=current_row,
+        )
+        trailer_key = stack_calculator.normalize_trailer_type(
+            trailer_value,
+            default=current_defaults["trailer_type"],
+        )
+        capacity_feet = _capacity_for_trailer_setting(
+            trailer_key,
+            requested_capacity=current_row.get("capacity_feet", optimized.get("capacity_feet")),
+            default_capacity=optimized.get("capacity_feet", 53.0),
+        )
+        auto_hotshot_enabled = (
+            _coerce_bool_value(hotshot_value)
+            if hotshot_present
+            else bool(current_defaults["auto_hotshot_enabled"])
+        )
+        db.upsert_optimizer_settings(
+            {
+                "origin_plant": normalized_plant,
+                "capacity_feet": capacity_feet,
+                "trailer_type": trailer_key,
+                "max_detour_pct": _coerce_non_negative_float(
+                    current_row.get("max_detour_pct"),
+                    optimized.get("max_detour_pct", 15.0),
+                ),
+                "time_window_days": _coerce_non_negative_int(
+                    current_row.get("time_window_days"),
+                    optimized.get("time_window_days", 7),
+                ),
+                "geo_radius": _coerce_non_negative_float(
+                    current_row.get("geo_radius"),
+                    optimized.get("geo_radius", 100.0),
+                ),
+                "auto_hotshot_enabled": 1 if auto_hotshot_enabled else 0,
+            }
+        )
 
-        if request.is_json:
-            plant_defaults_payload = payload.get("plant_defaults")
-            if isinstance(plant_defaults_payload, dict):
-                for plant_code, plant_payload in plant_defaults_payload.items():
-                    if not isinstance(plant_payload, dict):
-                        continue
-                    _save_plant_optimizer_default(
-                        plant_code,
-                        plant_payload.get("trailer_type"),
-                        plant_payload.get("auto_hotshot_enabled"),
-                        "auto_hotshot_enabled" in plant_payload,
-                    )
-        else:
-            for plant_code in PLANT_CODES:
-                if request.form.get(f"plant_defaults_present_{plant_code}") != "1":
+    if request.is_json:
+        plant_defaults_payload = payload.get("plant_defaults")
+        if isinstance(plant_defaults_payload, dict):
+            for plant_code, plant_payload in plant_defaults_payload.items():
+                if not isinstance(plant_payload, dict):
                     continue
                 _save_plant_optimizer_default(
                     plant_code,
-                    request.form.get(f"plant_default_trailer_{plant_code}"),
-                    request.form.get(f"plant_auto_hotshot_enabled_{plant_code}"),
-                    True,
+                    plant_payload.get("trailer_type"),
+                    plant_payload.get("auto_hotshot_enabled"),
+                    "auto_hotshot_enabled" in plant_payload,
                 )
+    else:
+        for plant_code in PLANT_CODES:
+            if request.form.get(f"plant_defaults_present_{plant_code}") != "1":
+                continue
+            _save_plant_optimizer_default(
+                plant_code,
+                request.form.get(f"plant_default_trailer_{plant_code}"),
+                request.form.get(f"plant_auto_hotshot_enabled_{plant_code}"),
+                True,
+            )
     stack_calculator.invalidate_stack_assumptions_cache()
 
     if request.is_json:
