@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Sessions — ProGrade{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Load Sessions</div>
+    <div class="page-subtitle">All sessions — click to open, or start a new one</div>
+  </div>
+  <a href="{{ url_for('session_new') }}" class="btn btn-primary">+ New Session</a>
+</div>
+
+<div class="page-body">
+  {% if sessions %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Session</th>
+          <th>Brand</th>
+          <th>Carrier</th>
+          <th>Planner</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in sessions %}
+        <tr>
+          <td>
+            <a href="{{ url_for('load_builder', session_id=s.session_id) }}" style="font-weight:600">
+              {{ s.session_label or s.session_id[:8] }}
+            </a>
+          </td>
+          <td>
+            <span class="badge {% if s.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}">
+              {{ s.brand | upper }}
+            </span>
+          </td>
+          <td class="td-mono">{{ s.carrier_type }}</td>
+          <td>{{ s.planner_name or '—' }}</td>
+          <td>
+            {% if s.status == 'draft' %}
+              <span class="badge badge-neutral">Draft</span>
+            {% elif s.status == 'stale' %}
+              <span class="badge badge-warning">Stale</span>
+            {% elif s.status == 'review' %}
+              <span class="badge badge-info">Review</span>
+            {% elif s.status == 'approved' %}
+              <span class="badge badge-success">Approved</span>
+            {% else %}
+              <span class="badge badge-neutral">{{ s.status }}</span>
+            {% endif %}
+          </td>
+          <td class="td-label">{{ s.created_at[:10] if s.created_at else '—' }}</td>
+          <td>
+            <a href="{{ url_for('load_builder', session_id=s.session_id) }}" class="btn btn-secondary btn-sm">Open</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-title">No sessions yet</div>
+    <div class="empty-state-body">Start a new session to begin building a load.</div>
+    <div style="margin-top:16px">
+      <a href="{{ url_for('session_new') }}" class="btn btn-primary">+ New Session</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
