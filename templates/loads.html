@@ -574,7 +574,26 @@
                               {% if status == 'APPROVED' %}
                                 <span class="approval-status approved">Approved</span>
                               {% else %}
-                                <span class="approval-status">Pending Approval</span>
+                                <span class="approval-status approval-status-pending">
+                                  Pending Approval
+                                  <span class="approval-expected-number">
+                                    (
+                                    <span class="approval-load-number-prefix" data-approval-load-prefix>{{ load.approval_load_number_prefix or '' }}</span>
+                                    <input
+                                      class="approval-load-number-input"
+                                      type="text"
+                                      inputmode="numeric"
+                                      autocomplete="off"
+                                      pattern="[0-9]{4}"
+                                      maxlength="4"
+                                      placeholder="xxxx"
+                                      value="{{ load.approval_load_number_suffix or '' }}"
+                                      data-approval-load-suffix
+                                      data-locked="{{ 1 if load.approval_load_number_locked else 0 }}"
+                                    >
+                                    )
+                                  </span>
+                                </span>
                               {% endif %}
                               {% if tab != 'final' %}
                                 <form method="post" action="{{ url_for('update_load_status', load_id=load.id) }}" data-async-approve>
@@ -1733,27 +1752,14 @@
       }
     }
 
-    function fetchSchematic(loadId, { force = false } = {}) {
-      const panel = document.getElementById(`load-detail-${loadId}`);
-      if (!force && panel && panel.dataset.schematicSynced === 'true') {
-        return Promise.resolve(null);
+    function reloadSelectedLoadView(loadId) {
+      // Keep manifest/schematic/map color mapping in a single server-render cycle
+      // after mutations that can affect stop/order sequencing.
+      const url = new URL(window.location.href);
+      if (loadId) {
+        url.searchParams.set('selected_load', String(loadId));
       }
-      const tabParam = loadsTab ? `?tab=${encodeURIComponent(loadsTab)}` : '';
-      return fetch(`/loads/${loadId}/schematic${tabParam}`)
-        .then((response) => parseJsonResponseSafe(response).then((payload) => ({ response, payload })))
-        .then(({ response, payload }) => {
-          if (!response.ok) {
-            throw new Error(
-              (payload && payload.error)
-              || `Schematic refresh failed (${response.status})`
-            );
-          }
-          return payload || {};
-        })
-        .then((payload) => {
-          applySchematicPayload(loadId, payload);
-          return payload;
-        });
+      window.location.assign(url.toString());
     }
 
     function updateFreightSummary(loadId, payload) {
@@ -1908,9 +1914,9 @@
               }
               return null;
             })
-            .then(() => fetchSchematic(loadId, { force: true }))
             .then(() => {
               select.dataset.previousValue = nextValue;
+              reloadSelectedLoadView(loadId);
             })
             .catch((error) => {
               select.value = previous;
@@ -2209,7 +2215,6 @@
       panel.classList.remove('hidden');
       panel.classList.add('single-screen');
       pane.appendChild(panel);
-      fetchSchematic(loadId).catch(() => {});
       clearSelectedPreviewHeader();
       moveSelectedHeaderElements(loadId);
 
@@ -2369,6 +2374,59 @@
       };
     }
 
+    function normalizeLoadNumberSuffixValue(value) {
+      return String(value || '').replace(/\D/g, '').slice(0, 4);
+    }
+
+    function bindApprovalLoadNumberInputs(root = document) {
+      root.querySelectorAll('[data-approval-load-suffix]').forEach((input) => {
+        if (input.dataset.bound === 'true') return;
+        input.dataset.bound = 'true';
+
+        const normalize = ({ markEdited = false } = {}) => {
+          const normalized = normalizeLoadNumberSuffixValue(input.value);
+          if (input.value !== normalized) {
+            input.value = normalized;
+          }
+          if (markEdited) {
+            input.dataset.userEdited = 'true';
+          }
+        };
+
+        normalize();
+        input.addEventListener('input', () => normalize({ markEdited: true }));
+        input.addEventListener('change', () => normalize({ markEdited: true }));
+      });
+    }
+
+    function refreshApprovalExpectedNumbers(approvalSequence) {
+      if (!approvalSequence) return;
+      const prefix = String(approvalSequence.prefix || '').trim();
+      const rawNext = Number(approvalSequence.next_sequence);
+      if (!prefix || !Number.isFinite(rawNext)) return;
+
+      const sequence = Math.max(0, Math.trunc(rawNext));
+      const forms = Array.from(document.querySelectorAll('form[data-async-approve]'));
+      forms.forEach((form) => {
+        const actionInput = form.querySelector('input[name="action"]');
+        if (!actionInput || actionInput.value !== 'approve_lock') return;
+        const approvalActions = form.closest('.load-approval-actions');
+        if (!approvalActions) return;
+
+        const prefixEl = approvalActions.querySelector('[data-approval-load-prefix]');
+        if (prefixEl) {
+          prefixEl.textContent = prefix;
+        }
+
+        const suffixInput = approvalActions.querySelector('[data-approval-load-suffix]');
+        if (!suffixInput) return;
+        if (suffixInput.dataset.locked === '1') return;
+        if (suffixInput.dataset.userEdited === 'true') return;
+
+        suffixInput.value = String(sequence).padStart(4, '0');
+      });
+    }
+
     function bindAsyncApprove() {
       document.querySelectorAll('form[data-async-approve]').forEach((form) => {
         if (form.dataset.bound === 'true') return;
@@ -2383,10 +2441,25 @@
           const submitButton = form.querySelector('button[type="submit"], button');
           submitButton?.setAttribute('disabled', 'true');
           let loadNumberStart = '';
+          const approvalActions = form.closest('.load-approval-actions');
+          const loadNumberSuffixInput = approvalActions?.querySelector('[data-approval-load-suffix]');
 
           try {
             for (let attempt = 0; attempt < 3; attempt += 1) {
               const formData = new FormData(form);
+              if (loadNumberSuffixInput) {
+                const normalizedSuffix = normalizeLoadNumberSuffixValue(loadNumberSuffixInput.value);
+                loadNumberSuffixInput.value = normalizedSuffix;
+                const hasManualSuffix = loadNumberSuffixInput.dataset.userEdited === 'true';
+                if (hasManualSuffix && normalizedSuffix && !/^\d{4}$/.test(normalizedSuffix)) {
+                  throw new Error('Load number must be exactly 4 digits.');
+                }
+                if (hasManualSuffix && normalizedSuffix) {
+                  formData.set('load_number_suffix', normalizedSuffix);
+                } else {
+                  formData.delete('load_number_suffix');
+                }
+              }
               if (loadNumberStart) {
                 formData.set('load_number_start', loadNumberStart);
               }
@@ -2426,6 +2499,10 @@
                   return;
                 }
                 loadNumberStart = result;
+                if (loadNumberSuffixInput) {
+                  loadNumberSuffixInput.value = result;
+                  loadNumberSuffixInput.dataset.userEdited = 'true';
+                }
                 continue;
               }
 
@@ -2438,6 +2515,7 @@
               removeLoadFromView(payload.load_id);
               updateApprovalTracker(payload.progress);
               updateTabCounts(payload.tab_counts);
+              refreshApprovalExpectedNumbers(payload.approval_sequence);
               if (payload.redirect_to_report && payload.session_report_url) {
                 window.location.href = payload.session_report_url;
                 return;
@@ -2786,6 +2864,7 @@
     bindCarrierSelect();
     bindSchematicEditButtons();
     bindAsyncApprove();
+    bindApprovalLoadNumberInputs();
     bindManifestResequence();
     stashAllDetailPanels();
 
@@ -5590,11 +5669,11 @@
               if (!response.ok) {
                 throw new Error((payload && payload.error) || 'Unable to save schematic.');
               }
-              if (!state.loadId) return null;
-              return fetchSchematic(state.loadId, { force: true });
-            })
-            .then(() => {
-              closeModal();
+              if (!state.loadId) {
+                closeModal();
+                return;
+              }
+              reloadSelectedLoadView(state.loadId);
             })
             .catch((error) => {
               if (error && error.message === 'Save canceled') return;

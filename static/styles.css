@@ -8000,6 +8000,49 @@ button.plant-card {
   color: var(--success);
 }
 
+.approval-status-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.approval-expected-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  letter-spacing: 0.08em;
+}
+
+.approval-load-number-prefix {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.approval-load-number-input {
+  width: 52px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 4px;
+  text-transform: uppercase;
+}
+
+.approval-load-number-input::placeholder {
+  color: var(--text-muted);
+  text-transform: lowercase;
+}
+
+.approval-load-number-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
 .approval-btn {
   min-width: 120px;
   padding: 8px 14px;
@@ -12973,6 +13016,15 @@ button.plant-card {
 
 .selected-load-actions .approval-status {
   margin-right: 0;
+}
+
+.selected-load-actions .approval-status-pending {
+  gap: 4px;
+}
+
+.selected-load-actions .approval-load-number-input {
+  width: 48px;
+  padding: 1px 4px;
 }
 
 .selected-load-actions .approval-btn {

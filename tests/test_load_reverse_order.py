@@ -332,6 +332,132 @@ def test_approve_lock_status_update_dedupes_orders_from_unapproved_loads(monkeyp
     assert payload["dedupe"] == {"removed_lines": 3, "deleted_loads": 1}
 
 
+def test_approve_lock_status_update_accepts_custom_suffix(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 42,
+        "origin_plant": "VA",
+        "planning_session_id": 7,
+        "status": "DRAFT",
+        "load_number": None,
+    }
+    captured = {}
+    planning_session = {
+        "id": 7,
+        "plant_code": "VA",
+        "load_number_prefix": "VA26",
+        "next_load_sequence": 1240,
+    }
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: dict(load) if load_id == 42 else None)
+    monkeypatch.setattr(app_module.db, "get_planning_session", lambda _session_id: dict(planning_session))
+    monkeypatch.setattr(app_module, "_get_allowed_plants", lambda: ["VA"])
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module, "_is_session_sandbox", lambda: False)
+    monkeypatch.setattr(
+        app_module,
+        "_reserve_session_load_number",
+        lambda _planning_session, plant_code, starting_sequence=None, requested_sequence=None: captured.update(
+            {
+                "reserve": {
+                    "plant_code": plant_code,
+                    "starting_sequence": starting_sequence,
+                    "requested_sequence": requested_sequence,
+                }
+            }
+        )
+        or {
+            "load_number": "VA26-1239",
+            "assigned_sequence": 1239,
+            "next_sequence": 1240,
+            "prefix": "VA26-",
+        },
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "update_load_status",
+        lambda load_id, status, load_number=None: captured.update(
+            {"status_update": (load_id, status, load_number)}
+        ),
+    )
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: [{"so_num": "SO-1"}])
+    monkeypatch.setattr(
+        app_module.db,
+        "remove_orders_from_unapproved_loads",
+        lambda *_args, **_kwargs: {"removed_lines": 0, "deleted_loads": 0},
+    )
+    monkeypatch.setattr(app_module, "_sync_planning_session_status", lambda _session_id: "DRAFT")
+    monkeypatch.setattr(app_module.load_builder, "list_loads", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        app_module,
+        "_compute_load_progress_snapshot",
+        lambda **_kwargs: {
+            "approved_orders": 1,
+            "total_orders": 1,
+            "progress_pct": 100.0,
+            "draft_tab_count": 0,
+            "final_tab_count": 1,
+        },
+    )
+
+    response = client.post(
+        "/loads/42/status",
+        data={"action": "approve_lock", "load_number_suffix": "1239"},
+        headers={
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert captured["reserve"] == {
+        "plant_code": "VA",
+        "starting_sequence": None,
+        "requested_sequence": 1239,
+    }
+    assert captured["status_update"] == (42, app_module.STATUS_APPROVED, "VA26-1239")
+    assert payload["approval_sequence"] == {"prefix": "VA26-", "next_sequence": 1240}
+
+
+def test_approve_lock_status_update_rejects_invalid_custom_suffix(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 42,
+        "origin_plant": "VA",
+        "planning_session_id": 7,
+        "status": "DRAFT",
+        "load_number": None,
+    }
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: dict(load) if load_id == 42 else None)
+    monkeypatch.setattr(
+        app_module.db,
+        "get_planning_session",
+        lambda _session_id: {"id": 7, "plant_code": "VA"},
+    )
+    monkeypatch.setattr(app_module, "_get_allowed_plants", lambda: ["VA"])
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module, "_is_session_sandbox", lambda: False)
+
+    response = client.post(
+        "/loads/42/status",
+        data={"action": "approve_lock", "load_number_suffix": "12A"},
+        headers={
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["invalid_load_number_suffix"] is True
+
+
 def test_progress_snapshot_counts_manual_load_orders_in_total():
     loads = [
         {

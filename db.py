@@ -3936,9 +3936,29 @@ def reserve_planning_session_load_number(
     plant_code,
     year_suffix,
     starting_sequence=None,
+    requested_sequence=None,
 ):
     if not session_id or not plant_code or not year_suffix:
         return {"error": "invalid_arguments"}
+
+    def _coerce_sequence(value):
+        if value is None:
+            return None
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed < 0 or parsed > 9999:
+            return None
+        return parsed
+
+    normalized_starting_sequence = _coerce_sequence(starting_sequence)
+    normalized_requested_sequence = _coerce_sequence(requested_sequence)
+    if starting_sequence is not None and normalized_starting_sequence is None:
+        return {"error": "invalid_starting_sequence"}
+    if requested_sequence is not None and normalized_requested_sequence is None:
+        return {"error": "invalid_requested_sequence"}
+
     prefix = f"{str(plant_code).strip().upper()}{str(year_suffix).strip()}"
     with get_connection() as connection:
         row = connection.execute(
@@ -3956,12 +3976,16 @@ def reserve_planning_session_load_number(
         next_sequence = row["next_load_sequence"]
 
         if next_sequence is None:
-            if starting_sequence is None:
+            assigned_sequence = (
+                normalized_requested_sequence
+                if normalized_requested_sequence is not None
+                else normalized_starting_sequence
+            )
+            if assigned_sequence is None:
                 return {
                     "needs_start": True,
                     "prefix": f"{prefix}-",
                 }
-            assigned_sequence = int(starting_sequence)
             next_sequence = assigned_sequence + 1
             connection.execute(
                 """
@@ -3980,7 +4004,13 @@ def reserve_planning_session_load_number(
                 "prefix": f"{prefix}-",
             }
 
-        assigned_sequence = int(next_sequence)
+        baseline_next_sequence = int(next_sequence)
+        if normalized_requested_sequence is not None:
+            assigned_sequence = normalized_requested_sequence
+            next_sequence = max(baseline_next_sequence, assigned_sequence + 1)
+        else:
+            assigned_sequence = baseline_next_sequence
+            next_sequence = assigned_sequence + 1
         effective_prefix = stored_prefix or prefix
         connection.execute(
             """
@@ -3989,13 +4019,13 @@ def reserve_planning_session_load_number(
                 next_load_sequence = ?
             WHERE id = ?
             """,
-            (effective_prefix, assigned_sequence + 1, session_id),
+            (effective_prefix, next_sequence, session_id),
         )
         connection.commit()
         return {
             "load_number": f"{effective_prefix}-{assigned_sequence:04d}",
             "assigned_sequence": assigned_sequence,
-            "next_sequence": assigned_sequence + 1,
+            "next_sequence": next_sequence,
             "prefix": f"{effective_prefix}-",
         }
 
