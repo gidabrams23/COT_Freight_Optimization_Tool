@@ -1,0 +1,703 @@
+﻿{% extends "prograde/base.html" %}
+{% block title %}Settings - ProGrade{% endblock %}
+
+{% block head %}
+<style>
+.pg-settings-tabs {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.pg-settings-tab {
+  min-width: 120px;
+}
+.pg-settings-tab.active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+.pg-settings-intro {
+  margin-bottom: 2px;
+}
+.pg-settings-intro.hidden,
+.pg-settings-section.hidden {
+  display: none !important;
+}
+.pg-settings-intro p {
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.pg-settings-intro ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Settings</div>
+    <div class="page-subtitle">Editable assumptions â€” changes apply to all active sessions immediately</div>
+  </div>
+  <div id="global-save-status" class="save-status"></div>
+</div>
+
+<div class="page-body settings-sections">
+  {% if error_message %}
+  <div class="settings-alert visible" style="background: var(--status-error-bg); border-color: var(--status-error); color: var(--status-error);">
+    {{ error_message }}
+  </div>
+  {% endif %}
+  <!-- â”€â”€ Stale session warning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="settings-alert" id="stale-alert">
+    âš  Assumptions changed â€” open sessions have been flagged for revalidation. Open any session to re-run constraint checks.
+  </div>
+
+  <div class="pg-settings-tabs" role="tablist" aria-label="Brand settings tabs">
+    <button type="button" class="btn btn-secondary btn-sm pg-settings-tab active" data-settings-tab-btn="pj">PJ Settings</button>
+    <button type="button" class="btn btn-secondary btn-sm pg-settings-tab" data-settings-tab-btn="bt">Big Tex Settings</button>
+  </div>
+
+  <div class="card pg-settings-intro" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">How PJ Stacking Works</div>
+      </div>
+    </div>
+    <p>The PJ load checker treats each column as a vertical stack on lower or upper deck. It validates total footprint, per-column height, and special nesting/axle-drop assumptions.</p>
+    <ul>
+      <li>Carrier deck geometry and clearances come from Carrier Config.</li>
+      <li>Tongue groups, height reference, and measurement offsets drive SKU footprint and height behavior.</li>
+      <li>PJ SKU Overrides is the planner cheat sheet for model-specific exceptions.</li>
+    </ul>
+  </div>
+
+  <div class="card pg-settings-intro hidden" data-settings-tab="bt">
+    <div class="card-header">
+      <div>
+        <div class="card-title">How Big Tex Stacking Works</div>
+      </div>
+    </div>
+    <p>The Big Tex checker evaluates stack positions as bounded zones. It validates zone length and cumulative height per stack with warning rules for sequence-sensitive cases.</p>
+    <ul>
+      <li>Carrier Config defines the trailer baseline used in the canvas and checks.</li>
+      <li>Big Tex Stack Constraint Config defines max length and max height by stack position.</li>
+      <li>Use these values to tune the prototype behavior without code changes.</li>
+    </ul>
+  </div>
+
+  <!-- â”€â”€ 1. Carrier Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="both">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Carrier Config</div>
+        <div class="card-subtitle">Deck geometry â€” one row per carrier type</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Carrier Type</th>
+            <th>Brand</th>
+            <th>Total Length (ft)</th>
+            <th>Max Height (ft)</th>
+            <th>Lower Deck (ft)</th>
+            <th>Upper Deck (ft)</th>
+            <th>Lower Gnd Ht (ft)</th>
+            <th>Upper Gnd Ht (ft)</th>
+            <th>GN Max Lower (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for c in carrier_configs %}
+          <tr data-carrier-brand="{{ c.brand }}">
+            <td class="td-mono">{{ c.carrier_type }}</td>
+            <td>{{ c.brand }}</td>
+            {% set num_fields = [
+              ('total_length_ft',           c.total_length_ft),
+              ('max_height_ft',             c.max_height_ft),
+              ('lower_deck_length_ft',      c.lower_deck_length_ft),
+              ('upper_deck_length_ft',      c.upper_deck_length_ft),
+              ('lower_deck_ground_height_ft', c.lower_deck_ground_height_ft),
+              ('upper_deck_ground_height_ft', c.upper_deck_ground_height_ft),
+              ('gn_max_lower_deck_ft',      c.gn_max_lower_deck_ft),
+            ] %}
+            {% for field, val in num_fields %}
+            <td>
+              <input type="number" step="0.5"
+                     class="editable-cell"
+                     data-table="carrier_configs"
+                     data-pk="{{ c.carrier_type }}"
+                     data-field="{{ field }}"
+                     value="{{ val or '' }}" />
+            </td>
+            {% endfor %}
+            <td>
+              <input type="text"
+                     class="editable-cell"
+                     style="min-width:140px"
+                     data-table="carrier_configs"
+                     data-pk="{{ c.carrier_type }}"
+                     data-field="notes"
+                     value="{{ c.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 2. PJ Tongue Length Groups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ Tongue Length Groups</div>
+        <div class="card-subtitle">Shawn's six tongue groups â€” edit tongue feet here if measurements are corrected</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Group ID</th>
+            <th>Label</th>
+            <th>Tongue (ft)</th>
+            <th>Model Codes</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for g in pj_tongue_groups %}
+          <tr>
+            <td class="td-mono">{{ g.group_id }}</td>
+            <td>
+              <input type="text" class="editable-cell"
+                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="group_label"
+                     value="{{ g.group_label }}" />
+            </td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:70px"
+                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="tongue_feet"
+                     value="{{ g.tongue_feet }}" />
+            </td>
+            <td class="td-label">{{ g.model_codes }}</td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:160px"
+                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="notes"
+                     value="{{ g.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 3. PJ Stack Height Reference â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ Stack Height Reference</div>
+        <div class="card-subtitle">Height values used by constraint engine â€” mid = not top of stack, top = topmost unit</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Label</th>
+            <th>Height Mid (ft)</th>
+            <th>Height Top (ft)</th>
+            <th>GN Axle Dropped (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for h in pj_height_reference %}
+          <tr>
+            <td class="td-mono">{{ h.category }}</td>
+            <td>{{ h.label }}</td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="height_mid_ft"
+                     value="{{ h.height_mid_ft }}" />
+            </td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="height_top_ft"
+                     value="{{ h.height_top_ft }}" />
+            </td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="gn_axle_dropped_ft"
+                     value="{{ h.gn_axle_dropped_ft or '' }}"
+                     placeholder="N/A" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:160px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="notes"
+                     value="{{ h.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 4. PJ Measurement Offsets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ Measurement Offsets</div>
+        <div class="card-subtitle">Changing these triggers recomputation of bed_length_measured for all PJ SKUs</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rule Key</th>
+            <th>Label</th>
+            <th>Offset (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for o in pj_measurement_offsets %}
+          <tr>
+            <td class="td-mono">{{ o.rule_key }}</td>
+            <td>{{ o.label }}</td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:70px"
+                     data-table="pj_measurement_offsets" data-pk="{{ o.rule_key }}" data-field="offset_ft"
+                     data-recompute="pj_skus"
+                     value="{{ o.offset_ft }}" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:200px"
+                     data-table="pj_measurement_offsets" data-pk="{{ o.rule_key }}" data-field="notes"
+                     value="{{ o.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 5. PJ SKU Overrides (Cheat Sheet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ SKU Overrides â€” Cheat Sheet</div>
+        <div class="card-subtitle">
+          One row per model. Fields marked <span class="badge badge-warning" style="font-size:10px">FILL IN</span> need planner input.
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" class="form-control" id="sku-search" placeholder="Filter SKUsâ€¦" style="width:180px" />
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="pj-sku-table">
+        <thead>
+          <tr>
+            <th>Item #</th>
+            <th>Model</th>
+            <th>Category</th>
+            <th>Bed Stated</th>
+            <th>Bed Measured</th>
+            <th>Tongue Grp</th>
+            <th>Tongue (ft)</th>
+            <th>Footprint</th>
+            <th>Dump Side Ht <span class="badge badge-warning" style="font-size:9px">FILL IN</span></th>
+            <th>Can Nest</th>
+            <th>GN Axle Drop</th>
+            <th>Tongue Overlap</th>
+            <th>Pairing Rule <span class="badge badge-warning" style="font-size:9px">FILL IN</span></th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in pj_skus %}
+          <tr class="pj-sku-row" data-search="{{ s.item_number }} {{ s.model }} {{ s.pj_category }}">
+            <td class="td-mono">{{ s.item_number }}</td>
+            <td class="td-mono">{{ s.model }}</td>
+            <td>
+              <select class="editable-select"
+                      data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="pj_category">
+                {% for val, lbl in pj_categories %}
+                  <option value="{{ val }}" {% if s.pj_category == val %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="td-mono">{{ s.bed_length_stated }}'</td>
+            <td class="td-mono" id="measured-{{ s.item_number }}">{{ s.bed_length_measured }}'</td>
+            <td class="td-label">{{ s.tongue_group }}</td>
+            <td class="td-mono">{{ s.tongue_feet }}'</td>
+            <td class="td-mono" id="footprint-{{ s.item_number }}">
+              <strong>{{ s.total_footprint }}'</strong>
+            </td>
+            <td>
+              <input type="number" step="1" min="0" max="4"
+                     class="editable-cell" style="min-width:60px"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="dump_side_height_ft"
+                     value="{{ s.dump_side_height_ft or '' }}" placeholder="â€”" />
+            </td>
+            <td style="text-align:center">
+              <input type="checkbox" class="editable-check"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="can_nest_inside_dump"
+                     {% if s.can_nest_inside_dump %}checked{% endif %} />
+            </td>
+            <td style="text-align:center">
+              <input type="checkbox" class="editable-check"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="gn_axle_droppable"
+                     {% if s.gn_axle_droppable %}checked{% endif %} />
+            </td>
+            <td style="text-align:center">
+              <input type="checkbox" class="editable-check"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="tongue_overlap_allowed"
+                     {% if s.tongue_overlap_allowed %}checked{% endif %} />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:120px"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="pairing_rule"
+                     value="{{ s.pairing_rule or '' }}" placeholder="â€”" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:120px"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="notes"
+                     value="{{ s.notes or '' }}" placeholder="â€”" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 6. Big Tex SKU Cheat Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="bt">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Big Tex SKU Cheat Sheet</div>
+        <div class="card-subtitle">BT Data tab source (bed length + tongue) â€” total footprint is computed as bed + tongue</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+        <input type="text" id="bt-sku-search" class="form-control" placeholder="Filter BT SKUsâ€¦" style="width:180px" />
+        <input type="text" id="bt-import-path" class="form-control" value="{{ bt_workbook_path }}" placeholder="Workbook path (optional)" style="width:360px" />
+        <button type="button" class="btn btn-secondary btn-sm" id="bt-import-btn">Import Data Tab</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="bt-sku-table">
+        <thead>
+          <tr>
+            <th>Item #</th>
+            <th>Model</th>
+            <th>MCAT</th>
+            <th>Tier</th>
+            <th>GVWR</th>
+            <th>Floor</th>
+            <th>Bed Length (ft)</th>
+            <th>Tongue (ft)</th>
+            <th>Footprint (ft)</th>
+            <th>Stack Height (ft)</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% if bt_skus %}
+          {% for s in bt_skus %}
+          <tr class="bt-sku-row"
+              data-bt-item="{{ s.item_number }}"
+              data-search="{{ s.item_number }} {{ s.model }} {{ s.mcat }} {{ s.floor_type }}">
+            <td class="td-mono">{{ s.item_number }}</td>
+            <td class="td-mono">{{ s.model or 'â€”' }}</td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:120px"
+                     data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="mcat"
+                     value="{{ s.mcat or '' }}" />
+            </td>
+            <td>
+              <input type="number" step="1" min="1" max="9" class="editable-cell" style="min-width:60px"
+                     data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="tier"
+                     value="{{ s.tier or '' }}" />
+            </td>
+            <td>
+              <input type="number" step="1" class="editable-cell" style="min-width:80px"
+                     data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="gvwr"
+                     value="{{ s.gvwr or '' }}" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:100px"
+                     data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="floor_type"
+                     value="{{ s.floor_type or '' }}" />
+            </td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:90px"
+                     data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="bed_length"
+                     value="{{ s.bed_length or '' }}" />
+            </td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:90px"
+                     data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="tongue"
+                     value="{{ s.tongue or '' }}" />
+            </td>
+            <td class="td-mono bt-footprint-cell"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                     data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="stack_height"
+                     value="{{ s.stack_height or '' }}" />
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="10" style="text-align:center;color:var(--text-secondary);padding:14px;">
+              No Big Tex SKUs loaded yet. Click <strong>Import Data Tab</strong>.
+            </td>
+          </tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 7. Big Tex Stack Constraint Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="bt">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Big Tex Stack Constraint Config</div>
+        <div class="card-subtitle">Length and height caps per stack position â€” used by constraint engine</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Config ID</th>
+            <th>Label</th>
+            <th>Load Type</th>
+            <th>Stack Position</th>
+            <th>Max Length (ft)</th>
+            <th>Max Height (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for cfg in bt_stack_configs %}
+          <tr>
+            <td class="td-mono">{{ cfg.config_id }}</td>
+            <td>{{ cfg.label }}</td>
+            <td class="td-label">{{ cfg.load_type }}</td>
+            <td class="td-label">{{ cfg.stack_position }}</td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:80px"
+                     data-table="bt_stack_configs" data-pk="{{ cfg.config_id }}" data-field="max_length_ft"
+                     value="{{ cfg.max_length_ft or '' }}" placeholder="â€”" />
+            </td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="bt_stack_configs" data-pk="{{ cfg.config_id }}" data-field="max_height_ft"
+                     value="{{ cfg.max_height_ft or '' }}" placeholder="â€”" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:160px"
+                     data-table="bt_stack_configs" data-pk="{{ cfg.config_id }}" data-field="notes"
+                     value="{{ cfg.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /.settings-sections -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS = document.getElementById('global-save-status');
+const STALE_ALERT = document.getElementById('stale-alert');
+const SETTINGS_TAB_BTNS = Array.from(document.querySelectorAll('[data-settings-tab-btn]'));
+const SETTINGS_SECTIONS = Array.from(document.querySelectorAll('.pg-settings-section'));
+const SETTINGS_INTROS = Array.from(document.querySelectorAll('.pg-settings-intro'));
+const CARRIER_ROWS = Array.from(document.querySelectorAll('[data-carrier-brand]'));
+const BT_SEARCH = document.getElementById('bt-sku-search');
+const BT_IMPORT_PATH = document.getElementById('bt-import-path');
+const BT_IMPORT_BTN = document.getElementById('bt-import-btn');
+
+function setSettingsTab(tab) {
+  const activeTab = tab === 'bt' ? 'bt' : 'pj';
+  SETTINGS_TAB_BTNS.forEach((btn) => {
+    const isActive = btn.dataset.settingsTabBtn === activeTab;
+    btn.classList.toggle('active', isActive);
+  });
+  SETTINGS_SECTIONS.forEach((section) => {
+    const scope = section.dataset.settingsTab || 'both';
+    const visible = scope === 'both' || scope === activeTab;
+    section.classList.toggle('hidden', !visible);
+  });
+  SETTINGS_INTROS.forEach((intro) => {
+    intro.classList.toggle('hidden', intro.dataset.settingsTab !== activeTab);
+  });
+
+  const carrierBrand = activeTab === 'bt' ? 'bigtex' : 'pj';
+  CARRIER_ROWS.forEach((row) => {
+    const rowBrand = (row.dataset.carrierBrand || '').toLowerCase();
+    row.style.display = !rowBrand || rowBrand === carrierBrand ? '' : 'none';
+  });
+
+  try {
+    localStorage.setItem('prograde_settings_tab', activeTab);
+  } catch (e) {}
+}
+
+function setStatus(msg, cls) {
+  STATUS.className = 'save-status ' + cls;
+  STATUS.textContent = msg;
+}
+
+async function saveField(table, pk, field, value, triggerRecompute) {
+  setStatus('Savingâ€¦', 'saving');
+  try {
+    const resp = await fetch("{{ url_for('prograde.api_settings_save') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table, pk, field, value, recompute: triggerRecompute || null }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      setStatus('Saved âœ“', 'saved');
+      if (data.sessions_flagged) {
+        STALE_ALERT.classList.add('visible');
+      }
+      if (data.recomputed) {
+        // Update measured/footprint cells for PJ SKUs
+        data.recomputed.forEach(r => {
+          const mCell = document.getElementById('measured-' + r.item_number);
+          const fCell = document.getElementById('footprint-' + r.item_number);
+          if (mCell) mCell.textContent = r.bed_length_measured + "'";
+          if (fCell) fCell.innerHTML = '<strong>' + r.total_footprint + "'</strong>";
+        });
+      }
+      if (data.recomputed_bigtex) {
+        data.recomputed_bigtex.forEach((r) => {
+          document.querySelectorAll('.bt-sku-row').forEach((row) => {
+            if ((row.dataset.btItem || '') !== String(r.item_number || '')) return;
+            const cell = row.querySelector('.bt-footprint-cell');
+            if (cell) {
+              cell.innerHTML = '<strong>' + String(r.total_footprint ?? 0) + "'</strong>";
+            }
+          });
+        });
+      }
+      setTimeout(() => setStatus('', ''), 2500);
+    } else {
+      setStatus('Error', 'error');
+      showToast('Save failed: ' + (data.error || 'unknown'), 'error');
+    }
+  } catch(e) {
+    setStatus('Error', 'error');
+    showToast('Save failed: ' + e.message, 'error');
+  }
+}
+
+// Wire all editable inputs
+document.querySelectorAll('.editable-cell').forEach(input => {
+  let orig = input.value;
+  input.addEventListener('change', function() {
+    if (this.value === orig) return;
+    orig = this.value;
+    const recompute = this.dataset.recompute || null;
+    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.value, recompute);
+  });
+});
+
+// Wire all editable checkboxes
+document.querySelectorAll('.editable-check').forEach(cb => {
+  cb.addEventListener('change', function() {
+    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.checked ? 1 : 0, null);
+  });
+});
+
+// Wire all editable selects
+document.querySelectorAll('.editable-select').forEach(sel => {
+  sel.addEventListener('change', function() {
+    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.value, null);
+  });
+});
+
+// PJ SKU filter
+const skuSearch = document.getElementById('sku-search');
+if (skuSearch) {
+  skuSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.pj-sku-row').forEach(row => {
+      row.style.display = row.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+
+if (BT_SEARCH) {
+  BT_SEARCH.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.bt-sku-row').forEach((row) => {
+      row.style.display = row.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+
+if (BT_IMPORT_BTN) {
+  BT_IMPORT_BTN.addEventListener('click', async function() {
+    const workbookPath = BT_IMPORT_PATH ? BT_IMPORT_PATH.value.trim() : '';
+    setStatus('Importingâ€¦', 'saving');
+    try {
+      const resp = await fetch("{{ url_for('prograde.api_bigtex_import') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workbook_path: workbookPath || null, sheet_name: 'Data' }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'Import failed');
+      }
+      if (data.sessions_flagged) {
+        STALE_ALERT.classList.add('visible');
+      }
+      const result = data.import_result || {};
+      setStatus('Import complete ✓', 'saved');
+      showToast(`Imported ${result.row_count || 0} BT rows from ${result.sheet_name || 'Data'}`, 'success');
+      setTimeout(() => location.reload(), 400);
+    } catch (e) {
+      setStatus('Error', 'error');
+      showToast('BT import failed: ' + e.message, 'error');
+    }
+  });
+}
+
+SETTINGS_TAB_BTNS.forEach((btn) => {
+  btn.addEventListener('click', () => setSettingsTab(btn.dataset.settingsTabBtn));
+});
+let initialSettingsTab = 'pj';
+try {
+  const savedTab = localStorage.getItem('prograde_settings_tab');
+  if (savedTab === 'pj' || savedTab === 'bt') {
+    initialSettingsTab = savedTab;
+  }
+} catch (e) {}
+setSettingsTab(initialSettingsTab);
+</script>
+{% endblock %}
+
+
+
+

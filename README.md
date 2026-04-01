@@ -3,7 +3,9 @@ Try 2 at building a web optimization app.
 
 ## Repo layout
 
-- `app.py`: Flask entrypoint
+- `app.py`: compatibility entrypoint/shim (exports Flask app)
+- `blueprints/cot/routes.py`: COT blueprint routes and controller logic
+- `blueprints/prograde/routes.py`: ProGrade blueprint scaffold (currently empty)
 - `db.py`: SQLite helpers (DB lives at `data/db/app.db`)
 - `services/`: business logic + optimization utilities
 - `templates/`: Jinja templates

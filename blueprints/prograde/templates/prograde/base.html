@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}ProGrade Load Builder{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('prograde.static', filename='styles.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── Sidebar ───────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-name">ProGrade</div>
+      <div class="brand-sub">Load Builder</div>
+    </div>
+
+    <div class="nav-section-label">Sessions</div>
+    <a class="nav-item {% if request.endpoint == 'prograde.index' %}active{% endif %}"
+       href="{{ url_for('prograde.index') }}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="2" y="2" width="12" height="12" rx="2"/>
+        <line x1="5" y1="6" x2="11" y2="6"/>
+        <line x1="5" y1="9" x2="9" y2="9"/>
+      </svg>
+      All Sessions
+    </a>
+    <a class="nav-item {% if request.endpoint == 'prograde.session_new' %}active{% endif %}"
+       href="{{ url_for('prograde.session_new') }}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="8" cy="8" r="6"/>
+        <line x1="8" y1="5" x2="8" y2="11"/>
+        <line x1="5" y1="8" x2="11" y2="8"/>
+      </svg>
+      New Session
+    </a>
+
+    <div class="nav-section-label" style="margin-top:8px;">Reference</div>
+    <a class="nav-item {% if request.endpoint == 'prograde.settings' %}active{% endif %}"
+       href="{{ url_for('prograde.settings') }}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="8" cy="8" r="2.5"/>
+        <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
+      </svg>
+      Settings
+    </a>
+
+    <div class="sidebar-footer">v0.3 — Prototype</div>
+  </nav>
+
+  <!-- ── Main ─────────────────────────────────────────────── -->
+  <div class="main-content">
+    {% block content %}{% endblock %}
+  </div>
+
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+function showToast(msg, type='success', duration=2800) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), duration);
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
+

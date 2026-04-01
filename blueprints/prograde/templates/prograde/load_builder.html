@@ -1,0 +1,1529 @@
+﻿{% extends "prograde/base.html" %}
+{% block title %}Load Builder â€” {{ session.session_label or session.session_id[:8] }}{% endblock %}
+
+{% block head %}
+<style>
+/* â”€â”€ Canvas layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.canvas-top-bar {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  padding: 10px var(--space-xl);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.deck-total {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.deck-total-val {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.deck-total-cap {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.deck-util-bar {
+  flex: 1;
+  min-width: 120px;
+  max-width: 240px;
+}
+
+/* â”€â”€ Zone layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.zones-container {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+}
+.zone-panel {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.zone-header-bar {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.zone-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-secondary);
+}
+.zone-length-chip {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.zone-columns-scroll {
+  overflow-x: auto;
+  padding: var(--space-sm);
+}
+.zone-columns {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;   /* units grow upward from the deck */
+  min-height: 80px;
+}
+
+/* â”€â”€ Unit column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.unit-col {
+  display: flex;
+  flex-direction: column-reverse;  /* layer 1 at bottom, top layers stack up */
+  gap: 4px;
+  min-width: 0;
+  position: relative;
+}
+.unit-col-meta {
+  margin-top: 4px;
+  text-align: center;
+}
+
+/* Height progress bar per column */
+.col-height-bar {
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.col-height-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width .3s, background .3s;
+}
+.col-height-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+
+/* Stack drag handle + drop slot */
+.stack-drag-handle {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  cursor: grab;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.stack-drag-handle:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--status-info-bg);
+}
+.stack-drag-handle:active {
+  cursor: grabbing;
+}
+.stack-dragging {
+  opacity: .56;
+}
+.column-drop-slot {
+  flex: 0 0 28px;
+  min-width: 28px;
+  height: 112px;
+  border: 1px dashed rgba(147, 197, 253, 0.75);
+  border-radius: var(--radius-md);
+  color: rgba(147, 197, 253, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: copy;
+  transition: border-color .15s, color .15s, background .15s, box-shadow .15s;
+}
+.column-drop-slot:hover {
+  border-color: var(--accent-primary);
+  color: #dbeafe;
+  background: var(--status-info-bg);
+}
+.column-drop-slot.drop-target-active {
+  border-color: #f8fafc;
+  color: #f8fafc;
+  background: rgba(34, 197, 94, 0.26);
+  box-shadow: 0 0 0 1px rgba(240, 253, 250, 0.55);
+}
+
+/* "New column" button */
+.zone-new-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 20px;
+  align-self: stretch;
+  transition: all .15s;
+}
+.zone-new-col:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--status-info-bg);
+}
+
+/* â”€â”€ Unit card (revised) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.unit-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  position: relative;
+}
+.unit-card:hover { border-color: var(--border-subtle); }
+.unit-card.nested {
+  border-style: dashed;
+  border-color: var(--border-subtle);
+  margin-left: 10px;
+  background: var(--bg-tertiary);
+}
+.unit-card.has-error   { border-color: var(--status-error); }
+.unit-card.has-warning { border-color: var(--status-warning); }
+
+.unit-card-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.unit-card-fp {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+.unit-card-ht {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* GN axle-drop toggle */
+.axle-drop-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.axle-drop-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.axle-drop-cb { accent-color: var(--accent-primary); cursor: pointer; }
+.axle-drop-active { color: var(--status-info) !important; }
+
+/* Remove button */
+.unit-remove {
+  position: absolute;
+  top: 4px; right: 4px;
+  background: none; border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: var(--radius-sm);
+}
+.unit-remove:hover { background: var(--status-error-bg); color: var(--status-error); }
+
+/* Violation highlight overlay on card */
+.violation-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+/* â”€â”€ Zone footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.zone-footer-bar {
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  gap: var(--space-lg);
+  font-size: 11px;
+  align-items: center;
+}
+.zone-stat { display: flex; flex-direction: column; align-items: center; }
+.zone-stat-val {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.zone-stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
+
+/* â”€â”€ Violation panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.viol-group-hdr {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--text-tertiary);
+}
+.violation-item {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+.violation-item.error   { background: var(--status-error-bg);   border-left: 3px solid var(--status-error); }
+.violation-item.warning { background: var(--status-warning-bg); border-left: 3px solid var(--status-warning); }
+.violation-item.info    { background: var(--status-info-bg);    border-left: 3px solid var(--status-info); }
+.violation-item.acknowledged {
+  opacity: .55;
+  border-left-color: var(--border-subtle);
+  background: var(--bg-secondary);
+}
+.violation-ack-btn {
+  margin-top: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-warning);
+  background: none;
+  color: var(--status-warning);
+  cursor: pointer;
+}
+.violation-ack-btn:hover { background: var(--status-warning); color: #000; }
+.violation-unack-btn {
+  margin-top: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.violation-unack-btn:hover { background: var(--bg-tertiary); }
+
+/* â”€â”€ Picker panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.picker-search {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-default);
+}
+.sku-list { max-height: 320px; overflow-y: auto; }
+.sku-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  gap: var(--space-sm);
+}
+.sku-list-item:hover { background: var(--bg-secondary); }
+.sku-list-item:last-child { border-bottom: none; }
+.sku-list-item[draggable="true"] { cursor: grab; }
+.sku-list-item.dragging {
+  opacity: 0.55;
+  border-left: 3px solid var(--accent-primary);
+}
+.sku-item-id { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.sku-item-fp { font-size: 11px; color: var(--text-secondary); }
+.drop-target-active {
+  outline: 2px dashed var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* â”€â”€ Zone picker modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.modal-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  min-width: 300px;
+}
+.modal-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.modal-options { display: flex; flex-direction: column; gap: 8px; }
+
+/* COT-style schematic framing */
+.prograde-schematic {
+  background:
+    radial-gradient(rgba(148, 163, 184, 0.22) 1px, transparent 1px),
+    radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.12), transparent 55%),
+    rgba(2, 6, 23, 0.86);
+  background-size: 22px 22px, auto, auto;
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  border-radius: 12px;
+  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.6);
+  padding: 10px;
+}
+.prograde-schematic .trailer-body {
+  padding-left: 34px;
+  padding-right: 0;
+}
+.prograde-schematic .trailer-deck-row {
+  display: flex;
+  gap: 0;
+  border: 3px solid rgba(35, 54, 72, 0.95);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(2, 6, 23, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08), 0 20px 55px rgba(2, 6, 23, 0.55);
+}
+.prograde-schematic .trailer-deck {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 190px;
+}
+.prograde-schematic .trailer-deck.upper {
+  border-right: 1px solid rgba(35, 54, 72, 0.95);
+}
+.prograde-schematic .deck-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.prograde-schematic .deck-label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: rgba(147, 197, 253, 0.9);
+  background: rgba(19, 127, 236, 0.12);
+  border: 1px solid rgba(19, 127, 236, 0.45);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.prograde-schematic .trailer-deck.lower .deck-label {
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(51, 65, 85, 0.85);
+}
+.prograde-schematic .deck-measure {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  background: rgba(15, 23, 42, 0.5);
+}
+.prograde-schematic .deck-stage {
+  flex: 1;
+  min-height: 0;
+}
+.prograde-schematic .zone-columns-scroll {
+  overflow-x: auto;
+  padding: 0;
+}
+.prograde-schematic .deck-positions {
+  gap: 4px;
+  align-items: flex-end;
+  min-height: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.prograde-schematic .position-column {
+  min-width: 0;
+}
+.prograde-schematic .position-column[data-stack-col] {
+  flex: var(--deck-span, 1) 1 0;
+}
+.prograde-schematic .position-stack {
+  height: 110px;
+  gap: 4px;
+  justify-content: flex-start;
+  flex-direction: column-reverse;
+  padding: 3px 2px 2px;
+  width: 100%;
+  position: relative;
+  overflow: visible;
+}
+.prograde-schematic .pg-unit-block {
+  position: relative;
+  margin: 0 auto;
+  border-radius: 6px;
+  border: 1.5px solid color-mix(in srgb, var(--accent, #137fec) 82%, white 18%);
+  background: color-mix(in srgb, var(--accent, #137fec) 12%, transparent);
+  box-shadow:
+    inset 0 0 18px color-mix(in srgb, var(--accent, #137fec) 28%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 0 1px rgba(2, 6, 23, 0.35),
+    0 8px 18px rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(8px);
+}
+.prograde-schematic .pg-unit-block::after {
+  content: "";
+  position: absolute;
+  inset: -30% -25%;
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.28), transparent 60%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.prograde-schematic .pg-unit-block .unit-card-id,
+.prograde-schematic .pg-unit-block .unit-card-fp,
+.prograde-schematic .pg-unit-block .unit-card-ht,
+.prograde-schematic .pg-unit-block .axle-drop-row {
+  position: relative;
+  z-index: 1;
+}
+.prograde-schematic .unit-card {
+  cursor: grab;
+}
+.prograde-schematic .unit-card.nested {
+  margin-left: 8px;
+}
+.prograde-schematic .unit-card.dragging {
+  opacity: .5;
+}
+.prograde-schematic .deck-footer {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.78);
+}
+.prograde-schematic .deck-line {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.prograde-schematic .deck-line::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.35);
+}
+.prograde-schematic .deck-length {
+  position: relative;
+  z-index: 1;
+  padding: 0 8px;
+  background: rgba(2, 6, 23, 0.6);
+}
+.prograde-schematic .trailer-truck {
+  left: 0;
+  right: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  background: rgba(2, 6, 23, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* Category legend */
+.pg-legend {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 12px;
+}
+.pg-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.pg-legend-swatch {
+  width: 16px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--accent, #137fec) 82%, white 18%);
+  background: color-mix(in srgb, var(--accent, #137fec) 20%, transparent);
+  box-shadow: inset 0 0 10px color-mix(in srgb, var(--accent, #137fec) 30%, transparent);
+}
+
+.pg-hover-tooltip {
+  position: fixed;
+  z-index: 4000;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.85);
+  background: rgba(2, 6, 23, 0.97);
+  color: #e2e8f0;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.pg-hover-tooltip.hidden {
+  display: none;
+}
+.pg-hover-tooltip-row + .pg-hover-tooltip-row {
+  margin-top: 2px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set category_palette = {
+  'car_hauler': '#22c55e',
+  'deck_over': '#3b82f6',
+  'car_hauler_deckover': '#3b82f6',
+  'tilt_deckover': '#06b6d4',
+  'gooseneck': '#a78bfa',
+  'dump_lowside': '#f59e0b',
+  'dump_highside_3ft': '#fb923c',
+  'dump_highside_4ft': '#f97316',
+  'dump_small': '#facc15',
+  'dump_gn': '#ef4444',
+  'dump_variants': '#ef4444',
+  'utility': '#10b981',
+  'equipment': '#38bdf8',
+  'other': '#64748b',
+  'unknown': '#64748b'
+} if session.brand == 'pj' else {
+  'utility': '#10b981',
+  'dump': '#f59e0b',
+  'equipment': '#38bdf8',
+  'gooseneck': '#a78bfa',
+  'cargo': '#22d3ee',
+  'specialty': '#f43f5e',
+  'other': '#64748b',
+  'unknown': '#64748b'
+} %}
+{% set category_legend = [
+  ('car_hauler', 'Car Hauler'),
+  ('deck_over', 'Deck Over / Tilt'),
+  ('gooseneck', 'Gooseneck'),
+  ('dump_lowside', 'Dump'),
+  ('utility', 'Utility'),
+  ('equipment', 'Equipment'),
+  ('other', 'Other')
+] if session.brand == 'pj' else [
+  ('utility', 'Utility'),
+  ('dump', 'Dump'),
+  ('equipment', 'Equipment'),
+  ('gooseneck', 'Gooseneck'),
+  ('cargo', 'Cargo'),
+  ('specialty', 'Specialty'),
+  ('other', 'Other')
+] %}
+
+{% if session.status == 'stale' %}
+<div class="stale-banner">
+  âš  Settings changed since last validation â€” constraint check below uses current assumptions.
+</div>
+{% endif %}
+
+<!-- â”€â”€ Top Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<div class="canvas-top-bar">
+  <div>
+    <div style="font-size:16px;font-weight:600">
+      {{ session.session_label or session.session_id[:8] }}
+      <span class="badge {% if session.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}" style="margin-left:6px;vertical-align:middle;font-size:11px">
+        {{ session.brand | upper }}
+      </span>
+    </div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">
+      {{ session.carrier_type }} Â· {{ session.planner_name or 'â€”' }}
+    </div>
+  </div>
+
+  <div class="deck-total">
+    <span class="deck-total-val" id="total-fp-val"
+          style="color:{% if pct_used > 100 %}var(--status-error){% elif pct_used > 90 %}var(--status-warning){% else %}var(--text-primary){% endif %}">
+      {{ "%.1f"|format(total_footprint) }}'
+    </span>
+    <span class="deck-total-cap">/ {{ carrier.total_length_ft }}' used</span>
+  </div>
+
+  <div class="deck-util-bar">
+    <div class="util-bar-wrap">
+      <div class="util-bar {% if pct_used > 100 %}over{% elif pct_used > 90 %}warn{% endif %}"
+           id="total-fp-bar"
+           style="width:{{ [pct_used, 100]|min }}%"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">
+      {{ "%.0f"|format(pct_used) }}% utilized
+    </div>
+  </div>
+
+  <div id="violation-summary">
+    {% if violations_error > 0 %}
+      <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
+    {% endif %}
+    {% if violations_warning > 0 %}
+      <span class="badge badge-warning" style="margin-left:4px">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
+    {% endif %}
+    {% if violations_error == 0 and violations_warning == 0 %}
+      <span class="badge badge-success">âœ“ Clear</span>
+    {% endif %}
+  </div>
+
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <button type="button" class="btn btn-ghost btn-sm" onclick="resetSession()">Reset Load</button>
+    <a href="{{ url_for('prograde.export_load', session_id=session.session_id) }}"
+       class="btn btn-secondary btn-sm" target="_blank">Export / Print</a>
+    <a href="{{ url_for('prograde.index') }}" class="btn btn-ghost btn-sm">â† Sessions</a>
+  </div>
+</div>
+
+<!-- â”€â”€ Main Canvas + Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<div class="page-body" style="display:flex;gap:var(--space-md);align-items:flex-start;padding-top:var(--space-md)">
+
+  <!-- Canvas -->
+  <div style="flex:1;min-width:0">
+    <div class="trailer-schematic prograde-schematic {% if session.brand == 'pj' %}trailer-step_deck trailer-step-deck-profile{% endif %}">
+      <div class="trailer-body">
+        <div class="trailer-deck-row {% if session.brand == 'pj' %}step-deck step-deck-frame{% else %}flat-deck-frame{% endif %}">
+          {% for zone in zones %}
+          {% set z_len = zone_lengths.get(zone, 0) %}
+          {% set z_cap = z_caps.get(zone) %}
+          {% set z_clr = clearances.get(zone) %}
+          {% set z_pct = (z_len / z_cap * 100) if z_cap else 0 %}
+          {% set cols  = zone_cols.get(zone, {}) %}
+          {% set deck_span = z_cap if z_cap else 1 %}
+
+          <div class="zone-panel trailer-deck {% if zone == 'upper_deck' %}upper{% else %}lower{% endif %}" style="flex: {{ deck_span }} 1 0%;" data-drop-zone="{{ zone }}">
+            <div class="zone-header-bar deck-header">
+              <span class="zone-title deck-label">{{ zone_labels[zone] }}</span>
+              <span class="zone-length-chip deck-measure"
+                    style="color:{% if z_cap and z_len > z_cap %}var(--status-error){% elif z_cap and z_len > z_cap * 0.9 %}var(--status-warning){% else %}var(--text-secondary){% endif %}">
+                {{ "%.1f"|format(z_len) }}' {% if z_cap %}/ {{ z_cap }}'{% endif %}
+              </span>
+            </div>
+
+            <div class="deck-stage {% if zone == 'upper_deck' %}deck-stage-upper{% endif %}">
+              <div class="zone-columns-scroll">
+                <div class="zone-columns deck-positions" id="zone-{{ zone }}">
+                  {% if cols %}
+                    <div class="column-drop-slot"
+                         data-column-slot="1"
+                         data-zone="{{ zone }}"
+                         data-insert-index="0"
+                         onclick="openPicker('{{ zone }}', 0, null)"
+                         title="Add a new stack at the start of {{ zone_labels[zone] }}">
+                      +
+                    </div>
+                    {% for seq in cols | sort %}
+                    {% set col = cols[seq] %}
+                    {% set col_h = col_heights.get(zone, {}).get(seq, 0) %}
+                    {% set col_h_cap = z_clr or 0 %}
+                    {% set col_h_pct = (col_h / col_h_cap * 100) if col_h_cap else 0 %}
+                    {% set base = (col | selectattr('layer', 'equalto', 1) | list | first) or col[0] %}
+                    {% set col_span = base.footprint if base and base.footprint else 1 %}
+
+                    <div class="unit-col position-column"
+                         data-stack-col="1"
+                         data-zone="{{ zone }}"
+                         data-seq="{{ seq }}"
+                         style="--deck-span: {{ (col_span | float) | round(3) }};">
+                      <button type="button"
+                              class="stack-drag-handle"
+                              data-stack-handle="1"
+                              data-zone="{{ zone }}"
+                              data-seq="{{ seq }}"
+                              draggable="true"
+                              title="Drag stack to move">
+                        Drag
+                      </button>
+                      <div class="position-stack"
+                           data-stack-drop="1"
+                           data-zone="{{ zone }}"
+                           data-target="{{ col[-1].position_id }}"
+                           data-target-seq="{{ seq }}">
+                        {% for pos in col %}
+                        {% set category_key = ((pos.pj_category or pos.mcat or 'unknown') | lower | replace(' ', '_') | replace('-', '_')) %}
+                        {% set accent = category_palette.get(category_key, category_palette.get('other', '#137fec')) %}
+                        <div class="unit-card pg-unit-block glass-block {% if pos.is_nested %}nested{% endif %}"
+                             id="pos-{{ pos.position_id }}"
+                             data-pos-id="{{ pos.position_id }}"
+                             data-zone="{{ zone }}"
+                             data-seq="{{ seq }}"
+                             data-layer="{{ pos.layer }}"
+                             draggable="true"
+                             data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | Bed: {{ '%.1f'|format(pos.bed_length) }} ft | Tongue: {{ '%.1f'|format(pos.tongue_length) }} ft | Footprint: {{ '%.1f'|format(pos.footprint) }} ft | Height: {{ '%.1f'|format(pos.height) }} ft"
+                             style="--accent: {{ accent }}; --accent-bg: {{ accent }}22;">
+
+                          <button class="unit-remove" onclick="removeUnit('{{ pos.position_id }}')" title="Remove">x</button>
+
+                          <div class="unit-card-id">
+                            {% if pos.is_nested %}<span style="font-size:9px;color:var(--text-tertiary)">nested </span>{% endif %}
+                            {{ pos.item_number }}
+                          </div>
+                          <div class="unit-card-fp">{{ '%.1f'|format(pos.bed_length) }}' + {{ '%.1f'|format(pos.tongue_length) }}' = {{ '%.1f'|format(pos.footprint) }}' fp</div>
+                          <div class="unit-card-ht">ht: {{ pos.height }}'
+                            {% if pos.layer > 1 %}<span style="color:var(--text-tertiary)"> (layer {{ pos.layer }})</span>{% endif %}
+                          </div>
+
+                          {% if pos.gn_axle_droppable %}
+                          <div class="axle-drop-row">
+                            <input type="checkbox"
+                                   class="axle-drop-cb"
+                                   id="axle-{{ pos.position_id }}"
+                                   {% if pos.gn_axle_dropped %}checked{% endif %}
+                                   onchange="toggleAxleDrop('{{ pos.position_id }}', this)" />
+                            <label for="axle-{{ pos.position_id }}"
+                                   class="axle-drop-label {% if pos.gn_axle_dropped %}axle-drop-active{% endif %}">
+                              axle drop
+                            </label>
+                          </div>
+                          {% endif %}
+                        </div>
+                        {% endfor %}
+                      </div>
+
+                      {% if col_h_cap %}
+                      <div>
+                        <div class="col-height-bar">
+                          <div class="col-height-fill"
+                               style="width:{{ [col_h_pct, 100]|min }}%;background:{% if col_h_pct > 100 %}var(--status-error){% elif col_h_pct > 90 %}var(--status-warning){% else %}var(--status-success){% endif %}">
+                          </div>
+                        </div>
+                        <div class="col-height-label"
+                             style="{% if col_h_pct > 100 %}color:var(--status-error){% endif %}">
+                          {{ "%.2f"|format(col_h) }}' / {{ col_h_cap }}'
+                        </div>
+                      </div>
+                      {% endif %}
+                    </div>
+                    <div class="column-drop-slot"
+                         data-column-slot="1"
+                         data-zone="{{ zone }}"
+                         data-insert-index="{{ loop.index }}"
+                         onclick="openPicker('{{ zone }}', {{ loop.index }}, null)"
+                         title="Add a new stack in {{ zone_labels[zone] }}">
+                      +
+                    </div>
+                    {% endfor %}
+                  {% else %}
+                  <div class="column-drop-slot"
+                       data-column-slot="1"
+                       data-zone="{{ zone }}"
+                       data-insert-index="0"
+                       onclick="openPicker('{{ zone }}', 0, null)"
+                       title="Add first stack to {{ zone_labels[zone] }}">
+                    +
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="zone-footer-bar deck-footer">
+              <div class="deck-line">
+                <span class="deck-length">{{ "%.1f"|format(z_len) }}' {% if z_cap %}/ {{ z_cap }}'{% endif %}</span>
+              </div>
+              <span class="zone-stat-lbl">{{ cols | length }} cols</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="trailer-truck" aria-hidden="true">TRK</div>
+      </div>
+    </div>
+  </div><!-- /canvas -->
+
+  <!-- â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div style="width:272px;flex-shrink:0;display:flex;flex-direction:column;gap:var(--space-md)">
+
+    <!-- SKU Picker -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div class="card-title">Add Unit</div>
+      </div>
+      <div class="picker-search">
+        <input type="text" id="sku-filter" class="form-control"
+               placeholder="Filter by model or item #â€¦" style="font-size:12px" />
+      </div>
+      <div class="sku-list" id="sku-list">
+        {% for sku in skus %}
+        <div class="sku-list-item sku-pick-item"
+             data-item="{{ sku.item_number }}"
+             data-search="{{ sku.item_number }} {{ sku.model }} {{ sku.get('pj_category','') }} {{ sku.get('mcat','') }}"
+             draggable="true"
+             onclick="openPicker(null, null, null, '{{ sku.item_number }}')">
+          <div>
+            <div class="sku-item-id">{{ sku.item_number }}</div>
+            <div class="sku-item-fp">
+              {{ sku.total_footprint }}'fp
+              {% if sku.get('tier') %}
+                <span class="tier-badge tier-{{ sku.tier }}">T{{ sku.tier }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:16px;padding:2px 6px">+</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div class="card-title">SKU Visual Key</div>
+      </div>
+      <div class="pg-legend">
+        {% for cat_key, cat_label in category_legend %}
+        <div class="pg-legend-item">
+          <span class="pg-legend-swatch" style="--accent: {{ category_palette.get(cat_key, '#137fec') }}"></span>
+          <span>{{ cat_label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Violation Panel -->
+    <div class="card" style="padding:0;overflow:hidden" id="violation-panel">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div class="card-title">Constraint Check</div>
+        <span id="viol-count-badge">
+          {% if violations_error > 0 %}
+            <span class="badge badge-error">{{ violations_error }}E</span>
+          {% endif %}
+          {% if violations_warning > 0 %}
+            <span class="badge badge-warning" style="margin-left:3px">{{ violations_warning }}W</span>
+          {% endif %}
+          {% if violations_info > 0 %}
+            <span class="badge badge-info" style="margin-left:3px">{{ violations_info }}I</span>
+          {% endif %}
+        </span>
+      </div>
+
+      <div style="max-height:380px;overflow-y:auto;padding:var(--space-sm)">
+        {% if violations %}
+
+          {% set errors   = violations | selectattr('severity','equalto','error')   | list %}
+          {% set warnings = violations | selectattr('severity','equalto','warning') | list %}
+          {% set infos    = violations | selectattr('severity','equalto','info')    | list %}
+
+          {% if errors %}
+          <div class="viol-group-hdr">Errors</div>
+          {% for v in errors %}
+          <div class="violation-item error">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+              {% if v.suggested_fix %}
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">â†’ {{ v.suggested_fix }}</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          {% if warnings %}
+          <div class="viol-group-hdr" style="margin-top:4px">Warnings</div>
+          {% for v in warnings %}
+          <div class="violation-item warning {% if v.acknowledged %}acknowledged{% endif %}"
+               id="viol-{{ v.rule_code | replace('_','-') }}">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+              {% if v.suggested_fix %}
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">â†’ {{ v.suggested_fix }}</div>
+              {% endif %}
+              {% if not v.acknowledged %}
+              <button class="violation-ack-btn"
+                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'add', this)">
+                Acknowledge
+              </button>
+              {% else %}
+              <button class="violation-unack-btn"
+                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'remove', this)">
+                â†© Un-acknowledge
+              </button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          {% if infos %}
+          <div class="viol-group-hdr" style="margin-top:4px">Notes</div>
+          {% for v in infos %}
+          <div class="violation-item info">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+        {% else %}
+        <div style="padding:16px;text-align:center;font-size:12px;color:var(--status-success)">
+          âœ“ No constraint violations
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /page-body -->
+
+<!-- â”€â”€ Zone / Stack Picker Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<div class="modal-backdrop" id="zone-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Add to which zone?</div>
+    <div class="modal-options" id="modal-options"></div>
+    <div style="margin-top:14px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SESSION_ID = "{{ session.session_id }}";
+const ZONES = {{ zones | tojson }};
+const ZONE_LABELS = {{ zone_labels | tojson }};
+const SESSION_API_BASE = "{{ url_for('prograde.api_check', session_id='__SESSION_ID__') }}"
+  .replace("__SESSION_ID__", SESSION_ID)
+  .replace(/\/check$/, "");
+
+let pendingItem = null;
+let pendingZone = null;
+let pendingSeq = null;
+let pendingTarget = null;
+let draggedSkuItem = null;
+
+document.getElementById("sku-filter").addEventListener("input", function () {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll(".sku-pick-item").forEach((el) => {
+    el.style.display = el.dataset.search.toLowerCase().includes(q) ? "" : "none";
+  });
+});
+
+function openPicker(zone, seq, targetPosId, preselectedItem) {
+  pendingZone = zone;
+  pendingSeq = seq;
+  pendingTarget = targetPosId;
+  pendingItem = preselectedItem || null;
+
+  const modal = document.getElementById("zone-modal");
+  const opts = document.getElementById("modal-options");
+  const title = document.getElementById("modal-title");
+  opts.innerHTML = "";
+
+  if (pendingItem && pendingZone) {
+    const item = pendingItem;
+    const zoneSelected = pendingZone;
+    const target = pendingTarget;
+    const insertIndex = pendingSeq;
+    closeModal();
+    addUnit(item, zoneSelected, target, insertIndex);
+    return;
+  }
+
+  if (pendingItem) {
+    const item = pendingItem;
+    title.textContent = `Add ${pendingItem} to which zone?`;
+    ZONES.forEach((z) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-secondary";
+      btn.textContent = ZONE_LABELS[z] || z;
+      btn.onclick = () => {
+        closeModal();
+        addUnit(item, z, null, null);
+      };
+      opts.appendChild(btn);
+    });
+  } else if (pendingZone) {
+    const zoneSelected = pendingZone;
+    const target = pendingTarget;
+    title.textContent = `Choose unit to add to ${ZONE_LABELS[pendingZone] || pendingZone}`;
+    const list = document.createElement("div");
+    list.style = "max-height:260px;overflow-y:auto;margin-top:4px;border:1px solid var(--border-default);border-radius:var(--radius-md)";
+    document.querySelectorAll(".sku-pick-item").forEach((el) => {
+      if (el.style.display === "none") return;
+      const row = document.createElement("div");
+      row.style = "display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border-subtle);cursor:pointer;gap:8px";
+      row.innerHTML = `<div><div style="font-family:var(--font-mono);font-size:12px;font-weight:600">${el.dataset.item}</div></div>`;
+      row.onclick = () => {
+        const insertIndex = pendingSeq;
+        closeModal();
+        addUnit(el.dataset.item, zoneSelected, target, insertIndex);
+      };
+      row.onmouseover = () => {
+        row.style.background = "var(--bg-secondary)";
+      };
+      row.onmouseout = () => {
+        row.style.background = "";
+      };
+      list.appendChild(row);
+    });
+    opts.appendChild(list);
+  } else {
+    title.textContent = "Add to which zone?";
+    ZONES.forEach((z) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-secondary";
+      btn.textContent = ZONE_LABELS[z] || z;
+      btn.onclick = () => {
+        pendingZone = z;
+        openPicker(z, null, null, null);
+      };
+      opts.appendChild(btn);
+    });
+  }
+
+  modal.classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("zone-modal").classList.remove("open");
+  pendingItem = null;
+  pendingZone = null;
+  pendingSeq = null;
+  pendingTarget = null;
+}
+
+async function postSession(path, body) {
+  const resp = await fetch(SESSION_API_BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  let data = {};
+  try {
+    data = await resp.json();
+  } catch (e) {
+    data = {};
+  }
+  if (!resp.ok || !data.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
+}
+
+async function addUnit(itemNumber, zone, stackOnPosId, insertIndex) {
+  try {
+    const body = { item_number: itemNumber, deck_zone: zone };
+    if (stackOnPosId) body.stack_on = stackOnPosId;
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
+      body.insert_index = Number(insertIndex);
+    }
+    await postSession("/add", body);
+    location.reload();
+  } catch (e) {
+    showToast(`Failed to add unit: ${e.message}`, "error");
+  }
+}
+
+async function moveUnit(positionId, toZone, toSequence, insertIndex) {
+  try {
+    const body = { position_id: positionId, to_zone: toZone };
+    if (toSequence !== undefined && toSequence !== null && toSequence !== "") {
+      body.to_sequence = Number(toSequence);
+    }
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
+      body.insert_index = Number(insertIndex);
+    }
+    await postSession("/position/move", body);
+    location.reload();
+  } catch (e) {
+    showToast(`Failed to move unit: ${e.message}`, "error");
+  }
+}
+
+async function moveStack(fromZone, sequence, toZone, insertIndex) {
+  try {
+    const body = {
+      from_zone: fromZone,
+      sequence: Number(sequence),
+      to_zone: toZone,
+    };
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
+      body.insert_index = Number(insertIndex);
+    }
+    await postSession("/column/move", body);
+    location.reload();
+  } catch (e) {
+    showToast(`Failed to move stack: ${e.message}`, "error");
+  }
+}
+
+async function removeUnit(positionId) {
+  try {
+    await postSession("/remove", { position_id: positionId });
+    location.reload();
+  } catch (e) {
+    showToast(`Failed to remove unit: ${e.message}`, "error");
+  }
+}
+
+async function toggleAxleDrop(positionId, checkbox) {
+  try {
+    const data = await postSession("/toggle_axle_drop", { position_id: positionId });
+    const lbl = checkbox.nextElementSibling;
+    if (data.gn_axle_dropped) {
+      lbl.classList.add("axle-drop-active");
+      lbl.textContent = "axle drop on";
+    } else {
+      lbl.classList.remove("axle-drop-active");
+      lbl.textContent = "axle drop";
+    }
+    await refreshViolations();
+  } catch (e) {
+    checkbox.checked = !checkbox.checked;
+    showToast(`Toggle failed: ${e.message}`, "error");
+  }
+}
+
+async function acknowledgeViolation(ruleCode, action, btn) {
+  try {
+    await postSession("/acknowledge", { rule_code: ruleCode, action });
+    const item = document.getElementById("viol-" + ruleCode.replace(/_/g, "-"));
+    if (!item) {
+      location.reload();
+      return;
+    }
+    if (action === "add") {
+      item.classList.add("acknowledged");
+      btn.className = "violation-unack-btn";
+      btn.textContent = "Un-acknowledge";
+      btn.onclick = () => acknowledgeViolation(ruleCode, "remove", btn);
+    } else {
+      item.classList.remove("acknowledged");
+      btn.className = "violation-ack-btn";
+      btn.textContent = "Acknowledge";
+      btn.onclick = () => acknowledgeViolation(ruleCode, "add", btn);
+    }
+    await refreshViolations();
+  } catch (e) {
+    showToast(`Acknowledge failed: ${e.message}`, "error");
+  }
+}
+
+async function resetSession() {
+  if (!window.confirm("Clear all positions and acknowledgements in this session?")) {
+    return;
+  }
+  try {
+    await postSession("/reset", {});
+    location.reload();
+  } catch (e) {
+    showToast(`Reset failed: ${e.message}`, "error");
+  }
+}
+
+async function refreshViolations() {
+  const resp = await fetch(SESSION_API_BASE + "/check");
+  if (!resp.ok) return;
+  showToast("Constraint check updated", "success");
+}
+
+function initSkuDragAndDrop() {
+  const skuItems = document.querySelectorAll(".sku-pick-item");
+  const unitCards = document.querySelectorAll(".unit-card[data-pos-id]");
+  const stackHandles = document.querySelectorAll("[data-stack-handle]");
+  const deckTargets = document.querySelectorAll("[data-drop-zone]");
+  const stackTargets = document.querySelectorAll("[data-stack-drop]");
+  const columnSlots = document.querySelectorAll("[data-column-slot]");
+  let draggedUnitId = null;
+  let draggedStack = null;
+
+  const clearHighlights = () => {
+    document.querySelectorAll(".drop-target-active").forEach((el) => el.classList.remove("drop-target-active"));
+  };
+
+  const parseStackPayload = (raw) => {
+    if (!raw) return null;
+    const parts = String(raw).split("|");
+    if (parts.length !== 2) return null;
+    const seq = Number(parts[1]);
+    if (!Number.isInteger(seq)) return null;
+    return { zone: parts[0], sequence: seq };
+  };
+
+  const getPayload = (evt) => {
+    const transfer = evt.dataTransfer || null;
+    const stackRaw = transfer ? transfer.getData("application/x-prograde-stack") : "";
+    const unitRaw = transfer ? transfer.getData("application/x-prograde-unit") : "";
+    const skuRaw = transfer ? transfer.getData("application/x-prograde-sku") : "";
+    const plainRaw = transfer ? transfer.getData("text/plain") : "";
+
+    if (stackRaw) {
+      const parsed = parseStackPayload(stackRaw);
+      if (parsed) return { type: "stack", ...parsed };
+    }
+    if (draggedStack) {
+      return { type: "stack", ...draggedStack };
+    }
+
+    const unitId = unitRaw || draggedUnitId;
+    if (unitId) {
+      return { type: "unit", positionId: unitId };
+    }
+
+    const skuItem = skuRaw || draggedSkuItem || plainRaw;
+    if (skuItem) {
+      return { type: "sku", itemNumber: skuItem };
+    }
+    return null;
+  };
+
+  skuItems.forEach((item) => {
+    item.addEventListener("dragstart", (evt) => {
+      draggedSkuItem = item.dataset.item || null;
+      item.classList.add("dragging");
+      if (evt.dataTransfer) {
+        evt.dataTransfer.effectAllowed = "copy";
+        evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
+        evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
+      }
+    });
+    item.addEventListener("dragend", () => {
+      draggedSkuItem = null;
+      item.classList.remove("dragging");
+      clearHighlights();
+    });
+  });
+
+  unitCards.forEach((card) => {
+    card.addEventListener("dragstart", (evt) => {
+      draggedUnitId = card.dataset.posId || null;
+      card.classList.add("dragging");
+      if (evt.dataTransfer) {
+        evt.dataTransfer.effectAllowed = "move";
+        evt.dataTransfer.setData("application/x-prograde-unit", draggedUnitId || "");
+        evt.dataTransfer.setData("text/plain", draggedUnitId || "");
+      }
+    });
+    card.addEventListener("dragend", () => {
+      draggedUnitId = null;
+      card.classList.remove("dragging");
+      clearHighlights();
+    });
+  });
+
+  stackHandles.forEach((handle) => {
+    const stackCol = handle.closest("[data-stack-col]");
+    handle.addEventListener("dragstart", (evt) => {
+      const zone = handle.dataset.zone || "";
+      const sequence = Number(handle.dataset.seq || 0);
+      if (!zone || !Number.isInteger(sequence) || sequence <= 0) {
+        evt.preventDefault();
+        return;
+      }
+      draggedStack = { zone, sequence };
+      if (stackCol) stackCol.classList.add("stack-dragging");
+      if (evt.dataTransfer) {
+        evt.dataTransfer.effectAllowed = "move";
+        evt.dataTransfer.setData("application/x-prograde-stack", `${zone}|${sequence}`);
+      }
+    });
+    handle.addEventListener("dragend", () => {
+      draggedStack = null;
+      if (stackCol) stackCol.classList.remove("stack-dragging");
+      clearHighlights();
+    });
+  });
+
+  const bindDropTarget = (target, onDrop) => {
+    target.addEventListener("dragenter", (evt) => {
+      evt.preventDefault();
+      target.classList.add("drop-target-active");
+    });
+    target.addEventListener("dragover", (evt) => {
+      evt.preventDefault();
+      if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+    });
+    target.addEventListener("dragleave", (evt) => {
+      if (!target.contains(evt.relatedTarget)) {
+        target.classList.remove("drop-target-active");
+      }
+    });
+    target.addEventListener("drop", async (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      target.classList.remove("drop-target-active");
+      const payload = getPayload(evt);
+      clearHighlights();
+      if (!payload) return;
+      await onDrop(payload);
+    });
+  };
+
+  deckTargets.forEach((deck) => {
+    bindDropTarget(deck, async (payload) => {
+      const zone = deck.dataset.dropZone;
+      if (!zone) return;
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, null, null);
+      } else if (payload.type === "unit") {
+        await moveUnit(payload.positionId, zone, null, null);
+      } else if (payload.type === "stack") {
+        await moveStack(payload.zone, payload.sequence, zone, null);
+      }
+    });
+  });
+
+  stackTargets.forEach((stack) => {
+    bindDropTarget(stack, async (payload) => {
+      const zone = stack.dataset.zone;
+      const target = stack.dataset.target;
+      const targetSeq = stack.dataset.targetSeq;
+      if (!zone) return;
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, target || null, null);
+      } else if (payload.type === "unit") {
+        const sequence = Number(targetSeq || 0);
+        await moveUnit(payload.positionId, zone, sequence > 0 ? sequence : null, null);
+      }
+    });
+  });
+
+  columnSlots.forEach((slot) => {
+    bindDropTarget(slot, async (payload) => {
+      const zone = slot.dataset.zone;
+      const insertIndex = Number(slot.dataset.insertIndex || 0);
+      if (!zone) return;
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, null, insertIndex);
+      } else if (payload.type === "unit") {
+        await moveUnit(payload.positionId, zone, null, insertIndex);
+      } else if (payload.type === "stack") {
+        await moveStack(payload.zone, payload.sequence, zone, insertIndex);
+      }
+    });
+  });
+}
+
+function initSchematicHoverTooltips() {
+  if (window.__pgTooltipBound) return;
+  window.__pgTooltipBound = true;
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "pg-hover-tooltip hidden";
+  tooltip.setAttribute("aria-hidden", "true");
+  document.body.appendChild(tooltip);
+
+  let activeTarget = null;
+
+  const escapeHtml = (value) =>
+    String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  function setTooltipContent(text) {
+    const rows = String(text || "")
+      .split("|")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    tooltip.innerHTML = rows
+      .map((row) => `<div class="pg-hover-tooltip-row">${escapeHtml(row)}</div>`)
+      .join("");
+  }
+
+  function positionTooltip(evt) {
+    if (!activeTarget) return;
+    const pad = 14;
+    const rect = tooltip.getBoundingClientRect();
+    let left = evt.clientX + pad;
+    let top = evt.clientY + pad;
+    if (left + rect.width > window.innerWidth - 10) {
+      left = Math.max(10, evt.clientX - rect.width - pad);
+    }
+    if (top + rect.height > window.innerHeight - 10) {
+      top = Math.max(10, evt.clientY - rect.height - pad);
+    }
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+
+  function hideTooltip() {
+    activeTarget = null;
+    tooltip.classList.add("hidden");
+    tooltip.innerHTML = "";
+  }
+
+  document.addEventListener("mouseover", (evt) => {
+    const target = evt.target && evt.target.closest ? evt.target.closest("[data-tooltip]") : null;
+    if (!target) return;
+    const text = target.getAttribute("data-tooltip");
+    if (!text) return;
+    activeTarget = target;
+    setTooltipContent(text);
+    tooltip.classList.remove("hidden");
+  });
+
+  document.addEventListener("mousemove", (evt) => {
+    if (!activeTarget) return;
+    positionTooltip(evt);
+  });
+
+  document.addEventListener("mouseout", (evt) => {
+    if (!activeTarget) return;
+    const leaving = evt.target && evt.target.closest ? evt.target.closest("[data-tooltip]") : null;
+    if (!leaving || leaving !== activeTarget) return;
+    const entering = evt.relatedTarget && evt.relatedTarget.closest ? evt.relatedTarget.closest("[data-tooltip]") : null;
+    if (entering === activeTarget) return;
+    hideTooltip();
+  });
+
+  document.addEventListener("scroll", hideTooltip, true);
+  window.addEventListener("blur", hideTooltip);
+  window.addEventListener("resize", hideTooltip);
+}
+
+document.getElementById("zone-modal").addEventListener("click", function (e) {
+  if (e.target === this) closeModal();
+});
+initSchematicHoverTooltips();
+initSkuDragAndDrop();
+</script>
+{% endblock %}
+
+

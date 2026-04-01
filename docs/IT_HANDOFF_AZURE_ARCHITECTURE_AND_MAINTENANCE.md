@@ -38,7 +38,7 @@ What healthy production operation looks like:
 flowchart LR
     U[Planner Browser] -->|HTTPS| A[Azure App Service\nLinux Container]
     A --> G[Gunicorn gthread workers]
-    G --> F[Flask app.py routes]
+    G --> F[Flask COT blueprint routes]
     F --> S[Service layer\noptimizer/load_builder/order_importer/routing]
     S --> D[(SQLite DB\nAPP_DB_PATH)]
     F --> T[Jinja templates + static assets]
@@ -48,7 +48,7 @@ flowchart LR
 ```
 
 ### Request/Data Lifecycle
-1. Browser request hits Flask route in `app.py`.
+1. Browser request hits Flask route in `blueprints/cot/routes.py` (registered via `app.py` shim).
 2. Route performs session/auth checks and validates request payload.
 3. Route invokes service-layer logic in `services/`.
 4. Services read/write persisted state through `db.py` helpers.
@@ -59,13 +59,15 @@ flowchart LR
 - Optimization/build routines (`services/optimizer.py`, `services/optimizer_engine.py`, `services/load_builder.py`).
 - Route geometry/cost computation (`services/routing_service.py`, `services/cost_calculator.py`).
 - Replay evaluation analysis (`services/replay_evaluator.py`).
-- XLSX report generation in route handlers (OpenPyXL usage in `app.py`).
+- XLSX report generation in route handlers (OpenPyXL usage in `blueprints/cot/routes.py`).
 
 ## 3) Core Components and Responsibilities
 
 ### Route/Controller Layer
-- Primary entrypoint: `app.py`.
-- Pattern: all routes are registered directly on one Flask app (no blueprints).
+- Primary entrypoint: `app.py` (shim that exports the live app object).
+- Pattern: routes are registered via Flask blueprints:
+  - `blueprints/cot/routes.py` for COT
+  - `blueprints/prograde/routes.py` for ProGrade scaffold
 - Route families:
   - Auth/session/access: login, Entra callback/start, access profile admin.
   - Orders: upload, filter/scope, optimize trigger, export.
@@ -235,7 +237,7 @@ flowchart LR
 
 ### Reusable Codex Prompts
 - Root cause narrowing:
-  - "Trace the request path for `<endpoint>` in `app.py`, list called service/db functions, and identify top 3 failure points for `<symptom>`."
+  - "Trace the request path for `<endpoint>` in `blueprints/cot/routes.py`, list called service/db functions, and identify top 3 failure points for `<symptom>`."
 - Regression-safe patching:
   - "Implement the smallest fix for `<bug>`, preserve current behavior elsewhere, and add/adjust targeted tests under `tests/`."
 - DB-side verification:
@@ -307,7 +309,7 @@ Run at least:
 - Process-local job status caveat:
   - App explicitly warns that `WEB_CONCURRENCY > 1` can break re-optimization job status visibility across workers.
 - Coupling hotspot:
-  - `app.py` is a large monolithic route/controller module; edits can have broad side effects.
+  - `blueprints/cot/routes.py` remains a large route/controller module; edits can have broad side effects.
 - External dependency risk:
   - ORS failures/latency can degrade routing enrichments; fallback behavior exists but may change map/detail fidelity.
 - Auth risk:
@@ -350,7 +352,7 @@ Run at least:
 
 ### Appendix B - Module Inventory
 - Core:
-  - `app.py`, `db.py`
+  - `app.py`, `blueprints/cot/routes.py`, `blueprints/prograde/routes.py`, `db.py`
 - Services:
   - `services/order_importer.py`, `services/optimizer.py`, `services/optimizer_engine.py`, `services/load_builder.py`, `services/stack_calculator.py`, `services/cost_calculator.py`, `services/routing_service.py`, `services/replay_evaluator.py`, `services/orders.py`, `services/order_categories.py`, `services/customer_rules.py`, `services/validation.py`, `services/geo_utils.py`, `services/tsp_solver.py`
 - Templates and static:
