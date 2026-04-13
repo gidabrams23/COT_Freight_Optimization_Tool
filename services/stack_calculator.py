@@ -154,10 +154,8 @@ def calculate_stack_configuration(order_lines, **kwargs):
     """App-level wrapper: injects DB-sourced settings, then delegates to core."""
     assumptions = get_stack_capacity_assumptions()
     thresholds = get_utilization_grade_thresholds()
-    merged = {
-        "grade_thresholds": thresholds,
-        **kwargs,
-    }
+    merged = dict(kwargs)
+    merged.setdefault("grade_thresholds", thresholds)
     for key, value in assumptions.items():
         merged.setdefault(key, value)
     return _core.calculate_stack_configuration(order_lines, **merged)
