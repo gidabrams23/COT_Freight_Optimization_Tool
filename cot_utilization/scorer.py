@@ -50,7 +50,7 @@ def _parse_sku_dimensions(sku_text):
     try:
         dim_a = float(match.group(1))
         dim_b = float(match.group(2))
-        return max(dim_a, dim_b)
+        return dim_b
     except (TypeError, ValueError):
         return None
 

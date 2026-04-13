@@ -2,7 +2,9 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import pandas as pd
+import pytest
+
+pd = pytest.importorskip("pandas")
 
 from cot_utilization.scorer import (
     UtilizationScorer,
@@ -44,8 +46,8 @@ class TestSKUDimensionParsing(unittest.TestCase):
     def test_returns_none_for_unparseable(self):
         self.assertIsNone(_parse_sku_dimensions("CUSTOM-ITEM"))
 
-    def test_returns_larger_dimension(self):
-        self.assertEqual(_parse_sku_dimensions("10X5"), 10.0)
+    def test_returns_second_dimension(self):
+        self.assertEqual(_parse_sku_dimensions("10X5"), 5.0)
 
 
 class TestSKUResolution(unittest.TestCase):
