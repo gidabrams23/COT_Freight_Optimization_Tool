@@ -1,66 +1,131 @@
 # Standalone Utilization Scorer Package
 
 **Date:** 2026-04-10
-**Status:** Approved
+**Status:** Revised Draft
 
 ## Problem
 
-The COT Freight Optimization Tool calculates a per-load utilization score via a 2D bin-packing algorithm in `services/stack_calculator.py`. This score accounts for SKU-specific stacking limits, upper-deck promotion, two-across pairing, overflow allowances, and trailer geometry — it is not a simple length/capacity ratio.
+The COT Freight Optimization Tool calculates per-load utilization via the bin-packing logic in `services/stack_calculator.py`. That logic accounts for SKU-specific stacking limits, upper-deck promotion, two-across pairing, overflow allowances, trailer geometry, and utilization grading. It is not a simple length or capacity ratio.
 
-A separate analytics project needs to score historical loads from a parquet dataset on blob storage using the same algorithm. Today there is no way to do this without running the full web app. The scoring logic is coupled to the Flask/SQLite stack via `import db` in `stack_calculator.py`.
+A separate analytics workflow needs to score historical loads outside the web app. Today that logic is coupled to the Flask/SQLite application because `services/stack_calculator.py` imports `db` for planner-setting lookups and cache management.
+
+The analytics workflow also needs current SKU specifications, but the scorer package should not own remote data access. This application will separately export SKU snapshots on a schedule; the analytics system will retrieve that snapshot and pass SKU data into the scorer.
 
 ## Goals
 
-1. **Single source of truth** — the utilization math lives in one place, used by both the web app and external projects. No reimplementation, no drift.
-2. **Cross-project reuse** — the scorer is pip-installable from this repo's git URL, with no Flask/SQLite dependency.
-3. **Live SKU access** — the consuming project can fetch current SKU specifications from the running web app via API.
+1. **Single source of truth**: utilization math lives in one reusable code path shared by the web app and external consumers.
+2. **Cross-project reuse**: the scorer is installable from this repo without Flask or SQLite dependencies.
+3. **Clean separation of concerns**: the package performs scoring only; the app owns scheduled SKU snapshot export; external systems own snapshot retrieval.
+4. **Backward-safe app integration**: existing imports and runtime behavior in the web app continue to work after extraction.
 
 ## Non-Goals
 
-- Replacing or restructuring the web app's internal architecture beyond what's needed for extraction.
-- Building a full REST API for the web app. Only one new endpoint (read-only SKU specs).
-- Supporting real-time/streaming scoring. This is batch-oriented.
+- Building a public or unauthenticated SKU API.
+- Making the scorer package responsible for HTTP, blob storage, or credential management.
+- Reworking unrelated web app architecture beyond the extraction boundary.
+- Supporting real-time or streaming scoring. This remains batch-oriented.
 
 ## Design
 
-### 1. Package: `cot_utilization/`
+### 1. Package Boundary
 
-A new directory at the repo root containing a pip-installable Python package.
+Create a reusable package at the repo root:
 
-```
+```text
 cot_utilization/
-  __init__.py              # exports UtilizationScorer, calculate_stack_configuration
-  stack_calculator.py      # pure math — bin-packing, credit calc, grading, trailer configs
-  scorer.py                # batch scoring: DataFrame in -> scored DataFrame out
-  sku_loader.py            # load SKU specs from URL, CSV, or dict
-  pyproject.toml           # package metadata + dependencies (pandas, pyarrow, requests)
+  __init__.py
+  stack_calculator.py
+  scorer.py
 ```
 
-#### Key design decisions
+Packaging metadata should live at the repository root so the package can be installed with normal repo-based workflows.
 
-- **The pure math moves here.** `calculate_stack_configuration()` and all its internal helpers (`_position_credit_multiplier`, `_calculate_total_credit_feet`, `_grade_utilization`, bin-packing loop, trailer configs, default constants) move from `services/stack_calculator.py` into `cot_utilization/stack_calculator.py`.
-- **Zero database dependency.** The package never imports `db.py`. Settings (stack assumptions, grade thresholds) are passed as parameters with hardcoded defaults as fallback.
-- **Installation:** `pip install git+https://<repo-url>.git` or `pip install -e .` for local development.
+Example install targets:
 
-### 2. Injectable Settings
+```bash
+pip install git+https://<repo-url>.git
+pip install -e .
+```
 
-`calculate_stack_configuration()` gains two optional parameters:
+The package must not import:
+
+- `db.py`
+- Flask modules
+- route/controller code
+
+The package may depend on lightweight data-processing libraries only if needed for the batch scorer. If the scorer can operate on plain iterables or records, prefer that over adding heavy dependencies.
+
+### 2. Extracted Core Logic
+
+Move the pure utilization logic from `services/stack_calculator.py` into `cot_utilization/stack_calculator.py`.
+
+This extracted module should contain:
+
+- trailer constants and trailer normalization helpers
+- stack assumption normalization helpers
+- upper-deck and overflow logic
+- compatibility checks
+- utilization grading logic
+- `calculate_stack_configuration()`
+- any other non-DB helpers currently used by app services, routes, scripts, or tests
+
+The extraction must account for the current public surface already used across the app, not just `calculate_stack_configuration()`.
+
+At minimum, preserve these exported contracts if they remain referenced by the app:
+
+- `TRAILER_CONFIGS`
+- `FIXED_CAPACITY_TRAILER_TYPES`
+- `trailer_profile_options()`
+- `is_valid_trailer_type()`
+- `normalize_trailer_type()`
+- `item_deck_length_ft()`
+- `normalize_upper_deck_exception_categories()`
+- `apply_upper_usage_metadata()`
+- `upper_deck_position_length_limit_ft()`
+- `evaluate_upper_deck_overhang()`
+- `stack_display_index_map()`
+- `check_stacking_compatibility()`
+- `capacity_overflow_feet()`
+- `calculate_stack_configuration()`
+
+If additional helpers are used by runtime code or tests, include them as needed. The extraction is complete only when current app imports continue to work without behavior regression.
+
+### 3. Injectable Settings
+
+The extracted calculation code must no longer read planner settings from the database internally.
+
+`calculate_stack_configuration()` should accept optional injected settings:
 
 ```python
 def calculate_stack_configuration(
     order_lines,
-    trailer_type=None,
+    trailer_type="STEP_DECK",
     capacity_feet=None,
-    ...,
-    stack_assumptions=None,      # dict, optional
-    grade_thresholds=None,       # dict, optional
+    preserve_order_contiguity=True,
+    stack_overflow_max_height=None,
+    max_back_overhang_ft=None,
+    upper_two_across_max_length_ft=None,
+    upper_deck_exception_max_length_ft=None,
+    upper_deck_exception_overhang_allowance_ft=None,
+    upper_deck_exception_categories=None,
+    equal_length_deck_length_order_enabled=None,
+    grade_thresholds=None,
 ):
+    ...
 ```
 
-**When `stack_assumptions` is provided:** used directly. No DB read, no cache.
-**When `None`:** hardcoded defaults apply:
+Default behavior in the package should remain deterministic when injected values are omitted.
+
+Use package-local defaults matching current application defaults:
 
 ```python
+DEFAULT_UTILIZATION_GRADE_THRESHOLDS = {
+    "A": 85,
+    "B": 70,
+    "C": 55,
+    "D": 40,
+}
+
 DEFAULT_STACK_ASSUMPTIONS = {
     "stack_overflow_max_height": 5,
     "max_back_overhang_ft": 4.0,
@@ -70,64 +135,57 @@ DEFAULT_STACK_ASSUMPTIONS = {
     "upper_deck_exception_categories": ["USA", "UTA"],
     "equal_length_deck_length_order_enabled": True,
 }
-
-DEFAULT_GRADE_THRESHOLDS = {"A": 85, "B": 70, "C": 55, "D": 40}
 ```
 
-Same pattern for `grade_thresholds`.
+Implementation note:
 
-### 3. Web App Wrapper: `services/stack_calculator.py`
+- The package may normalize per-field overrides into an internal assumptions dict.
+- The package must not perform DB reads or caching.
 
-After extraction, this file becomes a thin wrapper that:
+### 4. Web App Compatibility Wrapper
 
-1. **Imports everything from the package:** `from cot_utilization.stack_calculator import *`
-2. **Overrides `calculate_stack_configuration()`** to inject DB-sourced settings:
+`services/stack_calculator.py` remains the web app entrypoint and compatibility layer.
+
+Responsibilities that stay in the app module:
+
+- reading planner settings from `planning_settings`
+- 30-second TTL cache management
+- invalidation helpers for app settings updates
+
+The wrapper should import the extracted package module, re-export the public symbols the app already uses, and preserve current runtime behavior.
+
+Example pattern:
 
 ```python
-from cot_utilization.stack_calculator import (
-    calculate_stack_configuration as _core_calc,
-)
+from cot_utilization import stack_calculator as core
+
+TRAILER_CONFIGS = core.TRAILER_CONFIGS
+FIXED_CAPACITY_TRAILER_TYPES = core.FIXED_CAPACITY_TRAILER_TYPES
+normalize_trailer_type = core.normalize_trailer_type
+...
 
 def calculate_stack_configuration(order_lines, **kwargs):
-    assumptions = get_stack_capacity_assumptions()    # reads from DB + cache
-    thresholds = get_utilization_grade_thresholds()   # reads from DB + cache
-    return _core_calc(
-        order_lines,
-        stack_assumptions=assumptions,
-        grade_thresholds=thresholds,
+    assumptions = get_stack_capacity_assumptions()
+    thresholds = get_utilization_grade_thresholds()
+    merged_kwargs = {
+        "grade_thresholds": thresholds,
         **kwargs,
-    )
+    }
+    for key, value in assumptions.items():
+        merged_kwargs.setdefault(key, value)
+    return core.calculate_stack_configuration(order_lines, **merged_kwargs)
 ```
 
-3. **Retains DB-specific functions** that stay in the web app layer:
-   - `get_stack_capacity_assumptions()` — reads `planning_settings`, caches with 30s TTL
-   - `get_utilization_grade_thresholds()` — reads `planning_settings`, caches with 30s TTL
-   - `invalidate_stack_assumptions_cache()`, `invalidate_utilization_grade_thresholds_cache()`
+Do not rely on `from ... import *` as the primary compatibility mechanism. The wrapper should make the retained public surface explicit.
 
-4. **Re-exports all public symbols** from the package so that existing `from services.stack_calculator import X` statements throughout the web app continue to work with no changes.
+### 5. Batch Scoring Interface
 
-### 4. Batch Scorer: `cot_utilization/scorer.py`
+The reusable scorer must accept SKU specs as caller-provided input. It should not fetch them from the app or blob storage directly.
 
-#### Class: `UtilizationScorer`
-
-**Constructors:**
+Preferred interface:
 
 ```python
-# Primary — fetch live SKU specs from the web app API
-scorer = UtilizationScorer.from_url("https://your-app/api/skus/specifications")
-
-# Fallback — load from a local CSV export
-scorer = UtilizationScorer.from_csv("/path/to/sku_specifications.csv")
-
-# Programmatic — pass a pre-built dict
-scorer = UtilizationScorer.from_dict(sku_lookup)
-```
-
-All constructors produce the same internal state: a case-insensitive dict mapping SKU name to `{length_with_tongue_ft, max_stack_step_deck, max_stack_flat_bed, category}`.
-
-**Scoring method:**
-
-```python
+scorer = UtilizationScorer(sku_lookup)
 results = scorer.score_loads(
     df,
     column_map={
@@ -143,114 +201,170 @@ results = scorer.score_loads(
 )
 ```
 
-**`column_map`** — maps scorer's expected fields to actual DataFrame column names. Defaults assume `load_number`, `qty`, `sku`, `trailer_hint`.
+Acceptable alternative:
 
-**`trailer_rules`** — determines trailer type per load:
-- `default`: trailer type when no override matches (default: `"STEP_DECK"`)
-- `overrides`: dict mapping `trailer_hint` column values to trailer types. If any line on a load matches a key, that trailer type is used for the entire load.
-
-**Processing per load:**
-
-1. Group input DataFrame by `load_number`.
-2. For each group, determine trailer type from `trailer_rules` + `fancy_cat` values.
-3. For each line item, resolve SKU via:
-   a. Exact match (case-insensitive) against SKU specs.
-   b. Dimension parsing from SKU name via regex `(\d+(?:\.\d+)?)\s*[Xx]\s*(\d+(?:\.\d+)?)`.
-   c. If both fail, flag as unmapped. Use parsed dimensions with `max_stack=1` if dimensions were extractable.
-4. Build `line_items` array for the load.
-5. Call `calculate_stack_configuration(line_items, trailer_type=..., capacity_feet=...)`.
-6. Collect results.
-
-**Output DataFrame** — one row per load:
-
-| Column | Type | Description |
-|---|---|---|
-| `load_number` | str | Passthrough from input |
-| `utilization_pct` | float | Utilization score (0-100+) |
-| `utilization_grade` | str | A/B/C/D/F |
-| `utilization_credit_ft` | float | Total credit feet earned |
-| `total_linear_feet` | float | Raw linear feet on trailer |
-| `trailer_type` | str | Trailer config used |
-| `capacity_ft` | float | Trailer total capacity |
-| `position_count` | int | Number of stack columns |
-| `unmapped_skus` | list[str] | SKUs that couldn't be resolved |
-| `line_count` | int | Number of input line items |
-
-### 5. SKU Loader: `cot_utilization/sku_loader.py`
-
-Three loading strategies, all producing the same dict:
-
-- **`from_url(url)`** — `GET` request to the SKU endpoint, parse JSON response, build lookup dict. Raises on HTTP errors.
-- **`from_csv(path)`** — read CSV with pandas, build lookup dict. Expects columns matching `sku_specifications.csv` schema.
-- **`from_dict(d)`** — passthrough validation. Expects `{sku_name: {length_with_tongue_ft, max_stack_step_deck, max_stack_flat_bed, category}}`.
-
-All keys normalized to uppercase for case-insensitive matching.
-
-### 6. API Endpoint: `GET /api/skus/specifications`
-
-New route in `blueprints/cot/routes.py`.
-
-**No authentication.** This is the only unauthenticated route in the app. It returns read-only product dimension data — not sensitive.
-
-**Response:**
-
-```json
-{
-  "skus": [
-    {
-      "sku": "5X8GW",
-      "category": "USA",
-      "description": "",
-      "length_with_tongue_ft": 12.0,
-      "max_stack_step_deck": 5,
-      "max_stack_flat_bed": 4
-    }
-  ],
-  "count": 261
-}
+```python
+results = score_loads(df, sku_lookup, column_map=..., trailer_rules=...)
 ```
 
-**Excluded fields:** `id`, `added_at`, `source`, `updated_at`, `updated_by`, `created_at` — internal bookkeeping not relevant to scoring.
+All scorer entrypoints should normalize the provided SKU data into a case-insensitive lookup of:
 
-**Implementation:** ~15 lines. `SELECT` from `sku_specifications`, serialize to dicts, return `jsonify`.
+- `length_with_tongue_ft`
+- `max_stack_step_deck`
+- `max_stack_flat_bed`
+- `category`
+- optional descriptive metadata if useful for debugging
+
+Optional convenience helpers such as `from_csv()` are allowed for local development and testing, but they are not core architecture.
+
+No package-level `from_url()` or blob client behavior should be included in this spec.
+
+### 6. Score Processing Rules
+
+Per load, the scorer should:
+
+1. Group input rows by `load_number`.
+2. Determine trailer type from `trailer_rules` and load rows.
+3. Resolve each row to SKU specifications using case-insensitive lookup.
+4. Convert resolved rows into the line-item shape expected by `calculate_stack_configuration()`.
+5. Call `calculate_stack_configuration(...)`.
+6. Return one scored output row per load.
+
+Default `column_map` fields:
+
+- `load_number`
+- `qty`
+- `sku`
+- `trailer_hint`
+
+`trailer_rules` behavior:
+
+- `default`: trailer type to use when no override matches, defaulting to `"STEP_DECK"`
+- `overrides`: map of source trailer-hint values to trailer types; if any line on a load matches an override, that trailer type applies to the whole load
 
 ### 7. Unmapped SKU Handling
 
-When `itemnum` doesn't match any SKU in the specs:
+When a SKU is missing from the provided snapshot or lookup:
 
-**Step 1 — Dimension parsing.** Apply the existing regex pattern to extract dimensions from the SKU name:
+1. Attempt dimension parsing from the SKU text using the same pattern currently used by the app:
 
 ```python
 SKU_DIMENSION_PATTERN = re.compile(r"(?<!\d)(\d+(?:\.\d+)?)\s*[Xx]\s*(\d+(?:\.\d+)?)")
 ```
 
-Example: `"5X8GW"` → width=5, length=8. Use the larger value as `unit_length_ft`. Default `max_stack_height=1` (conservative — no stacking assumed). Default `category="UNKNOWN"`.
+2. If parsing succeeds:
+   - use the larger dimension as `unit_length_ft`
+   - use `max_stack_height=1`
+   - use `category="UNKNOWN"`
 
-**Step 2 — Flag.** If dimension parsing also fails (no match), add the SKU to the load's `unmapped_skus` list. The load is still scored using whatever items did resolve — utilization will be understated but not missing.
+3. If parsing fails:
+   - add the SKU to `unmapped_skus`
+   - continue scoring with the remaining resolved items
+
+This preserves batch output while making data quality gaps visible.
+
+### 8. Batch Output Contract
+
+The scorer should return one row per load with at least:
+
+| Column | Type | Description |
+|---|---|---|
+| `load_number` | str | Input identifier |
+| `utilization_pct` | float | Utilization score |
+| `utilization_grade` | str | A/B/C/D/F |
+| `utilization_credit_ft` | float | Credit feet earned |
+| `total_linear_feet` | float | Total used linear feet |
+| `trailer_type` | str | Applied trailer config |
+| `capacity_ft` | float | Applied trailer capacity |
+| `position_count` | int | Number of stack columns |
+| `line_count` | int | Number of load rows consumed |
+| `unmapped_skus` | list[str] | Unresolved SKUs |
+
+Additional diagnostic columns are allowed if helpful for downstream analysis.
+
+## Scheduled SKU Snapshot Export
+
+This application must separately produce a scheduled SKU snapshot export for downstream analytics consumers.
+
+This export is distinct from the scorer package and belongs to the app/runtime layer.
+
+### Export Requirements
+
+The app must publish a periodic snapshot containing, at minimum:
+
+- `sku`
+- `category`
+- `description`
+- `length_with_tongue_ft`
+- `max_stack_step_deck`
+- `max_stack_flat_bed`
+
+Recommended metadata fields:
+
+- `generated_at`
+- `source_app_version`
+- `row_count`
+
+### Export Destination
+
+The snapshot may be written to private blob storage or another approved private artifact location.
+
+This spec does not mandate the retrieval mechanism for downstream consumers. The analytics environment is responsible for reading the snapshot and constructing `sku_lookup` input for the scorer.
+
+### Export Security
+
+- No new public or unauthenticated endpoint is required.
+- The snapshot must be stored in a private location with environment-appropriate access control.
+- Any credentials or upload configuration must follow existing app configuration and secret-management rules.
+
+### Export Failure Behavior
+
+- A failed export must not block core planner workflows.
+- The last successful snapshot should remain usable by downstream consumers.
+- Export failures should be logged and surfaced through the app’s normal operational monitoring path.
 
 ## Testing Strategy
 
-- **Unit tests for the package:** test `calculate_stack_configuration()` with known inputs/outputs, matching existing `test_stack_calculator_assumptions.py` cases to verify no behavioral change after extraction.
-- **Integration test for the wrapper:** verify `services/stack_calculator.py` produces identical results before and after the refactor by running existing test suite unchanged.
-- **Scorer tests:** test `score_loads()` with a small synthetic DataFrame — verify grouping, trailer inference, SKU resolution, unmapped handling, output schema.
-- **Endpoint test:** verify `/api/skus/specifications` returns valid JSON with expected schema, no auth required.
+### Package Tests
+
+- Preserve and adapt existing stack-calculator tests to validate no behavioral drift after extraction.
+- Add tests for injected grade thresholds.
+- Add tests for scorer grouping, trailer inference, unmapped SKU handling, and output schema.
+
+### App Compatibility Tests
+
+- Verify `services/stack_calculator.py` continues to satisfy current app imports.
+- Run existing tests that cover optimizer, load builder, replay evaluator, and stack-calculator assumptions.
+
+### Snapshot Export Tests
+
+- Verify the export uses the expected SKU fields and metadata.
+- Verify export failures do not affect core app workflows.
+- Verify at least one successful export path for the configured destination.
 
 ## Migration Risk
 
-The primary risk is the extraction of ~2000 lines of pure math from `services/stack_calculator.py` into the package. Mitigations:
+Primary risks:
 
-1. **Existing test suite runs unchanged** — `services/stack_calculator.py` re-exports all symbols, so all current imports and tests continue to work. If tests pass, the extraction preserved behavior.
-2. **No logic changes during extraction** — the move is mechanical. Injectable settings are additive (new optional params with defaults matching current behavior).
-3. **The web app wrapper injects the same DB-sourced settings** that the functions previously read internally. Net behavior is identical.
+1. The current `services/stack_calculator.py` surface is larger than a single function, so incomplete extraction can break runtime imports.
+2. Packaging changes can fail if repo-level install metadata is not defined correctly.
+3. Scheduled snapshot export introduces operational behavior that must not interfere with planner workflows.
+
+Mitigations:
+
+1. Preserve explicit public exports in the compatibility wrapper.
+2. Run existing stack-calculator, optimizer, and replay-related tests unchanged where possible.
+3. Keep the scorer package free of network and blob logic.
+4. Treat the scheduled export as a separate app concern with isolated failure handling.
 
 ## File Change Summary
 
 | File | Change |
 |---|---|
-| `cot_utilization/__init__.py` | New — package exports |
-| `cot_utilization/stack_calculator.py` | New — pure math extracted from services |
-| `cot_utilization/scorer.py` | New — batch scoring logic |
-| `cot_utilization/sku_loader.py` | New — SKU loading from URL/CSV/dict |
-| `cot_utilization/pyproject.toml` | New — package metadata |
-| `services/stack_calculator.py` | Modified — becomes thin wrapper + DB functions |
-| `blueprints/cot/routes.py` | Modified — add `GET /api/skus/specifications` |
+| `cot_utilization/__init__.py` | New package exports |
+| `cot_utilization/stack_calculator.py` | New extracted pure utilization logic |
+| `cot_utilization/scorer.py` | New batch scoring interface using caller-provided SKU data |
+| repo-root `pyproject.toml` | New or updated package metadata |
+| `services/stack_calculator.py` | Modified compatibility wrapper with DB-backed setting injection |
+| app-side export script/job module | New scheduled SKU snapshot export path |
+
