@@ -1,1 +1,43 @@
 """COT Utilization Scorer — standalone trailer utilization calculation."""
+
+from cot_utilization.stack_calculator import (
+    TRAILER_CONFIGS,
+    TRAILER_PROFILE_OPTIONS,
+    TRAILER_TYPE_SET,
+    FIXED_CAPACITY_TRAILER_TYPES,
+    DEFAULT_UTILIZATION_GRADE_THRESHOLDS,
+    calculate_stack_configuration,
+    trailer_profile_options,
+    is_valid_trailer_type,
+    normalize_trailer_type,
+    item_deck_length_ft,
+    normalize_upper_deck_exception_categories,
+    apply_upper_usage_metadata,
+    upper_deck_position_length_limit_ft,
+    evaluate_upper_deck_overhang,
+    capacity_overflow_feet,
+    stack_display_index_map,
+    check_stacking_compatibility,
+)
+from cot_utilization.scorer import UtilizationScorer
+
+__all__ = [
+    "TRAILER_CONFIGS",
+    "TRAILER_PROFILE_OPTIONS",
+    "TRAILER_TYPE_SET",
+    "FIXED_CAPACITY_TRAILER_TYPES",
+    "DEFAULT_UTILIZATION_GRADE_THRESHOLDS",
+    "calculate_stack_configuration",
+    "trailer_profile_options",
+    "is_valid_trailer_type",
+    "normalize_trailer_type",
+    "item_deck_length_ft",
+    "normalize_upper_deck_exception_categories",
+    "apply_upper_usage_metadata",
+    "upper_deck_position_length_limit_ft",
+    "evaluate_upper_deck_overhang",
+    "capacity_overflow_feet",
+    "stack_display_index_map",
+    "check_stacking_compatibility",
+    "UtilizationScorer",
+]
