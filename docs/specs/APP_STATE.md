@@ -38,7 +38,7 @@ Lightweight internal web app to manage dispatch planning. It currently supports:
 
 - `/loads` (GET): build form + load plan table
 - `/loads/build` (POST): validate inputs, clear existing loads, then build loads
-- `/loads/clear` (POST): clear all loads
+- `/loads/clear` (POST): return orders from non-finalized loads in scope back to the pool (finalized loads remain unchanged)
 
 - `/dispatch` (GET): placeholder
 

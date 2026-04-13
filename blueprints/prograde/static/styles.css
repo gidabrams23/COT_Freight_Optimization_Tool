@@ -122,6 +122,62 @@ button, input, select, textarea { font: inherit; }
   color: var(--text-tertiary);
 }
 
+.brand-focus-card {
+  display: block;
+  margin: 0 var(--space-lg) var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.brand-focus-card:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
+  color: #fff;
+}
+.brand-focus-card.active {
+  border-color: var(--accent-primary);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.4);
+}
+.brand-logo-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  overflow: hidden;
+}
+.brand-logo-frame-bigtex {
+  background: #e5e7eb;
+}
+.brand-logo-frame-pj {
+  background: #e5e7eb;
+}
+.brand-focus-card.active .brand-logo-frame {
+  border-color: var(--accent-primary);
+}
+.brand-logo-image {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+.brand-logo-image-bigtex {
+  max-height: 26px;
+}
+.brand-logo-image-pj {
+  max-height: 24px;
+}
+.brand-focus-text {
+  margin-top: var(--space-xs);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
 .nav-item {
   display: flex;
   align-items: center;

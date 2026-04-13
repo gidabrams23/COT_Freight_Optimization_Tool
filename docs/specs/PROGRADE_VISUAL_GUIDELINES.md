@@ -140,6 +140,7 @@ Rule: keep one visually dominant action per action cluster.
 ### Cards/panels
 - Use card wrappers to segment workflows (`upload`, `scope`, `optimization`, `review`).
 - Card styling should remain restrained and consistent; avoid decorative gradients unless context-specific.
+- In load schematics, keep per-unit quick actions vertically stacked in the top-right (delete first, rotate directly below).
 
 ### Tables
 - Tables are a core UI primitive; optimize readability and scanning speed.

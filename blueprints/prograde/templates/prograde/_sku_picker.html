@@ -1,0 +1,24 @@
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div>
+          <div class="card-title">Add SKUs</div>
+          <div class="card-subtitle" style="margin-top:2px;">
+            {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as {{ 'Category -> Model -> Item' if session.brand == 'pj' else 'Category -> Model -> Item' }}
+          </div>
+        </div>
+      </div>
+      <div class="picker-search">
+        <div class="picker-search-row">
+          <input type="text" id="sku-filter" class="form-control"
+                 placeholder="Filter by category, model, item, or deck dimensions..." style="font-size:12px" />
+          {% if session.brand == 'bigtex' %}
+          <div class="sku-view-controls" aria-label="SKU hierarchy view">
+            <button type="button" class="sku-view-btn" id="sku-collapse-models-btn">Models</button>
+            <button type="button" class="sku-view-btn" id="sku-expand-items-btn">Items</button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="sku-list" id="sku-list"></div>
+      <div class="sku-empty hidden" id="sku-empty">No SKUs match this filter.</div>
+    </div>

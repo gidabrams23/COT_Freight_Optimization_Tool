@@ -36,15 +36,12 @@ CARRIER_DEFAULTS = {
 # Deck zones per brand/carrier
 DECK_ZONES = {
     "pj": ["lower_deck", "upper_deck"],
-    "bigtex": ["stack_1", "stack_2", "stack_3"],
+    "bigtex": ["lower_deck", "upper_deck"],
 }
 
 ZONE_LABELS = {
     "lower_deck": "Lower Deck (41')",
     "upper_deck": "Upper Deck (12')",
-    "stack_1": "Stack 1 — Rear",
-    "stack_2": "Stack 2 — Middle",
-    "stack_3": "Stack 3 — Front",
 }
 
 # PJ categories used throughout constraint engine and Settings

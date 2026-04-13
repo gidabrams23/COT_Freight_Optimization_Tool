@@ -85,7 +85,7 @@
 
                   <div class="form-error optimize-error{% if not (optimize_errors and optimize_errors | length) %} hidden{% endif %}" data-optimize-inline-error data-server-error="{% if optimize_errors and optimize_errors | length %}1{% else %}0{% endif %}">
                     {% if optimize_errors and optimize_errors | length %}
-                      {{ optimize_errors.session or optimize_errors.manual_order_input or optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.customer_filters or optimize_errors.trailer_type or "Unable to run optimizer. Review plant settings." }}
+                      {{ optimize_errors.session or optimize_errors.manual_order_input or optimize_errors.order_lines or optimize_errors.origin_plant or optimize_errors.customer_filters or optimize_errors.trailer_type or optimize_errors.time_window_days or optimize_errors.orders_start_date or optimize_errors.batch_end_date or optimize_errors.capacity_feet or optimize_errors.max_detour_pct or optimize_errors.geo_radius or "Unable to run optimizer. Review plant settings." }}
                     {% endif %}
                   </div>
 
@@ -1965,7 +1965,8 @@
       const autoMode = mode !== 'manual';
 
       if (optimizeFlexDays) {
-        optimizeFlexDays.disabled = ignoreDueDate;
+        const disableFlexDays = autoMode && ignoreDueDate;
+        optimizeFlexDays.disabled = disableFlexDays;
         optimizeFlexDays.required = !ignoreDueDate;
       }
 
@@ -2009,11 +2010,16 @@
       if (optimizeModeInput) {
         optimizeModeInput.value = normalized;
       }
+      const persistentFieldNames = new Set(['time_window_days', 'ignore_due_date']);
       const setPanelEnabled = (panel, enabled) => {
         if (!panel) return;
         panel.querySelectorAll('input, select, textarea, button').forEach((field) => {
           if (!field) return;
           if (field.type === 'hidden') return;
+          if (persistentFieldNames.has((field.name || '').trim())) {
+            field.disabled = false;
+            return;
+          }
           field.disabled = !enabled;
         });
       };

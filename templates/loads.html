@@ -206,6 +206,9 @@
       {% if manual_error %}
         <div class="alert alert-error">{{ manual_error }}</div>
       {% endif %}
+      {% if manual_success %}
+        <div class="alert alert-success">{{ manual_success }}</div>
+      {% endif %}
       {% if is_replay %}
         <div class="replay-filter-panel">
           <div class="replay-filter-group">
@@ -365,7 +368,7 @@
                         </button>
                       {% endif %}
                       {% if not is_replay %}
-                        <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Clear all loads for the current plant scope?');">
+                        <form method="post" action="{{ url_for('clear_loads') }}" onsubmit="return confirm('Return all draft-load orders in scope back to the pool? Finalized loads will remain unchanged.');">
                           <input type="hidden" name="plants" value="{{ plant_filter_param }}">
                           <input type="hidden" name="tab" value="{{ tab }}">
                           <input type="hidden" name="sort" value="{{ sort_mode }}">
@@ -376,8 +379,8 @@
                             <input type="hidden" name="today" value="{{ today_override_value }}">
                           {% endif %}
                           <button class="btn-danger btn-xs" type="submit">
-                            <span class="material-symbols-outlined">delete_forever</span>
-                            Clear Loads
+                            <span class="material-symbols-outlined">undo</span>
+                            Return All Orders
                           </button>
                         </form>
                       {% endif %}

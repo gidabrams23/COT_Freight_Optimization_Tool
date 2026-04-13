@@ -1,9 +1,9 @@
-# IT Handoff - Architecture and Maintenance Guide (Azure Production)
+# IT Handoff - Carry On Tool (COT) Architecture and Maintenance Guide (Azure Production)
 
 ## 1) Purpose and Operational Background
 
 ### Purpose
-This document is the technical handoff for IT/dev support to operate, debug, and maintain the Load Planning App after ownership transition. It is intentionally architecture-first and maintenance-first. It is not an escalation policy document.
+This document is the technical handoff for IT/dev support to operate, debug, and maintain the Carry On Tool (COT) freight optimization application after ownership transition. It is architecture-first and maintenance-focused so technical teams and business stakeholders can align on how the tool works in production.
 
 ### Operational Background
 The application supports freight/load planning operations by converting daily open-order data into actionable load plans.
@@ -31,7 +31,37 @@ What healthy production operation looks like:
 - Approval/rejection status changes persist.
 - Export actions produce valid files.
 
-## 2) System Architecture at a Glance
+## 2) App Workflow and Page Map
+
+### Navigation Structure (Plain English)
+The app is organized around the planner workflow: intake data, scope work, optimize, review, approve, and export.
+
+Typical navigation sequence:
+1. `Login` and `Session` pages: access and planning context setup.
+2. `Dashboard` (`/dashboard`): daily entry point and quick status view.
+3. `Upload / Intake Hub` (`/upload`): ingest open orders CSV and review upload results.
+4. `Orders` (`/orders`): filter scope, validate order readiness, and launch optimization.
+5. `Optimize` (`/optimize`): review optimization settings and build proposed loads.
+6. `Loads` (`/loads`): compare/load proposals and manage approval workflow.
+7. `Load Detail` (`/loads/<id>`): detailed manifest, sequencing, trailer/schematic edits, route view.
+8. `Planning Sessions` (`/planning-sessions`): session history, archive, resume/revise, and replay.
+9. `Load Report` (`/load-report/<session_id>`): final report and XLSX exports.
+10. `Settings` family (`/settings`, `/rates`, `/skus`, `/lookups`): maintain rules, rates, and reference data.
+11. `Tutorial` (`/tutorial`) and `Feedback` (`/feedback`, `/feedback/app`): user enablement and issue capture.
+
+### What Each Major Page Does
+- `Login` (`/login`): authentication entry point (legacy and Microsoft Entra SSO).
+- `Session` (`/session`): choose planner context and plant scope for active planning work.
+- `Upload` (`/upload`): submit source file and see import quality outcomes (mapped/unmapped items).
+- `Orders` (`/orders`): inspect scoped order table, apply filters/exclusions, and trigger optimization.
+- `Optimize` (`/optimize`): submit optimization run using current settings and constraints.
+- `Loads` (`/loads`): worklist for drafted loads with status changes (approve/reject/rebuild).
+- `Load Detail` (`/loads/<id>`): perform operational edits (carrier, trailer, sequence, manual add/remove) and view schematic/route.
+- `Planning Sessions` (`/planning-sessions`, detail pages): maintain continuity across planning cycles and replay historical runs.
+- `Load Report` (`/load-report/<session_id>`): produce operational handoff artifacts for dispatch/execution.
+- `Settings` (`/settings`, `/rates`, `/skus`, `/lookups`): govern the assumptions that drive utilization and cost outcomes.
+
+## 3) System Architecture at a Glance
 
 ### Runtime Topology (Azure)
 ```mermaid
@@ -47,6 +77,21 @@ flowchart LR
     A --> B[Azure Backup target\n(Storage Account)]
 ```
 
+### Plain-English Stack Rationale
+- Flask + Jinja (server-rendered pages):
+  - Chosen for fast iteration on operations-heavy workflows (forms, tables, status actions) with low frontend complexity.
+  - Keeps request logic and page rendering close together, which helps debugging and maintenance in a small team.
+- SQLite:
+  - Fits current workload (single-instance planning app, moderate concurrency, local transactional integrity).
+  - Minimizes infrastructure overhead while preserving full relational query capability.
+- Gunicorn gthread on App Service Linux:
+  - Production-ready Python serving model with simple container deployment.
+  - Threaded workers support concurrent web requests without introducing distributed coordination complexity.
+- Python service modules (`services/*`):
+  - Encapsulates calculation logic (optimization, utilization, routing, cost) so business rules are versioned in code and testable.
+- Optional OpenRouteService integration:
+  - Adds road-aware route geometry when needed, while fallback routing keeps core planning flows available if provider calls fail.
+
 ### Request/Data Lifecycle
 1. Browser request hits Flask route in `blueprints/cot/routes.py` (registered via `app.py` shim).
 2. Route performs session/auth checks and validates request payload.
@@ -61,13 +106,12 @@ flowchart LR
 - Replay evaluation analysis (`services/replay_evaluator.py`).
 - XLSX report generation in route handlers (OpenPyXL usage in `blueprints/cot/routes.py`).
 
-## 3) Core Components and Responsibilities
+## 4) Core Components and How They Work Together
 
 ### Route/Controller Layer
 - Primary entrypoint: `app.py` (shim that exports the live app object).
 - Pattern: routes are registered via Flask blueprints:
   - `blueprints/cot/routes.py` for COT
-  - `blueprints/prograde/routes.py` for ProGrade scaffold
 - Route families:
   - Auth/session/access: login, Entra callback/start, access profile admin.
   - Orders: upload, filter/scope, optimize trigger, export.
@@ -78,7 +122,7 @@ flowchart LR
 
 ### Data Layer
 - File: `db.py`.
-- Responsibilities:
+- What it handles:
   - SQLite connection lifecycle (`PRAGMA journal_mode=WAL`, busy timeout, row factory).
   - Schema ensure/create paths for app tables.
   - CRUD/query helper functions used throughout routes/services.
@@ -104,7 +148,15 @@ flowchart LR
 - `scripts/apply_seed_snapshots.py`: apply seed snapshots into a running DB.
 - `scripts/import_pilot_ready_data.py`, `scripts/import_freight_rate_tables.py`, `scripts/import_uszips.py`: data bootstrap/import tools.
 
-## 4) Data and Persistence Model
+### COT Code Construct Snapshot
+- `blueprints/cot/routes.py`: primary controller/orchestration module (large route surface and workflow coupling).
+- `db.py`: SQLite schema-ensure logic + data-access layer + seed/snapshot helpers.
+- `services/optimizer.py`: optimization engine (baseline + v2 merge heuristics and rescue passes).
+- `services/stack_calculator.py`: stacking and utilization engine used by import, optimization, and schematic views.
+- `services/cost_calculator.py` + `services/routing_service.py`: lane-rate cost model + routing provider/fallback/cache handling.
+- Design intent for maintenance: keep route handlers thin where practical, push business rules into `services/`, and keep schema semantics synchronized between `db.py`, migrations, and docs.
+
+## 5) Data and Persistence Model
 
 ### SQLite Location and Persistence
 - Runtime DB path resolution in `db.py`:
@@ -135,7 +187,7 @@ flowchart LR
 - `export_seed_data.py` + `apply_seed_snapshots.py` form the controlled path for migrating selected configuration state between environments.
 - Daily operational data is primarily in SQLite; treat DB file backup/restore as primary recovery mechanism.
 
-## 5) Azure Runtime and Configuration Contract
+## 6) Azure Runtime and Configuration Contract
 
 ### Hosting Assumptions
 - Containerized deployment (`Dockerfile`) with Gunicorn serving Flask.
@@ -213,7 +265,80 @@ flowchart LR
 - If SSO is enabled but incomplete, app logs warning and does not enable active Microsoft sign-in flow.
 - Routing service falls back gracefully when ORS key/config/error conditions prevent route fetch; map/detail behavior continues with fallback geometry/distance logic.
 
-## 6) Debugging Playbooks (Codex-Assisted)
+## 7) Core Calculations and Algorithms (COT)
+
+### 7.1 Order Import Normalization and Line-Level Utilization
+- File: `services/order_importer.py`.
+- Core line transformations:
+  - Lookup SKU from scoped item mapping (`item_sku_lookup`) by plant/bin/item pattern.
+  - Read SKU dimensions/stack rules from `sku_specifications`.
+  - Compute effective stacked positions:
+    - `effective_units = ceil(qty / max_stack_height)`
+  - Compute line linear feet:
+    - `total_length_ft = effective_units * unit_length_ft`
+  - Compute line utilization reference against 53-foot basis:
+    - `utilization_pct = (total_length_ft / 53.0) * 100`
+- Order-level utilization then re-computed using the stack engine (`stack_calculator.calculate_stack_configuration`) rather than summing raw line percentages.
+- Operationally, this means planners see utilization values that reflect actual stack/deck assumptions, not just raw line totals.
+
+### 7.2 Stack/Utilization Engine
+- File: `services/stack_calculator.py`.
+- Trailer profiles are explicit (`STEP_DECK`, `FLATBED`, `HOTSHOT`, `WEDGE`, and 48-foot variants) with deck lengths/capacities.
+- Engine computes:
+  - Position-level stacking feasibility by length, stop order, and stack heights.
+  - Deck assignment (lower/upper for step deck).
+  - Two-across behavior on eligible upper-deck positions.
+  - Capacity overflow evaluation with configurable overhang rules.
+- Primary utilization formula:
+  - `utilization_pct = (utilization_credit_ft / capacity_feet) * 100`
+- `utilization_credit_ft` is not raw linear feet; it is a stack-credit measure with:
+  - Stack-height credit handling.
+  - Controlled singleton overflow multiplier based on `stack_overflow_max_height`.
+  - Upper-deck normalization behavior for step-deck profiles.
+- Grade assignment is threshold-based (`A/B/C/D/F`) from planning settings (`utilization_grade_thresholds`).
+- Operationally, this keeps grading consistent across pages (orders, loads, reports) and makes threshold updates centrally controlled.
+
+### 7.3 Load Cost Model
+- File: `services/cost_calculator.py`.
+- Defaults:
+  - Base rate-per-mile fallback: `3.12`
+  - Stop fee default: `55.00`
+  - Minimum load cost default: `800.00`
+  - Fuel surcharge default: `0.40` per mile
+- Effective per-mile rate is lane-based (`rate_matrix`) with fuel surcharge handling.
+- Core cost equation in code:
+  - `total_cost = SUM(leg_miles * lane_rate_with_fuel) + (stop_count * stop_fee) + return_leg_cost_if_required`
+  - `total_cost = max(total_cost, min_load_cost)`
+- Distances come from routing service output (provider or fallback); if route totals are available they override per-leg sum.
+- Operationally, this allows finance-facing cost signals to remain available even if external routing providers are degraded.
+
+### 7.4 Optimization Logic (Baseline and V2)
+- Files: `services/optimizer.py`, `services/optimizer_engine.py`, `services/load_builder.py`.
+- Baseline strategy:
+  - Group eligible orders.
+  - Bucket by destination key.
+  - Apply first-fit-decreasing by length under compatibility and capacity constraints.
+- V2 strategy:
+  - Start from singleton loads.
+  - Build merge candidates under compatibility checks (plant, date-window, geo constraints, customer-mix rules, stack feasibility).
+  - Score candidates by savings and objective bonus:
+    - `savings = cost(load_a) + cost(load_b) - cost(merged_load)`
+    - `gain = savings + low-utilization objective bonus`
+  - Iterate merge/rescue/rebalance/reassign passes with tuned guardrails for low-utilization cleanup.
+- Hard guardrail:
+  - Multi-order over-capacity loads are blocked; over-capacity is allowed only for single-order loads.
+- Operationally, this protects planners from receiving infeasible multi-order plans while still allowing explicit treatment of oversized single-order exceptions.
+
+### 7.5 Routing Behavior and Fallback
+- Files: `services/routing_service.py`, `services/routing_providers/openrouteservice_provider.py`, `services/tsp_solver.py`.
+- Default runtime behavior keeps optimization/costing on haversine routing unless geometry enrichment is requested (`ROUTING_GEOMETRY_ONLY=true` default behavior).
+- ORS provider is used when configured and available.
+- On provider failure/timeout/unavailable credentials:
+  - Route ordering and distance fall back safely to in-app haversine + TSP logic.
+- Route responses are cached in-memory and in SQLite (`route_cache`) with TTL.
+- Operationally, fallback and caching reduce planner interruption and API-cost volatility during daily planning windows.
+
+## 8) Debugging Playbooks
 
 ### Triage Matrix
 | Symptom | First Suspect Components | First Checks |
@@ -235,7 +360,7 @@ flowchart LR
 - Route-cache freshness:
   - `python -c "import db; c=db.get_connection(); print(c.execute('select count(*) from route_cache where expires_at > datetime(\'now\')').fetchone()[0])"`
 
-### Reusable Codex Prompts
+### Reusable Diagnostic Prompts
 - Root cause narrowing:
   - "Trace the request path for `<endpoint>` in `blueprints/cot/routes.py`, list called service/db functions, and identify top 3 failure points for `<symptom>`."
 - Regression-safe patching:
@@ -252,7 +377,7 @@ flowchart LR
 4. Validate auth behavior (legacy + SSO expectations) after any login/session change.
 5. Validate export and load-detail rendering for impacted sessions.
 
-## 7) Testing and Verification
+## 9) Testing and Verification
 
 ### Test Map by Subsystem
 - Auth and identity mapping:
@@ -298,7 +423,7 @@ Run at least:
 4. Open load detail and verify routing/schematic visibility.
 5. Generate export and verify file output integrity.
 
-## 8) Known Constraints and Risk Areas
+## 10) Known Constraints and Risk Areas
 
 - SQLite constraints:
   - Multi-instance scale-out is unsafe without DB architecture change.
@@ -314,8 +439,10 @@ Run at least:
   - ORS failures/latency can degrade routing enrichments; fallback behavior exists but may change map/detail fidelity.
 - Auth risk:
   - Entra config mismatch (redirect URI, tenant/client/secret) causes login failure even if app boots.
+- Schema-evolution risk:
+  - `db.py` contains schema ensure/rebuild logic beyond the SQL files in `migrations/`; changes must be reviewed as both code and migration artifacts to keep production behavior deterministic.
 
-## 9) Appendices
+## 11) Appendices
 
 ### Appendix A - Functional Route Inventory
 
@@ -326,7 +453,9 @@ Run at least:
 
 #### Orders and Optimization
 - `/upload`, `/orders/upload`, `/orders`, `/orders/clear`, `/orders/exclude`, `/orders/include`, `/orders/optimize`, `/orders/export`
+- `/orders/load-report/upload`
 - `/api/orders/upload`, `/api/orders/manual-validate`, `/api/orders/scope-count`, `/api/orders/<so_num>/stack-config`
+- `/api/skus/bulk-add`
 - `/optimize`, `/optimize/build`, `/api/optimize`, `/api/optimize/<int:run_id>/loads`
 
 #### Loads and Manual Editing
@@ -347,12 +476,13 @@ Run at least:
 - `/load-report/<int:session_id>`, `/load-report/<int:session_id>/export.xlsx`, `/load-report/<int:session_id>/load/<int:load_id>/sheet.xlsx`
 
 #### Settings, Lookup, Feedback, Tutorial
-- `/dashboard`, `/tutorial`, `/rates`, `/settings`, `/skus`, `/lookups`, `/feedback`, `/feedback/app`
+- `/`, `/dashboard`, `/tutorial`, `/rates`, `/settings`, `/skus`, `/lookups`, `/feedback`, `/feedback/app`
 - Save/mutation routes under `/settings/*`, `/rates/*`, `/skus/*`, `/lookups/*`, `/plants/save`, `/feedback/app/*`
+- Planning settings mutation endpoint: `/planning-tools/save`
 
 ### Appendix B - Module Inventory
 - Core:
-  - `app.py`, `blueprints/cot/routes.py`, `blueprints/prograde/routes.py`, `db.py`
+  - `app.py`, `blueprints/cot/routes.py`, `db.py`
 - Services:
   - `services/order_importer.py`, `services/optimizer.py`, `services/optimizer_engine.py`, `services/load_builder.py`, `services/stack_calculator.py`, `services/cost_calculator.py`, `services/routing_service.py`, `services/replay_evaluator.py`, `services/orders.py`, `services/order_categories.py`, `services/customer_rules.py`, `services/validation.py`, `services/geo_utils.py`, `services/tsp_solver.py`
 - Templates and static:
@@ -379,8 +509,8 @@ Run at least:
 - Schematic: Visual/structured trailer load layout representation.
 - Seed Snapshot: CSV-based export/import mechanism for selected lookup/settings tables.
 
-## Security Note (Requested Policy: Raw Values Inline)
-This document currently includes sensitive values observed in the active environment (`ENTRA_CLIENT_SECRET`, `ORS_API_KEY`, etc.). Before broad distribution:
+## Security Handling Note
+This document references environment settings used in a live-like environment (`ENTRA_CLIENT_SECRET`, `ORS_API_KEY`, etc.). Before broad distribution:
 1. Rotate all exposed secrets.
 2. Restrict circulation to least-privileged recipients.
 3. Store final Word/PDF artifact in approved secure location only.

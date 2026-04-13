@@ -1,8 +1,10 @@
 import sqlite3
 import os
+import re
 import shutil
 import tempfile
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +24,77 @@ DEFAULT_BT_DATA_WORKBOOK_PATH = Path(
 )
 FALLBACK_BT_DATA_WORKBOOK_PATH = ROOT_DIR / "data" / "reference" / "Stacking Guide Master.xlsx"
 FALLBACK_BT_TEMP_WORKBOOK_PATH = ROOT_DIR / ".tmp" / "stacking_guide_master.xlsx"
+DEFAULT_PJ_DATA_WORKBOOK_PATH = Path(
+    os.environ.get(
+        "PROGRADE_PJ_DATA_WORKBOOK_PATH",
+        r"c:\Users\gabramowitz\OneDrive - Council Advisors\Bain Capital - ATW - ATW Operations Value Creation\03 - Phase 2\04 - Carry On MFO\PG Freight Tool\2024 PJ Product Guide_WORKING (as of 5.28.25).xlsx",
+    )
+)
+FALLBACK_PJ_TEMP_WORKBOOK_PATH = ROOT_DIR / ".tmp" / "pj_product_guide_working.xlsx"
+
+PJ_TOC_MODEL_RE = re.compile(r"\[([A-Za-z0-9]{1,8})\]")
+PJ_FT_LENGTH_RE = re.compile(r"(?<!\d)(\d{1,2}(?:\.\d+)?)\s*[\'\u2019]")
+
+BIGTEX_CATEGORY_ALIASES = {
+    "OL CAR HAULER": "CAR HAULER",
+    "OL DUMP": "DUMP",
+    "OL SINGLE AXLE": "SINGLE AXLE",
+    "OL TANDEM AXLE": "TANDEM AXLE",
+    "OL TILT": "TILT DECK",
+    "OL EQUIPMENT": "EQUIPMENT HAULER",
+    "OL EQUIPMENT HAULER": "EQUIPMENT HAULER",
+}
+
+ADVANCED_SCHEMATIC_DEFAULTS = [
+    {
+        "drawing_key": "utility_profile",
+        "drawing_label": "Utility Side Profile",
+        "render_mode": "advanced",
+        "applies_to_categories": "utility",
+        "notes": "Base utility trailer silhouette.",
+        "display_order": 10,
+    },
+    {
+        "drawing_key": "car_hauler_profile",
+        "drawing_label": "Car Hauler Side Profile",
+        "render_mode": "advanced",
+        "applies_to_categories": "car_hauler,car_hauler_deckover,tilt",
+        "notes": "Shared shape for car hauler and tilt variants.",
+        "display_order": 20,
+    },
+    {
+        "drawing_key": "tilt_deckover_profile",
+        "drawing_label": "Tilt Deck-Over Side Profile",
+        "render_mode": "advanced",
+        "applies_to_categories": "tilt_deckover",
+        "notes": "Tall deck-over style with hinge details.",
+        "display_order": 30,
+    },
+    {
+        "drawing_key": "deck_over_profile",
+        "drawing_label": "Deck-Over Side Profile",
+        "render_mode": "advanced",
+        "applies_to_categories": "deck_over",
+        "notes": "Deck-over variants without tilt hinge.",
+        "display_order": 40,
+    },
+    {
+        "drawing_key": "dump_profile",
+        "drawing_label": "Dump Side Profile",
+        "render_mode": "advanced",
+        "applies_to_categories": "dump_lowside,dump_highside_3ft,dump_highside_4ft,dump_small,dump_gn,dump_variants",
+        "notes": "Dump-family profile with category-specific height behavior.",
+        "display_order": 50,
+    },
+    {
+        "drawing_key": "gooseneck_profile",
+        "drawing_label": "Gooseneck Side Profile",
+        "render_mode": "advanced",
+        "applies_to_categories": "gooseneck,gooseneck_flatdeck,gooseneck_quest,gooseneck_pintle,gooseneck_variants,pintle",
+        "notes": "High-coupler neck profile used by GN and pintle families.",
+        "display_order": 60,
+    },
+]
 
 
 def _ensure_db_file():
@@ -30,6 +103,30 @@ def _ensure_db_file():
         return
     if FALLBACK_SEED_DB_PATH.exists():
         shutil.copyfile(FALLBACK_SEED_DB_PATH, DB_PATH)
+
+
+def _normalize_profile_name(value):
+    return " ".join(str(value or "").strip().split())
+
+
+def _default_admin_profile_name():
+    name = (
+        os.environ.get("PROGRADE_DEFAULT_ADMIN_NAME")
+        or os.environ.get("USERNAME")
+        or "Admin"
+    )
+    normalized = _normalize_profile_name(name)
+    return normalized or "Admin"
+
+
+def normalize_bigtex_mcat(value):
+    label = " ".join(str(value or "").strip().split())
+    if not label:
+        return ""
+    canonical = BIGTEX_CATEGORY_ALIASES.get(label.upper())
+    if canonical:
+        return canonical
+    return label
 
 
 def get_db():
@@ -48,6 +145,10 @@ def init_db():
     # Add new columns to existing tables (safe to run multiple times)
     migrations = [
         "ALTER TABLE load_sessions ADD COLUMN acknowledged_violations TEXT DEFAULT '[]'",
+        "ALTER TABLE load_sessions ADD COLUMN is_saved INTEGER DEFAULT 0",
+        "ALTER TABLE load_sessions ADD COLUMN created_by_profile_id INTEGER",
+        "ALTER TABLE load_sessions ADD COLUMN created_by_name TEXT",
+        "ALTER TABLE load_positions ADD COLUMN is_rotated INTEGER DEFAULT 0",
     ]
     for m in migrations:
         try:
@@ -143,18 +244,39 @@ def init_db():
         updated_at DATETIME
     );
 
+    CREATE TABLE IF NOT EXISTS advanced_schematic_links (
+        drawing_key TEXT PRIMARY KEY,
+        drawing_label TEXT,
+        render_mode TEXT DEFAULT 'advanced',
+        applies_to_categories TEXT,
+        notes TEXT,
+        display_order INTEGER DEFAULT 100,
+        updated_at DATETIME
+    );
+
     CREATE TABLE IF NOT EXISTS load_sessions (
         session_id TEXT PRIMARY KEY,
         brand TEXT,
         carrier_type TEXT,
         status TEXT DEFAULT 'draft',
+        is_saved INTEGER DEFAULT 0,
         planner_name TEXT,
+        created_by_profile_id INTEGER,
+        created_by_name TEXT,
         session_label TEXT,
         created_at DATETIME,
         updated_at DATETIME,
         approved_by TEXT,
         approved_at DATETIME,
         notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS prograde_access_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME,
+        updated_at DATETIME
     );
 
     CREATE TABLE IF NOT EXISTS load_positions (
@@ -168,6 +290,7 @@ def init_db():
         is_nested INTEGER DEFAULT 0,
         nested_inside TEXT,
         gn_axle_dropped INTEGER DEFAULT 0,
+        is_rotated INTEGER DEFAULT 0,
         override_reason TEXT,
         added_at DATETIME
     );
@@ -185,7 +308,114 @@ def init_db():
         notes TEXT,
         created_at DATETIME
     );
+
+    CREATE TABLE IF NOT EXISTS bt_inventory_snapshot (
+        item_number TEXT PRIMARY KEY,
+        total_count INTEGER DEFAULT 0,
+        available_count INTEGER DEFAULT 0,
+        assigned_count INTEGER DEFAULT 0,
+        built_count INTEGER DEFAULT 0,
+        future_build_count INTEGER DEFAULT 0,
+        available_built_count INTEGER DEFAULT 0,
+        available_future_count INTEGER DEFAULT 0,
+        updated_at DATETIME
+    );
+
+    CREATE TABLE IF NOT EXISTS bt_inventory_upload_log (
+        upload_id TEXT PRIMARY KEY,
+        source_filename TEXT,
+        sheet_name TEXT,
+        processed_rows INTEGER DEFAULT 0,
+        valid_rows INTEGER DEFAULT 0,
+        distinct_items INTEGER DEFAULT 0,
+        uploaded_at DATETIME
+    );
+
+    CREATE TABLE IF NOT EXISTS app_meta (
+        meta_key TEXT PRIMARY KEY,
+        meta_value TEXT,
+        updated_at DATETIME
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bt_inventory_snapshot_available
+        ON bt_inventory_snapshot(available_count DESC, item_number);
+
+    CREATE INDEX IF NOT EXISTS idx_bt_inventory_upload_log_uploaded_at
+        ON bt_inventory_upload_log(uploaded_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_prograde_access_profiles_name
+        ON prograde_access_profiles(name COLLATE NOCASE);
     """)
+
+    # One-time migration: preserve all pre-existing sessions as saved so history remains visible.
+    backfill_marker = c.execute(
+        "SELECT meta_value FROM app_meta WHERE meta_key='is_saved_backfill_v1'"
+    ).fetchone()
+    if not backfill_marker:
+        now = datetime.utcnow().isoformat()
+        try:
+            c.execute("UPDATE load_sessions SET is_saved=1")
+        except Exception:
+            pass
+        c.execute(
+            """
+            INSERT OR REPLACE INTO app_meta(meta_key, meta_value, updated_at)
+            VALUES ('is_saved_backfill_v1', '1', ?)
+            """,
+            (now,),
+        )
+
+    advanced_link_count = c.execute("SELECT COUNT(*) FROM advanced_schematic_links").fetchone()[0]
+    if advanced_link_count == 0:
+        now = datetime.utcnow().isoformat()
+        c.executemany(
+            """
+            INSERT INTO advanced_schematic_links
+            (drawing_key, drawing_label, render_mode, applies_to_categories, notes, display_order, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    row["drawing_key"],
+                    row["drawing_label"],
+                    row["render_mode"],
+                    row["applies_to_categories"],
+                    row["notes"],
+                    row["display_order"],
+                    now,
+                )
+                for row in ADVANCED_SCHEMATIC_DEFAULTS
+            ],
+        )
+
+    c.execute(
+        """
+        UPDATE load_sessions
+        SET created_by_name = COALESCE(NULLIF(created_by_name, ''), planner_name)
+        WHERE COALESCE(created_by_name, '') = '' AND COALESCE(planner_name, '') != ''
+        """
+    )
+
+    admin_name = _default_admin_profile_name()
+    now = datetime.utcnow().isoformat()
+    admin_row = c.execute(
+        "SELECT id, is_admin FROM prograde_access_profiles WHERE lower(name)=lower(?)",
+        (admin_name,),
+    ).fetchone()
+    if admin_row:
+        if not int(admin_row["is_admin"] or 0):
+            c.execute(
+                "UPDATE prograde_access_profiles SET is_admin=1, updated_at=? WHERE id=?",
+                (now, int(admin_row["id"])),
+            )
+    else:
+        c.execute(
+            """
+            INSERT INTO prograde_access_profiles (name, is_admin, created_at, updated_at)
+            VALUES (?, 1, ?, ?)
+            """,
+            (admin_name, now, now),
+        )
 
     conn.commit()
     conn.close()
@@ -231,6 +461,18 @@ def _normalize_header(value):
     return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
 
 
+def _first_readable_path(candidates):
+    for path in candidates:
+        try:
+            if path and path.exists():
+                with open(path, "rb"):
+                    pass
+                return path
+        except OSError:
+            continue
+    return None
+
+
 def get_bigtex_workbook_path(preferred_path=None):
     candidates = []
     if preferred_path:
@@ -241,15 +483,236 @@ def get_bigtex_workbook_path(preferred_path=None):
     candidates.append(DEFAULT_BT_DATA_WORKBOOK_PATH)
     candidates.append(FALLBACK_BT_DATA_WORKBOOK_PATH)
     candidates.append(FALLBACK_BT_TEMP_WORKBOOK_PATH)
-    for path in candidates:
-        try:
-            if path and path.exists():
-                with open(path, "rb"):
-                    pass
-                return path
-        except OSError:
-            continue
+    return _first_readable_path(candidates)
+
+
+def get_pj_workbook_path(preferred_path=None):
+    candidates = []
+    if preferred_path:
+        candidates.append(Path(str(preferred_path)))
+    env_path = os.environ.get("PROGRADE_PJ_DATA_WORKBOOK_PATH")
+    if env_path:
+        candidates.append(Path(env_path))
+    candidates.append(DEFAULT_PJ_DATA_WORKBOOK_PATH)
+    candidates.append(FALLBACK_PJ_TEMP_WORKBOOK_PATH)
+    return _first_readable_path(candidates)
+
+
+def _normalize_pj_toc_heading(label):
+    text = str(label or "").strip().lower()
+    if not text:
+        return "unknown"
+    if "utility" in text:
+        return "utility"
+    if "car hauler" in text or "carhauler" in text or "equipment" in text:
+        return "car_hauler"
+    if "tilt" in text:
+        return "tilt"
+    if "dump" in text:
+        return "dump_variants"
+    if "flatdeck" in text or "deckover" in text:
+        return "deck_over"
+    return "unknown"
+
+
+def _infer_pj_category(section_label, model_code):
+    code = str(model_code or "").strip().upper()
+    if code in {"LDQ", "LDG", "LDW", "GN"}:
+        return "gooseneck"
+    if code in {"PL", "PT", "PHT"}:
+        return "pintle"
+    if code == "DL":
+        return "dump_lowside"
+    if code == "DV":
+        return "dump_highside_3ft"
+    if code == "DX":
+        return "dump_highside_4ft"
+    if code in {"D5", "D7"}:
+        return "dump_small"
+    if code.startswith("D"):
+        return "dump_variants"
+    normalized = _normalize_pj_toc_heading(section_label)
+    if normalized != "unknown":
+        return normalized
+    return "utility"
+
+
+def _parse_bed_length_ft(description):
+    text = str(description or "").strip()
+    if not text:
+        return None
+    m = PJ_FT_LENGTH_RE.search(text)
+    if not m:
+        return None
+    value = m.group(1).lstrip("0")
+    if value.startswith("."):
+        value = "0" + value
+    if value == "":
+        value = "0"
+    return _coerce_float(value, None)
+
+
+def _parse_bed_length_from_item_number(item_number, model_code):
+    sku = "".join(ch for ch in str(item_number or "").upper() if ch.isalnum())
+    model = "".join(ch for ch in str(model_code or "").upper() if ch.isalnum())
+    tail = sku
+    if model:
+        idx = sku.find(model)
+        if idx >= 0:
+            tail = sku[idx + len(model):]
+    for token in re.findall(r"\d{2}", tail):
+        value = _coerce_int(token, None)
+        if value is not None and 8 <= value <= 40:
+            return float(value)
     return None
+
+
+def _find_code_description_header_row(sheet, max_scan_rows=40, max_scan_cols=12):
+    scan_rows = min(max_scan_rows, sheet.max_row or max_scan_rows)
+    scan_cols = min(max_scan_cols, sheet.max_column or max_scan_cols)
+    for row_idx in range(1, scan_rows + 1):
+        code_col = None
+        desc_col = None
+        for col_idx in range(1, scan_cols + 1):
+            name = _normalize_header(sheet.cell(row=row_idx, column=col_idx).value)
+            if name == "code":
+                code_col = col_idx
+            elif name == "description":
+                desc_col = col_idx
+        if code_col and desc_col:
+            return row_idx, code_col, desc_col
+    return None, None, None
+
+
+def _extract_pj_sheet_code_rows(sheet):
+    header_row, code_col, desc_col = _find_code_description_header_row(sheet)
+    if not header_row:
+        return []
+
+    rows = []
+    blank_streak = 0
+    for row_idx in range(header_row + 1, sheet.max_row + 1):
+        code_val = sheet.cell(row=row_idx, column=code_col).value
+        desc_val = sheet.cell(row=row_idx, column=desc_col).value
+
+        code = str(code_val or "").strip()
+        desc = str(desc_val or "").strip()
+        if not code:
+            blank_streak += 1
+            if blank_streak >= 3 and rows:
+                break
+            continue
+        blank_streak = 0
+
+        marker = _normalize_header(code)
+        if marker in {"standardfeatures", "optionalfeatures"}:
+            break
+        if code.startswith("•"):
+            break
+        if marker == "code":
+            continue
+
+        rows.append(
+            {
+                "item_number": code.upper(),
+                "description": desc,
+                "row_idx": row_idx,
+            }
+        )
+    return rows
+
+
+def _parse_pj_toc_models(workbook, toc_sheet_name="ToC"):
+    sheet_name = toc_sheet_name if toc_sheet_name in workbook.sheetnames else None
+    if sheet_name is None:
+        for name in workbook.sheetnames:
+            if str(name).strip().lower() == str(toc_sheet_name).strip().lower():
+                sheet_name = name
+                break
+    if sheet_name is None:
+        raise ValueError(f"PJ workbook is missing '{toc_sheet_name}' sheet.")
+
+    toc_sheet = workbook[sheet_name]
+    current_section = None
+    models = []
+    skipped_codes = []
+    for row_idx in range(1, toc_sheet.max_row + 1):
+        value = toc_sheet.cell(row=row_idx, column=1).value
+        if value is None:
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+
+        matches = PJ_TOC_MODEL_RE.findall(text)
+        cell = toc_sheet.cell(row=row_idx, column=1)
+        if not matches:
+            if bool(getattr(cell.font, "bold", False)) and text.lower() != "table of contents":
+                current_section = text
+            continue
+
+        model_code = str(matches[-1]).strip().upper()
+        if len(model_code) != 2:
+            skipped_codes.append({"row": row_idx, "code": model_code, "title": text})
+            continue
+        models.append(
+            {
+                "model": model_code,
+                "section": current_section or "Uncategorized",
+                "sheet_name": model_code,
+                "toc_title": text,
+                "row": row_idx,
+            }
+        )
+
+    deduped = {}
+    for entry in models:
+        deduped.setdefault(entry["model"], entry)
+    return {
+        "toc_sheet_name": sheet_name,
+        "models": list(deduped.values()),
+        "skipped_codes": skipped_codes,
+    }
+
+
+def _infer_tongue_group_for_model(model_code, section_label, direct_model_map, group_meta):
+    model = str(model_code or "").strip().upper()
+    if model in direct_model_map:
+        gid = direct_model_map[model]
+        meta = group_meta.get(gid, {})
+        return {
+            "group_id": gid,
+            "tongue_feet": _coerce_float(meta.get("tongue_feet"), None),
+            "source": "direct",
+        }
+
+    inferred_group = None
+    if model in {"D5", "D7"}:
+        inferred_group = "dump_small"
+    elif model.startswith("D"):
+        inferred_group = "dump_std"
+    elif model in {"PL", "PT", "PHT"}:
+        inferred_group = "pintle"
+    elif model in {"LDQ", "LDG", "LDW", "GN"}:
+        inferred_group = "gooseneck"
+    else:
+        section_key = _normalize_pj_toc_heading(section_label)
+        if section_key in {"utility", "car_hauler", "tilt"}:
+            inferred_group = "c_channel"
+        elif section_key == "dump_variants":
+            inferred_group = "dump_std"
+        elif section_key == "deck_over":
+            inferred_group = "deck_over"
+
+    if inferred_group and inferred_group in group_meta:
+        meta = group_meta[inferred_group]
+        return {
+            "group_id": inferred_group,
+            "tongue_feet": _coerce_float(meta.get("tongue_feet"), None),
+            "source": "heuristic",
+        }
+
+    return {"group_id": None, "tongue_feet": None, "source": "missing"}
 
 
 # ── Carrier configs ──────────────────────────────────────────────────────────
@@ -271,6 +734,21 @@ def update_carrier_config(carrier_type, field, value):
 
 
 # ── PJ tongue groups ─────────────────────────────────────────────────────────
+
+def get_advanced_schematic_links():
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM advanced_schematic_links ORDER BY display_order, drawing_key"
+        ).fetchall()
+
+
+def update_advanced_schematic_link(drawing_key, field, value):
+    with get_db() as conn:
+        conn.execute(
+            f"UPDATE advanced_schematic_links SET {field}=?, updated_at=? WHERE drawing_key=?",
+            (value, datetime.utcnow().isoformat(), drawing_key),
+        )
+
 
 def get_pj_tongue_groups():
     with get_db() as conn:
@@ -355,6 +833,28 @@ def update_pj_sku_field(item_number, field, value):
 
 # ── Big Tex SKUs ─────────────────────────────────────────────────────────────
 
+def recompute_pj_footprint(item_number):
+    row = get_pj_sku(item_number)
+    if not row:
+        return None
+    bed_length_measured = _coerce_float(row["bed_length_measured"], None)
+    if bed_length_measured is None:
+        bed_length_measured = _coerce_float(row["bed_length_stated"], 0.0) or 0.0
+    tongue_feet = _coerce_float(row["tongue_feet"], 0.0) or 0.0
+    total_footprint = round(float(bed_length_measured) + float(tongue_feet), 2)
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE pj_skus SET total_footprint=?, updated_at=? WHERE item_number=?",
+            (total_footprint, datetime.utcnow().isoformat(), item_number),
+        )
+    return {
+        "item_number": item_number,
+        "bed_length_measured": round(float(bed_length_measured), 2),
+        "tongue_feet": round(float(tongue_feet), 2),
+        "total_footprint": total_footprint,
+    }
+
+
 def get_bigtex_skus(search=None, mcat=None):
     sql = "SELECT * FROM bigtex_skus"
     params = []
@@ -362,22 +862,45 @@ def get_bigtex_skus(search=None, mcat=None):
     if search:
         clauses.append("(model LIKE ? OR item_number LIKE ?)")
         params += [f"%{search}%", f"%{search}%"]
-    if mcat:
-        clauses.append("mcat=?")
-        params.append(mcat)
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
-    sql += " ORDER BY mcat, model, bed_length"
+    requested_mcat = normalize_bigtex_mcat(mcat) if mcat else ""
     with get_db() as conn:
-        return conn.execute(sql, params).fetchall()
+        rows = conn.execute(sql, params).fetchall()
+
+    normalized_rows = []
+    for row in rows:
+        payload = dict(row)
+        payload["mcat"] = normalize_bigtex_mcat(payload.get("mcat"))
+        if requested_mcat and payload["mcat"] != requested_mcat:
+            continue
+        normalized_rows.append(payload)
+
+    normalized_rows.sort(
+        key=lambda r: (
+            str(r.get("mcat") or ""),
+            str(r.get("model") or ""),
+            _coerce_float(r.get("bed_length"), 0.0) or 0.0,
+            str(r.get("item_number") or ""),
+        )
+    )
+    return normalized_rows
 
 
 def get_bigtex_sku(item_number):
     with get_db() as conn:
-        return conn.execute("SELECT * FROM bigtex_skus WHERE item_number=?", (item_number,)).fetchone()
+        row = conn.execute("SELECT * FROM bigtex_skus WHERE item_number=?", (item_number,)).fetchone()
+    if not row:
+        return None
+    payload = dict(row)
+    payload["mcat"] = normalize_bigtex_mcat(payload.get("mcat"))
+    return payload
 
 
 def update_bigtex_sku_field(item_number, field, value):
+    if field == "mcat":
+        normalized = normalize_bigtex_mcat(value)
+        value = normalized or None
     with get_db() as conn:
         conn.execute(
             f"UPDATE bigtex_skus SET {field}=?, updated_at=? WHERE item_number=?",
@@ -403,6 +926,228 @@ def recompute_bigtex_footprint(item_number):
         "tongue": round(tongue, 2),
         "total_footprint": total_footprint,
     }
+
+
+def get_bt_inventory_upload_meta():
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT *
+            FROM bt_inventory_upload_log
+            ORDER BY uploaded_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+
+def get_bt_inventory_snapshot_rows(limit=300):
+    try:
+        row_limit = int(limit)
+    except (TypeError, ValueError):
+        row_limit = 300
+    row_limit = max(1, min(row_limit, 2000))
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT
+                inv.item_number,
+                inv.total_count,
+                inv.available_count,
+                inv.assigned_count,
+                inv.built_count,
+                inv.future_build_count,
+                inv.available_built_count,
+                inv.available_future_count,
+                inv.updated_at,
+                sku.mcat AS sku_mcat,
+                sku.model AS sku_model,
+                sku.total_footprint AS sku_total_footprint
+            FROM bt_inventory_snapshot inv
+            LEFT JOIN bigtex_skus sku
+                ON sku.item_number = inv.item_number
+            ORDER BY inv.available_count DESC, inv.total_count DESC, inv.item_number ASC
+            LIMIT ?
+            """,
+            (row_limit,),
+        ).fetchall()
+
+
+def _resolve_sheet_by_name(workbook, sheet_name):
+    if sheet_name in workbook.sheetnames:
+        return sheet_name
+    expected = str(sheet_name or "").strip().lower()
+    for candidate in workbook.sheetnames:
+        if str(candidate).strip().lower() == expected:
+            return candidate
+    return None
+
+
+def _is_blank_cell(value):
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    return False
+
+
+def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Orders.Quick"):
+    source_path = Path(str(workbook_path))
+    if not source_path.exists():
+        raise FileNotFoundError(f"Orders workbook not found: {source_path}")
+
+    from openpyxl import load_workbook
+
+    # Match existing ProGrade import pattern: use a local temp copy for stability.
+    suffix = source_path.suffix if source_path.suffix else ".xlsx"
+    temp_copy = Path(tempfile.gettempdir()) / f"prograde_bt_orders_import_{uuid.uuid4().hex}{suffix}"
+    shutil.copyfile(source_path, temp_copy)
+    workbook = None
+
+    try:
+        workbook = load_workbook(temp_copy, read_only=True, data_only=True)
+        selected_sheet = _resolve_sheet_by_name(workbook, sheet_name)
+        if selected_sheet is None:
+            raise ValueError(
+                f"Workbook sheet '{sheet_name}' not found. Available sheets: {', '.join(workbook.sheetnames)}"
+            )
+
+        sheet = workbook[selected_sheet]
+        item_col = 12   # M
+        name_col = 2    # C
+        days_old_col = 17  # R
+        metrics = defaultdict(
+            lambda: {
+                "total_count": 0,
+                "available_count": 0,
+                "assigned_count": 0,
+                "built_count": 0,
+                "future_build_count": 0,
+                "available_built_count": 0,
+                "available_future_count": 0,
+            }
+        )
+        processed_rows = 0
+        valid_rows = 0
+
+        for row in sheet.iter_rows(min_row=1, values_only=True):
+            processed_rows += 1
+            if not row:
+                continue
+            if item_col >= len(row):
+                continue
+
+            item_number = str(row[item_col] or "").strip().upper()
+            if not item_number:
+                continue
+            normalized_item = _normalize_header(item_number)
+            if normalized_item in {"item", "itemnumber", "itemnum", "itemno"}:
+                continue
+
+            has_name = not _is_blank_cell(row[name_col] if name_col < len(row) else None)
+            has_days_old = not _is_blank_cell(row[days_old_col] if days_old_col < len(row) else None)
+
+            entry = metrics[item_number]
+            entry["total_count"] += 1
+            valid_rows += 1
+
+            if has_name:
+                entry["assigned_count"] += 1
+            else:
+                entry["available_count"] += 1
+
+            if has_days_old:
+                entry["built_count"] += 1
+            else:
+                entry["future_build_count"] += 1
+
+            if not has_name and has_days_old:
+                entry["available_built_count"] += 1
+            if not has_name and not has_days_old:
+                entry["available_future_count"] += 1
+
+        if not metrics:
+            raise ValueError("No inventory rows parsed from All.Orders.Quick (item # column M).")
+
+        now = datetime.utcnow().isoformat()
+        upload_id = str(uuid.uuid4())
+        with get_db() as conn:
+            conn.execute("DELETE FROM bt_inventory_snapshot")
+            conn.executemany(
+                """
+                INSERT INTO bt_inventory_snapshot
+                (
+                    item_number,
+                    total_count,
+                    available_count,
+                    assigned_count,
+                    built_count,
+                    future_build_count,
+                    available_built_count,
+                    available_future_count,
+                    updated_at
+                )
+                VALUES (?,?,?,?,?,?,?,?,?)
+                """,
+                [
+                    (
+                        item_number,
+                        counts["total_count"],
+                        counts["available_count"],
+                        counts["assigned_count"],
+                        counts["built_count"],
+                        counts["future_build_count"],
+                        counts["available_built_count"],
+                        counts["available_future_count"],
+                        now,
+                    )
+                    for item_number, counts in metrics.items()
+                ],
+            )
+            conn.execute(
+                """
+                INSERT INTO bt_inventory_upload_log
+                (upload_id, source_filename, sheet_name, processed_rows, valid_rows, distinct_items, uploaded_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    upload_id,
+                    source_path.name,
+                    selected_sheet,
+                    int(processed_rows),
+                    int(valid_rows),
+                    int(len(metrics)),
+                    now,
+                ),
+            )
+
+        sku_item_numbers = {str(r["item_number"]).strip().upper() for r in get_bigtex_skus()}
+        unmatched_items = [item for item in metrics.keys() if item not in sku_item_numbers]
+        available_total = sum(int(v["available_count"]) for v in metrics.values())
+        built_total = sum(int(v["built_count"]) for v in metrics.values())
+        future_total = sum(int(v["future_build_count"]) for v in metrics.values())
+
+        return {
+            "source_filename": source_path.name,
+            "sheet_name": selected_sheet,
+            "processed_rows": int(processed_rows),
+            "valid_rows": int(valid_rows),
+            "distinct_items": int(len(metrics)),
+            "available_total": int(available_total),
+            "built_total": int(built_total),
+            "future_build_total": int(future_total),
+            "unmatched_item_count": int(len(unmatched_items)),
+            "unmatched_items": sorted(unmatched_items)[:25],
+        }
+    finally:
+        if workbook is not None:
+            try:
+                workbook.close()
+            except Exception:
+                pass
+        try:
+            temp_copy.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def import_bigtex_skus_from_workbook(workbook_path=None, sheet_name="Data"):
@@ -486,7 +1231,7 @@ def import_bigtex_skus_from_workbook(workbook_path=None, sheet_name="Data"):
 
             parsed[item_number] = (
                 item_number,
-                str(mcat_raw).strip() if mcat_raw is not None else None,
+                normalize_bigtex_mcat(mcat_raw) if mcat_raw is not None else None,
                 _coerce_int(tier_raw, None),
                 str(model_raw).strip() if model_raw is not None else None,
                 _coerce_int(gvwr_raw, None),
@@ -527,6 +1272,186 @@ def import_bigtex_skus_from_workbook(workbook_path=None, sheet_name="Data"):
 
 # ── BT stack configs ─────────────────────────────────────────────────────────
 
+def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
+    source_path = get_pj_workbook_path(workbook_path)
+    if not source_path:
+        raise FileNotFoundError("PJ workbook not found. Set PROGRADE_PJ_DATA_WORKBOOK_PATH or provide a valid path.")
+
+    # OneDrive files can be reparse points. Read from a local temp copy for reliable workbook access.
+    temp_copy = Path(tempfile.gettempdir()) / f"prograde_pj_import_{uuid.uuid4().hex}.xlsx"
+    shutil.copyfile(source_path, temp_copy)
+
+    try:
+        from openpyxl import load_workbook
+        from .services import pj_measurement
+
+        workbook = load_workbook(temp_copy, read_only=True, data_only=True)
+        toc_payload = _parse_pj_toc_models(workbook, toc_sheet_name=toc_sheet_name)
+        toc_models = toc_payload["models"]
+        skipped_codes = toc_payload["skipped_codes"]
+        if not toc_models:
+            raise ValueError("No 2-character model codes found in PJ ToC sheet.")
+
+        tongue_group_rows = [dict(r) for r in get_pj_tongue_groups()]
+        group_meta = {str(r["group_id"]).strip(): r for r in tongue_group_rows}
+        direct_model_map = {}
+        for row in tongue_group_rows:
+            gid = str(row["group_id"]).strip()
+            raw_codes = str(row.get("model_codes") or "")
+            for token in raw_codes.split(","):
+                code = token.strip().upper()
+                if code:
+                    direct_model_map[code] = gid
+
+        offsets = get_pj_offsets_dict()
+        parsed_rows = {}
+        models_without_direct_tongue_group = []
+        items_missing_bed_length = []
+        toc_models_missing_sheet = []
+        duplicate_items = []
+        seen_heuristic_models = set()
+
+        for entry in toc_models:
+            model_code = entry["model"]
+            section_label = entry["section"]
+            sheet_name = entry["sheet_name"]
+
+            if sheet_name not in workbook.sheetnames:
+                toc_models_missing_sheet.append(
+                    {
+                        "model": model_code,
+                        "section": section_label,
+                        "sheet_name": sheet_name,
+                    }
+                )
+                continue
+
+            sheet = workbook[sheet_name]
+            rows = _extract_pj_sheet_code_rows(sheet)
+            if not rows:
+                toc_models_missing_sheet.append(
+                    {
+                        "model": model_code,
+                        "section": section_label,
+                        "sheet_name": sheet_name,
+                        "reason": "missing Code/Description table",
+                    }
+                )
+                continue
+
+            tongue = _infer_tongue_group_for_model(
+                model_code=model_code,
+                section_label=section_label,
+                direct_model_map=direct_model_map,
+                group_meta=group_meta,
+            )
+            if tongue["source"] == "heuristic" and model_code not in seen_heuristic_models:
+                seen_heuristic_models.add(model_code)
+                models_without_direct_tongue_group.append(
+                    {
+                        "model": model_code,
+                        "section": section_label,
+                        "assigned_group": tongue["group_id"],
+                    }
+                )
+
+            pj_category = _infer_pj_category(section_label, model_code)
+            for row in rows:
+                item_number = str(row["item_number"]).strip().upper()
+                if not item_number:
+                    continue
+                description = str(row.get("description") or "").strip()
+                bed_stated = _parse_bed_length_ft(description)
+                if bed_stated is None:
+                    bed_stated = _parse_bed_length_from_item_number(item_number, model_code)
+                if bed_stated is None:
+                    items_missing_bed_length.append(
+                        {
+                            "item_number": item_number,
+                            "model": model_code,
+                            "section": section_label,
+                            "description": description,
+                        }
+                    )
+                    bed_stated = 0.0
+                tongue_group = tongue.get("group_id")
+                tongue_feet = _coerce_float(tongue.get("tongue_feet"), 0.0) or 0.0
+
+                sku_for_calc = {
+                    "model": model_code,
+                    "bed_length_stated": round(bed_stated, 2),
+                    "pj_category": pj_category,
+                    "tongue_feet": round(tongue_feet, 2),
+                }
+                measured = pj_measurement.recompute_sku(sku_for_calc, offsets)
+
+                if item_number in parsed_rows:
+                    duplicate_items.append(
+                        {
+                            "item_number": item_number,
+                            "existing_model": parsed_rows[item_number][1],
+                            "new_model": model_code,
+                        }
+                    )
+
+                parsed_rows[item_number] = (
+                    item_number,
+                    model_code,
+                    pj_category,
+                    description,
+                    None,
+                    round(bed_stated, 2),
+                    measured["bed_length_measured"],
+                    tongue_group,
+                    round(tongue_feet, 2),
+                    measured["total_footprint"],
+                    None,
+                    0,
+                    0,
+                    0,
+                    None,
+                    None,
+                    datetime.utcnow().isoformat(),
+                )
+
+        if not parsed_rows:
+            raise ValueError("No PJ rows were parsed from workbook tabs listed in ToC.")
+
+        with get_db() as conn:
+            conn.execute("DELETE FROM pj_skus")
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, description, gvwr, bed_length_stated, bed_length_measured, tongue_group, tongue_feet, total_footprint, dump_side_height_ft, can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed, pairing_rule, notes, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                list(parsed_rows.values()),
+            )
+
+        disconnects = {
+            "models_without_direct_tongue_group": models_without_direct_tongue_group,
+            "items_missing_bed_length": items_missing_bed_length,
+            "toc_models_missing_sheet_or_table": toc_models_missing_sheet,
+            "duplicate_item_numbers": duplicate_items,
+            "toc_skipped_non_two_char_codes": skipped_codes,
+        }
+        disconnect_counts = {k: len(v) for k, v in disconnects.items()}
+
+        return {
+            "source_path": str(source_path),
+            "toc_sheet_name": toc_payload["toc_sheet_name"],
+            "row_count": len(parsed_rows),
+            "model_count": len(toc_models),
+            "disconnect_counts": disconnect_counts,
+            "disconnects": disconnects,
+        }
+    finally:
+        try:
+            temp_copy.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def get_bt_stack_configs():
     with get_db() as conn:
         return conn.execute("SELECT * FROM bt_stack_configs ORDER BY load_type, stack_position").fetchall()
@@ -541,23 +1466,126 @@ def update_bt_stack_config(config_id, field, value):
 
 # ── Load sessions ─────────────────────────────────────────────────────────────
 
-def create_session(session_id, brand, carrier_type, planner_name, session_label):
+def list_access_profiles():
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT id, name, is_admin, created_at, updated_at
+            FROM prograde_access_profiles
+            ORDER BY lower(name), id
+            """
+        ).fetchall()
+
+
+def get_access_profile(profile_id):
+    try:
+        normalized = int(profile_id)
+    except (TypeError, ValueError):
+        return None
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT id, name, is_admin, created_at, updated_at
+            FROM prograde_access_profiles
+            WHERE id=?
+            """,
+            (normalized,),
+        ).fetchone()
+
+
+def create_access_profile(name, is_admin=False):
+    normalized = _normalize_profile_name(name)
+    if not normalized:
+        raise ValueError("Account name is required.")
+    now = datetime.utcnow().isoformat()
+    try:
+        with get_db() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO prograde_access_profiles (name, is_admin, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (normalized, 1 if is_admin else 0, now, now),
+            )
+            return int(cursor.lastrowid)
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("Account name already exists.") from exc
+
+
+def create_session(
+    session_id,
+    brand,
+    carrier_type,
+    planner_name,
+    session_label,
+    is_saved=False,
+    created_by_profile_id=None,
+    created_by_name=None,
+):
+    now = datetime.utcnow().isoformat()
+    builder_name = _normalize_profile_name(created_by_name or planner_name)
+    try:
+        builder_profile_id = int(created_by_profile_id) if created_by_profile_id is not None else None
+    except (TypeError, ValueError):
+        builder_profile_id = None
     with get_db() as conn:
         conn.execute(
             """INSERT INTO load_sessions
-               (session_id, brand, carrier_type, status, planner_name, session_label, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (session_id, brand, carrier_type, "draft", planner_name, session_label,
-             datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
+               (session_id, brand, carrier_type, status, is_saved, planner_name, created_by_profile_id, created_by_name, session_label, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                session_id,
+                brand,
+                carrier_type,
+                "draft",
+                1 if is_saved else 0,
+                planner_name,
+                builder_profile_id,
+                builder_name,
+                session_label,
+                now,
+                now,
+            ),
         )
 
 def get_session(session_id):
     with get_db() as conn:
         return conn.execute("SELECT * FROM load_sessions WHERE session_id=?", (session_id,)).fetchone()
 
-def get_all_sessions():
+def get_all_sessions(brand=None, saved_only=False):
+    where = []
+    params = []
+    if brand:
+        where.append("lower(brand)=lower(?)")
+        params.append(str(brand))
+    if saved_only:
+        where.append("COALESCE(is_saved, 1)=1")
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     with get_db() as conn:
-        return conn.execute("SELECT * FROM load_sessions ORDER BY created_at DESC").fetchall()
+        return conn.execute(
+            f"SELECT * FROM load_sessions {where_sql} ORDER BY created_at DESC",
+            tuple(params),
+        ).fetchall()
+
+
+def get_session_daily_sequence(session_id, brand, created_at):
+    """Return 1-based sequence for a brand within the session's created date."""
+    if not session_id or not created_at:
+        return 1
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS seq
+            FROM load_sessions
+            WHERE lower(brand)=lower(?)
+              AND (COALESCE(is_saved, 1)=1 OR session_id=?)
+              AND substr(created_at, 1, 10)=substr(?, 1, 10)
+              AND (created_at < ? OR (created_at = ? AND session_id <= ?))
+            """,
+            (brand or "", session_id, created_at, created_at, created_at, session_id),
+        ).fetchone()
+    seq = int(row["seq"] or 0) if row else 0
+    return seq if seq > 0 else 1
 
 def flag_session_stale(session_id):
     with get_db() as conn:
@@ -581,6 +1609,31 @@ def mark_session_active(session_id):
             "UPDATE load_sessions SET status='draft', updated_at=? WHERE session_id=? AND status='stale'",
             (datetime.utcnow().isoformat(), session_id)
         )
+
+def save_session(session_id):
+    """Persist an explicit user save action and mark the session as logged."""
+    ts = datetime.utcnow().isoformat()
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE load_sessions SET is_saved=1, updated_at=? WHERE session_id=?",
+            (ts, session_id),
+        )
+        return conn.execute(
+            "SELECT session_id, status, is_saved, updated_at FROM load_sessions WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+
+
+def touch_session(session_id):
+    """Backward-compatible alias for explicit save action."""
+    return save_session(session_id)
+
+
+def delete_session(session_id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM load_positions WHERE session_id=?", (session_id,))
+        deleted = conn.execute("DELETE FROM load_sessions WHERE session_id=?", (session_id,))
+        return int(deleted.rowcount or 0)
 
 def get_acknowledged_violations(session_id):
     """Return list of acknowledged rule_codes for this session."""
@@ -621,13 +1674,13 @@ def get_position(position_id):
     with get_db() as conn:
         return conn.execute("SELECT * FROM load_positions WHERE position_id=?", (position_id,)).fetchone()
 
-def add_position(position_id, session_id, brand, item_number, deck_zone, layer, sequence):
+def add_position(position_id, session_id, brand, item_number, deck_zone, layer, sequence, override_reason=None):
     with get_db() as conn:
         conn.execute(
             """INSERT INTO load_positions
-               (position_id, session_id, brand, item_number, deck_zone, layer, sequence, added_at)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (position_id, session_id, brand, item_number, deck_zone, layer, sequence,
+               (position_id, session_id, brand, item_number, deck_zone, layer, sequence, is_rotated, override_reason, added_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (position_id, session_id, brand, item_number, deck_zone, layer, sequence, 0, override_reason,
              datetime.utcnow().isoformat())
         )
 
@@ -817,8 +1870,8 @@ def duplicate_column(session_id, deck_zone, sequence):
             conn.execute(
                 """
                 INSERT INTO load_positions
-                (position_id, session_id, brand, item_number, deck_zone, layer, sequence, is_nested, nested_inside, gn_axle_dropped, override_reason, added_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                (position_id, session_id, brand, item_number, deck_zone, layer, sequence, is_nested, nested_inside, gn_axle_dropped, is_rotated, override_reason, added_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     id_map[row["position_id"]],
@@ -831,6 +1884,7 @@ def duplicate_column(session_id, deck_zone, sequence):
                     row["is_nested"],
                     nested_inside,
                     row["gn_axle_dropped"],
+                    row["is_rotated"],
                     row["override_reason"],
                     now,
                 ),

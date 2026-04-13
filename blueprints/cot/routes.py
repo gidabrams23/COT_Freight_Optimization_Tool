@@ -9963,6 +9963,7 @@ def loads():
     feedback_error = request.args.get("feedback_error") or ""
     feedback_target = request.args.get("feedback_target") or ""
     manual_error = request.args.get("manual_error") or ""
+    manual_success = request.args.get("manual_success") or ""
     algorithm_comparison = None
     if request.args.get("alg_cmp"):
         def _to_float(value):
@@ -10834,6 +10835,7 @@ def loads():
         feedback_error=feedback_error,
         feedback_target=feedback_target,
         manual_error=manual_error,
+        manual_success=manual_success,
         today_override=today_override,
         today_override_value=today_override_value,
         today_override_label=today_override_label,
@@ -15136,7 +15138,6 @@ def clear_loads():
         session_id = int(session_id) if session_id else None
     except (TypeError, ValueError):
         session_id = None
-    redirect_session_id = session_id
     if session_id:
         planning_session = db.get_planning_session(session_id)
         if not planning_session or not _can_access_planning_session(planning_session):
@@ -15150,21 +15151,44 @@ def clear_loads():
                 sort=sort_mode or None,
                 today=today_param or None,
                 session_id=_get_active_planning_session_id(),
-                manual_error="Sandbox accounts can only clear loads inside an active sandbox session.",
+                manual_error="Sandbox accounts can only return draft orders inside an active sandbox session.",
             )
         )
 
+    if not plant_scope:
+        return redirect(
+            url_for(
+                "loads",
+                plants=",".join(plant_filters) if plant_filters else None,
+                tab=tab or None,
+                sort=sort_mode or None,
+                today=today_param or None,
+                session_id=session_id or None,
+            )
+        )
+
+    scoped_loads = db.list_loads(None, session_id=session_id) if session_id else db.list_loads()
+    plant_scope_set = {str(code or "").strip().upper() for code in plant_scope if str(code or "").strip()}
+    draft_load_ids = []
+    for load in scoped_loads:
+        load_id = load.get("id")
+        plant_code = _normalize_plant_code(load.get("origin_plant"))
+        status = (load.get("status") or STATUS_PROPOSED).strip().upper()
+        if not load_id or not plant_code or plant_code not in plant_scope_set:
+            continue
+        if status == STATUS_APPROVED:
+            continue
+        draft_load_ids.append(int(load_id))
+
+    for load_id in draft_load_ids:
+        db.delete_load(load_id)
+
     if session_id:
-        _archive_session_and_release_loads(session_id)
-        redirect_session_id = None
-    elif plant_filters:
-        _reintroduce_orders_to_pool(plant_scope)
-        for plant in plant_scope:
-            db.clear_loads_for_plant(plant)
-    else:
-        _reintroduce_orders_to_pool(plant_scope)
-        for plant in plant_scope:
-            db.clear_loads_for_plant(plant)
+        _sync_planning_session_status(session_id)
+
+    returned_count = len(draft_load_ids)
+    noun = "load" if returned_count == 1 else "loads"
+    manual_success = f"Returned orders from {returned_count} draft {noun} to the pool."
 
     return redirect(
         url_for(
@@ -15173,7 +15197,8 @@ def clear_loads():
             tab=tab or None,
             sort=sort_mode or None,
             today=today_param or None,
-            session_id=redirect_session_id,
+            session_id=session_id or None,
+            manual_success=manual_success,
         )
     )
 

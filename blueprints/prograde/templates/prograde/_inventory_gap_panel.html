@@ -1,0 +1,119 @@
+    <div class="inventory-wrap card" id="pg-inventory-card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
+        <div class="card-title">BT Inventory Gap Finder</div>
+        <div class="card-subtitle">Upload `All.Orders.Quick` and surface available units that can fill remaining deck space.</div>
+      </div>
+
+      <div class="inventory-upload-row">
+        <div class="inventory-upload-meta">
+          {% if inventory_gap and inventory_gap.upload_meta %}
+            Last upload: {{ inventory_gap.upload_meta.source_filename }} ({{ inventory_gap.upload_meta.sheet_name }}) - {{ inventory_gap.upload_meta.valid_rows }} valid rows, {{ inventory_gap.upload_meta.distinct_items }} distinct SKUs
+          {% else %}
+            No BT inventory upload yet.
+          {% endif %}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="file" id="inv-upload-input" accept=".xlsx,.xlsm" style="display:none" />
+          <button type="button" class="btn btn-secondary btn-sm" id="inv-upload-btn" {% if session.brand != 'bigtex' %}disabled{% endif %}>
+            Upload Orders
+          </button>
+        </div>
+      </div>
+
+      {% if session.brand == 'bigtex' %}
+      <div class="inventory-summary-row">
+        <div class="inventory-stat inventory-stat-gap">
+          <span>Remaining Gap</span>
+          <span class="inventory-stat-val">
+            {% if inventory_gap %}
+              {{ '%.1f'|format(inventory_gap.remaining_ft) }}'
+            {% else %}
+              {{ '%.1f'|format((carrier.total_length_ft or 53.0) - (total_footprint or 0.0)) }}'
+            {% endif %}
+          </span>
+        </div>
+        <div class="inventory-stat inventory-stat-available">
+          <span>Available Units</span>
+          <span class="inventory-stat-val">{{ inventory_gap.total_available_units if inventory_gap else 0 }}</span>
+        </div>
+        <div class="inventory-stat inventory-stat-candidates">
+          <span>Candidate SKUs</span>
+          <span class="inventory-stat-val">{{ (inventory_gap.rows | length) if inventory_gap else 0 }}</span>
+        </div>
+      </div>
+
+      <div class="inventory-table-wrap">
+        <table class="inventory-table">
+          <thead>
+            <tr>
+              <th>Add</th>
+              <th>Item #</th>
+              <th>Model</th>
+              <th>MCAT</th>
+              <th>Each FP</th>
+              <th class="inventory-available-col">Available</th>
+              <th>Total</th>
+              <th>Built</th>
+              <th>Future</th>
+              <th>Assigned</th>
+              <th>Fits Gap</th>
+              <th>Suggest Qty</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if inventory_gap and inventory_gap.rows %}
+              {% for row in inventory_gap.rows %}
+              {% set available_units = (row.available_count or 0) | int %}
+              <tr{% if available_units > 0 %} class="inventory-has-available"{% endif %}>
+                <td class="inventory-add-cell">
+                  <button
+                    type="button"
+                    class="inventory-add-btn inventory-pick-item"
+                    data-item="{{ row.item_number }}"
+                    draggable="{{ 'true' if available_units > 0 else 'false' }}"
+                    title="{% if available_units > 0 %}Click to add or drag to schematic{% else %}No available units{% endif %}"
+                    aria-label="Add {{ row.item_number }} from inventory"
+                    {% if available_units <= 0 %}disabled{% endif %}
+                  >+</button>
+                </td>
+                <td class="mono">{{ row.item_number }}</td>
+                <td>{{ row.model or '-' }}</td>
+                <td>
+                  {% if row.mcat %}
+                    {{ row.mcat }}
+                  {% else %}
+                    <span class="inventory-unmapped">Unmapped</span>
+                  {% endif %}
+                </td>
+                <td class="mono">{% if row.footprint_each > 0 %}{{ '%.1f'|format(row.footprint_each) }}'{% else %}-{% endif %}</td>
+                <td class="mono inventory-avail">
+                  <span class="inventory-avail-pill {% if available_units > 0 %}has-stock{% else %}no-stock{% endif %}">
+                    {{ row.available_count }}
+                  </span>
+                </td>
+                <td class="mono">{{ row.total_count }}</td>
+                <td class="mono">{{ row.built_count }}</td>
+                <td class="mono">{{ row.future_build_count }}</td>
+                <td class="mono">{{ row.assigned_count }}</td>
+                <td class="{% if row.fits_gap %}inventory-fit-yes{% else %}inventory-fit-no{% endif %}">
+                  {% if row.fits_gap %}Yes{% else %}No{% endif %}
+                </td>
+                <td class="mono">{% if row.suggested_qty > 0 %}{{ row.suggested_qty }}{% else %}-{% endif %}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="12" style="text-align:center;color:var(--text-secondary);padding:10px 8px;">
+                  Upload an orders workbook to populate BT inventory availability.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="padding:10px 12px;font-size:11px;color:var(--text-secondary);">
+        Inventory upload is currently enabled for Big Tex sessions only. PJ support will be added in a later pass.
+      </div>
+      {% endif %}
+    </div>

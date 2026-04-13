@@ -1,22 +1,137 @@
-﻿{% extends "prograde/base.html" %}
-{% block title %}Load Builder â€” {{ session.session_label or session.session_id[:8] }}{% endblock %}
+{% extends "prograde/base.html" %}
+{% block title %}Load Builder - {{ session_display_id or session.session_label or session.session_id[:8] }}{% endblock %}
 
 {% block head %}
 <style>
-/* â”€â”€ Canvas layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Canvas layout ------------------------------ */
 .canvas-top-bar {
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-default);
   padding: 10px var(--space-xl);
   display: flex;
   align-items: center;
-  gap: 24px;
+  justify-content: space-between;
+  gap: 10px;
   flex-wrap: wrap;
+}
+.pg-top-left {
+  flex: 1 1 320px;
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+}
+.pg-session-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, rgba(11, 20, 37, 0.95), rgba(11, 34, 55, 0.82));
+  padding: 8px 12px;
+}
+.pg-session-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.pg-session-id-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.pg-session-id-value {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: .04em;
+  font-family: var(--font-mono);
+  color: rgba(224, 242, 254, 0.98);
+}
+.pg-session-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pg-session-name {
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.96);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pg-session-sep {
+  color: var(--text-tertiary);
+}
+.pg-top-middle {
+  flex: 1 1 420px;
+  min-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pg-top-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: rgba(15, 23, 42, 0.66);
+}
+.pg-action-btn {
+  min-height: 30px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.pg-action-save {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  border-color: rgba(125, 211, 252, 0.52);
+  color: #f8fafc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+.pg-action-save:hover {
+  background: linear-gradient(135deg, #1d4ed8, #0284c7);
+  border-color: rgba(147, 197, 253, 0.72);
+}
+.pg-layout {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding-top: var(--space-md);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.pg-canvas-column {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.pg-sidebar {
+  flex: 0 0 clamp(316px, 24vw, 372px);
+  width: clamp(316px, 24vw, 372px);
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 .deck-total {
   display: flex;
   align-items: baseline;
   gap: 6px;
+  padding: 2px 4px;
 }
 .deck-total-val {
   font-size: 22px;
@@ -31,9 +146,76 @@
   flex: 1;
   min-width: 120px;
   max-width: 240px;
+  padding: 0 2px;
+}
+.brand-path-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: rgba(15, 23, 42, 0.55);
+}
+.brand-path-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-right: 2px;
+}
+.brand-path-btn {
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.brand-path-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  background: var(--status-info-bg);
+}
+.brand-path-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #fff;
+}
+.render-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: rgba(15, 23, 42, 0.55);
+}
+.render-mode-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-right: 2px;
+}
+.render-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.render-mode-option input[type="radio"] {
+  accent-color: var(--accent-primary);
 }
 
-/* â”€â”€ Zone layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Zone layout -------------------------------- */
 .zones-container {
   display: flex;
   gap: var(--space-md);
@@ -79,7 +261,7 @@
   min-height: 80px;
 }
 
-/* â”€â”€ Unit column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Unit column -------------------------------- */
 .unit-col {
   display: flex;
   flex-direction: column-reverse;  /* layer 1 at bottom, top layers stack up */
@@ -140,8 +322,8 @@
   opacity: .56;
 }
 .column-drop-slot {
-  flex: 0 0 28px;
-  min-width: 28px;
+  flex: 0 0 16px;
+  min-width: 16px;
   height: 112px;
   border: 1px dashed rgba(147, 197, 253, 0.75);
   border-radius: var(--radius-md);
@@ -186,7 +368,7 @@
   background: var(--status-info-bg);
 }
 
-/* â”€â”€ Unit card (revised) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Unit card (revised) ------------------------ */
 .unit-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
@@ -236,18 +418,93 @@
 .axle-drop-active { color: var(--status-info) !important; }
 
 /* Remove button */
-.unit-remove {
+.unit-action-row {
   position: absolute;
-  top: 4px; right: 4px;
+  right: 4px;
+  top: 4px;
+  transform: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  z-index: 3;
+}
+.unit-tongue-pill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  padding: 2px 5px;
+  color: var(--text-secondary);
+  background: rgba(15, 23, 42, 0.55);
+}
+.unit-tongue-pill.std {
+  border-color: rgba(96, 165, 250, 0.55);
+  color: rgba(191, 219, 254, 0.95);
+}
+.unit-tongue-pill.gn {
+  border-color: rgba(110, 231, 183, 0.55);
+  color: rgba(167, 243, 208, 0.95);
+}
+.unit-remove {
+  position: relative;
   background: none; border: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
-  padding: 1px 3px;
+  padding: 1px 2px;
   border-radius: var(--radius-sm);
 }
 .unit-remove:hover { background: var(--status-error-bg); color: var(--status-error); }
+.unit-rotate {
+  position: relative;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: var(--radius-sm);
+}
+.unit-rotate:hover {
+  border-color: var(--accent-primary);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.unit-rotate.active {
+  border-color: color-mix(in srgb, var(--accent-primary) 70%, transparent);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.unit-dump-door {
+  position: relative;
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 23, 42, 0.56);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: .02em;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.unit-dump-door:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  background: var(--status-info-bg);
+}
+.unit-dump-door.active {
+  border-color: rgba(248, 113, 113, 0.7);
+  color: rgba(254, 202, 202, 0.95);
+  background: rgba(127, 29, 29, 0.45);
+}
 
 /* Violation highlight overlay on card */
 .violation-dot {
@@ -258,7 +515,7 @@
   vertical-align: middle;
 }
 
-/* â”€â”€ Zone footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Zone footer -------------------------------- */
 .zone-footer-bar {
   padding: var(--space-sm) var(--space-md);
   border-top: 1px solid var(--border-default);
@@ -275,7 +532,7 @@
 }
 .zone-stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
 
-/* â”€â”€ Violation panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Violation panel ---------------------------- */
 .viol-group-hdr {
   font-size: 10px;
   font-weight: 600;
@@ -324,36 +581,229 @@
 }
 .violation-unack-btn:hover { background: var(--bg-tertiary); }
 
-/* â”€â”€ Picker panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Picker panel ------------------------------- */
 .picker-search {
   padding: var(--space-sm);
   border-bottom: 1px solid var(--border-default);
 }
-.sku-list { max-height: 320px; overflow-y: auto; }
-.sku-list-item {
+.picker-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sku-view-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sku-view-btn {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.sku-view-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+.sku-view-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.sku-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.sku-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sku-empty.hidden {
+  display: none;
+}
+.sku-group,
+.sku-model-group {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sku-group:last-child,
+.sku-model-group:last-child {
+  border-bottom: none;
+}
+.sku-group-summary,
+.sku-model-summary {
+  list-style: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px var(--space-md);
-  border-bottom: 1px solid var(--border-subtle);
+  gap: 8px;
+  padding: 7px 12px;
   cursor: pointer;
-  gap: var(--space-sm);
 }
-.sku-list-item:hover { background: var(--bg-secondary); }
-.sku-list-item:last-child { border-bottom: none; }
-.sku-list-item[draggable="true"] { cursor: grab; }
+.sku-group-summary::-webkit-details-marker,
+.sku-model-summary::-webkit-details-marker {
+  display: none;
+}
+.sku-group-summary:hover,
+.sku-model-summary:hover {
+  background: var(--bg-secondary);
+}
+.sku-group-left,
+.sku-model-left {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sku-caret {
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  transform: rotate(-45deg);
+  transition: transform .14s ease;
+  flex: 0 0 auto;
+}
+.sku-group[open] > .sku-group-summary .sku-caret,
+.sku-model-group[open] > .sku-model-summary .sku-caret {
+  transform: rotate(45deg);
+}
+.sku-group-label,
+.sku-model-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sku-count-badge {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
+}
+.sku-model-wrap {
+  margin-left: 10px;
+  border-left: 1px solid var(--border-subtle);
+}
+.sku-items {
+  padding: 0 0 4px;
+}
+.sku-item-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 5px 12px 5px 26px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.sku-list-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 26px;
+  border-top: 1px solid rgba(51, 65, 85, 0.55);
+}
+.sku-list-item:hover {
+  background: var(--bg-secondary);
+}
+.sku-list-item[draggable="true"] {
+  cursor: grab;
+}
 .sku-list-item.dragging {
   opacity: 0.55;
   border-left: 3px solid var(--accent-primary);
 }
-.sku-item-id { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
-.sku-item-fp { font-size: 11px; color: var(--text-secondary); }
+.sku-item-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.sku-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sku-item-length {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.sku-item-height {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  justify-self: end;
+}
+.sku-item-head.with-desc,
+.sku-list-item.with-desc {
+  grid-template-columns: minmax(90px, 1fr) minmax(160px, 2fr) auto;
+}
+.sku-item-head.with-desc.with-tongue,
+.sku-list-item.with-desc.with-tongue {
+  grid-template-columns: minmax(78px, 1fr) minmax(130px, 2fr) auto auto;
+}
+.sku-item-head.pj-table,
+.sku-list-item.pj-table {
+  grid-template-columns: minmax(80px, 1fr) minmax(58px, auto) minmax(58px, auto) minmax(86px, auto) minmax(86px, auto);
+}
+.sku-item-tongue {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sku-item-dump-height {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sku-row-tongue-btn {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.sku-row-tongue-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+.sku-row-tongue-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
 .drop-target-active {
   outline: 2px dashed var(--accent-primary);
   outline-offset: 2px;
 }
 
-/* â”€â”€ Zone picker modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Zone picker modal -------------------------- */
 .modal-backdrop {
   display: none;
   position: fixed; inset: 0;
@@ -375,6 +825,11 @@
 
 /* COT-style schematic framing */
 .prograde-schematic {
+  --stepdeck-line-color: rgba(148, 163, 184, 0.86);
+  --stepdeck-line-glow: rgba(148, 163, 184, 0.24);
+  --height-ft-px: 14px;
+  --step-rise-px: calc(1.5 * var(--height-ft-px));
+  --meter-gutter: 96px;
   background:
     radial-gradient(rgba(148, 163, 184, 0.22) 1px, transparent 1px),
     radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.12), transparent 55%),
@@ -384,39 +839,61 @@
   border-radius: 12px;
   box-shadow: 0 18px 45px rgba(2, 6, 23, 0.6);
   padding: 10px;
+  overflow: visible;
 }
 .prograde-schematic .trailer-body {
-  padding-left: 34px;
-  padding-right: 0;
+  padding-left: calc(var(--meter-gutter) + 12px);
+  padding-right: calc(var(--meter-gutter) + 12px);
+  padding-bottom: 34px;
+  overflow: visible;
+  position: relative;
 }
 .prograde-schematic .trailer-deck-row {
   display: flex;
+  align-items: stretch;
   gap: 0;
   border: 3px solid rgba(35, 54, 72, 0.95);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(2, 6, 23, 0.55);
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08), 0 20px 55px rgba(2, 6, 23, 0.55);
+  padding-top: 4px;
 }
 .prograde-schematic .trailer-deck {
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  padding: 8px;
+  padding: 4px 8px 8px;
   display: flex;
   flex-direction: column;
-  min-height: 190px;
+  min-height: 280px;
+  align-self: stretch;
+  position: relative;
+  overflow: visible;
+}
+.prograde-schematic .trailer-deck.lower {
+  z-index: 1;
 }
 .prograde-schematic .trailer-deck.upper {
   border-right: 1px solid rgba(35, 54, 72, 0.95);
+  align-self: stretch;
+  margin-left: 0;
+  z-index: 2;
+}
+.prograde-schematic .deck-stage-upper .deck-positions {
+  padding-bottom: calc(var(--step-rise-px) - 4px);
+  justify-content: flex-end;
+  margin-left: calc(-1 * var(--upper-seam-overhang-ft, 0) * var(--deck-ft-px, 10px));
 }
 .prograde-schematic .deck-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  position: relative;
+  z-index: 5;
 }
 .prograde-schematic .deck-label {
   margin: 0;
@@ -448,62 +925,418 @@
 }
 .prograde-schematic .deck-stage {
   flex: 1;
-  min-height: 0;
+  min-height: 190px;
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  padding-top: 4px;
+  padding-bottom: 2px;
+  overflow: visible;
+}
+.prograde-schematic .deck-stage::after {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  bottom: 1px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--stepdeck-line-color);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.6), 0 0 10px var(--stepdeck-line-glow);
+  pointer-events: none;
+}
+.prograde-schematic .trailer-deck.lower .deck-stage::after {
+  background: var(--stepdeck-line-color);
+}
+.prograde-schematic .trailer-deck.upper .deck-stage::after {
+  background: var(--stepdeck-line-color);
+  bottom: calc(1px + var(--step-rise-px));
+  left: -8px;
+  right: auto;
+  width: calc(var(--zone-line-used-pct, 100%) + 8px);
+  border-right: 2px solid rgba(203, 213, 225, 0.9);
+  border-radius: 2px 0 0 2px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.6), 0 0 10px var(--stepdeck-line-glow);
+}
+.prograde-schematic .trailer-deck.upper .deck-stage::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  bottom: 1px;
+  width: 0;
+  height: var(--step-rise-px);
+  border-left: 3px solid var(--stepdeck-line-color);
+  pointer-events: none;
+  opacity: 0.9;
 }
 .prograde-schematic .zone-columns-scroll {
-  overflow-x: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  overflow: visible;
   padding: 0;
+  position: relative;
+  z-index: 3;
+}
+.prograde-schematic .zone-height-indicator {
+  width: var(--meter-gutter);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  position: absolute;
+  bottom: 12px;
+  height: auto;
+  z-index: 5;
+  pointer-events: none;
+}
+.prograde-schematic .zone-height-indicator.is-lower {
+  left: calc(-1 * var(--meter-gutter));
+}
+.prograde-schematic .zone-height-indicator.is-upper {
+  right: calc(-1 * var(--meter-gutter));
+  bottom: calc(12px + var(--step-rise-px));
+}
+.prograde-schematic .zone-height-indicator-track {
+  width: 44px;
+  min-height: 0;
+  height: max(64px, calc(var(--zone-height-cap-ft, 0) * var(--height-ft-px)));
+  flex: 0 0 auto;
+  align-self: center;
+  border-radius: 12px;
+  border: 1px solid rgba(71, 85, 105, 0.9);
+  background: rgba(30, 41, 59, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(2, 6, 23, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.prograde-schematic .zone-height-indicator.is-lower .zone-height-indicator-track {
+  margin-left: auto;
+  margin-right: 8px;
+}
+.prograde-schematic .zone-height-indicator.is-upper .zone-height-indicator-track {
+  margin-left: 8px;
+  margin-right: auto;
+}
+.prograde-schematic .zone-height-indicator-empty {
+  width: 100%;
+  height: var(--height-empty, 0%);
+  min-height: 0;
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.55), rgba(51, 65, 85, 0.42));
+  color: rgba(226, 232, 240, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 3px;
+  text-align: center;
+}
+.prograde-schematic .zone-height-indicator-fill {
+  width: 100%;
+  height: var(--height-used, 0%);
+  min-height: 0;
+  background: linear-gradient(0deg, rgba(34, 197, 94, 0.95), rgba(74, 222, 128, 0.72));
+  color: rgba(240, 253, 250, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 3px;
+  text-align: center;
+}
+.prograde-schematic .zone-height-indicator.is-warning .zone-height-indicator-fill {
+  background: linear-gradient(0deg, rgba(234, 179, 8, 0.95), rgba(250, 204, 21, 0.72));
+  color: rgba(15, 23, 42, 0.92);
+}
+.prograde-schematic .zone-height-indicator.is-over .zone-height-indicator-fill {
+  background: linear-gradient(0deg, rgba(239, 68, 68, 0.95), rgba(248, 113, 113, 0.78));
+  color: rgba(255, 241, 242, 0.98);
+}
+.prograde-schematic .zone-height-indicator-empty-label,
+.prograde-schematic .zone-height-indicator-fill-label {
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+  white-space: normal;
+}
+.prograde-schematic .zone-blank-space {
+  position: absolute;
+  left: 0;
+  border: 1px dashed rgba(147, 197, 253, 0.62);
+  background: rgba(30, 64, 175, 0.16);
+  color: rgba(191, 219, 254, 0.96);
+  border-radius: 6px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+.prograde-schematic .trailer-deck.lower .zone-blank-space {
+  bottom: 6px;
+}
+.prograde-schematic .trailer-deck.upper .zone-blank-space {
+  bottom: calc(6px + var(--step-rise-px));
+}
+.prograde-schematic .zone-blank-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.prograde-schematic .zone-left-overhang {
+  position: absolute;
+  left: calc(-1 * var(--left-overhang-ft, 0) * var(--deck-ft-px, 10px));
+  bottom: 3px;
+  width: calc(var(--left-overhang-ft, 0) * var(--deck-ft-px, 10px));
+  min-width: 0;
+  height: 18px;
+  border: 1px dashed rgba(248, 113, 113, 0.84);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  background: rgba(127, 29, 29, 0.28);
+  color: rgba(254, 226, 226, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  pointer-events: none;
+  z-index: 2;
+}
+.prograde-schematic .zone-left-overhang::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -7px;
+  bottom: -2px;
+  border-right: 1px dashed rgba(248, 113, 113, 0.85);
+}
+.prograde-schematic .zone-left-overhang-label {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+.prograde-schematic .stepdeck-measure-row {
+  position: relative;
+  height: 22px;
+  margin-top: 8px;
+}
+.prograde-schematic .stepdeck-measure-track-live {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed rgba(147, 197, 253, 0.62);
+  border-radius: 6px;
+  background: rgba(30, 64, 175, 0.12);
+  overflow: hidden;
+}
+.prograde-schematic .stepdeck-live-segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px dashed rgba(125, 211, 252, 0.38);
+  padding: 0 6px;
+  background: rgba(30, 64, 175, 0.08);
+}
+.prograde-schematic .stepdeck-live-segment:last-child {
+  border-right: 0;
+}
+.prograde-schematic .stepdeck-live-segment.is-stack {
+  background: rgba(56, 189, 248, 0.16);
+}
+.prograde-schematic .stepdeck-live-segment.is-remaining {
+  background: rgba(34, 197, 94, 0.12);
+}
+.prograde-schematic .stepdeck-live-segment-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .prograde-schematic .deck-positions {
-  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 100%;
+  gap: 2px;
   align-items: flex-end;
-  min-height: 0;
+  align-content: flex-end;
+  flex-wrap: nowrap;
+  row-gap: 8px;
   padding-bottom: 0;
   border-bottom: 0;
+  width: 100%;
+}
+.prograde-schematic .trailer-deck.lower .zone-columns-scroll {
+  padding-right: 0;
+}
+.prograde-schematic .trailer-deck.lower .deck-positions {
+  justify-content: flex-start;
+}
+.prograde-schematic .trailer-deck.upper .deck-positions {
+  justify-content: flex-end;
+  margin-left: 0;
 }
 .prograde-schematic .position-column {
   min-width: 0;
 }
 .prograde-schematic .position-column[data-stack-col] {
-  flex: var(--deck-span, 1) 1 0;
+  flex: 0 0 auto;
+  width: max(16px, calc(var(--deck-span, 1) * var(--deck-ft-px, 10px)));
 }
 .prograde-schematic .position-stack {
-  height: 110px;
-  gap: 4px;
+  display: flex;
+  gap: 0;
   justify-content: flex-start;
+  align-items: flex-start;
   flex-direction: column-reverse;
-  padding: 3px 2px 2px;
+  padding: 3px 2px 4px 2px;
   width: 100%;
   position: relative;
+  min-height: 126px;
   overflow: visible;
+}
+.prograde-schematic.render-mode-standard .position-stack {
+  padding-left: calc(calc(var(--tongue-pad-ft, 0) * var(--deck-ft-px, 10px)) + 2px);
 }
 .prograde-schematic .pg-unit-block {
   position: relative;
-  margin: 0 auto;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 3px 6px 3px 6px;
+  height: max(22px, calc(var(--stack-height-ft, 1) * var(--height-ft-px)));
+  min-height: 22px;
+  width: max(16px, calc(var(--footprint-ft, 1) * var(--deck-ft-px, 10px)));
+  max-width: none;
   border-radius: 6px;
   border: 1.5px solid color-mix(in srgb, var(--accent, #137fec) 82%, white 18%);
-  background: color-mix(in srgb, var(--accent, #137fec) 12%, transparent);
+  background: color-mix(in srgb, var(--accent, #137fec) 12%, rgba(2, 6, 23, 0.82));
   box-shadow:
-    inset 0 0 18px color-mix(in srgb, var(--accent, #137fec) 28%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 0 0 1px rgba(2, 6, 23, 0.35),
-    0 8px 18px rgba(2, 6, 23, 0.55);
-  backdrop-filter: blur(8px);
+    inset 0 0 10px color-mix(in srgb, var(--accent, #137fec) 22%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 0 1px rgba(2, 6, 23, 0.4),
+    0 4px 10px rgba(2, 6, 23, 0.35);
+  overflow: visible;
+}
+.prograde-schematic.render-mode-standard .pg-unit-block {
+  width: max(16px, calc(var(--bed-ft, var(--footprint-ft, 1)) * var(--deck-ft-px, 10px)));
 }
 .prograde-schematic .pg-unit-block::after {
   content: "";
   position: absolute;
-  inset: -30% -25%;
-  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.28), transparent 60%);
-  opacity: 0.7;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0) 100%);
   pointer-events: none;
 }
 .prograde-schematic .pg-unit-block .unit-card-id,
 .prograde-schematic .pg-unit-block .unit-card-fp,
 .prograde-schematic .pg-unit-block .unit-card-ht,
-.prograde-schematic .pg-unit-block .axle-drop-row {
+.prograde-schematic .pg-unit-block .axle-drop-row,
+.prograde-schematic .pg-unit-block .unit-tongue {
   position: relative;
   z-index: 1;
+}
+.prograde-schematic .pg-unit-block .unit-remove,
+.prograde-schematic .pg-unit-block .unit-rotate {
+  z-index: 2;
+}
+.prograde-schematic .pg-unit-block .unit-render {
+  display: none;
+  position: absolute;
+  inset: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.prograde-schematic .pg-unit-block .unit-render > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.prograde-schematic .pg-unit-block > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+.prograde-schematic .pg-unit-block .unit-tongue {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  transform: translate(calc(-100% - 3px), 0);
+  width: max(8px, calc(var(--tongue-ft, 0) * var(--deck-ft-px, 10px)));
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.prograde-schematic.render-mode-standard .pg-unit-block[data-has-tongue="1"] .unit-tongue {
+  display: block;
+}
+.prograde-schematic .pg-unit-block.is-rotated .unit-tongue {
+  left: auto;
+  right: 0;
+  transform: translate(calc(100% + 3px), 0) scaleX(-1);
+}
+.prograde-schematic .pg-unit-block .unit-tongue svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.prograde-schematic .pg-unit-block .unit-tongue path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent, #137fec) 88%, white 12%);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.prograde-schematic.render-mode-standard .unit-render-standard,
+.prograde-schematic.render-mode-advanced .unit-render-advanced {
+  display: block;
+}
+.prograde-schematic.render-mode-advanced .pg-unit-block .unit-tongue {
+  display: none;
+  pointer-events: none;
+}
+.prograde-schematic.render-mode-advanced .pg-unit-block {
+  overflow: hidden;
+}
+.prograde-schematic.render-mode-standard .unit-render-advanced {
+  display: none;
+}
+.prograde-schematic.render-mode-advanced .unit-render-standard {
+  display: none;
+}
+.prograde-schematic .pg-unit-block.is-rotated .unit-render {
+  transform: scaleX(-1);
+  transform-origin: center center;
+}
+.prograde-schematic .unit-geometry {
+  display: none;
 }
 .prograde-schematic .unit-card {
   cursor: grab;
@@ -514,40 +1347,109 @@
 .prograde-schematic .unit-card.dragging {
   opacity: .5;
 }
-.prograde-schematic .deck-footer {
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.prograde-schematic .pg-unit-block .unit-card-id {
   font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.78);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.prograde-schematic .deck-line {
-  flex: 1;
-  min-width: 0;
-  position: relative;
-  height: 16px;
+.prograde-schematic .pg-unit-block .unit-card-fp,
+.prograde-schematic .pg-unit-block .unit-card-ht {
+  display: none;
+}
+.prograde-schematic .pg-unit-block .axle-drop-row {
+  display: none;
+}
+.prograde-schematic .stepdeck-total-ruler {
+  margin-top: 10px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
 }
-.prograde-schematic .deck-line::before {
-  content: "";
+.prograde-schematic .stepdeck-total-track {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(71, 85, 105, 0.9);
+  background: rgba(15, 23, 42, 0.75);
+  overflow: visible;
+}
+.prograde-schematic .stepdeck-total-used {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--total-used-pct, 0%);
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.62), rgba(34, 197, 94, 0.45));
+}
+.prograde-schematic .stepdeck-total-blank {
   position: absolute;
   left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: rgba(148, 163, 184, 0.35);
+  top: 0;
+  bottom: 0;
+  width: var(--total-rem-pct, 0%);
+  border-right: 1px dashed rgba(147, 197, 253, 0.65);
+  background: rgba(30, 64, 175, 0.24);
 }
-.prograde-schematic .deck-length {
+.prograde-schematic .stepdeck-total-blank-chip {
+  position: absolute;
+  left: 6px;
+  top: -22px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed rgba(147, 197, 253, 0.72);
+  background: rgba(30, 64, 175, 0.35);
+  color: rgba(191, 219, 254, 0.98);
+  border-radius: 5px;
+  padding: 0 7px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.prograde-schematic .stepdeck-total-over {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: rgba(254, 202, 202, 0.98);
+}
+.prograde-schematic .stepdeck-total-break {
+  position: absolute;
+  left: var(--step-break-pct, 77.358%);
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: rgba(241, 245, 249, 0.85);
+  box-shadow: 0 0 8px rgba(148, 163, 184, 0.45);
+}
+.prograde-schematic .stepdeck-total-labels {
   position: relative;
-  z-index: 1;
-  padding: 0 8px;
-  background: rgba(2, 6, 23, 0.6);
+  height: 12px;
+  color: rgba(148, 163, 184, 0.82);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.prograde-schematic .stepdeck-total-labels span {
+  position: absolute;
+  top: 0;
+}
+.prograde-schematic .stepdeck-total-label-start {
+  left: 0;
+}
+.prograde-schematic .stepdeck-total-label-break {
+  left: var(--step-break-pct, 77.358%);
+  transform: translateX(-50%);
+}
+.prograde-schematic .stepdeck-total-label-end {
+  right: 0;
 }
 .prograde-schematic .trailer-truck {
   left: 0;
@@ -566,20 +1468,23 @@
 /* Category legend */
 .pg-legend {
   display: grid;
-  gap: 6px;
-  padding: 10px 12px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 8px;
+  padding: 6px 8px 8px;
 }
 .pg-legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 10px;
+  line-height: 1.15;
   color: var(--text-secondary);
+  min-width: 0;
 }
 .pg-legend-swatch {
-  width: 16px;
-  height: 12px;
-  border-radius: 3px;
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
   border: 1px solid color-mix(in srgb, var(--accent, #137fec) 82%, white 18%);
   background: color-mix(in srgb, var(--accent, #137fec) 20%, transparent);
   box-shadow: inset 0 0 10px color-mix(in srgb, var(--accent, #137fec) 30%, transparent);
@@ -607,305 +1512,397 @@
 .pg-hover-tooltip-row + .pg-hover-tooltip-row {
   margin-top: 2px;
 }
+
+/* Manifest table */
+.manifest-wrap {
+  margin-top: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+.manifest-wrap .card-header {
+  background: linear-gradient(90deg, rgba(14, 36, 66, 0.92), rgba(10, 26, 53, 0.88));
+  border-bottom: 1px solid rgba(56, 189, 248, 0.24);
+}
+.manifest-wrap .card-subtitle {
+  color: rgba(186, 230, 253, 0.82);
+}
+.manifest-table-wrap {
+  max-height: 175px;
+  overflow: auto;
+  background: rgba(2, 6, 23, 0.36);
+}
+.manifest-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  line-height: 1.24;
+}
+.manifest-table th,
+.manifest-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 6px 7px;
+  text-align: left;
+  vertical-align: top;
+}
+.manifest-table th {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: rgba(186, 230, 253, 0.9);
+  background: rgba(14, 49, 84, 0.45);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.manifest-table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.35);
+}
+.manifest-table tbody tr:hover {
+  background: rgba(14, 116, 144, 0.18);
+}
+.manifest-table td.mono {
+  font-family: var(--font-mono);
+  color: rgba(226, 232, 240, 0.96);
+}
+.manifest-table td:nth-child(4),
+.manifest-table td:nth-child(8) {
+  color: rgba(147, 197, 253, 0.98);
+  font-weight: 700;
+}
+
+/* Inventory gap table */
+.inventory-wrap {
+  margin-top: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+}
+.inventory-wrap .card-header {
+  background: linear-gradient(90deg, rgba(9, 34, 45, 0.94), rgba(10, 42, 51, 0.88));
+  border-bottom: 1px solid rgba(45, 212, 191, 0.26);
+}
+.inventory-wrap .card-subtitle {
+  color: rgba(153, 246, 228, 0.84);
+}
+.inventory-upload-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-default);
+  background: rgba(10, 33, 43, 0.44);
+}
+.inventory-upload-meta {
+  font-size: 11px;
+  color: rgba(186, 230, 253, 0.8);
+  line-height: 1.3;
+}
+.inventory-summary-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-default);
+  background: rgba(8, 28, 38, 0.38);
+}
+.inventory-stat {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+  color: rgba(203, 213, 225, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.62);
+  padding: 4px 8px;
+}
+.inventory-stat-val {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: rgba(240, 249, 255, 0.98);
+}
+.inventory-stat-gap .inventory-stat-val {
+  color: rgba(125, 211, 252, 0.98);
+}
+.inventory-stat-available .inventory-stat-val {
+  color: rgba(110, 231, 183, 0.98);
+}
+.inventory-stat-available {
+  border-color: rgba(74, 222, 128, 0.6);
+  background: linear-gradient(145deg, rgba(10, 39, 27, 0.78), rgba(12, 31, 39, 0.74));
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.16);
+}
+.inventory-stat-candidates .inventory-stat-val {
+  color: rgba(253, 224, 71, 0.96);
+}
+.inventory-table-wrap {
+  max-height: 240px;
+  overflow: auto;
+  background: rgba(2, 6, 23, 0.34);
+}
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  line-height: 1.24;
+}
+.inventory-table th,
+.inventory-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 6px 7px;
+  text-align: left;
+  vertical-align: top;
+}
+.inventory-table td.inventory-add-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+.inventory-table th {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: rgba(167, 243, 208, 0.9);
+  background: rgba(6, 44, 52, 0.44);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.inventory-table th.inventory-available-col {
+  color: rgba(134, 239, 172, 0.98);
+  text-shadow: 0 0 8px rgba(74, 222, 128, 0.25);
+}
+.inventory-table tbody tr:nth-child(even) {
+  background: rgba(10, 24, 34, 0.3);
+}
+.inventory-table tbody tr.inventory-has-available {
+  box-shadow: inset 2px 0 0 rgba(74, 222, 128, 0.72);
+}
+.inventory-table tbody tr:hover {
+  background: rgba(20, 83, 45, 0.25);
+}
+.inventory-table td.mono {
+  font-family: var(--font-mono);
+  color: rgba(226, 232, 240, 0.96);
+}
+.inventory-avail {
+  text-align: center;
+}
+.inventory-avail-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  background: rgba(15, 23, 42, 0.64);
+  color: rgba(226, 232, 240, 0.92);
+  font-weight: 700;
+}
+.inventory-avail-pill.has-stock {
+  border-color: rgba(74, 222, 128, 0.72);
+  background: linear-gradient(145deg, rgba(20, 83, 45, 0.78), rgba(16, 185, 129, 0.26));
+  color: rgba(187, 247, 208, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.2);
+}
+.inventory-avail-pill.no-stock {
+  color: rgba(148, 163, 184, 0.92);
+}
+.inventory-add-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.56);
+  background: linear-gradient(145deg, rgba(30, 58, 138, 0.78), rgba(14, 116, 144, 0.62));
+  color: rgba(224, 242, 254, 0.98);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+  cursor: grab;
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease, opacity .12s ease;
+}
+.inventory-add-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  filter: brightness(1.08);
+}
+.inventory-add-btn:active:not(:disabled) {
+  cursor: grabbing;
+  transform: translateY(0);
+}
+.inventory-add-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: rgba(71, 85, 105, 0.52);
+  background: rgba(30, 41, 59, 0.64);
+  color: rgba(148, 163, 184, 0.9);
+}
+.inventory-add-btn.dragging {
+  opacity: 0.62;
+  filter: saturate(1.2);
+}
+.inventory-fit-yes {
+  color: rgba(74, 222, 128, 0.98);
+  font-weight: 700;
+}
+.inventory-fit-no {
+  color: rgba(248, 250, 252, 0.78);
+}
+.inventory-unmapped {
+  color: rgba(253, 224, 71, 0.98);
+  font-weight: 700;
+  background: rgba(113, 63, 18, 0.35);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+@media (max-width: 1320px) {
+  .canvas-top-bar {
+    align-items: stretch;
+  }
+  .pg-top-left,
+  .pg-top-middle,
+  .pg-top-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .pg-top-actions {
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+  .pg-layout {
+    flex-direction: column;
+  }
+  .pg-sidebar {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-{% set category_palette = {
-  'car_hauler': '#22c55e',
-  'deck_over': '#3b82f6',
-  'car_hauler_deckover': '#3b82f6',
-  'tilt_deckover': '#06b6d4',
-  'gooseneck': '#a78bfa',
-  'dump_lowside': '#f59e0b',
-  'dump_highside_3ft': '#fb923c',
-  'dump_highside_4ft': '#f97316',
-  'dump_small': '#facc15',
-  'dump_gn': '#ef4444',
-  'dump_variants': '#ef4444',
-  'utility': '#10b981',
-  'equipment': '#38bdf8',
-  'other': '#64748b',
-  'unknown': '#64748b'
-} if session.brand == 'pj' else {
-  'utility': '#10b981',
-  'dump': '#f59e0b',
-  'equipment': '#38bdf8',
-  'gooseneck': '#a78bfa',
-  'cargo': '#22d3ee',
-  'specialty': '#f43f5e',
-  'other': '#64748b',
-  'unknown': '#64748b'
-} %}
-{% set category_legend = [
-  ('car_hauler', 'Car Hauler'),
-  ('deck_over', 'Deck Over / Tilt'),
-  ('gooseneck', 'Gooseneck'),
-  ('dump_lowside', 'Dump'),
-  ('utility', 'Utility'),
-  ('equipment', 'Equipment'),
-  ('other', 'Other')
-] if session.brand == 'pj' else [
-  ('utility', 'Utility'),
-  ('dump', 'Dump'),
-  ('equipment', 'Equipment'),
-  ('gooseneck', 'Gooseneck'),
-  ('cargo', 'Cargo'),
-  ('specialty', 'Specialty'),
-  ('other', 'Other')
-] %}
+{% set category_palette = category_palette | default({'unknown': '#64748b'}) %}
+{% set category_legend = category_legend | default([('unknown', 'Unknown')]) %}
 
 {% if session.status == 'stale' %}
-<div class="stale-banner">
-  âš  Settings changed since last validation â€” constraint check below uses current assumptions.
+<div class="stale-banner" id="pg-stale-banner">
+  Warning: settings changed since last validation. Constraint check below uses current assumptions.
 </div>
 {% endif %}
 
-<!-- â”€â”€ Top Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-<div class="canvas-top-bar">
-  <div>
-    <div style="font-size:16px;font-weight:600">
-      {{ session.session_label or session.session_id[:8] }}
-      <span class="badge {% if session.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}" style="margin-left:6px;vertical-align:middle;font-size:11px">
-        {{ session.brand | upper }}
+<!-- -- Top Bar ------------------------------------- -->
+<div class="canvas-top-bar" id="pg-top-bar">
+  <div class="pg-top-left">
+    <div class="pg-session-chip">
+      <div class="pg-session-id-row">
+        <span class="pg-session-id-label">Session ID</span>
+        <span class="pg-session-id-value">{{ session_display_id or session.session_id[:8] }}</span>
+        <span class="badge {% if session.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}">
+          {{ session.brand | upper }}
+        </span>
+        {% if session.is_saved %}
+        <span class="badge badge-success">Saved</span>
+        {% else %}
+        <span class="badge badge-warning">Not Saved</span>
+        {% endif %}
+      </div>
+      <div class="pg-session-meta">
+        <span class="pg-session-name">{{ session.session_label or 'Untitled Session' }}</span>
+        <span class="pg-session-sep">&middot;</span>
+        <span>{{ session.carrier_type }}</span>
+        <span class="pg-session-sep">&middot;</span>
+        <span>{{ session.builder_name or session.planner_name or 'Planner Unassigned' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pg-top-middle">
+    <div class="brand-path-group" aria-label="Create load">
+      <span class="brand-path-label">Brand</span>
+      <span class="brand-path-btn active">{{ "Big Tex" if selected_brand == "bigtex" else "PJ" }}</span>
+      <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}">Create Load</a>
+    </div>
+    <div class="deck-total">
+      <span class="deck-total-val" id="total-fp-val"
+            style="color:{% if pct_used > 100 %}var(--status-error){% elif pct_used > 90 %}var(--status-warning){% else %}var(--text-primary){% endif %}">
+        {{ "%.1f"|format(total_footprint) }}'
       </span>
+      <span class="deck-total-cap">/ {{ carrier.total_length_ft }}' used</span>
     </div>
-    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">
-      {{ session.carrier_type }} Â· {{ session.planner_name or 'â€”' }}
+
+    <div class="deck-util-bar">
+      <div class="util-bar-wrap">
+        <div class="util-bar {% if pct_used > 100 %}over{% elif pct_used > 90 %}warn{% endif %}"
+             id="total-fp-bar"
+             style="width:{{ [pct_used, 100]|min }}%"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">
+        {{ "%.0f"|format(pct_used) }}% utilized
+      </div>
+    </div>
+
+    <div id="violation-summary">
+      {% if violations_error > 0 %}
+        <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
+      {% endif %}
+      {% if violations_warning > 0 %}
+        <span class="badge badge-warning" style="margin-left:4px">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
+      {% endif %}
+      {% if violations_error == 0 and violations_warning == 0 %}
+        <span class="badge badge-success">Clear</span>
+      {% endif %}
     </div>
   </div>
 
-  <div class="deck-total">
-    <span class="deck-total-val" id="total-fp-val"
-          style="color:{% if pct_used > 100 %}var(--status-error){% elif pct_used > 90 %}var(--status-warning){% else %}var(--text-primary){% endif %}">
-      {{ "%.1f"|format(total_footprint) }}'
-    </span>
-    <span class="deck-total-cap">/ {{ carrier.total_length_ft }}' used</span>
-  </div>
-
-  <div class="deck-util-bar">
-    <div class="util-bar-wrap">
-      <div class="util-bar {% if pct_used > 100 %}over{% elif pct_used > 90 %}warn{% endif %}"
-           id="total-fp-bar"
-           style="width:{{ [pct_used, 100]|min }}%"></div>
-    </div>
-    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">
-      {{ "%.0f"|format(pct_used) }}% utilized
-    </div>
-  </div>
-
-  <div id="violation-summary">
-    {% if violations_error > 0 %}
-      <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
-    {% endif %}
-    {% if violations_warning > 0 %}
-      <span class="badge badge-warning" style="margin-left:4px">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
-    {% endif %}
-    {% if violations_error == 0 and violations_warning == 0 %}
-      <span class="badge badge-success">âœ“ Clear</span>
-    {% endif %}
-  </div>
-
-  <div style="margin-left:auto;display:flex;gap:8px">
-    <button type="button" class="btn btn-ghost btn-sm" onclick="resetSession()">Reset Load</button>
-    <a href="{{ url_for('prograde.export_load', session_id=session.session_id) }}"
-       class="btn btn-secondary btn-sm" target="_blank">Export / Print</a>
-    <a href="{{ url_for('prograde.index') }}" class="btn btn-ghost btn-sm">â† Sessions</a>
+  <div class="pg-top-actions">
+    <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
+    <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
+    <a href="{{ url_for('prograde.export_load', session_id=session.session_id, brand=selected_brand) }}"
+       class="btn btn-secondary btn-sm pg-action-btn" target="_blank">Export / Print</a>
+    <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
   </div>
 </div>
 
-<!-- â”€â”€ Main Canvas + Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-<div class="page-body" style="display:flex;gap:var(--space-md);align-items:flex-start;padding-top:var(--space-md)">
+<!-- -- Main Canvas + Sidebar ---------------------- -->
+<div class="page-body pg-layout">
 
   <!-- Canvas -->
-  <div style="flex:1;min-width:0">
-    <div class="trailer-schematic prograde-schematic {% if session.brand == 'pj' %}trailer-step_deck trailer-step-deck-profile{% endif %}">
-      <div class="trailer-body">
-        <div class="trailer-deck-row {% if session.brand == 'pj' %}step-deck step-deck-frame{% else %}flat-deck-frame{% endif %}">
-          {% for zone in zones %}
-          {% set z_len = zone_lengths.get(zone, 0) %}
-          {% set z_cap = z_caps.get(zone) %}
-          {% set z_clr = clearances.get(zone) %}
-          {% set z_pct = (z_len / z_cap * 100) if z_cap else 0 %}
-          {% set cols  = zone_cols.get(zone, {}) %}
-          {% set deck_span = z_cap if z_cap else 1 %}
+  {% include "prograde/_load_canvas.html" %}
 
-          <div class="zone-panel trailer-deck {% if zone == 'upper_deck' %}upper{% else %}lower{% endif %}" style="flex: {{ deck_span }} 1 0%;" data-drop-zone="{{ zone }}">
-            <div class="zone-header-bar deck-header">
-              <span class="zone-title deck-label">{{ zone_labels[zone] }}</span>
-              <span class="zone-length-chip deck-measure"
-                    style="color:{% if z_cap and z_len > z_cap %}var(--status-error){% elif z_cap and z_len > z_cap * 0.9 %}var(--status-warning){% else %}var(--text-secondary){% endif %}">
-                {{ "%.1f"|format(z_len) }}' {% if z_cap %}/ {{ z_cap }}'{% endif %}
-              </span>
-            </div>
-
-            <div class="deck-stage {% if zone == 'upper_deck' %}deck-stage-upper{% endif %}">
-              <div class="zone-columns-scroll">
-                <div class="zone-columns deck-positions" id="zone-{{ zone }}">
-                  {% if cols %}
-                    <div class="column-drop-slot"
-                         data-column-slot="1"
-                         data-zone="{{ zone }}"
-                         data-insert-index="0"
-                         onclick="openPicker('{{ zone }}', 0, null)"
-                         title="Add a new stack at the start of {{ zone_labels[zone] }}">
-                      +
-                    </div>
-                    {% for seq in cols | sort %}
-                    {% set col = cols[seq] %}
-                    {% set col_h = col_heights.get(zone, {}).get(seq, 0) %}
-                    {% set col_h_cap = z_clr or 0 %}
-                    {% set col_h_pct = (col_h / col_h_cap * 100) if col_h_cap else 0 %}
-                    {% set base = (col | selectattr('layer', 'equalto', 1) | list | first) or col[0] %}
-                    {% set col_span = base.footprint if base and base.footprint else 1 %}
-
-                    <div class="unit-col position-column"
-                         data-stack-col="1"
-                         data-zone="{{ zone }}"
-                         data-seq="{{ seq }}"
-                         style="--deck-span: {{ (col_span | float) | round(3) }};">
-                      <button type="button"
-                              class="stack-drag-handle"
-                              data-stack-handle="1"
-                              data-zone="{{ zone }}"
-                              data-seq="{{ seq }}"
-                              draggable="true"
-                              title="Drag stack to move">
-                        Drag
-                      </button>
-                      <div class="position-stack"
-                           data-stack-drop="1"
-                           data-zone="{{ zone }}"
-                           data-target="{{ col[-1].position_id }}"
-                           data-target-seq="{{ seq }}">
-                        {% for pos in col %}
-                        {% set category_key = ((pos.pj_category or pos.mcat or 'unknown') | lower | replace(' ', '_') | replace('-', '_')) %}
-                        {% set accent = category_palette.get(category_key, category_palette.get('other', '#137fec')) %}
-                        <div class="unit-card pg-unit-block glass-block {% if pos.is_nested %}nested{% endif %}"
-                             id="pos-{{ pos.position_id }}"
-                             data-pos-id="{{ pos.position_id }}"
-                             data-zone="{{ zone }}"
-                             data-seq="{{ seq }}"
-                             data-layer="{{ pos.layer }}"
-                             draggable="true"
-                             data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | Bed: {{ '%.1f'|format(pos.bed_length) }} ft | Tongue: {{ '%.1f'|format(pos.tongue_length) }} ft | Footprint: {{ '%.1f'|format(pos.footprint) }} ft | Height: {{ '%.1f'|format(pos.height) }} ft"
-                             style="--accent: {{ accent }}; --accent-bg: {{ accent }}22;">
-
-                          <button class="unit-remove" onclick="removeUnit('{{ pos.position_id }}')" title="Remove">x</button>
-
-                          <div class="unit-card-id">
-                            {% if pos.is_nested %}<span style="font-size:9px;color:var(--text-tertiary)">nested </span>{% endif %}
-                            {{ pos.item_number }}
-                          </div>
-                          <div class="unit-card-fp">{{ '%.1f'|format(pos.bed_length) }}' + {{ '%.1f'|format(pos.tongue_length) }}' = {{ '%.1f'|format(pos.footprint) }}' fp</div>
-                          <div class="unit-card-ht">ht: {{ pos.height }}'
-                            {% if pos.layer > 1 %}<span style="color:var(--text-tertiary)"> (layer {{ pos.layer }})</span>{% endif %}
-                          </div>
-
-                          {% if pos.gn_axle_droppable %}
-                          <div class="axle-drop-row">
-                            <input type="checkbox"
-                                   class="axle-drop-cb"
-                                   id="axle-{{ pos.position_id }}"
-                                   {% if pos.gn_axle_dropped %}checked{% endif %}
-                                   onchange="toggleAxleDrop('{{ pos.position_id }}', this)" />
-                            <label for="axle-{{ pos.position_id }}"
-                                   class="axle-drop-label {% if pos.gn_axle_dropped %}axle-drop-active{% endif %}">
-                              axle drop
-                            </label>
-                          </div>
-                          {% endif %}
-                        </div>
-                        {% endfor %}
-                      </div>
-
-                      {% if col_h_cap %}
-                      <div>
-                        <div class="col-height-bar">
-                          <div class="col-height-fill"
-                               style="width:{{ [col_h_pct, 100]|min }}%;background:{% if col_h_pct > 100 %}var(--status-error){% elif col_h_pct > 90 %}var(--status-warning){% else %}var(--status-success){% endif %}">
-                          </div>
-                        </div>
-                        <div class="col-height-label"
-                             style="{% if col_h_pct > 100 %}color:var(--status-error){% endif %}">
-                          {{ "%.2f"|format(col_h) }}' / {{ col_h_cap }}'
-                        </div>
-                      </div>
-                      {% endif %}
-                    </div>
-                    <div class="column-drop-slot"
-                         data-column-slot="1"
-                         data-zone="{{ zone }}"
-                         data-insert-index="{{ loop.index }}"
-                         onclick="openPicker('{{ zone }}', {{ loop.index }}, null)"
-                         title="Add a new stack in {{ zone_labels[zone] }}">
-                      +
-                    </div>
-                    {% endfor %}
-                  {% else %}
-                  <div class="column-drop-slot"
-                       data-column-slot="1"
-                       data-zone="{{ zone }}"
-                       data-insert-index="0"
-                       onclick="openPicker('{{ zone }}', 0, null)"
-                       title="Add first stack to {{ zone_labels[zone] }}">
-                    +
-                  </div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-
-            <div class="zone-footer-bar deck-footer">
-              <div class="deck-line">
-                <span class="deck-length">{{ "%.1f"|format(z_len) }}' {% if z_cap %}/ {{ z_cap }}'{% endif %}</span>
-              </div>
-              <span class="zone-stat-lbl">{{ cols | length }} cols</span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        <div class="trailer-truck" aria-hidden="true">TRK</div>
-      </div>
-    </div>
-  </div><!-- /canvas -->
-
-  <!-- â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-  <div style="width:272px;flex-shrink:0;display:flex;flex-direction:column;gap:var(--space-md)">
+  <!-- -- Sidebar ------------------------------- -->
+  <div class="pg-sidebar">
 
     <!-- SKU Picker -->
     <div class="card" style="padding:0;overflow:hidden">
       <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
-        <div class="card-title">Add Unit</div>
+        <div>
+          <div class="card-title">Add SKUs</div>
+          <div class="card-subtitle" style="margin-top:2px;">
+            {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as {{ 'Category -> Model -> Item' if session.brand == 'pj' else 'Category -> Model -> Item' }}
+          </div>
+        </div>
       </div>
       <div class="picker-search">
-        <input type="text" id="sku-filter" class="form-control"
-               placeholder="Filter by model or item #â€¦" style="font-size:12px" />
-      </div>
-      <div class="sku-list" id="sku-list">
-        {% for sku in skus %}
-        <div class="sku-list-item sku-pick-item"
-             data-item="{{ sku.item_number }}"
-             data-search="{{ sku.item_number }} {{ sku.model }} {{ sku.get('pj_category','') }} {{ sku.get('mcat','') }}"
-             draggable="true"
-             onclick="openPicker(null, null, null, '{{ sku.item_number }}')">
-          <div>
-            <div class="sku-item-id">{{ sku.item_number }}</div>
-            <div class="sku-item-fp">
-              {{ sku.total_footprint }}'fp
-              {% if sku.get('tier') %}
-                <span class="tier-badge tier-{{ sku.tier }}">T{{ sku.tier }}</span>
-              {% endif %}
-            </div>
+        <div class="picker-search-row">
+          <input type="text" id="sku-filter" class="form-control"
+                 placeholder="Filter by category, model, item, or deck dimensions..." style="font-size:12px" />
+          {% if session.brand == 'bigtex' %}
+          <div class="sku-view-controls" aria-label="SKU hierarchy view">
+            <button type="button" class="sku-view-btn" id="sku-collapse-models-btn">Models</button>
+            <button type="button" class="sku-view-btn" id="sku-expand-items-btn">Items</button>
           </div>
-          <button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:16px;padding:2px 6px">+</button>
+          {% endif %}
         </div>
-        {% endfor %}
       </div>
+      <div class="sku-list" id="sku-list"></div>
+      <div class="sku-empty hidden" id="sku-empty">No SKUs match this filter.</div>
     </div>
 
     <div class="card" style="padding:0;overflow:hidden">
-      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+      <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
         <div class="card-title">SKU Visual Key</div>
       </div>
       <div class="pg-legend">
@@ -935,7 +1932,7 @@
         </span>
       </div>
 
-      <div style="max-height:380px;overflow-y:auto;padding:var(--space-sm)">
+      <div style="max-height:300px;overflow-y:auto;padding:var(--space-sm)">
         {% if violations %}
 
           {% set errors   = violations | selectattr('severity','equalto','error')   | list %}
@@ -950,7 +1947,7 @@
               <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
               <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
               {% if v.suggested_fix %}
-              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">â†’ {{ v.suggested_fix }}</div>
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
               {% endif %}
             </div>
           </div>
@@ -966,7 +1963,7 @@
               <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
               <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
               {% if v.suggested_fix %}
-              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">â†’ {{ v.suggested_fix }}</div>
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
               {% endif %}
               {% if not v.acknowledged %}
               <button class="violation-ack-btn"
@@ -976,7 +1973,7 @@
               {% else %}
               <button class="violation-unack-btn"
                       onclick="acknowledgeViolation('{{ v.rule_code }}', 'remove', this)">
-                â†© Un-acknowledge
+                Un-acknowledge
               </button>
               {% endif %}
             </div>
@@ -998,7 +1995,7 @@
 
         {% else %}
         <div style="padding:16px;text-align:center;font-size:12px;color:var(--status-success)">
-          âœ“ No constraint violations
+          No constraint violations
         </div>
         {% endif %}
       </div>
@@ -1007,7 +2004,7 @@
   </div><!-- /sidebar -->
 </div><!-- /page-body -->
 
-<!-- â”€â”€ Zone / Stack Picker Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<!-- -- Zone / Stack Picker Modal ------------------- -->
 <div class="modal-backdrop" id="zone-modal">
   <div class="modal-box">
     <div class="modal-title" id="modal-title">Add to which zone?</div>
@@ -1023,30 +2020,859 @@
 {% block scripts %}
 <script>
 const SESSION_ID = "{{ session.session_id }}";
+const SESSION_BRAND = "{{ session.brand }}";
 const ZONES = {{ zones | tojson }};
 const ZONE_LABELS = {{ zone_labels | tojson }};
 const SESSION_API_BASE = "{{ url_for('prograde.api_check', session_id='__SESSION_ID__') }}"
   .replace("__SESSION_ID__", SESSION_ID)
   .replace(/\/check$/, "");
+const INVENTORY_UPLOAD_ENDPOINT = "{{ url_for('prograde.api_upload_bt_inventory', session_id=session.session_id) }}";
+const SKU_RAW = {{ skus | tojson }};
+const SKU_FILTER = document.getElementById("sku-filter");
+const SKU_LIST = document.getElementById("sku-list");
+const SKU_EMPTY = document.getElementById("sku-empty");
+const SKU_COLLAPSE_MODELS_BTN = document.getElementById("sku-collapse-models-btn");
+const SKU_EXPAND_ITEMS_BTN = document.getElementById("sku-expand-items-btn");
+const RENDER_MODE_STORAGE_KEY = "prograde_pj_render_mode";
+const PJ_GOOSENECK_MODEL_PREFIXES = new Set(["LD", "LQ", "LS", "LX", "LY", "PL"]);
 
 let pendingItem = null;
+let pendingTongueMode = null;
+let pendingDumpHeightFt = null;
 let pendingZone = null;
 let pendingSeq = null;
 let pendingTarget = null;
 let draggedSkuItem = null;
+let activeDrag = null;
+let skuHierarchyMode = "models";
+const pjSkuTongueSelection = new Map();
+const pjSkuDumpHeightSelection = new Map();
 
-document.getElementById("sku-filter").addEventListener("input", function () {
-  const q = this.value.toLowerCase();
-  document.querySelectorAll(".sku-pick-item").forEach((el) => {
-    el.style.display = el.dataset.search.toLowerCase().includes(q) ? "" : "none";
+function getRenderModeInputs() {
+  return Array.from(document.querySelectorAll('input[name="render-mode"]'));
+}
+
+function getSchematicRoot() {
+  return document.querySelector(".prograde-schematic");
+}
+
+function initRenderModeToggle() {
+  const schematicRoot = getSchematicRoot();
+  const renderModeInputs = getRenderModeInputs();
+  if (SESSION_BRAND !== "pj" || !schematicRoot || !renderModeInputs.length) {
+    return;
+  }
+
+  const applyRenderMode = (modeRaw) => {
+    const mode = String(modeRaw || "").toLowerCase() === "standard" ? "standard" : "advanced";
+    schematicRoot.classList.remove("render-mode-standard", "render-mode-advanced");
+    schematicRoot.classList.add(mode === "standard" ? "render-mode-standard" : "render-mode-advanced");
+    renderModeInputs.forEach((input) => {
+      input.checked = input.value === mode;
+    });
+    try {
+      localStorage.setItem(RENDER_MODE_STORAGE_KEY, mode);
+    } catch (e) {}
+    window.requestAnimationFrame(initStepdeckMeasureRow);
+  };
+
+  let initialMode = "advanced";
+  try {
+    const savedMode = localStorage.getItem(RENDER_MODE_STORAGE_KEY);
+    if (savedMode === "standard" || savedMode === "advanced") {
+      initialMode = savedMode;
+    }
+  } catch (e) {}
+  applyRenderMode(initialMode);
+
+  renderModeInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      applyRenderMode(input.value);
+    });
   });
-});
+}
 
-function openPicker(zone, seq, targetPosId, preselectedItem) {
+function initSpatialScale() {
+  const spatialSvg = document.getElementById("pg-canvas-svg");
+  if (spatialSvg) {
+    const applySpatialScale = () => {
+      const rect = spatialSvg.getBoundingClientRect();
+      const totalLengthFt = Number(spatialSvg.dataset.totalLengthFt || 53);
+      const maxHeightFt = Number(spatialSvg.dataset.maxHeightFt || 13.5);
+      if (!Number.isFinite(rect.width) || rect.width <= 0) return;
+      if (!Number.isFinite(rect.height) || rect.height <= 0) return;
+      const pxPerFt = rect.width / (Number.isFinite(totalLengthFt) && totalLengthFt > 0 ? totalLengthFt : 53);
+      const pyPerFt = rect.height / (Number.isFinite(maxHeightFt) && maxHeightFt > 0 ? maxHeightFt : 13.5);
+      spatialSvg.style.setProperty("--px-per-ft", `${pxPerFt}`);
+      spatialSvg.style.setProperty("--py-per-ft", `${pyPerFt}`);
+    };
+    applySpatialScale();
+    if (window.__pgSpatialScaleHandler) {
+      window.removeEventListener("resize", window.__pgSpatialScaleHandler);
+    }
+    window.__pgSpatialScaleHandler = applySpatialScale;
+    window.addEventListener("resize", window.__pgSpatialScaleHandler);
+    return;
+  }
+
+  const schematicRoot = getSchematicRoot();
+  if (!schematicRoot) return;
+
+  const applyScale = () => {
+    const zonePanels = Array.from(schematicRoot.querySelectorAll(".trailer-deck[data-drop-zone]"));
+    if (!zonePanels.length) return;
+
+    const pxCandidates = [];
+    const heightPxCandidates = [];
+    zonePanels.forEach((zonePanel) => {
+      const track = zonePanel.querySelector(".zone-columns-scroll");
+      if (!track) return;
+      const trackWidth = track.getBoundingClientRect().width;
+      if (!Number.isFinite(trackWidth) || trackWidth <= 0) return;
+      const slotWidthTotal = Array.from(track.querySelectorAll(".column-drop-slot")).reduce((sum, slot) => {
+        const slotWidth = slot.getBoundingClientRect().width;
+        return sum + (Number.isFinite(slotWidth) ? slotWidth : 0);
+      }, 0);
+      const usableTrackWidth = Math.max(trackWidth - slotWidthTotal, trackWidth * 0.55);
+
+      const capRaw = Number(zonePanel.dataset.zoneCap || 0);
+      const usedRaw = Number(zonePanel.dataset.zoneUsed || 0);
+      const capFeet = Number.isFinite(capRaw) && capRaw > 0 ? capRaw : 0;
+      const usedFeet = Number.isFinite(usedRaw) && usedRaw > 0 ? usedRaw : 0;
+      const neededFeet = capFeet > 0 ? capFeet : Math.max(usedFeet, 1);
+      pxCandidates.push(usableTrackWidth / neededFeet);
+
+      const stage = zonePanel.querySelector(".deck-stage");
+      if (!stage) return;
+      const stageHeight = stage.getBoundingClientRect().height;
+      if (!Number.isFinite(stageHeight) || stageHeight <= 0) return;
+      const heightCapRaw = Number(zonePanel.dataset.zoneHeightCap || 0);
+      const heightCapFeet = Number.isFinite(heightCapRaw) && heightCapRaw > 0 ? heightCapRaw : 0;
+      const neededHeightFeet = heightCapFeet > 0 ? heightCapFeet : 4;
+      const usableStageHeight = Math.max(stageHeight - 6, 40);
+      heightPxCandidates.push(usableStageHeight / neededHeightFeet);
+    });
+
+    if (pxCandidates.length) {
+      const pxPerFootRaw = Math.min(...pxCandidates);
+      const pxPerFoot = Math.max(1.4, pxPerFootRaw);
+      schematicRoot.style.setProperty("--deck-ft-px", `${pxPerFoot}px`);
+    }
+
+    if (heightPxCandidates.length) {
+      const heightPxPerFootRaw = Math.min(...heightPxCandidates);
+      const heightPxPerFoot = Math.max(12.0, Math.min(heightPxPerFootRaw, 22.0));
+      schematicRoot.style.setProperty("--height-ft-px", `${heightPxPerFoot}px`);
+    }
+
+    window.requestAnimationFrame(initStepdeckMeasureRow);
+  };
+
+  applyScale();
+  if (window.__pgSpatialScaleHandler) {
+    window.removeEventListener("resize", window.__pgSpatialScaleHandler);
+  }
+  window.__pgSpatialScaleHandler = applyScale;
+  window.addEventListener("resize", window.__pgSpatialScaleHandler);
+}
+
+function initStepdeckMeasureRow() {
+  const schematicRoot = getSchematicRoot();
+  if (!schematicRoot) return;
+  const deckRow = schematicRoot.querySelector(".trailer-deck-row.step-deck-frame");
+  const measureTrack = schematicRoot.querySelector(".stepdeck-measure-track-live");
+  if (!deckRow || !measureTrack) return;
+
+  const totalCapRaw = Number(measureTrack.dataset.totalCap || 0);
+  const totalCap = Number.isFinite(totalCapRaw) && totalCapRaw > 0 ? totalCapRaw : 53.0;
+  const deckRect = deckRow.getBoundingClientRect();
+  const trackRect = measureTrack.getBoundingClientRect();
+  const trackWidth = trackRect.width;
+  if (!Number.isFinite(trackWidth) || trackWidth <= 0) return;
+
+  const cols = Array.from(deckRow.querySelectorAll(".position-column[data-stack-col]"));
+  const stackEntries = cols.map((col) => {
+    const rect = col.getBoundingClientRect();
+    const leftPx = rect.left - deckRect.left;
+    const widthPx = rect.width;
+    const feetRaw = parseFloat(getComputedStyle(col).getPropertyValue("--deck-span"));
+    const feet = Number.isFinite(feetRaw) && feetRaw > 0 ? feetRaw : 0;
+    return { leftPx, widthPx, feet };
+  }).filter((entry) => entry.widthPx > 1 && entry.feet > 0.02)
+    .sort((a, b) => a.leftPx - b.leftPx);
+
+  measureTrack.innerHTML = "";
+  if (!stackEntries.length) {
+    const empty = document.createElement("div");
+    empty.className = "stepdeck-live-segment is-remaining";
+    empty.style.left = "0px";
+    empty.style.width = `${trackWidth}px`;
+    empty.innerHTML = `<span class="stepdeck-live-segment-label">${totalCap.toFixed(1)} ft remaining</span>`;
+    measureTrack.appendChild(empty);
+    return;
+  }
+
+  let totalStackFeet = 0;
+  stackEntries.forEach((entry) => { totalStackFeet += entry.feet; });
+  const remainingFeet = Math.max(totalCap - totalStackFeet, 0);
+
+  stackEntries.forEach((entry, idx) => {
+    const seg = document.createElement("div");
+    seg.className = "stepdeck-live-segment is-stack";
+    const left = Math.max(0, Math.min(entry.leftPx, trackWidth));
+    const width = Math.max(1, Math.min(entry.widthPx, trackWidth - left));
+    seg.style.left = `${left}px`;
+    seg.style.width = `${width}px`;
+    seg.innerHTML = `<span class="stepdeck-live-segment-label">Stack ${idx + 1}: ${entry.feet.toFixed(1)} ft</span>`;
+    measureTrack.appendChild(seg);
+  });
+
+  if (remainingFeet <= 0.02) return;
+
+  let bestGap = null;
+  for (let i = 0; i < stackEntries.length - 1; i += 1) {
+    const gapLeft = stackEntries[i].leftPx + stackEntries[i].widthPx;
+    const gapRight = stackEntries[i + 1].leftPx;
+    const gapWidth = gapRight - gapLeft;
+    if (gapWidth <= 1) continue;
+    if (!bestGap || gapWidth > bestGap.widthPx) {
+      bestGap = { leftPx: gapLeft, widthPx: gapWidth };
+    }
+  }
+
+  if (!bestGap) {
+    const leftGapWidth = stackEntries[0].leftPx;
+    const rightGapLeft = stackEntries[stackEntries.length - 1].leftPx + stackEntries[stackEntries.length - 1].widthPx;
+    const rightGapWidth = trackWidth - rightGapLeft;
+    if (rightGapWidth >= leftGapWidth && rightGapWidth > 1) {
+      bestGap = { leftPx: rightGapLeft, widthPx: rightGapWidth };
+    } else if (leftGapWidth > 1) {
+      bestGap = { leftPx: 0, widthPx: leftGapWidth };
+    }
+  }
+
+  if (!bestGap) return;
+  const rem = document.createElement("div");
+  rem.className = "stepdeck-live-segment is-remaining";
+  rem.style.left = `${Math.max(0, bestGap.leftPx)}px`;
+  rem.style.width = `${Math.max(1, bestGap.widthPx)}px`;
+  rem.innerHTML = `<span class="stepdeck-live-segment-label">${remainingFeet.toFixed(1)} ft remaining</span>`;
+  measureTrack.appendChild(rem);
+}
+
+function _feetNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _formatFeet(value) {
+  const rounded = Math.round(_feetNumber(value) * 10) / 10;
+  return `${rounded.toFixed(1)}'`;
+}
+
+function _skuCategoryLabel(sku) {
+  if (SESSION_BRAND === "pj") {
+    const picker = String(sku.picker_category_label || sku.picker_category || "").trim();
+    const fallback = String(sku.pj_category || sku.mcat || "").trim();
+    return picker || fallback || "Uncategorized";
+  }
+  const resolved = String(sku.mcat || sku.pj_category || "Uncategorized").trim();
+  return resolved || "Uncategorized";
+}
+
+function _skuModelLabel(sku) {
+  const resolved = String(sku.model || "Unknown Model").trim();
+  return resolved || "Unknown Model";
+}
+
+function _pjTongueMode(rawMode) {
+  return String(rawMode || "").toLowerCase() === "gooseneck" ? "gooseneck" : "standard";
+}
+
+function _pjTongueProfile(sku) {
+  const explicit = _pjTongueMode(String(sku.picker_tongue_profile || "").trim());
+  if (String(sku.picker_tongue_profile || "").trim()) {
+    return explicit;
+  }
+  const category = String(sku.pj_category || "").trim().toLowerCase();
+  if (category.includes("gooseneck") || category === "pintle") {
+    return "gooseneck";
+  }
+  const model = _skuModelLabel(sku).toUpperCase();
+  const modelPrefix = model.replace(/[^A-Z0-9]/g, "").slice(0, 2);
+  if (PJ_GOOSENECK_MODEL_PREFIXES.has(modelPrefix)) {
+    return "gooseneck";
+  }
+  return "standard";
+}
+
+function _skuItemNumber(sku) {
+  return String(sku.item_number || "").trim();
+}
+
+function _skuDescription(sku) {
+  return String(sku.description || "").trim();
+}
+
+function _pjDeckLengthFt(sku) {
+  return _feetNumber(
+    sku.deck_length_ft
+    ?? sku.bed_length_measured
+    ?? sku.bed_length_stated
+    ?? sku.bed_length
+    ?? 0
+  );
+}
+
+function _pjDeckHeightFt(sku) {
+  return _feetNumber(
+    sku.deck_height_ft
+    ?? sku.height_top_ft
+    ?? sku.height_mid_ft
+    ?? 0
+  );
+}
+
+function _pjDeckProfileLabel(sku) {
+  return `L ${_formatFeet(_pjDeckLengthFt(sku))} x H ${_formatFeet(_pjDeckHeightFt(sku))}`;
+}
+
+function _pjDisplayItemCode(sku) {
+  const explicit = String(sku.picker_item_code || "").trim().toUpperCase();
+  if (explicit) return explicit;
+  const itemNumber = _skuItemNumber(sku).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!itemNumber) return "";
+  let modelPrefix = _pjModelCode(sku);
+  if (!modelPrefix) {
+    modelPrefix = itemNumber.slice(0, 2);
+  }
+  let tail = itemNumber.startsWith(modelPrefix) ? itemNumber.slice(modelPrefix.length) : itemNumber;
+  tail = tail.replace(/^[A-Z]+/, "");
+  let digits = (tail.match(/\d/g) || []).join("");
+  if (!digits) {
+    digits = (itemNumber.match(/\d/g) || []).join("");
+  }
+  const category = String(sku.pj_category || "").trim().toLowerCase();
+  if (
+    digits.length >= 3
+    && digits.startsWith("2")
+    && (modelPrefix === "C4" || modelPrefix === "C5" || modelPrefix.startsWith("U") || category === "utility")
+  ) {
+    digits = digits.slice(1);
+  }
+  if (digits.length < 2) return itemNumber;
+  return `${modelPrefix}${digits.slice(0, 2)}`;
+}
+
+function _skuTotalLength(sku) {
+  const explicit = Number(sku.total_footprint);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return explicit;
+  }
+  const bed = _feetNumber(sku.bed_length || sku.bed_length_measured || sku.bed_length_stated);
+  const tongue = _feetNumber(sku.tongue || sku.tongue_feet);
+  return bed + tongue;
+}
+
+function updateSkuHierarchyButtons() {
+  if (!SKU_COLLAPSE_MODELS_BTN || !SKU_EXPAND_ITEMS_BTN) return;
+  SKU_COLLAPSE_MODELS_BTN.classList.toggle("active", skuHierarchyMode === "models");
+  SKU_EXPAND_ITEMS_BTN.classList.toggle("active", skuHierarchyMode === "items");
+}
+
+function applySkuHierarchyMode() {
+  if (SESSION_BRAND !== "bigtex") return;
+  const showItems = skuHierarchyMode === "items";
+  document.querySelectorAll(".sku-group").forEach((group) => {
+    group.open = true;
+  });
+  document.querySelectorAll(".sku-model-group").forEach((group) => {
+    group.open = showItems;
+  });
+  updateSkuHierarchyButtons();
+}
+
+function initSkuHierarchyControls() {
+  if (SESSION_BRAND !== "bigtex") return;
+  if (SKU_COLLAPSE_MODELS_BTN && SKU_COLLAPSE_MODELS_BTN.dataset.bound !== "1") {
+    SKU_COLLAPSE_MODELS_BTN.dataset.bound = "1";
+    SKU_COLLAPSE_MODELS_BTN.addEventListener("click", () => {
+      skuHierarchyMode = "models";
+      applySkuFilter(SKU_FILTER ? SKU_FILTER.value : "");
+    });
+  }
+  if (SKU_EXPAND_ITEMS_BTN && SKU_EXPAND_ITEMS_BTN.dataset.bound !== "1") {
+    SKU_EXPAND_ITEMS_BTN.dataset.bound = "1";
+    SKU_EXPAND_ITEMS_BTN.addEventListener("click", () => {
+      skuHierarchyMode = "items";
+      applySkuFilter(SKU_FILTER ? SKU_FILTER.value : "");
+    });
+  }
+  updateSkuHierarchyButtons();
+}
+
+function _pjModelCode(sku) {
+  const explicit = String(sku.picker_model_code || "").trim().toUpperCase();
+  if (explicit) return explicit;
+  const model = _skuModelLabel(sku).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (model) return model.slice(0, 2);
+  const item = _skuItemNumber(sku).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return item.slice(0, 2);
+}
+
+function _normalizePjDumpHeightFt(rawValue, fallback = null) {
+  const value = Number(rawValue);
+  if (!Number.isFinite(value)) return fallback;
+  if (Math.abs(value - 3.0) <= 0.05) return 3.0;
+  if (Math.abs(value - 4.0) <= 0.05) return 4.0;
+  return fallback;
+}
+
+function _isPjDumpSku(sku) {
+  const pickerCategory = String(sku.picker_category || "").trim().toLowerCase();
+  if (pickerCategory === "dump") return true;
+  const rawCategory = String(sku.pj_category || "").trim().toLowerCase();
+  return rawCategory.includes("dump");
+}
+
+function _getSkuTongueSelection(itemNumber, fallbackMode) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  if (!key) return _pjTongueMode(fallbackMode || "standard");
+  if (pjSkuTongueSelection.has(key)) {
+    return _pjTongueMode(pjSkuTongueSelection.get(key));
+  }
+  return _pjTongueMode(fallbackMode || "standard");
+}
+
+function _setSkuTongueSelection(itemNumber, mode) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  if (!key) return;
+  pjSkuTongueSelection.set(key, _pjTongueMode(mode));
+}
+
+function _getSkuDumpHeightSelection(itemNumber, fallbackHeightFt) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  const fallback = _normalizePjDumpHeightFt(fallbackHeightFt, null);
+  if (!key) return fallback;
+  if (pjSkuDumpHeightSelection.has(key)) {
+    return _normalizePjDumpHeightFt(pjSkuDumpHeightSelection.get(key), fallback);
+  }
+  return fallback;
+}
+
+function _setSkuDumpHeightSelection(itemNumber, dumpHeightFt) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  const normalized = _normalizePjDumpHeightFt(dumpHeightFt, null);
+  if (!key || normalized === null) return;
+  pjSkuDumpHeightSelection.set(key, normalized);
+}
+
+function buildSkuTreeData() {
+  const tree = new Map();
+  (SKU_RAW || []).forEach((raw) => {
+    const sku = raw || {};
+    const itemNumber = _skuItemNumber(sku);
+    if (!itemNumber) return;
+
+    const tongueProfile = SESSION_BRAND === "pj" ? _pjTongueProfile(sku) : "";
+
+    const category = _skuCategoryLabel(sku);
+    const model = _skuModelLabel(sku);
+    const modelCode = SESSION_BRAND === "pj" ? _pjModelCode(sku) : model;
+    const deckLength = _pjDeckLengthFt(sku);
+    const deckHeight = _pjDeckHeightFt(sku);
+    const deckProfile = _pjDeckProfileLabel(sku);
+    const isDumpProfile = SESSION_BRAND === "pj"
+      ? Boolean(sku.picker_is_dump || _isPjDumpSku(sku))
+      : false;
+    const dumpDefaultHeight = isDumpProfile
+      ? _normalizePjDumpHeightFt(sku.picker_dump_height_ft ?? sku.dump_side_height_ft ?? deckHeight, null)
+      : null;
+    const description = _skuDescription(sku);
+    const totalLength = _skuTotalLength(sku);
+    const itemDisplay = SESSION_BRAND === "pj" ? _pjDisplayItemCode(sku) : itemNumber;
+    const groupLabel = SESSION_BRAND === "pj" ? modelCode : model;
+    const search = `${itemNumber} ${itemDisplay} ${model} ${modelCode} ${category} ${description} ${deckProfile} ${tongueProfile}`.toLowerCase();
+
+    if (!tree.has(category)) {
+      tree.set(category, new Map());
+    }
+    const modelMap = tree.get(category);
+    if (!modelMap.has(groupLabel)) {
+      modelMap.set(groupLabel, []);
+    }
+    modelMap.get(groupLabel).push({
+      itemNumber,
+      itemDisplay,
+      description,
+      totalLength,
+      deckLength,
+      deckHeight,
+      deckProfile,
+      model,
+      modelCode,
+      tongueProfile,
+      isDumpProfile,
+      dumpDefaultHeight,
+      search,
+    });
+  });
+
+  const alphaSort = (a, b) =>
+    String(a[0] || "").localeCompare(String(b[0] || ""), undefined, { numeric: true, sensitivity: "base" });
+  const itemSort = (a, b) =>
+    String(a.itemNumber || "").localeCompare(String(b.itemNumber || ""), undefined, { numeric: true, sensitivity: "base" });
+
+  return Array.from(tree.entries())
+    .sort(alphaSort)
+    .map(([category, modelMap]) => {
+      const models = Array.from(modelMap.entries())
+        .sort(alphaSort)
+        .map(([model, items]) => {
+          items.sort(itemSort);
+          return { model, items, count: items.length };
+        });
+      const count = models.reduce((sum, m) => sum + m.count, 0);
+      return { category, models, count };
+    });
+}
+
+function renderSkuTree() {
+  if (!SKU_LIST) return;
+  SKU_LIST.innerHTML = "";
+
+  const treeData = buildSkuTreeData();
+  treeData.forEach((categoryGroup) => {
+    const catDetails = document.createElement("details");
+    catDetails.className = "sku-group";
+    if (SESSION_BRAND === "bigtex") {
+      catDetails.open = true;
+    }
+
+    const catSummary = document.createElement("summary");
+    catSummary.className = "sku-group-summary";
+    const catLeft = document.createElement("span");
+    catLeft.className = "sku-group-left";
+    const catCaret = document.createElement("span");
+    catCaret.className = "sku-caret";
+    const catLabel = document.createElement("span");
+    catLabel.className = "sku-group-label";
+    catLabel.textContent = categoryGroup.category;
+    catLeft.appendChild(catCaret);
+    catLeft.appendChild(catLabel);
+    const catCount = document.createElement("span");
+    catCount.className = "sku-count-badge";
+    catCount.textContent = String(categoryGroup.count);
+    catSummary.appendChild(catLeft);
+    catSummary.appendChild(catCount);
+    catDetails.appendChild(catSummary);
+
+    const modelWrap = document.createElement("div");
+    modelWrap.className = "sku-model-wrap";
+
+    categoryGroup.models.forEach((modelGroup) => {
+      const modelDetails = document.createElement("details");
+      modelDetails.className = "sku-model-group";
+
+      const modelSummary = document.createElement("summary");
+      modelSummary.className = "sku-model-summary";
+      const modelLeft = document.createElement("span");
+      modelLeft.className = "sku-model-left";
+      const modelCaret = document.createElement("span");
+      modelCaret.className = "sku-caret";
+      const modelLabel = document.createElement("span");
+      modelLabel.className = "sku-model-label";
+      modelLabel.textContent = modelGroup.model;
+      modelLeft.appendChild(modelCaret);
+      modelLeft.appendChild(modelLabel);
+      const modelCount = document.createElement("span");
+      modelCount.className = "sku-count-badge";
+      modelCount.textContent = String(modelGroup.count);
+      modelSummary.appendChild(modelLeft);
+      modelSummary.appendChild(modelCount);
+      modelDetails.appendChild(modelSummary);
+
+      const itemsWrap = document.createElement("div");
+      itemsWrap.className = "sku-items";
+      const itemHeader = document.createElement("div");
+      itemHeader.className = "sku-item-head";
+      if (SESSION_BRAND === "pj") {
+        itemHeader.classList.add("pj-table");
+        itemHeader.innerHTML = "<span>Item</span><span>Deck L</span><span>Deck H</span><span>Tongue</span><span>Dump H</span>";
+      } else {
+        itemHeader.innerHTML = "<span>Item</span><span>Total Length</span>";
+      }
+      itemsWrap.appendChild(itemHeader);
+
+      modelGroup.items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "sku-list-item sku-pick-item";
+        if (SESSION_BRAND === "pj") {
+          row.classList.add("pj-table");
+        }
+        row.draggable = true;
+        row.dataset.item = item.itemNumber;
+        row.dataset.itemLabel = SESSION_BRAND === "pj" ? item.itemDisplay : item.itemNumber;
+        row.dataset.search = item.search;
+        row.dataset.length = SESSION_BRAND === "pj"
+          ? `L ${_formatFeet(item.deckLength)} x H ${_formatFeet(item.deckHeight)}`
+          : _formatFeet(item.totalLength);
+        row.dataset.description = item.description || "";
+        if (SESSION_BRAND === "pj") {
+          const selectedTongue = _getSkuTongueSelection(item.itemNumber, item.tongueProfile);
+          row.dataset.defaultTongue = _pjTongueMode(item.tongueProfile);
+          row.dataset.selectedTongue = selectedTongue;
+          const isDump = item.isDumpProfile === true;
+          row.dataset.isDump = isDump ? "1" : "0";
+          if (isDump) {
+            const defaultDumpHeight = _normalizePjDumpHeightFt(item.dumpDefaultHeight ?? item.deckHeight, null);
+            const selectedDumpHeight = _getSkuDumpHeightSelection(item.itemNumber, defaultDumpHeight);
+            if (defaultDumpHeight !== null) {
+              row.dataset.defaultDumpHeightFt = String(defaultDumpHeight);
+            }
+            if (selectedDumpHeight !== null) {
+              row.dataset.selectedDumpHeightFt = String(selectedDumpHeight);
+            }
+          } else {
+            row.dataset.defaultDumpHeightFt = "";
+            row.dataset.selectedDumpHeightFt = "";
+          }
+        }
+
+        const itemId = document.createElement("span");
+        itemId.className = "sku-item-id";
+        itemId.textContent = SESSION_BRAND === "pj" ? item.itemDisplay : item.itemNumber;
+        const itemLen = document.createElement("span");
+        itemLen.className = "sku-item-length";
+        itemLen.textContent = SESSION_BRAND === "pj" ? _formatFeet(item.deckLength) : _formatFeet(item.totalLength);
+        const itemHeight = document.createElement("span");
+        itemHeight.className = "sku-item-height";
+        if (SESSION_BRAND === "pj") {
+          itemHeight.textContent = _formatFeet(item.deckHeight);
+        }
+        const itemTongue = document.createElement("span");
+        itemTongue.className = "sku-item-tongue";
+        const itemDumpHeight = document.createElement("span");
+        itemDumpHeight.className = "sku-item-dump-height";
+        if (SESSION_BRAND === "pj") {
+          const isDump = row.dataset.isDump === "1";
+          const btnStandard = document.createElement("button");
+          btnStandard.type = "button";
+          btnStandard.className = "sku-row-tongue-btn";
+          btnStandard.dataset.mode = "standard";
+          btnStandard.textContent = "Std";
+
+          const btnGn = document.createElement("button");
+          btnGn.type = "button";
+          btnGn.className = "sku-row-tongue-btn";
+          btnGn.dataset.mode = "gooseneck";
+          btnGn.textContent = "GN";
+
+          const syncButtons = () => {
+            const selected = _pjTongueMode(row.dataset.selectedTongue || row.dataset.defaultTongue || "standard");
+            btnStandard.classList.toggle("active", selected === "standard");
+            btnGn.classList.toggle("active", selected === "gooseneck");
+          };
+
+          [btnStandard, btnGn].forEach((btn) => {
+            const stop = (evt) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+            };
+            btn.addEventListener("mousedown", stop);
+            btn.addEventListener("click", (evt) => {
+              stop(evt);
+              const selected = _pjTongueMode(btn.dataset.mode || "standard");
+              row.dataset.selectedTongue = selected;
+              _setSkuTongueSelection(item.itemNumber, selected);
+              syncButtons();
+            });
+            itemTongue.appendChild(btn);
+          });
+          syncButtons();
+
+          if (isDump) {
+            const btnDump3 = document.createElement("button");
+            btnDump3.type = "button";
+            btnDump3.className = "sku-row-tongue-btn";
+            btnDump3.dataset.mode = "3.0";
+            btnDump3.textContent = "3ft";
+
+            const btnDump4 = document.createElement("button");
+            btnDump4.type = "button";
+            btnDump4.className = "sku-row-tongue-btn";
+            btnDump4.dataset.mode = "4.0";
+            btnDump4.textContent = "4ft";
+
+            const syncDumpButtons = () => {
+              const fallbackHeight = _normalizePjDumpHeightFt(
+                row.dataset.defaultDumpHeightFt || item.dumpDefaultHeight || item.deckHeight,
+                null,
+              );
+              const selectedHeight = _normalizePjDumpHeightFt(
+                row.dataset.selectedDumpHeightFt || fallbackHeight,
+                fallbackHeight,
+              );
+              if (selectedHeight !== null) {
+                row.dataset.selectedDumpHeightFt = String(selectedHeight);
+                _setSkuDumpHeightSelection(item.itemNumber, selectedHeight);
+                itemHeight.textContent = _formatFeet(selectedHeight);
+                row.dataset.length = `L ${_formatFeet(item.deckLength)} x H ${_formatFeet(selectedHeight)}`;
+              }
+              btnDump3.classList.toggle("active", selectedHeight === 3.0);
+              btnDump4.classList.toggle("active", selectedHeight === 4.0);
+            };
+
+            [btnDump3, btnDump4].forEach((btn) => {
+              const stop = (evt) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+              };
+              btn.addEventListener("mousedown", stop);
+              btn.addEventListener("click", (evt) => {
+                stop(evt);
+                const selectedHeight = _normalizePjDumpHeightFt(btn.dataset.mode, null);
+                if (selectedHeight === null) return;
+                row.dataset.selectedDumpHeightFt = String(selectedHeight);
+                _setSkuDumpHeightSelection(item.itemNumber, selectedHeight);
+                syncDumpButtons();
+              });
+              itemDumpHeight.appendChild(btn);
+            });
+            syncDumpButtons();
+          } else {
+            itemDumpHeight.textContent = "--";
+          }
+        }
+
+        row.appendChild(itemId);
+        row.appendChild(itemLen);
+        if (SESSION_BRAND === "pj") {
+          row.appendChild(itemHeight);
+          row.appendChild(itemTongue);
+          row.appendChild(itemDumpHeight);
+        }
+        itemsWrap.appendChild(row);
+      });
+
+      modelDetails.appendChild(itemsWrap);
+      modelWrap.appendChild(modelDetails);
+    });
+
+    catDetails.appendChild(modelWrap);
+    SKU_LIST.appendChild(catDetails);
+  });
+}
+
+function applySkuFilter(rawQuery) {
+  const query = String(rawQuery || "").trim().toLowerCase();
+  let visibleItems = 0;
+
+  document.querySelectorAll(".sku-pick-item").forEach((item) => {
+    const search = String(item.dataset.search || "").toLowerCase();
+    const visible = !query || search.includes(query);
+    item.style.display = visible ? "" : "none";
+    if (visible) visibleItems += 1;
+  });
+
+  document.querySelectorAll(".sku-model-group").forEach((modelGroup) => {
+    const rows = Array.from(modelGroup.querySelectorAll(".sku-pick-item"));
+    const visibleRowCount = rows.filter((row) => row.style.display !== "none").length;
+    const visible = visibleRowCount > 0;
+    modelGroup.style.display = visible ? "" : "none";
+    const head = modelGroup.querySelector(".sku-item-head");
+    if (head) {
+      head.style.display = visible ? "" : "none";
+    }
+    if (query && visible) {
+      modelGroup.open = true;
+    }
+  });
+
+  document.querySelectorAll(".sku-group").forEach((categoryGroup) => {
+    const modelWrap = categoryGroup.querySelector(".sku-model-wrap");
+    const modelGroups = modelWrap ? Array.from(modelWrap.children).filter((el) => el.classList.contains("sku-model-group")) : [];
+    const visibleModelCount = modelGroups.filter((group) => group.style.display !== "none").length;
+    const visible = visibleModelCount > 0;
+    categoryGroup.style.display = visible ? "" : "none";
+    if (query && visible) {
+      categoryGroup.open = true;
+    }
+  });
+
+  if (!query) {
+    applySkuHierarchyMode();
+  }
+
+  if (SKU_EMPTY) {
+    SKU_EMPTY.classList.toggle("hidden", visibleItems > 0);
+  }
+}
+
+if (SKU_FILTER) {
+  SKU_FILTER.addEventListener("input", function () {
+    applySkuFilter(this.value);
+  });
+}
+
+function initInventoryUploadControls() {
+  const uploadBtn = document.getElementById("inv-upload-btn");
+  const uploadInput = document.getElementById("inv-upload-input");
+  if (!uploadBtn || !uploadInput) return;
+  if (uploadBtn.dataset.bound === "1") return;
+  uploadBtn.dataset.bound = "1";
+
+  uploadBtn.addEventListener("click", () => {
+    if (uploadBtn.disabled) return;
+    uploadInput.click();
+  });
+
+  uploadInput.addEventListener("change", async () => {
+    const file = uploadInput.files && uploadInput.files.length ? uploadInput.files[0] : null;
+    if (!file) return;
+    try {
+      uploadBtn.disabled = true;
+      const formData = new FormData();
+      formData.append("orders_file", file);
+      formData.append("sheet_name", "All.Orders.Quick");
+
+      const resp = await fetch(INVENTORY_UPLOAD_ENDPOINT, {
+        method: "POST",
+        body: formData,
+      });
+      let data = {};
+      try {
+        data = await resp.json();
+      } catch (e) {
+        data = {};
+      }
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      const result = data.import_result || {};
+      showToast(
+        `Inventory upload complete: ${result.valid_rows || 0} valid rows, ${result.distinct_items || 0} SKUs.`,
+        "success",
+      );
+      await refreshBuilderFragments();
+    } catch (e) {
+      showToast(`Inventory upload failed: ${e.message}`, "error");
+    } finally {
+      uploadBtn.disabled = false;
+      uploadInput.value = "";
+    }
+  });
+}
+
+function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMode, preselectedDumpHeightFt) {
   pendingZone = zone;
   pendingSeq = seq;
   pendingTarget = targetPosId;
   pendingItem = preselectedItem || null;
+  pendingTongueMode = preselectedTongueMode || null;
+  pendingDumpHeightFt = _normalizePjDumpHeightFt(preselectedDumpHeightFt, null);
 
   const modal = document.getElementById("zone-modal");
   const opts = document.getElementById("modal-options");
@@ -1058,8 +2884,10 @@ function openPicker(zone, seq, targetPosId, preselectedItem) {
     const zoneSelected = pendingZone;
     const target = pendingTarget;
     const insertIndex = pendingSeq;
+    const selectedTongueMode = pendingTongueMode;
+    const selectedDumpHeightFt = pendingDumpHeightFt;
     closeModal();
-    addUnit(item, zoneSelected, target, insertIndex);
+    addUnit(item, zoneSelected, target, insertIndex, selectedTongueMode, selectedDumpHeightFt);
     return;
   }
 
@@ -1072,7 +2900,7 @@ function openPicker(zone, seq, targetPosId, preselectedItem) {
       btn.textContent = ZONE_LABELS[z] || z;
       btn.onclick = () => {
         closeModal();
-        addUnit(item, z, null, null);
+        addUnit(item, z, null, null, pendingTongueMode, pendingDumpHeightFt);
       };
       opts.appendChild(btn);
     });
@@ -1086,11 +2914,20 @@ function openPicker(zone, seq, targetPosId, preselectedItem) {
       if (el.style.display === "none") return;
       const row = document.createElement("div");
       row.style = "display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border-subtle);cursor:pointer;gap:8px";
-      row.innerHTML = `<div><div style="font-family:var(--font-mono);font-size:12px;font-weight:600">${el.dataset.item}</div></div>`;
+      const tongueLabel = SESSION_BRAND === "pj"
+        ? (_pjTongueMode(el.dataset.selectedTongue || el.dataset.defaultTongue || "standard") === "gooseneck" ? "GN" : "STD")
+        : "";
+      const dumpHeight = _normalizePjDumpHeightFt(el.dataset.selectedDumpHeightFt || el.dataset.defaultDumpHeightFt, null);
+      const dumpLabel = (SESSION_BRAND === "pj" && el.dataset.isDump === "1" && dumpHeight !== null)
+        ? ` | DUMP ${dumpHeight.toFixed(0)}FT`
+        : "";
+      row.innerHTML = `<div style="font-family:var(--font-mono);font-size:12px;font-weight:600">${el.dataset.itemLabel || el.dataset.item}</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">${el.dataset.length || ""}${tongueLabel ? ` | ${tongueLabel}` : ""}${dumpLabel}</div>`;
       row.onclick = () => {
         const insertIndex = pendingSeq;
+        const selectedTongueMode = _pjTongueMode(el.dataset.selectedTongue || el.dataset.defaultTongue || "standard");
+        const selectedDumpHeightFt = _normalizePjDumpHeightFt(el.dataset.selectedDumpHeightFt || el.dataset.defaultDumpHeightFt, null);
         closeModal();
-        addUnit(el.dataset.item, zoneSelected, target, insertIndex);
+        addUnit(el.dataset.item, zoneSelected, target, insertIndex, selectedTongueMode, selectedDumpHeightFt);
       };
       row.onmouseover = () => {
         row.style.background = "var(--bg-secondary)";
@@ -1121,6 +2958,8 @@ function openPicker(zone, seq, targetPosId, preselectedItem) {
 function closeModal() {
   document.getElementById("zone-modal").classList.remove("open");
   pendingItem = null;
+  pendingTongueMode = null;
+  pendingDumpHeightFt = null;
   pendingZone = null;
   pendingSeq = null;
   pendingTarget = null;
@@ -1144,15 +2983,70 @@ async function postSession(path, body) {
   return data;
 }
 
-async function addUnit(itemNumber, zone, stackOnPosId, insertIndex) {
+function replaceNodeByIdFromDoc(id, sourceDoc) {
+  const current = document.getElementById(id);
+  const incoming = sourceDoc.getElementById(id);
+  if (current && incoming) {
+    current.replaceWith(incoming);
+  }
+}
+
+async function refreshBuilderFragments() {
+  const resp = await fetch(window.location.pathname + window.location.search, {
+    headers: {
+      "X-Requested-With": "XMLHttpRequest",
+      "Cache-Control": "no-store",
+    },
+  });
+  if (!resp.ok) {
+    throw new Error("Failed to refresh load layout");
+  }
+
+  const html = await resp.text();
+  const sourceDoc = new DOMParser().parseFromString(html, "text/html");
+
+  const currentTopBar = document.getElementById("pg-top-bar");
+  const incomingStale = sourceDoc.getElementById("pg-stale-banner");
+  const currentStale = document.getElementById("pg-stale-banner");
+  if (incomingStale && currentTopBar) {
+    if (currentStale) {
+      currentStale.replaceWith(incomingStale);
+    } else {
+      currentTopBar.parentNode.insertBefore(incomingStale, currentTopBar);
+    }
+  } else if (currentStale) {
+    currentStale.remove();
+  }
+
+  replaceNodeByIdFromDoc("pg-top-bar", sourceDoc);
+  replaceNodeByIdFromDoc("pg-canvas-column", sourceDoc);
+  replaceNodeByIdFromDoc("violation-panel", sourceDoc);
+  replaceNodeByIdFromDoc("pg-manifest-card", sourceDoc);
+  replaceNodeByIdFromDoc("pg-inventory-card", sourceDoc);
+
+  initRenderModeToggle();
+  initSpatialScale();
+  initSchematicHoverTooltips();
+  initSkuDragAndDrop();
+  initInventoryUploadControls();
+}
+
+async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt) {
   try {
     const body = { item_number: itemNumber, deck_zone: zone };
     if (stackOnPosId) body.stack_on = stackOnPosId;
     if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
       body.insert_index = Number(insertIndex);
     }
+    if (SESSION_BRAND === "pj") {
+      body.pj_tongue_profile = _pjTongueMode(tongueMode || _getSkuTongueSelection(itemNumber, "standard"));
+      const normalizedDumpHeight = _normalizePjDumpHeightFt(dumpHeightFt, null);
+      if (normalizedDumpHeight !== null) {
+        body.pj_dump_height_ft = normalizedDumpHeight;
+      }
+    }
     await postSession("/add", body);
-    location.reload();
+    await refreshBuilderFragments();
   } catch (e) {
     showToast(`Failed to add unit: ${e.message}`, "error");
   }
@@ -1168,7 +3062,7 @@ async function moveUnit(positionId, toZone, toSequence, insertIndex) {
       body.insert_index = Number(insertIndex);
     }
     await postSession("/position/move", body);
-    location.reload();
+    await refreshBuilderFragments();
   } catch (e) {
     showToast(`Failed to move unit: ${e.message}`, "error");
   }
@@ -1185,7 +3079,7 @@ async function moveStack(fromZone, sequence, toZone, insertIndex) {
       body.insert_index = Number(insertIndex);
     }
     await postSession("/column/move", body);
-    location.reload();
+    await refreshBuilderFragments();
   } catch (e) {
     showToast(`Failed to move stack: ${e.message}`, "error");
   }
@@ -1194,24 +3088,34 @@ async function moveStack(fromZone, sequence, toZone, insertIndex) {
 async function removeUnit(positionId) {
   try {
     await postSession("/remove", { position_id: positionId });
-    location.reload();
+    await refreshBuilderFragments();
   } catch (e) {
     showToast(`Failed to remove unit: ${e.message}`, "error");
   }
 }
 
+async function rotateUnit(positionId) {
+  try {
+    await postSession("/rotate", { position_id: positionId });
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Failed to rotate unit: ${e.message}`, "error");
+  }
+}
+
+async function toggleDumpDoor(positionId) {
+  try {
+    await postSession("/toggle_dump_door", { position_id: positionId });
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Failed to toggle dump door: ${e.message}`, "error");
+  }
+}
+
 async function toggleAxleDrop(positionId, checkbox) {
   try {
-    const data = await postSession("/toggle_axle_drop", { position_id: positionId });
-    const lbl = checkbox.nextElementSibling;
-    if (data.gn_axle_dropped) {
-      lbl.classList.add("axle-drop-active");
-      lbl.textContent = "axle drop on";
-    } else {
-      lbl.classList.remove("axle-drop-active");
-      lbl.textContent = "axle drop";
-    }
-    await refreshViolations();
+    await postSession("/toggle_axle_drop", { position_id: positionId });
+    await refreshBuilderFragments();
   } catch (e) {
     checkbox.checked = !checkbox.checked;
     showToast(`Toggle failed: ${e.message}`, "error");
@@ -1223,7 +3127,7 @@ async function acknowledgeViolation(ruleCode, action, btn) {
     await postSession("/acknowledge", { rule_code: ruleCode, action });
     const item = document.getElementById("viol-" + ruleCode.replace(/_/g, "-"));
     if (!item) {
-      location.reload();
+      await refreshBuilderFragments();
       return;
     }
     if (action === "add") {
@@ -1237,9 +3141,35 @@ async function acknowledgeViolation(ruleCode, action, btn) {
       btn.textContent = "Acknowledge";
       btn.onclick = () => acknowledgeViolation(ruleCode, "add", btn);
     }
-    await refreshViolations();
+    await refreshBuilderFragments();
   } catch (e) {
     showToast(`Acknowledge failed: ${e.message}`, "error");
+  }
+}
+
+async function saveSession(buttonEl) {
+  const btn = buttonEl && buttonEl.tagName ? buttonEl : document.getElementById("save-session-btn");
+  if (btn && btn.dataset.saving === "1") {
+    return;
+  }
+  const originalLabel = btn ? btn.textContent : "Save Session";
+  try {
+    if (btn) {
+      btn.dataset.saving = "1";
+      btn.disabled = true;
+      btn.textContent = "Saving...";
+    }
+    await postSession("/save", {});
+    await refreshBuilderFragments();
+    showToast("Session saved and added to All Sessions", "success");
+  } catch (e) {
+    showToast(`Save failed: ${e.message}`, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.dataset.saving = "0";
+      btn.textContent = originalLabel;
+    }
   }
 }
 
@@ -1249,27 +3179,32 @@ async function resetSession() {
   }
   try {
     await postSession("/reset", {});
-    location.reload();
+    await refreshBuilderFragments();
   } catch (e) {
     showToast(`Reset failed: ${e.message}`, "error");
   }
 }
 
 async function refreshViolations() {
-  const resp = await fetch(SESSION_API_BASE + "/check");
-  if (!resp.ok) return;
-  showToast("Constraint check updated", "success");
+  await refreshBuilderFragments();
 }
 
 function initSkuDragAndDrop() {
   const skuItems = document.querySelectorAll(".sku-pick-item");
+  const inventoryPickItems = document.querySelectorAll(".inventory-pick-item");
   const unitCards = document.querySelectorAll(".unit-card[data-pos-id]");
   const stackHandles = document.querySelectorAll("[data-stack-handle]");
   const deckTargets = document.querySelectorAll("[data-drop-zone]");
   const stackTargets = document.querySelectorAll("[data-stack-drop]");
   const columnSlots = document.querySelectorAll("[data-column-slot]");
+  const cardDropTargets = document.querySelectorAll(".unit-card[data-pos-id]");
   let draggedUnitId = null;
   let draggedStack = null;
+  const bindOnce = (el, flagName) => {
+    if (!el || el.dataset[flagName] === "1") return false;
+    el.dataset[flagName] = "1";
+    return true;
+  };
 
   const clearHighlights = () => {
     document.querySelectorAll(".drop-target-active").forEach((el) => el.classList.remove("drop-target-active"));
@@ -1285,10 +3220,15 @@ function initSkuDragAndDrop() {
   };
 
   const getPayload = (evt) => {
+    if (activeDrag && activeDrag.type) {
+      return activeDrag;
+    }
     const transfer = evt.dataTransfer || null;
     const stackRaw = transfer ? transfer.getData("application/x-prograde-stack") : "";
     const unitRaw = transfer ? transfer.getData("application/x-prograde-unit") : "";
     const skuRaw = transfer ? transfer.getData("application/x-prograde-sku") : "";
+    const skuModeRaw = transfer ? transfer.getData("application/x-prograde-sku-mode") : "";
+    const skuDumpHeightRaw = transfer ? transfer.getData("application/x-prograde-sku-dump-height") : "";
     const plainRaw = transfer ? transfer.getData("text/plain") : "";
 
     if (stackRaw) {
@@ -1306,31 +3246,83 @@ function initSkuDragAndDrop() {
 
     const skuItem = skuRaw || draggedSkuItem || plainRaw;
     if (skuItem) {
-      return { type: "sku", itemNumber: skuItem };
+      return {
+        type: "sku",
+        itemNumber: skuItem,
+        tongueMode: _pjTongueMode(skuModeRaw || "standard"),
+        dumpHeightFt: _normalizePjDumpHeightFt(skuDumpHeightRaw, null),
+      };
     }
     return null;
   };
 
   skuItems.forEach((item) => {
+    if (!bindOnce(item, "dragBound")) return;
     item.addEventListener("dragstart", (evt) => {
       draggedSkuItem = item.dataset.item || null;
+      const tongueMode = _pjTongueMode(item.dataset.selectedTongue || item.dataset.defaultTongue || "standard");
+      const dumpHeightFt = _normalizePjDumpHeightFt(item.dataset.selectedDumpHeightFt || item.dataset.defaultDumpHeightFt, null);
+      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt } : null;
       item.classList.add("dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "copy";
         evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
+        evt.dataTransfer.setData("application/x-prograde-sku-mode", tongueMode);
+        evt.dataTransfer.setData("application/x-prograde-sku-dump-height", dumpHeightFt == null ? "" : String(dumpHeightFt));
         evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
       }
     });
     item.addEventListener("dragend", () => {
       draggedSkuItem = null;
+      activeDrag = null;
+      item.classList.remove("dragging");
+      clearHighlights();
+    });
+  });
+
+  inventoryPickItems.forEach((item) => {
+    if (!bindOnce(item, "clickBound")) {
+      return;
+    }
+    item.addEventListener("click", () => {
+      if (item.disabled) return;
+      const itemNumber = String(item.dataset.item || "").trim();
+      if (!itemNumber) return;
+      openPicker(null, null, null, itemNumber, "standard", null);
+    });
+  });
+
+  inventoryPickItems.forEach((item) => {
+    if (!bindOnce(item, "dragBound")) return;
+    item.addEventListener("dragstart", (evt) => {
+      if (item.disabled) {
+        evt.preventDefault();
+        return;
+      }
+      draggedSkuItem = item.dataset.item || null;
+      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode: "standard", dumpHeightFt: null } : null;
+      item.classList.add("dragging");
+      if (evt.dataTransfer) {
+        evt.dataTransfer.effectAllowed = "copy";
+        evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
+        evt.dataTransfer.setData("application/x-prograde-sku-mode", "standard");
+        evt.dataTransfer.setData("application/x-prograde-sku-dump-height", "");
+        evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
+      }
+    });
+    item.addEventListener("dragend", () => {
+      draggedSkuItem = null;
+      activeDrag = null;
       item.classList.remove("dragging");
       clearHighlights();
     });
   });
 
   unitCards.forEach((card) => {
+    if (!bindOnce(card, "dragBound")) return;
     card.addEventListener("dragstart", (evt) => {
       draggedUnitId = card.dataset.posId || null;
+      activeDrag = draggedUnitId ? { type: "unit", positionId: draggedUnitId } : null;
       card.classList.add("dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "move";
@@ -1340,12 +3332,14 @@ function initSkuDragAndDrop() {
     });
     card.addEventListener("dragend", () => {
       draggedUnitId = null;
+      activeDrag = null;
       card.classList.remove("dragging");
       clearHighlights();
     });
   });
 
   stackHandles.forEach((handle) => {
+    if (!bindOnce(handle, "dragBound")) return;
     const stackCol = handle.closest("[data-stack-col]");
     handle.addEventListener("dragstart", (evt) => {
       const zone = handle.dataset.zone || "";
@@ -1355,6 +3349,7 @@ function initSkuDragAndDrop() {
         return;
       }
       draggedStack = { zone, sequence };
+      activeDrag = { type: "stack", zone, sequence };
       if (stackCol) stackCol.classList.add("stack-dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "move";
@@ -1363,19 +3358,24 @@ function initSkuDragAndDrop() {
     });
     handle.addEventListener("dragend", () => {
       draggedStack = null;
+      activeDrag = null;
       if (stackCol) stackCol.classList.remove("stack-dragging");
       clearHighlights();
     });
   });
 
   const bindDropTarget = (target, onDrop) => {
+    if (!bindOnce(target, "dropBound")) return;
     target.addEventListener("dragenter", (evt) => {
       evt.preventDefault();
       target.classList.add("drop-target-active");
     });
     target.addEventListener("dragover", (evt) => {
       evt.preventDefault();
-      if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+      const payload = getPayload(evt);
+      if (evt.dataTransfer) {
+        evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
+      }
     });
     target.addEventListener("dragleave", (evt) => {
       if (!target.contains(evt.relatedTarget)) {
@@ -1389,53 +3389,126 @@ function initSkuDragAndDrop() {
       const payload = getPayload(evt);
       clearHighlights();
       if (!payload) return;
-      await onDrop(payload);
+      try {
+        await onDrop(payload);
+      } catch (e) {
+        showToast(`Drop failed: ${e.message || e}`, "error");
+      }
     });
   };
 
-  deckTargets.forEach((deck) => {
-    bindDropTarget(deck, async (payload) => {
-      const zone = deck.dataset.dropZone;
+  const dispatchDrop = async (target, payload) => {
+    if (!payload) return;
+    if (target.matches("[data-column-slot]")) {
+      const zone = target.dataset.zone;
+      const insertIndex = Number(target.dataset.insertIndex || 0);
       if (!zone) return;
       if (payload.type === "sku") {
-        await addUnit(payload.itemNumber, zone, null, null);
-      } else if (payload.type === "unit") {
-        await moveUnit(payload.positionId, zone, null, null);
-      } else if (payload.type === "stack") {
-        await moveStack(payload.zone, payload.sequence, zone, null);
-      }
-    });
-  });
-
-  stackTargets.forEach((stack) => {
-    bindDropTarget(stack, async (payload) => {
-      const zone = stack.dataset.zone;
-      const target = stack.dataset.target;
-      const targetSeq = stack.dataset.targetSeq;
-      if (!zone) return;
-      if (payload.type === "sku") {
-        await addUnit(payload.itemNumber, zone, target || null, null);
-      } else if (payload.type === "unit") {
-        const sequence = Number(targetSeq || 0);
-        await moveUnit(payload.positionId, zone, sequence > 0 ? sequence : null, null);
-      }
-    });
-  });
-
-  columnSlots.forEach((slot) => {
-    bindDropTarget(slot, async (payload) => {
-      const zone = slot.dataset.zone;
-      const insertIndex = Number(slot.dataset.insertIndex || 0);
-      if (!zone) return;
-      if (payload.type === "sku") {
-        await addUnit(payload.itemNumber, zone, null, insertIndex);
+        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt);
       } else if (payload.type === "unit") {
         await moveUnit(payload.positionId, zone, null, insertIndex);
       } else if (payload.type === "stack") {
         await moveStack(payload.zone, payload.sequence, zone, insertIndex);
       }
+      return;
+    }
+
+    if (target.matches("[data-stack-drop]")) {
+      const zone = target.dataset.zone;
+      const stackTarget = target.dataset.target;
+      const targetSeq = Number(target.dataset.targetSeq || 0);
+      if (!zone) return;
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, stackTarget || null, null, payload.tongueMode, payload.dumpHeightFt);
+      } else if (payload.type === "unit") {
+        await moveUnit(payload.positionId, zone, targetSeq > 0 ? targetSeq : null, null);
+      }
+      return;
+    }
+
+    if (target.matches(".unit-card[data-pos-id]")) {
+      const zone = target.dataset.zone;
+      const posId = target.dataset.posId;
+      const targetSeq = Number(target.dataset.seq || 0);
+      if (!zone || !posId) return;
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, posId, null, payload.tongueMode, payload.dumpHeightFt);
+      } else if (payload.type === "unit") {
+        await moveUnit(payload.positionId, zone, targetSeq > 0 ? targetSeq : null, null);
+      }
+      return;
+    }
+
+    if (target.matches("[data-drop-zone]")) {
+      const zone = target.dataset.dropZone;
+      if (!zone) return;
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, null, null, payload.tongueMode, payload.dumpHeightFt);
+      } else if (payload.type === "unit") {
+        await moveUnit(payload.positionId, zone, null, null);
+      } else if (payload.type === "stack") {
+        await moveStack(payload.zone, payload.sequence, zone, null);
+      }
+    }
+  };
+
+  deckTargets.forEach((deck) => {
+    bindDropTarget(deck, async (payload) => {
+      await dispatchDrop(deck, payload);
     });
   });
+
+  stackTargets.forEach((stack) => {
+    bindDropTarget(stack, async (payload) => {
+      await dispatchDrop(stack, payload);
+    });
+  });
+
+  columnSlots.forEach((slot) => {
+    bindDropTarget(slot, async (payload) => {
+      await dispatchDrop(slot, payload);
+    });
+  });
+
+  // Allow dropping directly on an existing unit card to append/move into that stack.
+  cardDropTargets.forEach((card) => {
+    bindDropTarget(card, async (payload) => {
+      await dispatchDrop(card, payload);
+    });
+  });
+
+  // Global fallback: capture drops on child nodes nested inside schematic targets.
+  const resolveDropTarget = (node) => {
+    if (!node || !node.closest) return null;
+    return node.closest("[data-column-slot], [data-stack-drop], .unit-card[data-pos-id], [data-drop-zone]");
+  };
+
+  if (!window.__pgGlobalDropBound) {
+    window.__pgGlobalDropBound = true;
+    document.addEventListener("dragover", (evt) => {
+      const target = resolveDropTarget(evt.target);
+      if (!target) return;
+      evt.preventDefault();
+      const payload = getPayload(evt);
+      if (evt.dataTransfer) {
+        evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
+      }
+    });
+
+    document.addEventListener("drop", async (evt) => {
+      if (evt.defaultPrevented) return;
+      const target = resolveDropTarget(evt.target);
+      if (!target) return;
+      evt.preventDefault();
+      const payload = getPayload(evt);
+      if (!payload) return;
+      try {
+        await dispatchDrop(target, payload);
+      } catch (e) {
+        showToast(`Drop failed: ${e.message || e}`, "error");
+      }
+    });
+  }
 }
 
 function initSchematicHoverTooltips() {
@@ -1521,8 +3594,14 @@ function initSchematicHoverTooltips() {
 document.getElementById("zone-modal").addEventListener("click", function (e) {
   if (e.target === this) closeModal();
 });
+initSkuHierarchyControls();
+renderSkuTree();
+applySkuFilter(SKU_FILTER ? SKU_FILTER.value : "");
+initRenderModeToggle();
+initSpatialScale();
 initSchematicHoverTooltips();
 initSkuDragAndDrop();
+initInventoryUploadControls();
 </script>
 {% endblock %}
 
