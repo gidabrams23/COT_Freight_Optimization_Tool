@@ -48,12 +48,14 @@ Primary goals:
 - `app.py`: Flask routes/controllers and page/API orchestration
 - `db.py`: SQLite connection and data access helpers
 - `services/`: optimization, importing, routing, costing, validation, replay logic
+- `cot_utilization/`: standalone pip-installable utilization scoring package (no Flask/DB dependency)
 - `templates/`: operator-facing Jinja pages
 - `static/`: CSS, JS, and media assets
 - `scripts/`: imports, seed sync, reports, maintenance utilities
 - `data/seed/`: environment bootstrap data and selected config snapshots
 - `tests/`: regression and feature tests
 - `docs/`: PRDs/specs/IT handoff notes
+- `pyproject.toml`: package metadata for `cot_utilization`
 
 ## 5. Operational Invariants
 

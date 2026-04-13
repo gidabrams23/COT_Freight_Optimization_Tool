@@ -35,8 +35,8 @@ def _normalize_sku_lookup(raw):
             continue
         lookup[normalized_key] = {
             "length_with_tongue_ft": float(value.get("length_with_tongue_ft") or 0),
-            "max_stack_step_deck": int(value.get("max_stack_step_deck") or 1),
-            "max_stack_flat_bed": int(value.get("max_stack_flat_bed") or 1),
+            "max_stack_step_deck": int(float(value.get("max_stack_step_deck") or 1)),
+            "max_stack_flat_bed": int(float(value.get("max_stack_flat_bed") or 1)),
             "category": str(value.get("category") or "UNKNOWN").strip().upper(),
         }
     return lookup
@@ -180,7 +180,11 @@ class UtilizationScorer:
 
             for row in rows:
                 sku_text = row.get(sku_col, "")
-                qty = int(row.get(qty_col) or 0)
+                raw_qty = row.get(qty_col)
+                try:
+                    qty = int(float(raw_qty)) if raw_qty is not None else 0
+                except (TypeError, ValueError):
+                    qty = 0
                 if qty <= 0:
                     continue
 
