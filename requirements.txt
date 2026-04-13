@@ -7,3 +7,5 @@ python-dateutil==2.9.0.post0
 msal==1.28.0
 SQLAlchemy==2.0.44
 pyodbc==5.2.0
+azure-identity>=1.15.0
+azure-storage-blob>=12.19.0
