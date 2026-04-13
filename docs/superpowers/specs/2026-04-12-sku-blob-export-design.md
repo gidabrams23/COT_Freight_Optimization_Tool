@@ -1,65 +1,98 @@
-# SKU Blob Export on Change
+# Daily SKU Blob Snapshot Export
 
 **Date:** 2026-04-12
-**Status:** Approved
+**Status:** Revised Draft
 
 ## Problem
 
-The `cot_utilization` scorer package needs current SKU specifications to score historical loads. The app owns SKU data and must publish a snapshot when SKUs change. The export script (`scripts/export_sku_snapshot.py`) exists but writes to local disk and must be run manually.
+The `cot_utilization` scorer package needs current SKU specifications to score historical loads. The app owns canonical SKU data and must publish a snapshot that downstream analytics can consume.
+
+Today `scripts/export_sku_snapshot.py` writes the snapshot to local disk and must be run manually. The prior design proposed exporting on every SKU mutation via background threads from request handlers, but that approach adds operational complexity and does not provide durable delivery guarantees.
+
+The downstream need is batch-oriented and does not require immediate export after every edit. A periodic authoritative snapshot is sufficient.
 
 ## Goal
 
-Automatically export SKU specifications to Azure Blob Storage whenever a SKU is created, updated, or deleted in the web app. The export must not block planner workflows.
+Publish a private SKU snapshot to Azure Blob Storage on a fixed daily schedule, with a manual rerun path for recovery. The export must not block planner workflows or depend on web-request lifecycle behavior.
+
+## Non-Goals
+
+- Exporting after every SKU mutation.
+- Adding background-thread blob uploads to request handlers.
+- Adding a public or unauthenticated API for SKU access.
+- Guaranteeing real-time freshness for downstream analytics.
 
 ## Design
 
-### Trigger
+### Export Model
 
-After each SKU mutation route returns successfully, a background thread exports the current SKU specs to blob storage. The HTTP response returns immediately.
+Use a scheduled batch export, not request-triggered export.
 
-SKU mutation routes:
-- `POST /skus/save`
-- `POST /skus/source-led/save`
-- `POST /skus/add`
-- `POST /skus/delete/<id>`
-- `POST /api/skus/bulk-add`
+The application publishes one authoritative SKU snapshot per day to Azure Blob Storage. Downstream analytics reads the latest available snapshot.
 
-### Service Module: `services/sku_export.py`
+This spec intentionally changes the contract from:
 
-Single file. Responsibilities:
-- Read all SKU specs from DB via `db.list_sku_specs()`
-- Serialize to CSV in memory (no temp file)
-- Upload to Azure Blob Storage
-- Auth via `DefaultAzureCredential` (Managed Identity in production, Azure CLI fallback for local dev)
-- Log success/failure, never raise into the caller
+- "publish immediately whenever SKUs change"
 
-Public function:
+to:
 
-```python
-def export_sku_snapshot_to_blob():
-    """Background-safe: catches all exceptions, logs, never raises."""
-```
+- "publish a daily authoritative snapshot for downstream batch consumers"
+
+### Export Implementation
+
+Continue to use `scripts/export_sku_snapshot.py` as the primary export path, extended to support blob upload.
+
+Responsibilities:
+
+- read current SKU data from `db.list_sku_specs()`
+- serialize snapshot content in a stable CSV format
+- upload the snapshot to Azure Blob Storage
+- log success and failure details
+- exit non-zero on export failure when run as a script
+
+The export should remain runnable manually from the command line for recovery and backfill.
 
 ### Blob Destination
 
-- **Storage account:** configured via `SKU_EXPORT_STORAGE_ACCOUNT` env var
+- **Storage account:** configured via `SKU_EXPORT_STORAGE_ACCOUNT`
 - **Container:** `reference`
 - **Blob path:** `freight/cot_load_scoring/sku_specifications.csv`
 
-If `SKU_EXPORT_STORAGE_ACCOUNT` is not set, the export is a no-op.
+If `SKU_EXPORT_STORAGE_ACCOUNT` is unset, blob export is disabled and the script should fail fast with a clear message when blob mode is requested.
 
 ### Authentication
 
-`DefaultAzureCredential` from `azure-identity`. No connection strings or keys.
+Use `DefaultAzureCredential` from `azure-identity`.
 
-- **Production (Azure):** uses the app's Managed Identity. Requires Storage Blob Data Contributor role on the storage account.
-- **Local dev:** falls back to Azure CLI credentials (`az login`).
+- **Production (Azure):** Managed Identity
+- **Local/dev support:** Azure CLI credentials via `az login`
+
+No storage keys or connection strings should be introduced.
+
+The hosting identity must have the minimum required blob-write role for the target container or storage account.
+
+### Schedule
+
+Run the export once daily at a fixed time that precedes downstream analytics consumption.
+
+The exact scheduler can be environment-specific, but the contract should be:
+
+- one scheduled export attempt per day
+- same blob path overwritten with the latest authoritative snapshot
+- manual rerun available at any time
+
+This spec does not require the scheduler to live inside the Flask web process.
+
+Preferred operational approach:
+
+- run the export as a scheduled job, cron task, or platform scheduler
+- keep it outside request/response handling
 
 ### CSV Format
 
-Same schema as `scripts/export_sku_snapshot.py`:
+Use the same stable snapshot schema already produced by `scripts/export_sku_snapshot.py`:
 
-```
+```text
 # generated_at: 2026-04-12T15:30:00+00:00
 # row_count: 261
 sku,category,description,length_with_tongue_ft,max_stack_step_deck,max_stack_flat_bed
@@ -67,50 +100,79 @@ sku,category,description,length_with_tongue_ft,max_stack_step_deck,max_stack_fla
 ...
 ```
 
-### Route Integration
+Required data columns:
 
-A helper in `blueprints/cot/routes.py`:
+- `sku`
+- `category`
+- `description`
+- `length_with_tongue_ft`
+- `max_stack_step_deck`
+- `max_stack_flat_bed`
 
-```python
-def _trigger_sku_export():
-    threading.Thread(target=sku_export.export_sku_snapshot_to_blob, daemon=True).start()
-```
+Required metadata comments:
 
-Called at the end of each SKU mutation route, after the DB write succeeds.
+- `generated_at`
+- `row_count`
 
 ### Failure Behavior
 
-- The entire export runs in a try/except that logs the error and returns silently.
-- A failed export never blocks the HTTP response or the planner workflow.
+- A failed scheduled export must not affect planner workflows.
 - The last successful blob remains available to downstream consumers.
-- If the storage account is not configured, the function returns immediately with a debug log.
+- Export failures must be logged clearly and surfaced through normal operational monitoring.
+- A manual rerun must be possible without code changes.
 
-### Dependencies
+### Freshness Contract
 
-Add to `requirements.txt`:
+Consumers should treat the blob as a daily snapshot, not a real-time feed.
+
+This means:
+
+- same-day SKU edits may not appear until the next scheduled export
+- downstream batch jobs should be scheduled accordingly
+- emergency fixes can be handled via manual rerun of the export script
+
+## Dependencies
+
+Add to runtime dependencies:
+
 - `azure-identity`
 - `azure-storage-blob`
 
-### Configuration
+## Configuration
 
-Single env var:
+Minimum configuration:
 
 | Var | Required | Description |
 |---|---|---|
-| `SKU_EXPORT_STORAGE_ACCOUNT` | No | Azure storage account name. If unset, export is disabled. |
+| `SKU_EXPORT_STORAGE_ACCOUNT` | Yes for blob export | Azure storage account name |
+
+Optional future configuration may include container/path overrides, but this spec keeps the destination fixed to reduce configuration drift.
+
+## Operational Notes
+
+The export path should be documented for IT/dev support alongside:
+
+- how the daily schedule is configured
+- how to run a manual export
+- what identity/role assignment is required
+- where failures appear in logs
+
+This is an ops/runtime behavior change and should be reflected in the Azure handoff documentation when implemented.
 
 ## Testing Strategy
 
-- Unit test for `services/sku_export.py`: mock `db.list_sku_specs()` and `BlobClient.upload_blob()`, verify CSV content and blob path.
-- Unit test for failure isolation: verify exceptions in export don't propagate.
-- Unit test for no-op when storage account is unset.
-- Integration: verify `_trigger_sku_export()` is called from each mutation route (inspect the route or mock the function).
+- Unit test the snapshot serialization content and blob path.
+- Unit test failure behavior when Azure auth or upload fails.
+- Unit test failure behavior when `SKU_EXPORT_STORAGE_ACCOUNT` is missing.
+- Smoke test manual export execution path.
+- Verify the exported CSV remains compatible with `UtilizationScorer.from_csv()`.
 
 ## File Change Summary
 
 | File | Change |
 |---|---|
-| `services/sku_export.py` | New — blob export logic |
-| `blueprints/cot/routes.py` | Modified — add `_trigger_sku_export()` calls to 5 SKU routes |
-| `requirements.txt` | Modified — add `azure-identity`, `azure-storage-blob` |
-| `scripts/export_sku_snapshot.py` | Modified — update to also support blob destination (optional, for manual runs) |
+| `scripts/export_sku_snapshot.py` | Modified to support Azure Blob upload in addition to local export |
+| `requirements.txt` | Modified to add Azure blob dependencies |
+| ops/scheduler configuration | New or updated scheduled daily execution path |
+| docs/IT handoff doc | Updated to describe export scheduling and recovery workflow |
+
