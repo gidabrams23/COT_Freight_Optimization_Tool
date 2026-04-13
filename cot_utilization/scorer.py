@@ -1,5 +1,6 @@
 """Batch utilization scorer for historical load data."""
 
+import io
 import re
 
 from cot_utilization.stack_calculator import (
@@ -110,7 +111,13 @@ class UtilizationScorer:
 
         lookup = {}
         with open(path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
+            # Snapshot exports may include leading metadata comment lines.
+            data_lines = []
+            for line in f:
+                if not data_lines and line.lstrip().startswith("#"):
+                    continue
+                data_lines.append(line)
+            reader = csv.DictReader(io.StringIO("".join(data_lines)))
             for row in reader:
                 sku = (row.get("sku") or "").strip()
                 if not sku:

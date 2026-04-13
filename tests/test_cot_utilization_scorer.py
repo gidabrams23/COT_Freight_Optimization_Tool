@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pandas as pd
 
@@ -205,6 +207,37 @@ class TestUtilizationScorer(unittest.TestCase):
             },
         )
         self.assertEqual(len(results), 0)
+
+    def test_from_csv_skips_leading_metadata_comments(self):
+        with TemporaryDirectory() as tmpdir:
+            snapshot_path = Path(tmpdir) / "sku_snapshot.csv"
+            snapshot_path.write_text(
+                "# generated_at: 2026-04-12T12:00:00+00:00\n"
+                "# row_count: 1\n"
+                "sku,category,description,length_with_tongue_ft,max_stack_step_deck,max_stack_flat_bed\n"
+                "5X8GW,USA,,12.0,5,4\n",
+                encoding="utf-8",
+            )
+
+            scorer = UtilizationScorer.from_csv(snapshot_path)
+            df = pd.DataFrame(
+                [
+                    {"load_number": "L001", "shippedqty": 1, "itemnum": "5X8GW", "fancy_cat": "Utility"},
+                ]
+            )
+            results = scorer.score_loads(
+                df,
+                column_map={
+                    "load_number": "load_number",
+                    "qty": "shippedqty",
+                    "sku": "itemnum",
+                    "trailer_hint": "fancy_cat",
+                },
+            )
+
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results.iloc[0]["unmapped_skus"], [])
+            self.assertGreater(results.iloc[0]["utilization_pct"], 0)
 
 
 if __name__ == "__main__":
