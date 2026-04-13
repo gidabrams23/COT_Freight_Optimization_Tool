@@ -235,6 +235,11 @@ flowchart LR
 | `ACCESS_PROFILES_SEED_PATH` | `data/seed/access_profiles.csv` | (empty) | Optional override. |
 | `ACCESS_PROFILE_IDENTITIES_SEED_PATH` | `data/seed/access_profile_identities.csv` | (empty) | Optional override. |
 
+#### Blob Storage / SKU Snapshot Export
+| Variable | Default in Code | Current Value in This Environment | Notes |
+|---|---|---|---|
+| `SKU_EXPORT_STORAGE_ACCOUNT` | none | (empty) | Storage account name for daily SKU snapshot export. Required for `--blob` mode. See section 8. |
+
 #### Entra SSO
 | Variable | Default in Code | Current Value in This Environment | Notes |
 |---|---|---|---|
@@ -422,6 +427,62 @@ Run at least:
 3. Run optimization and confirm load outputs/status transitions.
 4. Open load detail and verify routing/schematic visibility.
 5. Generate export and verify file output integrity.
+
+## 8) Daily SKU Snapshot Export
+
+### Purpose
+
+The application exports a daily snapshot of SKU specifications to Azure Blob Storage for downstream analytics consumption. The `cot_utilization` scorer package in external projects reads this snapshot to score historical loads using the same utilization algorithm the app uses internally.
+
+### Blob Destination
+
+| Field | Value |
+|---|---|
+| Storage Account | Configured via `SKU_EXPORT_STORAGE_ACCOUNT` env var |
+| Container | `reference` |
+| Blob Path | `freight/cot_load_scoring/sku_specifications.csv` |
+
+### Identity and Permissions
+
+The export authenticates using `DefaultAzureCredential` (Managed Identity in production). The App Service identity must have **Storage Blob Data Contributor** role on the target storage account or container.
+
+### Schedule
+
+The export runs once daily at **05:00 UTC**, before downstream analytics batch jobs consume the snapshot.
+
+Implementation options (environment-specific):
+- Azure WebJob with CRON expression: `0 0 5 * * *`
+- Container-level cron job
+- Azure Logic App or Automation trigger
+
+The export runs as a standalone script invocation inside the container — it does not require the Flask web process to be running:
+
+```bash
+python3 scripts/export_sku_snapshot.py --blob
+```
+
+### Manual Recovery
+
+If the scheduled export fails or an immediate refresh is needed, re-run manually:
+
+```bash
+# Inside the container or from an SSH session:
+SKU_EXPORT_STORAGE_ACCOUNT=<account-name> python3 scripts/export_sku_snapshot.py --blob
+```
+
+The script overwrites the existing blob. The last successful snapshot remains available until overwritten.
+
+### Monitoring and Failure Behavior
+
+- **Success log:** `Uploaded N SKU specs to https://<account>.blob.core.windows.net/reference/freight/cot_load_scoring/sku_specifications.csv`
+- **Failure log:** `Failed to upload SKU snapshot to blob storage.` with full traceback
+- **Missing config:** `SKU_EXPORT_STORAGE_ACCOUNT is not set. Cannot upload to blob storage.` (exits non-zero)
+- A failed export does not affect planner workflows (the export runs outside the web process)
+- Downstream consumers continue reading the last successful snapshot
+
+### Freshness Contract
+
+The blob is a daily snapshot, not a real-time feed. Same-day SKU edits will appear in the next scheduled export. Emergency updates can be pushed via manual rerun.
 
 ## 10) Known Constraints and Risk Areas
 
