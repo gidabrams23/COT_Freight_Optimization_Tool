@@ -45,7 +45,16 @@ is_upper_deck_exception_eligible_position = _core.is_upper_deck_exception_eligib
 evaluate_upper_deck_overhang = _core.evaluate_upper_deck_overhang
 capacity_overflow_feet = _core.capacity_overflow_feet
 stack_display_index_map = _core.stack_display_index_map
-check_stacking_compatibility = _core.check_stacking_compatibility
+def check_stacking_compatibility(positions, trailer_config=None, equal_length_deck_length_order_enabled=None):
+    """App-level wrapper: injects DB-sourced setting if not explicitly provided."""
+    if equal_length_deck_length_order_enabled is None:
+        assumptions = get_stack_capacity_assumptions()
+        equal_length_deck_length_order_enabled = assumptions.get("equal_length_deck_length_order_enabled")
+    return _core.check_stacking_compatibility(
+        positions,
+        trailer_config=trailer_config,
+        equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+    )
 
 # ---------------------------------------------------------------------------
 # DB-specific setting keys
