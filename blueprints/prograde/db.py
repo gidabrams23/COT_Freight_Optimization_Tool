@@ -96,6 +96,51 @@ ADVANCED_SCHEMATIC_DEFAULTS = [
     },
 ]
 
+PJ_MEASUREMENT_OFFSET_DEFAULTS = [
+    {
+        "rule_key": "car_hauler_spare_mount_offset",
+        "label": "Extra feet for car hauler spare mount",
+        "offset_ft": 1.0,
+        "notes": "Applied to all car hauler and deck-over categories.",
+    },
+    {
+        "rule_key": "dump_tarp_kit_offset",
+        "label": "Extra feet for dump tarp kit",
+        "offset_ft": 1.0,
+        "notes": "Applied to all dump categories.",
+    },
+    {
+        "rule_key": "dtj_cylinder_extra_offset",
+        "label": "Additional feet for DTJ cylinder",
+        "offset_ft": 1.0,
+        "notes": "Stacks on top of tarp offset; DTJ models only.",
+    },
+    {
+        "rule_key": "gn_in_dump_hidden_ft",
+        "label": "Feet of GN tongue hidden inside dump body",
+        "offset_ft": 7.0,
+        "notes": "Subtracted from GN footprint when nested inside dump.",
+    },
+    {
+        "rule_key": "gn_crisscross_length_save_ft",
+        "label": "Length savings for nested GN crisscross pair",
+        "offset_ft": 2.0,
+        "notes": "Placeholder assumption for opposing GN necks in same stack column.",
+    },
+    {
+        "rule_key": "gn_crisscross_height_save_ft",
+        "label": "Height savings for nested GN crisscross pair",
+        "offset_ft": 1.0,
+        "notes": "Placeholder vertical savings when GN necks interlace.",
+    },
+    {
+        "rule_key": "gn_crisscross_width_save_ft",
+        "label": "Width savings for nested GN crisscross pair",
+        "offset_ft": 0.6,
+        "notes": "Placeholder lateral savings for planner reference only.",
+    },
+]
+
 
 def _ensure_db_file():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -387,6 +432,25 @@ def init_db():
                 for row in ADVANCED_SCHEMATIC_DEFAULTS
             ],
         )
+
+    now = datetime.utcnow().isoformat()
+    c.executemany(
+        """
+        INSERT OR IGNORE INTO pj_measurement_offsets
+        (rule_key, label, offset_ft, notes, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                row["rule_key"],
+                row["label"],
+                row["offset_ft"],
+                row["notes"],
+                now,
+            )
+            for row in PJ_MEASUREMENT_OFFSET_DEFAULTS
+        ],
+    )
 
     c.execute(
         """
@@ -1556,14 +1620,26 @@ def get_all_sessions(brand=None, saved_only=False):
     where = []
     params = []
     if brand:
-        where.append("lower(brand)=lower(?)")
+        where.append("lower(ls.brand)=lower(?)")
         params.append(str(brand))
     if saved_only:
-        where.append("COALESCE(is_saved, 1)=1")
+        where.append("COALESCE(ls.is_saved, 1)=1")
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     with get_db() as conn:
         return conn.execute(
-            f"SELECT * FROM load_sessions {where_sql} ORDER BY created_at DESC",
+            f"""
+            SELECT
+                ls.*,
+                COALESCE(lp.position_count, 0) AS trailer_qty
+            FROM load_sessions ls
+            LEFT JOIN (
+                SELECT session_id, COUNT(*) AS position_count
+                FROM load_positions
+                GROUP BY session_id
+            ) lp ON lp.session_id = ls.session_id
+            {where_sql}
+            ORDER BY ls.created_at DESC
+            """,
             tuple(params),
         ).fetchall()
 
@@ -1674,13 +1750,23 @@ def get_position(position_id):
     with get_db() as conn:
         return conn.execute("SELECT * FROM load_positions WHERE position_id=?", (position_id,)).fetchone()
 
-def add_position(position_id, session_id, brand, item_number, deck_zone, layer, sequence, override_reason=None):
+def add_position(
+    position_id,
+    session_id,
+    brand,
+    item_number,
+    deck_zone,
+    layer,
+    sequence,
+    override_reason=None,
+    is_rotated=0,
+):
     with get_db() as conn:
         conn.execute(
             """INSERT INTO load_positions
                (position_id, session_id, brand, item_number, deck_zone, layer, sequence, is_rotated, override_reason, added_at)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (position_id, session_id, brand, item_number, deck_zone, layer, sequence, 0, override_reason,
+            (position_id, session_id, brand, item_number, deck_zone, layer, sequence, int(bool(is_rotated)), override_reason,
              datetime.utcnow().isoformat())
         )
 

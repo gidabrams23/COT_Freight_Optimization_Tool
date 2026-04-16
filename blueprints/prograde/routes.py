@@ -10,8 +10,14 @@ from . import db
 from . import brand_config
 from .services.load_constraint_checker import check_load
 from .services import pj_measurement
-from .services.pj_rules import compute_column_heights, compute_pj_length_metrics
+from .services.pj_rules import (
+    compute_column_heights,
+    compute_pj_length_metrics,
+    pj_dump_stacked_height_ft,
+    pj_non_dump_stacking_height_ft,
+)
 from .services.bt_rules import compute_bt_length_metrics
+from .services.inventory_gap_finder import build_inventory_gap_data
 
 prograde_bp = Blueprint("prograde", __name__, url_prefix="/prograde", template_folder="templates", static_folder="static")
 _TRAILER_SHAPE_TEMPLATE_NAME = "prograde/macros/trailer_shapes.html"
@@ -51,6 +57,8 @@ _PJ_GOOSENECK_CATEGORIES = {
 _PJ_GOOSENECK_MODEL_PREFIXES = {"LD", "LQ", "LS", "LX", "LY", "PL"}
 _REAR_POCKET_LEN_FT = 5.0
 _REAR_POCKET_HEIGHT_FT = 0.5
+_DUMP_DOOR_MIN_EXPOSED_TONGUE_FT = 1.0
+_GOOSENECK_WALL_CLEARANCE_FT = 0.08
 SESSION_PROFILE_ID_KEY = "prograde_profile_id"
 SESSION_PROFILE_NAME_KEY = "prograde_profile_name"
 SESSION_PROFILE_IS_ADMIN_KEY = "prograde_profile_is_admin"
@@ -80,6 +88,19 @@ def _normalize_pj_dump_height_ft(raw_value, *, default=None):
     if abs(value - 4.0) <= 0.05:
         return 4.0
     return default
+
+
+def _normalize_optional_bool(raw_value, *, default=False):
+    if isinstance(raw_value, bool):
+        return raw_value
+    if raw_value is None:
+        return bool(default)
+    value = str(raw_value).strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return bool(default)
 
 
 def _row_to_dict(value):
@@ -162,6 +183,21 @@ def _extract_dump_height_override_reason(override_reason):
     return _normalize_pj_dump_height_ft(
         _get_override_reason_token(override_reason, "dump_height_ft"),
         default=None,
+    )
+
+
+def _build_gn_crisscross_override_reason(enabled, base_override_reason=None):
+    return _set_override_reason_token(
+        base_override_reason,
+        "gn_crisscross",
+        "1" if bool(enabled) else None,
+    )
+
+
+def _extract_gn_crisscross_override_reason(override_reason):
+    return _normalize_optional_bool(
+        _get_override_reason_token(override_reason, "gn_crisscross"),
+        default=False,
     )
 
 
@@ -435,6 +471,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["deck_length_ft"] = round(deck_length_ft, 2)
         p["render_footprint_ft"] = render_footprint_ft
         p["dump_door_removed"] = _extract_dump_door_removed_reason(p.get("override_reason"))
+        p["gn_crisscross"] = _extract_gn_crisscross_override_reason(p.get("override_reason"))
     elif brand == "bigtex":
         p["bed_length"] = round((sku.get("bed_length") or 0), 2)
         p["tongue_length"] = round((sku.get("tongue") or 0), 2)
@@ -449,6 +486,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["deck_length_ft"] = p["bed_length"]
         p["render_footprint_ft"] = p["footprint"]
         p["dump_door_removed"] = False
+        p["gn_crisscross"] = False
     else:
         p["bed_length"] = 0
         p["tongue_length"] = 0
@@ -463,6 +501,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["deck_length_ft"] = 0
         p["render_footprint_ft"] = 0
         p["dump_door_removed"] = False
+        p["gn_crisscross"] = False
 
     # Height for display (top height value; axle drop override for GNs)
     if brand == "pj" and height_ref:
@@ -477,7 +516,12 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
     else:
         p["height"] = 0
     if brand == "pj" and p.get("deck_profile") == "dump" and p.get("selected_dump_height_ft") is not None:
-        p["height"] = p["selected_dump_height_ft"]
+        stacked_dump_height_ft = pj_dump_stacked_height_ft(p.get("selected_dump_height_ft"))
+        if stacked_dump_height_ft is not None:
+            p["height"] = stacked_dump_height_ft
+            p["stacking_height_ft"] = stacked_dump_height_ft
+        else:
+            p["height"] = p["selected_dump_height_ft"]
     base_component_height_ft = round(float(p.get("height") or 0.0), 2)
     if (
         brand == "pj"
@@ -581,8 +625,11 @@ def _column_base_dims(col, rear_pocket_len_ft=_REAR_POCKET_LEN_FT):
     base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
     deck_len_ft = _as_float(base.get("deck_length_ft"), _as_float(base.get("bed_length"), 0.0))
     tongue_len_ft = _as_float(
-        base.get("render_tongue_length_ft"),
-        _as_float(base.get("tongue_length"), 0.0),
+        base.get("occupied_tongue_length_ft"),
+        _as_float(
+            base.get("render_tongue_length_ft"),
+            _as_float(base.get("tongue_length"), 0.0),
+        ),
     )
     is_rotated = bool(base.get("is_rotated"))
     left_tongue_ft = tongue_len_ft if is_rotated else 0.0
@@ -596,6 +643,379 @@ def _column_base_dims(col, rear_pocket_len_ft=_REAR_POCKET_LEN_FT):
         "rear_pocket_right_ft": rear_pocket_ft if is_rotated else 0.0,
         "full_span_ft": max(deck_len_ft + left_tongue_ft + right_tongue_ft, 0.0),
     }
+
+
+def _unit_tongue_length_ft(unit, prefer_occupied=True):
+    if prefer_occupied:
+        return _as_float(
+            unit.get("occupied_tongue_length_ft"),
+            _as_float(
+                unit.get("render_tongue_length_ft"),
+                _as_float(unit.get("tongue_length"), 0.0),
+            ),
+        )
+    return _as_float(
+        unit.get("render_tongue_length_ft"),
+        _as_float(unit.get("tongue_length"), 0.0),
+    )
+
+
+def _is_gooseneck_render_profile(unit):
+    return str(unit.get("render_tongue_profile") or "").strip().lower() == "gooseneck"
+
+
+def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
+    """
+    Return per-layer local deck starts (ft) for lower-deck stacked rendering.
+
+    Utilities stacked above a gooseneck host are shifted so their tongue tip sits
+    on the host deck edge on the tongue side (mirrors with rotation).
+    """
+    offsets = [0.0 for _ in sorted_col]
+    if len(sorted_col) <= 1:
+        return offsets
+
+    for idx, unit in enumerate(sorted_col):
+        if idx == 0:
+            continue
+        if str(unit.get("pj_category") or "").strip().lower() != "utility":
+            continue
+        if _is_gooseneck_render_profile(unit):
+            continue
+
+        host_idx = None
+        for j in range(idx - 1, -1, -1):
+            if _is_gooseneck_render_profile(sorted_col[j]):
+                host_idx = j
+                break
+        if host_idx is None:
+            continue
+
+        host = sorted_col[host_idx]
+        host_start_ft = offsets[host_idx]
+        host_deck_len_ft = _as_float(host.get("deck_length_ft"), _as_float(host.get("bed_length"), 0.0))
+        host_left_ft = host_start_ft
+        host_right_ft = host_start_ft + host_deck_len_ft
+
+        unit_tongue_ft = max(_unit_tongue_length_ft(unit, prefer_occupied=prefer_occupied_tongue), 0.0)
+        unit_deck_len_ft = max(_as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)), 0.0)
+        # Keep stacked utility tongues entirely on the non-gooseneck side of the
+        # host GN wall plane (mirrors with rotation).
+        wall_clearance_ft = max(_as_float(_GOOSENECK_WALL_CLEARANCE_FT, 0.0), 0.0)
+        if bool(unit.get("is_rotated")):
+            offsets[idx] = host_left_ft + wall_clearance_ft + unit_tongue_ft
+        else:
+            offsets[idx] = host_right_ft - wall_clearance_ft - (unit_deck_len_ft + unit_tongue_ft)
+
+    return offsets
+
+
+def _column_gooseneck_wall_x_local(col, start_local_ft):
+    """
+    Return the tongue-side GN wall plane (local x ft) for a lower-deck column.
+
+    For rotated GN columns, the wall plane is deck start.
+    For non-rotated GN columns, the wall plane is deck end.
+    """
+    if not col:
+        return None
+    base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
+    if not _is_gooseneck_render_profile(base):
+        return None
+    deck_len_ft = max(_as_float(base.get("deck_length_ft"), _as_float(base.get("bed_length"), 0.0)), 0.0)
+    if bool(base.get("is_rotated")):
+        return _as_float(start_local_ft, 0.0)
+    return _as_float(start_local_ft, 0.0) + deck_len_ft
+
+
+def _column_render_envelope_dims(col, zone=None):
+    """
+    Return rendered envelope dims across all units in a stacked column.
+
+    `zone='lower_deck'` applies intra-stack utility-on-gooseneck tongue anchoring.
+    """
+    if not col:
+        return {
+            "left_tongue_ft": 0.0,
+            "right_reach_ft": 0.0,
+            "full_span_ft": 0.0,
+        }
+
+    sorted_col = sorted(col, key=lambda p: int(p.get("layer") or 0))
+    local_starts = [0.0 for _ in sorted_col]
+    if zone == "lower_deck":
+        local_starts = _lower_column_layer_start_offsets(
+            sorted_col,
+            prefer_occupied_tongue=True,
+        )
+
+    min_left_ft = 0.0
+    max_right_ft = 0.0
+    for idx, unit in enumerate(sorted_col):
+        start_ft = _as_float(local_starts[idx], 0.0)
+        deck_len_ft = max(_as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)), 0.0)
+        tongue_len_ft = max(_unit_tongue_length_ft(unit, prefer_occupied=True), 0.0)
+        is_rotated = bool(unit.get("is_rotated"))
+
+        left_edge_ft = start_ft - (tongue_len_ft if is_rotated else 0.0)
+        right_edge_ft = start_ft + deck_len_ft + (0.0 if is_rotated else tongue_len_ft)
+
+        min_left_ft = min(min_left_ft, left_edge_ft)
+        max_right_ft = max(max_right_ft, right_edge_ft)
+
+    left_tongue_ft = max(-min_left_ft, 0.0)
+    right_reach_ft = max(max_right_ft, 0.0)
+    full_span_ft = max(max_right_ft - min_left_ft, 0.0)
+    return {
+        "left_tongue_ft": round(left_tongue_ft, 3),
+        "right_reach_ft": round(right_reach_ft, 3),
+        "full_span_ft": round(full_span_ft, 3),
+    }
+
+
+def _column_has_stuffed_forward_tongue(col):
+    """Return True when any non-rotated unit has occupied tongue shorter than rendered tongue."""
+    for unit in (col or []):
+        if bool(unit.get("is_rotated")):
+            continue
+        rendered_tongue_ft = _as_float(
+            unit.get("render_tongue_length_ft"),
+            _as_float(unit.get("tongue_length"), 0.0),
+        )
+        occupied_raw = unit.get("occupied_tongue_length_ft")
+        if occupied_raw is None:
+            continue
+        occupied_tongue_ft = _as_float(occupied_raw, rendered_tongue_ft)
+        if occupied_tongue_ft + 1e-9 < rendered_tongue_ft:
+            return True
+    return False
+
+
+def _upper_column_intrusion_interval_on_lower(col, upper_start_local_ft, zone_origin_upper_ft, step_x_ft):
+    """
+    Project one upper-deck column into lower-deck x-space as a blocked interval.
+
+    For seam-facing gooseneck columns (rotated upper units), use the gooseneck
+    wall plane (deck start) as the left blocked edge instead of the tongue tip.
+    """
+    if not col:
+        return None
+    base_dims = _column_base_dims(col)
+    render_dims = _column_render_envelope_dims(col, zone="upper_deck")
+    col_right_global = (
+        _as_float(zone_origin_upper_ft, 0.0)
+        + _as_float(upper_start_local_ft, 0.0)
+        + max(_as_float(base_dims.get("deck_len_ft"), 0.0), 0.0)
+        + max(_as_float(base_dims.get("right_tongue_ft"), 0.0), 0.0)
+    )
+    upper_left_global = col_right_global - max(_as_float(render_dims.get("full_span_ft"), 0.0), 0.0)
+    upper_right_global = col_right_global
+
+    projected_left = max(min(upper_left_global, upper_right_global), 0.0)
+    projected_right = min(max(upper_left_global, upper_right_global), _as_float(step_x_ft, 0.0))
+    if projected_right - projected_left <= 1e-9:
+        return None
+
+    base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
+    if _is_gooseneck_render_profile(base) and bool(base.get("is_rotated")):
+        # Seam-facing GN wall plane for rotated upper units is deck start.
+        deck_start_global = (
+            _as_float(zone_origin_upper_ft, 0.0)
+            + _as_float(upper_start_local_ft, 0.0)
+            + max(_as_float(base_dims.get("right_tongue_ft"), 0.0), 0.0)
+        )
+        projected_left = max(projected_left, min(deck_start_global, projected_right))
+        if projected_right - projected_left <= 1e-9:
+            return None
+
+    return (projected_left, projected_right)
+
+
+def _merge_intervals(intervals, eps=1e-9):
+    normalized = []
+    for raw_left, raw_right in (intervals or []):
+        left = _as_float(raw_left, 0.0)
+        right = _as_float(raw_right, 0.0)
+        if right < left:
+            left, right = right, left
+        if right - left <= eps:
+            continue
+        normalized.append((left, right))
+    if not normalized:
+        return []
+    normalized.sort(key=lambda pair: (pair[0], pair[1]))
+    merged = [normalized[0]]
+    for left, right in normalized[1:]:
+        last_left, last_right = merged[-1]
+        if left <= last_right + eps:
+            merged[-1] = (last_left, max(last_right, right))
+        else:
+            merged.append((left, right))
+    return merged
+
+
+def _subtract_intervals(base_intervals, carve_intervals, eps=1e-9):
+    base = _merge_intervals(base_intervals, eps=eps)
+    carve = _merge_intervals(carve_intervals, eps=eps)
+    if not base or not carve:
+        return base
+
+    result = []
+    carve_idx = 0
+    for base_left, base_right in base:
+        cursor = base_left
+        while carve_idx < len(carve) and carve[carve_idx][1] <= cursor + eps:
+            carve_idx += 1
+
+        idx = carve_idx
+        while idx < len(carve):
+            carve_left, carve_right = carve[idx]
+            if carve_left >= base_right - eps:
+                break
+            if carve_right <= cursor + eps:
+                idx += 1
+                continue
+            if carve_left > cursor + eps:
+                result.append((cursor, min(carve_left, base_right)))
+            cursor = max(cursor, carve_right)
+            if cursor >= base_right - eps:
+                break
+            idx += 1
+
+        if cursor < base_right - eps:
+            result.append((cursor, base_right))
+
+    return _merge_intervals(result, eps=eps)
+
+
+def _cross_deck_dump_door_allowance_intervals(
+    zone_cols,
+    x_positions,
+    zone_origin_x_ft,
+    step_x_ft,
+    lower_zone="lower_deck",
+    upper_zone="upper_deck",
+):
+    """
+    Return allowed lower/upper overlap windows (global x ft) for open dump-door insertion.
+
+    This is intentionally narrow:
+    - Only seam-interface columns (rightmost lower, leftmost upper).
+    - Only when the upper interface base is a dump with door removed and rear facing seam.
+    - Only allows lower tongue insertion up to rear-pocket length.
+    """
+    lower_cols = (zone_cols or {}).get(lower_zone) or {}
+    upper_cols = (zone_cols or {}).get(upper_zone) or {}
+    if not lower_cols or not upper_cols:
+        return []
+
+    lower_seq = max(lower_cols.keys())
+    upper_seq = min(upper_cols.keys())
+    lower_col = lower_cols.get(lower_seq) or []
+    upper_col = upper_cols.get(upper_seq) or []
+    if not lower_col or not upper_col:
+        return []
+
+    lower_base = next((p for p in lower_col if int(p.get("layer") or 0) == 1), lower_col[0])
+    upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
+
+    upper_is_dump = str(upper_base.get("deck_profile") or "").strip().lower() == "dump"
+    upper_door_removed = bool(upper_base.get("dump_door_removed"))
+    upper_rear_faces_seam = not bool(upper_base.get("is_rotated"))
+    if not (upper_is_dump and upper_door_removed and upper_rear_faces_seam):
+        return []
+
+    lower_tongue_toward_seam_ft = 0.0
+    if not bool(lower_base.get("is_rotated")):
+        lower_tongue_toward_seam_ft = _as_float(
+            lower_base.get("render_tongue_length_ft"),
+            _as_float(lower_base.get("tongue_length"), 0.0),
+        )
+
+    upper_deck_len_ft = _as_float(
+        upper_base.get("deck_length_ft"),
+        _as_float(upper_base.get("bed_length"), 0.0),
+    )
+    insertion_window_ft = min(max(upper_deck_len_ft, 0.0), _REAR_POCKET_LEN_FT)
+    insertable_lower_tongue_ft = max(
+        max(lower_tongue_toward_seam_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
+        0.0,
+    )
+    allowance_ft = min(insertable_lower_tongue_ft, max(insertion_window_ft, 0.0))
+    if allowance_ft <= 1e-9:
+        return []
+
+    upper_base_dims = _column_base_dims(upper_col)
+    upper_render_dims = _column_render_envelope_dims(upper_col, zone=upper_zone)
+    upper_start_local = _as_float((x_positions or {}).get(upper_zone, {}).get(int(upper_seq), 0.0), 0.0)
+    col_right_global = (
+        _as_float((zone_origin_x_ft or {}).get(upper_zone), step_x_ft)
+        + upper_start_local
+        + max(_as_float(upper_base_dims.get("deck_len_ft"), 0.0), 0.0)
+        + max(_as_float(upper_base_dims.get("right_tongue_ft"), 0.0), 0.0)
+    )
+    upper_left_global = col_right_global - max(_as_float(upper_render_dims.get("full_span_ft"), 0.0), 0.0)
+    projected_left = max(min(upper_left_global, col_right_global), 0.0)
+    projected_right = min(max(upper_left_global, col_right_global), step_x_ft)
+    if projected_right - projected_left <= 1e-9:
+        return []
+
+    allowance_right = min(projected_left + allowance_ft, projected_right)
+    if allowance_right - projected_left <= 1e-9:
+        return []
+    return [(projected_left, allowance_right)]
+
+
+def _apply_dump_door_tongue_stuffing(
+    zone_cols,
+    lower_zone="lower_deck",
+    upper_zone="upper_deck",
+):
+    """
+    For the seam-interface lower stack, cap forward tongue occupancy to the
+    minimum exposed value when upper interface dump door is off.
+
+    Rendering keeps full tongue length; this only changes packing/counted length.
+    """
+    lower_cols = (zone_cols or {}).get(lower_zone) or {}
+    upper_cols = (zone_cols or {}).get(upper_zone) or {}
+    if not lower_cols or not upper_cols:
+        return False
+
+    lower_seq = max(lower_cols.keys())
+    upper_seq = min(upper_cols.keys())
+    lower_col = lower_cols.get(lower_seq) or []
+    upper_col = upper_cols.get(upper_seq) or []
+    if not lower_col or not upper_col:
+        return False
+
+    upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
+    upper_is_dump = str(upper_base.get("deck_profile") or "").strip().lower() == "dump"
+    upper_door_removed = bool(upper_base.get("dump_door_removed"))
+    upper_rear_faces_seam = not bool(upper_base.get("is_rotated"))
+    if not (upper_is_dump and upper_door_removed and upper_rear_faces_seam):
+        return False
+
+    applied = False
+    for unit in lower_col:
+        if bool(unit.get("is_rotated")):
+            continue
+        original_tongue_ft = _as_float(
+            unit.get("render_tongue_length_ft"),
+            _as_float(unit.get("tongue_length"), 0.0),
+        )
+        stuffed_tongue_ft = min(original_tongue_ft, _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT)
+        deck_len_ft = _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0))
+        prev_occupied_tongue = _as_float(unit.get("occupied_tongue_length_ft"), original_tongue_ft)
+        prev_occupied_footprint = _as_float(unit.get("occupied_footprint_ft"), deck_len_ft + original_tongue_ft)
+        unit["occupied_tongue_length_ft"] = round(stuffed_tongue_ft, 2)
+        unit["occupied_footprint_ft"] = round(deck_len_ft + stuffed_tongue_ft, 2)
+        if (
+            abs(prev_occupied_tongue - stuffed_tongue_ft) > 1e-9
+            or abs(prev_occupied_footprint - (deck_len_ft + stuffed_tongue_ft)) > 1e-9
+        ):
+            applied = True
+    return applied
 
 
 def _category_key_for_position(pos):
@@ -662,7 +1082,7 @@ def _build_manifest_rows(enriched_positions):
             "description": (pos.get("description") or "").strip(),
             "bed_length": round(float(pos.get("bed_length") or 0), 2),
             "tongue_length": round(float(pos.get("tongue_length") or 0), 2),
-            "height_each": round(float(pos.get("height") or 0), 2),
+            "height_each": round(float(pos.get("stacking_height_ft", pos.get("height") or 0)), 2),
             "total_footprint": round(float(pos.get("render_footprint_ft") or pos.get("footprint") or 0), 2),
             "zones": zone,
         }
@@ -743,6 +1163,88 @@ def _pj_picker_tongue_profile(sku):
     if category in _PJ_GOOSENECK_CATEGORIES or model_prefix in _PJ_GOOSENECK_MODEL_PREFIXES:
         return "gooseneck"
     return "standard"
+
+
+def _position_uses_pj_gooseneck(position, sku=None):
+    pos = _row_to_dict(position)
+    override_mode = _extract_tongue_override_reason(pos.get("override_reason"))
+    if override_mode == "gooseneck":
+        return True
+    if override_mode == "standard":
+        return False
+    return _pj_picker_tongue_profile(sku or {}) == "gooseneck"
+
+
+def _apply_pj_gn_crisscross_for_column(session_id, deck_zone, sequence, preferred_position_id=None):
+    if not session_id or not deck_zone or sequence is None:
+        return False
+    try:
+        target_sequence = int(sequence)
+    except (TypeError, ValueError):
+        return False
+
+    rows = []
+    for row in db.get_positions(session_id):
+        pos = _row_to_dict(row)
+        if pos.get("deck_zone") != deck_zone:
+            continue
+        if int(pos.get("sequence") or 0) != target_sequence:
+            continue
+        rows.append(pos)
+    if len(rows) < 2:
+        return False
+    rows.sort(key=lambda row: int(row.get("layer") or 0))
+
+    sku_cache = {}
+
+    def _sku_for(position):
+        item_number = str(position.get("item_number") or "").strip()
+        if not item_number:
+            return {}
+        if item_number not in sku_cache:
+            sku_cache[item_number] = dict(db.get_pj_sku(item_number) or {})
+        return sku_cache[item_number]
+
+    def _is_gn(position):
+        return _position_uses_pj_gooseneck(position, _sku_for(position))
+
+    gooseneck_rows = [row for row in rows if _is_gn(row)]
+    if len(gooseneck_rows) < 2:
+        return False
+
+    preferred = None
+    if preferred_position_id:
+        preferred = next(
+            (row for row in rows if str(row.get("position_id") or "") == str(preferred_position_id)),
+            None,
+        )
+    if preferred is None or not _is_gn(preferred):
+        preferred = gooseneck_rows[-1]
+
+    host = None
+    for row in reversed(rows):
+        if row.get("position_id") == preferred.get("position_id"):
+            continue
+        if _is_gn(row):
+            host = row
+            break
+    if host is None:
+        return False
+
+    applied = False
+    preferred_rotated = bool(preferred.get("is_rotated"))
+    host_rotated = bool(host.get("is_rotated"))
+    if preferred_rotated != host_rotated:
+        return False
+
+    for row in (preferred, host):
+        existing_override = row.get("override_reason")
+        updated_override = _build_gn_crisscross_override_reason(True, existing_override)
+        if updated_override != existing_override:
+            db.update_position_field(row["position_id"], "override_reason", updated_override)
+            applied = True
+
+    return applied
 
 
 def _pj_render_deck_profile(sku):
@@ -921,6 +1423,13 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         pv = _build_position_view(p, brand, bt_sku_map, height_ref)
         pv["deck_zone"] = _normalize_zone_for_brand(brand, pv.get("deck_zone"))
         enriched.append(pv)
+    pj_sku_map = {}
+    if brand == "pj":
+        for p in enriched:
+            item_number = str(p.get("item_number") or "").strip()
+            if not item_number or item_number in pj_sku_map:
+                continue
+            pj_sku_map[item_number] = dict(db.get_pj_sku(item_number) or {})
 
     # Group positions: {zone: {seq: [positions sorted by layer]}}
     zone_cols: dict = {z: {} for z in zones}
@@ -934,9 +1443,92 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         for seq in zone_cols[z]:
             zone_cols[z][seq] = sorted(zone_cols[z][seq], key=lambda p: p["layer"])
             if zone_cols[z][seq]:
-                top_layer = max(int(p["layer"]) for p in zone_cols[z][seq])
-                for p in zone_cols[z][seq]:
+                col_rows = zone_cols[z][seq]
+                top_layer = max(int(p["layer"]) for p in col_rows)
+                gooseneck_flags = []
+                for p in col_rows:
                     p["is_top_layer"] = int(p["layer"]) == top_layer
+                    p["gn_crisscross"] = False
+                    if brand != "pj":
+                        continue
+                    p["true_height_ft"] = round(
+                        _as_float(
+                            p.get("true_height_ft"),
+                            _as_float(
+                                p.get("deck_component_height_ft"),
+                                _as_float(p.get("height"), 0.0),
+                            ),
+                        ),
+                        2,
+                    )
+                    gooseneck_flags.append(_is_gooseneck_render_profile(p))
+
+                if brand == "pj":
+                    for idx, p in enumerate(col_rows):
+                        sku = pj_sku_map.get(p.get("item_number")) or {}
+                        stacked_height_ft = None
+
+                        is_gooseneck = gooseneck_flags[idx] if idx < len(gooseneck_flags) else False
+                        has_gooseneck_above = (
+                            any(gooseneck_flags[idx + 1:])
+                            if idx + 1 < len(gooseneck_flags)
+                            else False
+                        )
+                        if is_gooseneck:
+                            if has_gooseneck_above:
+                                stacked_height_ft = _as_float(
+                                    p.get("true_height_ft"),
+                                    _as_float(p.get("deck_component_height_ft"), _as_float(p.get("height"), 0.0)),
+                                )
+                            else:
+                                stacked_height_ft = 6.0
+                        else:
+                            non_dump_stack_height_ft = pj_non_dump_stacking_height_ft(
+                                p,
+                                sku,
+                                p["is_top_layer"],
+                            )
+                            if non_dump_stack_height_ft is not None:
+                                stacked_height_ft = _as_float(non_dump_stack_height_ft, 0.0)
+
+                        if stacked_height_ft is None:
+                            continue
+                        stacked_height_ft = round(_as_float(stacked_height_ft, 0.0), 2)
+                        visual_height_ft = round(
+                            _as_float(
+                                p.get("true_height_ft"),
+                                _as_float(
+                                    p.get("deck_component_height_ft"),
+                                    _as_float(p.get("height"), 0.0),
+                                ),
+                            ),
+                            2,
+                        )
+                        p["stacking_height_ft"] = stacked_height_ft
+                        p["height"] = stacked_height_ft
+                        if is_gooseneck:
+                            # GN height is recorded as a 6' envelope for stacking/clearance,
+                            # but deck body rendering stays at native unit height.
+                            p["deck_component_height_ft"] = visual_height_ft
+                            p["deck_height_ft"] = visual_height_ft
+                        else:
+                            p["deck_component_height_ft"] = stacked_height_ft
+                            p["deck_height_ft"] = stacked_height_ft
+            if brand == "pj" and zone_cols[z][seq]:
+                col_rows = zone_cols[z][seq]
+                for idx in range(1, len(col_rows)):
+                    lower = col_rows[idx - 1]
+                    upper = col_rows[idx]
+                    lower_is_gn = (lower.get("render_tongue_profile") or "standard") == "gooseneck"
+                    upper_is_gn = (upper.get("render_tongue_profile") or "standard") == "gooseneck"
+                    if not (lower_is_gn and upper_is_gn):
+                        continue
+                    if bool(lower.get("is_rotated")) != bool(upper.get("is_rotated")):
+                        continue
+                    lower["gn_crisscross"] = True
+                    upper["gn_crisscross"] = True
+    if brand == "pj":
+        _apply_dump_door_tongue_stuffing(zone_cols, lower_zone="lower_deck", upper_zone="upper_deck")
 
     lower_left_overhang_ft = 0.0
 
@@ -974,7 +1566,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
     length_metrics = {}
 
     if brand == "pj":
-        pj_skus = {p["item_number"]: dict(db.get_pj_sku(p["item_number"]) or {}) for p in positions}
+        pj_skus = dict(pj_sku_map)
         offsets = db.get_pj_offsets_dict()
         length_metrics = compute_pj_length_metrics(
             positions,
@@ -1048,6 +1640,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
     # Same-zone tongue-under-rear overlap: when adjacent columns face each
     # other's rear pocket, reduce required horizontal spacing.
     lower_zone = "lower_deck"
+    upper_zone = "upper_deck"
     if lower_zone in zone_cols and lower_zone in x_positions:
         seqs = sorted((zone_cols.get(lower_zone) or {}).keys())
         prev_dims = None
@@ -1069,23 +1662,45 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 current_start -= (overlap_left_tongue + overlap_prev_tongue)
                 x_positions[lower_zone][int(seq)] = round(current_start, 3)
 
-            prev_right_edge = current_start + max(dims.get("deck_len_ft", 0.0), 0.0) + max(
-                dims.get("right_tongue_ft", 0.0),
-                0.0,
-            )
+            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+            prev_right_edge = current_start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
             prev_dims = dims
 
     # Lower deck hard right barrier at the usable seam boundary: no deck or tongue may
     # extend past step_x on the lower deck. Resolve from right->left so
     # overflow shifts left without disturbing earlier stacks unless necessary.
     if lower_zone in zone_cols and lower_zone in x_positions:
-        lower_cap_local = max(step_x_ft - _as_float(zone_origin_x_ft.get(lower_zone), 0.0), 0.0)
+        lower_blocked_by_upper_ft = max(_as_float(zone_blocked_ft.get("lower_deck"), 0.0), 0.0)
+        lower_cap_local = max(
+            (step_x_ft - lower_blocked_by_upper_ft) - _as_float(zone_origin_x_ft.get(lower_zone), 0.0),
+            0.0,
+        )
+        # If upper-deck gooseneck walls allow deeper lower-deck placement than
+        # coarse blocked-length math, honor the geometry-driven seam boundary.
+        if upper_zone in zone_cols and upper_zone in x_positions:
+            upper_intrusion_cap_intervals = []
+            for seq in sorted((zone_cols.get(upper_zone) or {}).keys()):
+                col = (zone_cols.get(upper_zone) or {}).get(seq) or []
+                interval = _upper_column_intrusion_interval_on_lower(
+                    col,
+                    _as_float(x_positions[upper_zone].get(int(seq), 0.0), 0.0),
+                    _as_float(zone_origin_x_ft.get(upper_zone), step_x_ft),
+                    step_x_ft,
+                )
+                if interval is not None:
+                    upper_intrusion_cap_intervals.append(interval)
+            merged_cap_intrusion = _merge_intervals(upper_intrusion_cap_intervals)
+            if merged_cap_intrusion:
+                lower_cap_local = max(
+                    lower_cap_local,
+                    min(_as_float(left, step_x_ft) for left, _ in merged_cap_intrusion),
+                )
         # Keep a tiny visual buffer so tongue strokes do not appear to cross the step wall.
         next_start_limit = max(lower_cap_local - 0.08, 0.0)
         for seq in sorted((zone_cols.get(lower_zone) or {}).keys(), reverse=True):
             col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-            dims = _column_base_dims(col)
-            col_right_extent = max(dims.get("deck_len_ft", 0.0), 0.0) + max(dims.get("right_tongue_ft", 0.0), 0.0)
+            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+            col_right_extent = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
 
             current_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
             max_start = next_start_limit - col_right_extent
@@ -1114,15 +1729,14 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 desired_start = prev_right_edge + max(dims.get("left_tongue_ft", 0.0), 0.0)
                 desired_start -= (overlap_left_tongue + overlap_prev_tongue)
 
-                col_right_extent = max(dims.get("deck_len_ft", 0.0), 0.0) + max(dims.get("right_tongue_ft", 0.0), 0.0)
+                render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+                col_right_extent = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
                 max_start = max((lower_cap_local - 0.08) - col_right_extent, 0.0)
                 current_start = min(desired_start, max_start)
                 x_positions[lower_zone][int(seq)] = round(current_start, 3)
 
-            prev_right_edge = current_start + max(dims.get("deck_len_ft", 0.0), 0.0) + max(
-                dims.get("right_tongue_ft", 0.0),
-                0.0,
-            )
+            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+            prev_right_edge = current_start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
             prev_dims = dims
 
         # Final lower-deck right snap: shift the whole lower cluster right so
@@ -1130,9 +1744,9 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         lower_max_right = 0.0
         for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
             col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-            dims = _column_base_dims(col)
+            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
             start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
-            right = start + max(dims.get("deck_len_ft", 0.0), 0.0) + max(dims.get("right_tongue_ft", 0.0), 0.0)
+            right = start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
             if right > lower_max_right:
                 lower_max_right = right
         lower_shift_delta = max((lower_cap_local - 0.08) - lower_max_right, 0.0)
@@ -1140,6 +1754,34 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
             for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
                 cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
                 x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
+
+        # Minimize lower-deck overhang by pulling each left stack right until it
+        # reaches the adjacent right stack's gooseneck wall plane (when present).
+        # This allows tongue-region contact while still preventing deck overlap.
+        seqs = sorted((zone_cols.get(lower_zone) or {}).keys())
+        for idx in range(len(seqs) - 2, -1, -1):
+            left_seq = int(seqs[idx])
+            right_seq = int(seqs[idx + 1])
+            left_col = (zone_cols.get(lower_zone) or {}).get(left_seq) or []
+            right_col = (zone_cols.get(lower_zone) or {}).get(right_seq) or []
+            if not left_col or not right_col:
+                continue
+
+            right_start = _as_float(x_positions[lower_zone].get(right_seq), 0.0)
+            right_gn_wall_x = _column_gooseneck_wall_x_local(right_col, right_start)
+            if right_gn_wall_x is None:
+                continue
+
+            left_start = _as_float(x_positions[lower_zone].get(left_seq), 0.0)
+            left_dims = _column_render_envelope_dims(left_col, zone=lower_zone)
+            left_right_reach_ft = max(_as_float(left_dims.get("right_reach_ft"), 0.0), 0.0)
+            left_right_x = left_start + left_right_reach_ft
+            target_left_right_x = right_gn_wall_x - _GOOSENECK_WALL_CLEARANCE_FT
+            if left_right_x + 1e-9 >= target_left_right_x:
+                continue
+
+            delta = target_left_right_x - left_right_x
+            x_positions[lower_zone][left_seq] = round(left_start + delta, 3)
 
     # Upper deck explicit right alignment to the usable right boundary.
     upper_zone = "upper_deck"
@@ -1162,22 +1804,138 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 cur = _as_float(x_positions[upper_zone].get(int(seq), 0.0), 0.0)
                 x_positions[upper_zone][int(seq)] = round(cur + upper_shift_delta, 3)
 
+    # Post-upper-alignment right pack:
+    # After upper deck is snapped to trailer end, pull the lower cluster right
+    # to the tightest allowable seam boundary from (a) blocked-length math and
+    # (b) projected upper intrusion geometry (including GN wall planes).
+    if (
+        lower_zone in zone_cols
+        and upper_zone in zone_cols
+        and lower_zone in x_positions
+        and upper_zone in x_positions
+    ):
+        post_upper_intrusion = []
+        for seq in sorted((zone_cols.get(upper_zone) or {}).keys()):
+            col = (zone_cols.get(upper_zone) or {}).get(seq) or []
+            interval = _upper_column_intrusion_interval_on_lower(
+                col,
+                _as_float(x_positions[upper_zone].get(int(seq), 0.0), 0.0),
+                _as_float(zone_origin_x_ft.get(upper_zone), step_x_ft),
+                step_x_ft,
+            )
+            if interval is not None:
+                post_upper_intrusion.append(interval)
+        merged_post_upper_intrusion = _merge_intervals(post_upper_intrusion)
+        if merged_post_upper_intrusion:
+            lower_blocked_by_upper_ft = max(_as_float(zone_blocked_ft.get("lower_deck"), 0.0), 0.0)
+            blocked_cap_local = max(
+                (step_x_ft - lower_blocked_by_upper_ft) - _as_float(zone_origin_x_ft.get(lower_zone), 0.0),
+                0.0,
+            )
+            intrusion_cap_local = min(_as_float(left, step_x_ft) for left, _ in merged_post_upper_intrusion)
+            final_cap_local = max(blocked_cap_local, intrusion_cap_local)
+
+            lower_max_right = 0.0
+            for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
+                col = (zone_cols.get(lower_zone) or {}).get(seq) or []
+                dims = _column_render_envelope_dims(col, zone=lower_zone)
+                start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                right = start + max(_as_float(dims.get("right_reach_ft"), 0.0), 0.0)
+                if right > lower_max_right:
+                    lower_max_right = right
+            lower_shift_delta = max((final_cap_local - 0.08) - lower_max_right, 0.0)
+            if lower_shift_delta > 1e-9:
+                for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
+                    cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                    x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
+
+    # Cross-deck collision guard:
+    # Lower-deck horizontal occupancy cannot intersect upper-deck occupied span
+    # projected onto the lower deck when stack height exceeds step clearance.
+    # Keep low-profile stacks (that fit under the step) eligible to remain under
+    # upper overhang, and shift only interfering tall stacks left.
+    if (
+        lower_zone in zone_cols
+        and upper_zone in zone_cols
+        and lower_zone in x_positions
+        and upper_zone in x_positions
+    ):
+        upper_intrusion_intervals = []
+        for seq in sorted((zone_cols.get(upper_zone) or {}).keys()):
+            col = (zone_cols.get(upper_zone) or {}).get(seq) or []
+            interval = _upper_column_intrusion_interval_on_lower(
+                col,
+                _as_float(x_positions[upper_zone].get(int(seq), 0.0), 0.0),
+                _as_float(zone_origin_x_ft.get(upper_zone), step_x_ft),
+                step_x_ft,
+            )
+            if interval is not None:
+                upper_intrusion_intervals.append(interval)
+
+        merged_upper_intrusion = _merge_intervals(upper_intrusion_intervals)
+        if merged_upper_intrusion:
+            step_clearance_ft = max(upper_surface_ft - lower_surface_ft, 0.0)
+            lower_height_map = col_heights.get(lower_zone, {}) or {}
+            next_start_limit = None
+            for seq in sorted((zone_cols.get(lower_zone) or {}).keys(), reverse=True):
+                col = (zone_cols.get(lower_zone) or {}).get(seq) or []
+                render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+                col_right_reach_ft = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
+                col_left_tongue_ft = max(_as_float(render_dims.get("left_tongue_ft"), 0.0), 0.0)
+                cur_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                if next_start_limit is not None:
+                    cur_start = min(cur_start, next_start_limit - col_right_reach_ft)
+
+                col_height_ft = _as_float(lower_height_map.get(int(seq), 0.0), 0.0)
+                if col_height_ft > step_clearance_ft + 1e-9:
+                    required_gap_ft = 0.08
+                    if _column_has_stuffed_forward_tongue(col):
+                        # Keep at least the non-nested tongue exposure at the seam.
+                        required_gap_ft = max(required_gap_ft, _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT)
+                    for _ in range(max(len(merged_upper_intrusion) * 2, 2)):
+                        col_left = cur_start - col_left_tongue_ft
+                        col_right = cur_start + col_right_reach_ft
+                        overlap_found = False
+                        for blocked_left, blocked_right in merged_upper_intrusion:
+                            if col_right <= (blocked_left - required_gap_ft) + 1e-9:
+                                continue
+                            if col_left >= blocked_right - 1e-9:
+                                continue
+                            # Push this stack just left of the blocked interval.
+                            cur_start = min(
+                                cur_start,
+                                blocked_left - required_gap_ft - col_right_reach_ft,
+                            )
+                            overlap_found = True
+                            break
+                        if not overlap_found:
+                            break
+
+                x_positions[lower_zone][int(seq)] = round(cur_start, 3)
+                next_start_limit = cur_start
+
     # Compute true lower-deck left overhang from resolved spatial positions.
     # This captures deck and tongue geometry (including rotated units) after all
     # right-edge barrier shifts are applied.
     lower_cols = zone_cols.get("lower_deck", {})
     for seq, col in lower_cols.items():
         local_x_ft = _as_float(x_positions.get("lower_deck", {}).get(int(seq), 0.0), 0.0)
-        for unit in (col or []):
+        sorted_col = sorted((col or []), key=lambda p: int(p.get("layer") or 0))
+        local_offsets = _lower_column_layer_start_offsets(
+            sorted_col,
+            prefer_occupied_tongue=False,
+        )
+        for idx, unit in enumerate(sorted_col):
             deck_len_ft = _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0))
             tongue_len_ft = _as_float(
                 unit.get("render_tongue_length_ft"),
                 _as_float(unit.get("tongue_length"), 0.0),
             )
             is_rotated = bool(unit.get("is_rotated"))
-            left_edge_ft = local_x_ft - (tongue_len_ft if is_rotated else 0.0)
+            unit_local_start_ft = local_x_ft + _as_float(local_offsets[idx], 0.0)
+            left_edge_ft = unit_local_start_ft - (tongue_len_ft if is_rotated else 0.0)
             # Include non-rotated deck-only overflow if local_x_ft is negative.
-            left_edge_ft = min(left_edge_ft, local_x_ft)
+            left_edge_ft = min(left_edge_ft, unit_local_start_ft)
             if left_edge_ft < 0.0:
                 lower_left_overhang_ft = max(lower_left_overhang_ft, -left_edge_ft)
 
@@ -1207,11 +1965,18 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
             else:
                 col_footprint_ft = max(right_edge_ft - max(zone_prev_right_edge, left_edge_ft), 0.0)
             zone_prev_right_edge = right_edge_ft if zone_prev_right_edge is None else max(zone_prev_right_edge, right_edge_ft)
-            measure_x_local_ft = zone_used
+            measure_x_local_ft = left_edge_ft
+            col_right_edge_global_ft = zone_origin + right_edge_ft
 
             y_cursor_ft = zone_surface
             sorted_col = sorted(col, key=lambda p: int(p.get("layer") or 0))
-            for unit in sorted_col:
+            lower_local_offsets = []
+            if zone == "lower_deck":
+                lower_local_offsets = _lower_column_layer_start_offsets(
+                    sorted_col,
+                    prefer_occupied_tongue=False,
+                )
+            for idx, unit in enumerate(sorted_col):
                 deck_len_ft = _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0))
                 tongue_len_ft = _as_float(
                     unit.get("render_tongue_length_ft"),
@@ -1221,20 +1986,32 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                     unit.get("deck_component_height_ft"),
                     _as_float(unit.get("height"), 0.0),
                 )
+                is_unit_rotated = bool(unit.get("is_rotated"))
+                unit_left_tongue_ft = tongue_len_ft if is_unit_rotated else 0.0
+                unit_right_tongue_ft = 0.0 if is_unit_rotated else tongue_len_ft
+                if zone == "upper_deck":
+                    unit_left_edge_ft = col_right_edge_global_ft - (
+                        unit_left_tongue_ft + deck_len_ft + unit_right_tongue_ft
+                    )
+                    unit_deck_start_ft = unit_left_edge_ft + unit_left_tongue_ft
+                elif zone == "lower_deck":
+                    unit_deck_start_ft = global_x_ft + _as_float(lower_local_offsets[idx], 0.0)
+                else:
+                    unit_deck_start_ft = global_x_ft
 
-                unit["x_ft"] = round(global_x_ft, 3)
-                unit["x_local_ft"] = round(local_x_ft, 3)
-                unit["deck_x_start_ft"] = round(global_x_ft, 3)
-                unit["deck_x_end_ft"] = round(global_x_ft + deck_len_ft, 3)
+                unit["x_ft"] = round(unit_deck_start_ft, 3)
+                unit["x_local_ft"] = round(unit_deck_start_ft - zone_origin, 3)
+                unit["deck_x_start_ft"] = round(unit_deck_start_ft, 3)
+                unit["deck_x_end_ft"] = round(unit_deck_start_ft + deck_len_ft, 3)
                 unit["y_surface_ft"] = round(y_cursor_ft, 3)
                 unit["y_body_top_ft"] = round(y_cursor_ft + deck_component_h_ft, 3)
                 unit["zone_surface_ft"] = round(zone_surface, 3)
 
-                if bool(unit.get("is_rotated")):
-                    tongue_attach_x_ft = global_x_ft
-                    tongue_tip_x_ft = global_x_ft - tongue_len_ft
+                if is_unit_rotated:
+                    tongue_attach_x_ft = unit_deck_start_ft
+                    tongue_tip_x_ft = unit_deck_start_ft - tongue_len_ft
                 else:
-                    tongue_attach_x_ft = global_x_ft + deck_len_ft
+                    tongue_attach_x_ft = unit_deck_start_ft + deck_len_ft
                     tongue_tip_x_ft = tongue_attach_x_ft + tongue_len_ft
 
                 zone_cap_x_ft = step_x_ft if zone == "lower_deck" else trailer_total_len_ft
@@ -1250,8 +2027,14 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 unit["overhang_ft"] = round(max(0.0, tongue_tip_x_ft - trailer_total_len_ft), 3)
 
                 y_cursor_ft += deck_component_h_ft
-            col_height_ft = max(y_cursor_ft - zone_surface, 0.0)
-            col_heights.setdefault(zone, {})[int(seq)] = round(col_height_ft, 3)
+            rendered_col_height_ft = max(y_cursor_ft - zone_surface, 0.0)
+            logical_col_height_ft = rendered_col_height_ft
+            if brand == "pj":
+                logical_col_height_ft = _as_float(
+                    (col_heights.get(zone) or {}).get(int(seq), rendered_col_height_ft),
+                    rendered_col_height_ft,
+                )
+            col_heights.setdefault(zone, {})[int(seq)] = round(logical_col_height_ft, 3)
 
             col_entry = {
                 "zone": zone,
@@ -1259,7 +2042,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 "x_local_ft": round(local_x_ft, 3),
                 "x_ft": round(global_x_ft, 3),
                 "footprint_ft": round(col_footprint_ft, 3),
-                "height_ft": round(col_height_ft, 3),
+                "height_ft": round(logical_col_height_ft, 3),
                 "height_cap_ft": round(_as_float(clearances.get(zone), 0.0), 3),
             }
             spatial_columns[zone].append(col_entry)
@@ -1435,7 +2218,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
 
 @prograde_bp.route("/")
 def index():
-    return redirect(url_for("prograde.account_landing", brand=_selected_brand(default="bigtex")))
+    return account_landing()
 
 
 @prograde_bp.route("/account")
@@ -1600,18 +2383,24 @@ def load_builder(session_id):
 
     raw_positions = db.get_positions(session_id)
     canvas = _build_canvas_data(session_id, session, carrier, zones, raw_positions, brand)
-    inventory_gap = None
-    if brand == "bigtex":
-        inventory_gap = _build_bt_inventory_gap_data(
-            total_footprint=canvas["total_footprint"],
-            carrier_total_length=float(carrier["total_length_ft"] or 53.0),
-        )
+    inventory_gap = build_inventory_gap_data(
+        session_id=session_id,
+        brand=brand,
+        carrier=carrier,
+        canvas=canvas,
+    )
 
     # SKU list for picker
     if brand == "pj":
         skus = _build_pj_picker_skus()
     else:
         skus = [dict(s) for s in db.get_bigtex_skus()]
+    pj_offsets = db.get_pj_offsets_dict() if brand == "pj" else {}
+    pj_crisscross_assumptions = {
+        "length_save_ft": _as_float(pj_offsets.get("gn_crisscross_length_save_ft"), 2.0),
+        "height_save_ft": _as_float(pj_offsets.get("gn_crisscross_height_save_ft"), 1.0),
+        "width_save_ft": _as_float(pj_offsets.get("gn_crisscross_width_save_ft"), 0.6),
+    }
     session_display_id = _format_session_display_id(session_row)
     selected_brand = _selected_brand(default=brand)
     active_profile = _get_active_profile()
@@ -1627,6 +2416,7 @@ def load_builder(session_id):
         zone_labels=zone_labels,
         skus=skus,
         inventory_gap=inventory_gap,
+        pj_crisscross_assumptions=pj_crisscross_assumptions,
         **canvas,
     )
 
@@ -1849,6 +2639,12 @@ NUMERIC_FIELDS = {
     "bed_length_measured", "display_order",
 }
 
+PJ_OFFSETS_REQUIRE_SKU_RECOMPUTE = {
+    "car_hauler_spare_mount_offset",
+    "dump_tarp_kit_offset",
+    "dtj_cylinder_extra_offset",
+}
+
 
 @prograde_bp.route("/api/settings/save", methods=["POST"])
 def api_settings_save():
@@ -1901,7 +2697,19 @@ def api_settings_save():
 
         recomputed = None
         recomputed_bigtex = None
-        if recompute == "pj_skus" or (table == "pj_measurement_offsets" and field == "offset_ft"):
+        needs_pj_recompute = False
+        if recompute == "pj_skus":
+            if table == "pj_measurement_offsets":
+                needs_pj_recompute = str(pk or "") in PJ_OFFSETS_REQUIRE_SKU_RECOMPUTE
+            else:
+                needs_pj_recompute = True
+        elif (
+            table == "pj_measurement_offsets"
+            and field == "offset_ft"
+            and str(pk or "") in PJ_OFFSETS_REQUIRE_SKU_RECOMPUTE
+        ):
+            needs_pj_recompute = True
+        if needs_pj_recompute:
             recomputed = _recompute_all_pj_skus()
         if table == "pj_tongue_groups" and field == "tongue_feet" and value is not None:
             recomputed = _recompute_pj_skus_for_tongue_group(pk, float(value))
@@ -2040,6 +2848,8 @@ def api_add_unit(session_id):
                 )
                 override_reason = _build_dump_height_override_reason(selected_dump_height_ft, override_reason)
 
+        # Big Tex rule-of-thumb: add new units with tongues facing left by default.
+        default_is_rotated = 1 if brand == "bigtex" else 0
         db.add_position(
             position_id,
             session_id,
@@ -2049,10 +2859,24 @@ def api_add_unit(session_id):
             layer,
             seq,
             override_reason=override_reason,
+            is_rotated=default_is_rotated,
         )
         if insert_idx is not None:
             db.move_position(session_id, position_id, deck_zone, to_sequence=None, insert_index=insert_idx)
-        return jsonify(ok=True, position_id=position_id, state=_build_session_api_state(session_id))
+        gn_crisscross_applied = False
+        if brand == "pj" and stack_on:
+            gn_crisscross_applied = _apply_pj_gn_crisscross_for_column(
+                session_id,
+                deck_zone,
+                seq,
+                preferred_position_id=position_id,
+            )
+        return jsonify(
+            ok=True,
+            position_id=position_id,
+            gn_crisscross_applied=bool(gn_crisscross_applied),
+            state=_build_session_api_state(session_id),
+        )
     except Exception:
         current_app.logger.exception("Failed to add unit for ProGrade session %s", session_id)
         return _json_error("Failed to add unit", 500)
@@ -2290,7 +3114,24 @@ def api_move_position(session_id):
         )
         if not result:
             return _json_error("Position not found", 404)
-        return jsonify(ok=True, result=result, state=_build_session_api_state(session_id))
+        gn_crisscross_applied = False
+        if (
+            session["brand"] == "pj"
+            and result.get("layer")
+            and int(result.get("layer") or 0) > 1
+        ):
+            gn_crisscross_applied = _apply_pj_gn_crisscross_for_column(
+                session_id,
+                to_zone,
+                result.get("sequence"),
+                preferred_position_id=position_id,
+            )
+        return jsonify(
+            ok=True,
+            result=result,
+            gn_crisscross_applied=bool(gn_crisscross_applied),
+            state=_build_session_api_state(session_id),
+        )
     except Exception:
         current_app.logger.exception("Failed to move position for ProGrade session %s", session_id)
         return _json_error("Failed to move unit", 500)

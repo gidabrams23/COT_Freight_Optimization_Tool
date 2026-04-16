@@ -1,75 +1,84 @@
 # ProGrade Edit Map
 
 ## Purpose
-This map is the fastest path for code changes in ProGrade, especially stacking logic and schematic rendering. It links common change requests to the exact files, endpoints, and tests.
+This is the fastest path for ProGrade edits. It maps common requests to the exact files, endpoints, and tests currently in use.
 
-## Start Here (Stacking + Schematic)
-- `blueprints/prograde/templates/prograde/load_builder.html`
-  - Contains ProGrade load builder markup, most ProGrade CSS, and client-side JS.
-  - Includes drag/drop flow, rotate/remove/toggle actions, render mode behavior, and stack/zone UI.
+## Start Here
 - `blueprints/prograde/routes.py`
-  - Session state assembly and all load builder APIs (`/add`, `/remove`, `/rotate`, `/position/move`, `/column/*`, `/check`).
-  - Computes canvas payload via `_build_canvas_data(...)`.
+  - Route handlers and state assembly for load builder and settings.
+- `blueprints/prograde/templates/prograde/settings.html`
+  - ProGrade settings UI and save/import client logic.
+- `blueprints/prograde/templates/prograde/load_builder.html`
+  - Main load page CSS + JS and sidebar picker behavior.
+- `blueprints/prograde/templates/prograde/_load_canvas.html`
+  - Manifest card markup under the load canvas.
+- `blueprints/prograde/templates/prograde/_inventory_gap_panel.html`
+  - Inventory gap panel markup for both BT and PJ modes.
 - `blueprints/prograde/db.py`
-  - Session and position persistence (add/move/resequence/duplicate/reset).
-  - Settings data, SKU data, and inventory upload persistence.
+  - Schema and persistence for sessions, positions, SKUs, settings, and BT inventory snapshots.
 - `blueprints/prograde/services/bt_rules.py`
-  - Big Tex stacking/length/height constraint logic.
 - `blueprints/prograde/services/pj_rules.py`
-  - PJ stacking/length/height/measurement-aware rules.
+- `blueprints/prograde/services/inventory_gap_finder.py`
 
-## If You Need To Change...
-### 1) Stack behavior in the schematic (drag/drop, resequence, move)
-- `blueprints/prograde/templates/prograde/load_builder.html`
-  - JS functions: `initSkuDragAndDrop`, `dispatchDrop`, `moveUnit`, `moveStack`.
+## If You Need To Change
+### 1) Settings standards and save behavior
+- `blueprints/prograde/templates/prograde/settings.html`
+  - Editable settings tables and tabbed standards layout.
 - `blueprints/prograde/routes.py`
-  - Endpoints: `api_move_position`, `api_move_column`, `api_move_column_zone`, `api_resequence_column`.
+  - `settings`, `api_settings_save`, `api_bigtex_import`, `api_pj_import`.
 - `blueprints/prograde/db.py`
-  - Persistence: `move_position`, `move_column`, `move_column_zone`, `resequence_column`.
+  - `update_*` field handlers and recompute helpers for PJ/BT SKU metrics.
+- Tests:
+  - `tests/test_prograde_settings_save.py`
 
-### 2) Unit rotation, orientation, tongue rendering
+### 2) Add SKUs panel behavior (hierarchy/filter/collapse)
 - `blueprints/prograde/templates/prograde/load_builder.html`
-  - UI action: `rotateUnit(positionId)`.
-  - Render-mode classes and tongue/deck display rules.
+  - JS functions: `renderSkuTree`, `applySkuFilter`, `bindSkuAutoCollapseHandlers`, `initSkuHierarchyControls`.
+- Notes:
+  - Big Tex supports model/item hierarchy mode toggles.
+  - Auto-collapse is active when no search query is applied.
+
+### 3) Manifest and inventory table readability
+- `blueprints/prograde/templates/prograde/_load_canvas.html`
+  - Manifest column structure.
+- `blueprints/prograde/templates/prograde/_inventory_gap_panel.html`
+  - Inventory table columns and add controls.
+- `blueprints/prograde/templates/prograde/load_builder.html`
+  - Table CSS tokens, sticky headers, and compact row density.
+
+### 4) Stack behavior (drag/drop/resequence/move)
+- `blueprints/prograde/templates/prograde/load_builder.html`
+  - JS: `initSkuDragAndDrop`, `dispatchDrop`, `moveUnit`, `moveStack`.
 - `blueprints/prograde/routes.py`
-  - Endpoint: `api_rotate_unit`.
-  - Position normalization: `_build_position_view(...)`.
+  - `api_move_position`, `api_move_column`, `api_move_column_zone`, `api_resequence_column`.
 - `blueprints/prograde/db.py`
-  - Field update: `update_position_field`.
+  - `move_position`, `move_column`, `move_column_zone`, `resequence_column`.
+
+### 5) Unit actions (add/remove/rotate/toggles)
+- `blueprints/prograde/routes.py`
+  - `api_add_unit`, `api_remove_unit`, `api_rotate_unit`, `api_toggle_axle_drop`, `api_toggle_dump_door`.
+- `blueprints/prograde/db.py`
+  - Position row mutation and override persistence.
+- Rule of thumb:
+  - Big Tex defaults new units to left-facing tongues (`is_rotated=1`) on add; use rotate only for intentional exceptions.
 - Tests:
   - `tests/test_prograde_rotation.py`
+  - `tests/test_prograde_dump_height_overrides.py`
   - `tests/test_prograde_render_mode.py`
 
-### 3) Deck usage, overlap credit, and stack-height enforcement
-- `blueprints/prograde/services/bt_rules.py`
-  - `compute_bt_length_metrics`, `_bt_total_length`, `_bt_height`.
-- `blueprints/prograde/services/pj_rules.py`
-  - `compute_pj_length_metrics`, `_pj_total_length`, `_pj_height_lower`, `_pj_height_upper`.
+### 6) Inventory gap scoring and upload
+- `blueprints/prograde/services/inventory_gap_finder.py`
+  - Fit scoring (`stack_top`, `horizontal`, or no-fit) and suggested qty.
 - `blueprints/prograde/routes.py`
-  - `api_check` + `_build_canvas_data(...)` consumption of metrics and violations.
-- Tests:
-  - `tests/test_prograde_overlap_metrics.py`
-
-### 4) Add/remove unit behavior from picker or inventory panel
-- `blueprints/prograde/templates/prograde/load_builder.html`
-  - JS: `addUnit`, `removeUnit`, picker modal helpers.
-- `blueprints/prograde/routes.py`
-  - Endpoints: `api_add_unit`, `api_remove_unit`.
+  - `api_upload_bt_inventory` and load-page state hydration.
 - `blueprints/prograde/db.py`
-  - Persistence: `add_position`, `remove_position`.
-
-### 5) Big Tex inventory gap panel and upload
-- `blueprints/prograde/templates/prograde/load_builder.html`
-  - Inventory panel markup/controls.
-- `blueprints/prograde/routes.py`
-  - `api_upload_bt_inventory`, `_build_bt_inventory_gap_data`.
-- `blueprints/prograde/db.py`
-  - `import_bigtex_inventory_orders_workbook`, upload/snapshot fetchers.
+  - BT workbook import + snapshot persistence.
 - Tests:
+  - `tests/test_prograde_inventory_gap_finder.py`
   - `tests/test_prograde_inventory_upload.py`
 
-## API Surface (Load Builder)
-- Session state and validation:
+## API Surface
+- Load state + validation:
   - `GET /prograde/api/session/<session_id>/state`
   - `GET /prograde/api/session/<session_id>/check`
 - Unit actions:
@@ -78,46 +87,22 @@ This map is the fastest path for code changes in ProGrade, especially stacking l
   - `POST /prograde/api/session/<session_id>/rotate`
   - `POST /prograde/api/session/<session_id>/toggle_axle_drop`
   - `POST /prograde/api/session/<session_id>/toggle_dump_door`
-- Drag/drop and stack actions:
+- Drag/drop:
   - `POST /prograde/api/session/<session_id>/position/move`
   - `POST /prograde/api/session/<session_id>/column/move`
   - `POST /prograde/api/session/<session_id>/column/move-zone`
   - `POST /prograde/api/session/<session_id>/column/duplicate`
   - `POST /prograde/api/session/<session_id>/column/resequence`
+- Settings:
+  - `GET /prograde/settings`
+  - `POST /prograde/api/settings/save`
+  - `POST /prograde/api/settings/pj/import`
+  - `POST /prograde/api/settings/bigtex/import`
+- Inventory:
+  - `POST /prograde/api/session/<session_id>/inventory/upload`
 
 ## Fast Test Commands
-- Stacking/overlap math:
-  - `pytest tests/test_prograde_overlap_metrics.py`
-- Rotate + render behavior:
-  - `pytest tests/test_prograde_rotation.py tests/test_prograde_render_mode.py`
-- Session/load builder workflow:
-  - `pytest tests/test_prograde_sessions_workflow.py tests/test_prograde_settings_save.py`
-- Inventory panel:
-  - `pytest tests/test_prograde_inventory_upload.py`
-
-## Current File Organization Risks
-- `load_builder.html` is the main UI bottleneck (template + CSS + JS in one file).
-- `routes.py` includes both route definitions and substantial state-shaping/helper logic.
-- `db.py` owns both schema/bootstrap logic and many runtime data-access concerns.
-
-## Recommended Refactor Sequence (for Faster Future Edits)
-1. Split load builder template:
-   - Extract `templates/prograde/_load_canvas.html`
-   - Extract `templates/prograde/_sku_picker.html`
-   - Extract `templates/prograde/_inventory_gap_panel.html`
-   - Keep page-level wrapper in `load_builder.html`.
-2. Move ProGrade client JS out of template:
-   - `blueprints/prograde/static/js/load_builder_state.js`
-   - `blueprints/prograde/static/js/load_builder_dragdrop.js`
-   - `blueprints/prograde/static/js/load_builder_picker.js`
-3. Move ProGrade CSS out of template:
-   - `blueprints/prograde/static/css/load_builder.css`
-4. Split route concerns:
-   - Keep HTTP handlers in `routes.py`.
-   - Move state composition helpers into `blueprints/prograde/services/canvas_state.py`.
-5. Split DB concerns:
-   - Keep connection/init in `db.py`.
-   - Move session-position mutations to `blueprints/prograde/repositories/session_positions.py`.
-   - Move SKU/settings access to `blueprints/prograde/repositories/settings_repo.py`.
-
-This sequence keeps behavior stable while reducing search/edit surface area for the core stacking/schematic workflow.
+- `pytest tests/test_prograde_settings_save.py`
+- `pytest tests/test_prograde_sessions_workflow.py`
+- `pytest tests/test_prograde_rotation.py tests/test_prograde_render_mode.py`
+- `pytest tests/test_prograde_inventory_gap_finder.py tests/test_prograde_inventory_upload.py`

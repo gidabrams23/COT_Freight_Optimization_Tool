@@ -3,10 +3,11 @@
 
 {% block content %}
 {% set selected_brand = selected_brand | default('bigtex') %}
+{% set selected_account_id = active_profile.id if active_profile else (accounts[0].id if accounts else None) %}
 <div class="page-header">
   <div>
     <div class="page-title">Select Account</div>
-    <div class="page-subtitle">Choose a planner account or add a new one before entering sessions.</div>
+    <div class="page-subtitle">Choose a planner account or add a new one before entering sessions. Your selection stays active for this browser session.</div>
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     {% if active_profile %}
@@ -43,9 +44,9 @@
         <div style="flex:1 1 220px;">
           <label class="form-label">Select Account</label>
           <select name="profile_id" class="form-control" required>
-            <option value="">Select account...</option>
+            <option value="" {% if not selected_account_id %}selected{% endif %}>Select account...</option>
             {% for account in accounts %}
-            <option value="{{ account.id }}" {% if active_profile and active_profile.id == account.id %}selected{% endif %}>
+            <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>
               {{ account.name }}{% if account.is_admin %} (Admin){% endif %}
             </option>
             {% endfor %}

@@ -24,6 +24,10 @@ _PJ_DUMP_CATEGORIES = {
     "dump_gn",
 }
 _REAR_POCKET_LEN_FT = 5.0
+_DUMP_DOOR_MIN_EXPOSED_TONGUE_FT = 1.0
+_PJ_UTILITY_STACK_TOP_FT = 1.8
+_PJ_UTILITY_STACK_SUPPORTED_FT = 1.3
+_PJ_NON_DUMP_STACK_TEMP_FT = 1.3
 
 
 def _normalize_dump_height_ft(value):
@@ -35,6 +39,18 @@ def _normalize_dump_height_ft(value):
         return 3.0
     if abs(parsed - 4.0) <= 0.05:
         return 4.0
+    return None
+
+
+def pj_dump_stacked_height_ft(value):
+    """Map selectable dump sidewall heights to stacked-height envelope values."""
+    normalized = _normalize_dump_height_ft(value)
+    if normalized is None:
+        return None
+    if abs(normalized - 3.0) <= 0.05:
+        return 4.0
+    if abs(normalized - 4.0) <= 0.05:
+        return 6.0
     return None
 
 
@@ -80,6 +96,128 @@ def _position_dump_height_override_ft(row, sku):
             continue
         return _normalize_dump_height_ft(raw_value.strip())
     return None
+
+
+def _position_dump_door_removed(row, sku):
+    pos = _row_to_dict(row)
+    sku_map = _row_to_dict(sku)
+    category = str(sku_map.get("pj_category") or "").strip().lower()
+    if category not in _PJ_DUMP_CATEGORIES:
+        return False
+    override_reason = str(pos.get("override_reason") or "")
+    for token in override_reason.split(";"):
+        token_clean = token.strip()
+        if not token_clean or ":" not in token_clean:
+            continue
+        key, raw_value = token_clean.split(":", 1)
+        if key.strip().lower() != "dump_door_removed":
+            continue
+        value = raw_value.strip().lower()
+        return value in {"1", "true", "yes", "on"}
+    return False
+
+
+def _position_gn_crisscross_enabled(row):
+    pos = _row_to_dict(row)
+    override_reason = str(pos.get("override_reason") or "")
+    for token in override_reason.split(";"):
+        token_clean = token.strip()
+        if not token_clean or ":" not in token_clean:
+            continue
+        key, raw_value = token_clean.split(":", 1)
+        if key.strip().lower() != "gn_crisscross":
+            continue
+        value = raw_value.strip().lower()
+        return value in {"1", "true", "yes", "on"}
+    return False
+
+
+def _is_gn_crisscross_pair(lower_row, upper_row, lower_sku, upper_sku):
+    lower_pos = _row_to_dict(lower_row)
+    upper_pos = _row_to_dict(upper_row)
+    if not _position_uses_gooseneck(lower_pos, lower_sku):
+        return False
+    if not _position_uses_gooseneck(upper_pos, upper_sku):
+        return False
+    if bool(lower_pos.get("is_rotated")) != bool(upper_pos.get("is_rotated")):
+        return False
+    return True
+
+
+def _column_gn_crisscross_pair_count(col_sorted, skus):
+    ordered = [_row_to_dict(row) for row in (col_sorted or [])]
+    if len(ordered) < 2:
+        return 0
+    for idx in range(1, len(ordered)):
+        lower = ordered[idx - 1]
+        upper = ordered[idx]
+        lower_sku = skus.get(lower.get("item_number")) or {}
+        upper_sku = skus.get(upper.get("item_number")) or {}
+        if _is_gn_crisscross_pair(lower, upper, lower_sku, upper_sku):
+            return 1
+    return 0
+
+
+def _gn_crisscross_length_credit_ft(offsets, pair_count):
+    per_pair = float((offsets or {}).get("gn_crisscross_length_save_ft", 2.0) or 2.0)
+    return max(per_pair, 0.0) * max(int(pair_count or 0), 0)
+
+
+def _gn_crisscross_height_credit_ft(offsets, pair_count):
+    per_pair = float((offsets or {}).get("gn_crisscross_height_save_ft", 1.0) or 1.0)
+    return max(per_pair, 0.0) * max(int(pair_count or 0), 0)
+
+
+def pj_utility_stacking_height_ft(row, sku, is_top):
+    """Return PJ utility stacking height override, or None when not applicable."""
+    pos = _row_to_dict(row)
+    sku_map = _row_to_dict(sku)
+    category = str(sku_map.get("pj_category") or "").strip().lower()
+    if category != "utility":
+        return None
+    if _position_uses_gooseneck(pos, sku_map):
+        return None
+    layer = int(pos.get("layer") or 0)
+    if layer <= 1:
+        return _PJ_UTILITY_STACK_SUPPORTED_FT
+    return _PJ_UTILITY_STACK_TOP_FT if bool(is_top) else _PJ_UTILITY_STACK_SUPPORTED_FT
+
+
+def pj_non_dump_stacking_height_ft(row, sku, is_top):
+    """
+    PJ stacked-height override for non-dump, non-gooseneck units.
+
+    Gooseneck profiles are handled separately (6.0' logic and GN-on-GN exception).
+    """
+    pos = _row_to_dict(row)
+    sku_map = _row_to_dict(sku)
+    deck_profile = str(pos.get("deck_profile") or "").strip().lower()
+    if not deck_profile:
+        category = str(sku_map.get("pj_category") or "").strip().lower()
+        deck_profile = "dump" if category in _PJ_DUMP_CATEGORIES else "flat"
+    if deck_profile == "dump":
+        return None
+    if _position_uses_gooseneck(pos, sku_map):
+        return None
+    return _PJ_NON_DUMP_STACK_TEMP_FT
+
+
+def _position_nominal_height_ft(pos, sku, height_ref, is_top, use_axle_drop=True):
+    """Nominal (non-GN-forced) stacked height for one position."""
+    dump_height_override_ft = _position_dump_height_override_ft(pos, sku)
+    if dump_height_override_ft is not None:
+        return pj_dump_stacked_height_ft(dump_height_override_ft) or dump_height_override_ft
+
+    cat = sku.get("pj_category", "")
+    ref = (height_ref or {}).get(cat)
+    if not ref:
+        return 0.0
+
+    if use_axle_drop and bool(pos.get("gn_axle_dropped")) and ref.get("gn_axle_dropped_ft") is not None:
+        return float(ref["gn_axle_dropped_ft"])
+    if is_top:
+        return float(ref.get("height_top_ft") or 0.0)
+    return float(ref.get("height_mid_ft") or 0.0)
 
 
 def _position_deck_length_ft(position, sku):
@@ -280,11 +418,13 @@ def compute_pj_length_metrics(
         upper_base_ft += _adjusted_position_footprint(base, sku, offsets)
 
     rear_underride_credit_ft = 0.0
+    gn_crisscross_pair_count = 0
     for zone in ("lower_deck", "upper_deck"):
         cols = grouped_by_zone.get(zone, {}) or {}
         prev_dims = None
         for seq in sorted(cols.keys()):
             col = cols.get(seq) or []
+            gn_crisscross_pair_count += _column_gn_crisscross_pair_count(col, skus)
             dims = _base_dims_for_column(col, skus)
             if prev_dims is not None:
                 overlap_left_tongue = min(
@@ -297,6 +437,8 @@ def compute_pj_length_metrics(
                 )
                 rear_underride_credit_ft += max(overlap_left_tongue + overlap_prev_tongue, 0.0)
             prev_dims = dims
+
+    gn_crisscross_credit_ft = _gn_crisscross_length_credit_ft(offsets, gn_crisscross_pair_count)
 
     if lower_interface:
         lower_sku = skus.get(lower_interface.get("item_number"), {})
@@ -322,7 +464,7 @@ def compute_pj_length_metrics(
         col_sorted = lower_grouped.get(seq) or []
         if not col_sorted:
             continue
-        col_height = float(_col_height(col_sorted, skus, height_ref))
+        col_height = float(_col_height(col_sorted, skus, height_ref, offsets=offsets))
         if col_height <= 0 or col_height > float(step_gap_ft or 0.0):
             break
         base = next((row for row in col_sorted if int((row or {}).get("layer") or 0) == 1), col_sorted[0])
@@ -336,9 +478,44 @@ def compute_pj_length_metrics(
         max(low_profile_seam_span_ft, 0.0),
     )
 
-    blocked_lower_ft = max(upper_seam_span_ft - overlap_credit_ft - seam_clearance_credit_ft, 0.0)
+    dump_door_insert_credit_ft = 0.0
+    if lower_interface and upper_interface:
+        lower_sku = skus.get(lower_interface.get("item_number"), {})
+        upper_sku = skus.get(upper_interface.get("item_number"), {})
+        upper_category = str((upper_sku or {}).get("pj_category") or "").strip().lower()
+        upper_is_dump = upper_category in _PJ_DUMP_CATEGORIES
+        upper_rear_faces_seam = not bool(upper_interface.get("is_rotated"))
+        if upper_is_dump and upper_rear_faces_seam and _position_dump_door_removed(upper_interface, upper_sku):
+            insertion_window_ft = min(
+                max(_position_deck_length_ft(upper_interface, upper_sku), 0.0),
+                float(_REAR_POCKET_LEN_FT),
+            )
+            lower_tongue_toward_seam_ft = 0.0
+            if not bool(lower_interface.get("is_rotated")):
+                lower_tongue_toward_seam_ft = _position_render_tongue_ft(lower_interface, lower_sku)
+            insertable_lower_tongue_ft = max(
+                max(lower_tongue_toward_seam_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
+                0.0,
+            )
+            dump_door_insert_credit_ft = min(
+                insertable_lower_tongue_ft,
+                max(insertion_window_ft, 0.0),
+            )
+
+    blocked_lower_ft = max(
+        upper_seam_span_ft - overlap_credit_ft - seam_clearance_credit_ft - dump_door_insert_credit_ft,
+        0.0,
+    )
     blocked_upper_ft = max(lower_seam_span_ft - overlap_credit_ft, 0.0)
-    effective_total = max(legacy_total - overlap_credit_ft - seam_clearance_credit_ft - rear_underride_credit_ft, 0.0)
+    effective_total = max(
+        legacy_total
+        - overlap_credit_ft
+        - seam_clearance_credit_ft
+        - dump_door_insert_credit_ft
+        - rear_underride_credit_ft
+        - gn_crisscross_credit_ft,
+        0.0,
+    )
 
     return {
         "legacy_total_ft": round(legacy_total, 3),
@@ -346,6 +523,9 @@ def compute_pj_length_metrics(
         "overlap_credit_ft": round(overlap_credit_ft, 3),
         "rear_underride_credit_ft": round(rear_underride_credit_ft, 3),
         "seam_clearance_credit_ft": round(seam_clearance_credit_ft, 3),
+        "dump_door_insert_credit_ft": round(dump_door_insert_credit_ft, 3),
+        "gn_crisscross_credit_ft": round(gn_crisscross_credit_ft, 3),
+        "gn_crisscross_pair_count": int(gn_crisscross_pair_count),
         "blocked_lower_ft": round(blocked_lower_ft, 3),
         "blocked_upper_ft": round(blocked_upper_ft, 3),
         "lower_base_ft": round(lower_base_ft, 3),
@@ -368,8 +548,8 @@ def check(positions, carrier) -> list:
     height_ref = db.get_pj_height_ref_dict()   # {category: dict} - no DB calls inside rules
 
     violations += _pj_total_length(positions, carrier, skus, offsets, height_ref)
-    violations += _pj_height_lower(positions, carrier, skus, height_ref)
-    violations += _pj_height_upper(positions, carrier, skus, height_ref)
+    violations += _pj_height_lower(positions, carrier, skus, height_ref, offsets)
+    violations += _pj_height_upper(positions, carrier, skus, height_ref, offsets)
     violations += _pj_step_crossing(positions, carrier, skus, offsets)
     violations += _pj_gn_lower_deck(positions, carrier, skus)
     violations += _pj_dtj_offset(positions, skus)
@@ -395,6 +575,9 @@ def _pj_total_length(positions, carrier, skus, offsets, height_ref):
     overlap_credit = float(metrics.get("overlap_credit_ft") or 0.0)
     rear_underride_credit = float(metrics.get("rear_underride_credit_ft") or 0.0)
     seam_clearance_credit = float(metrics.get("seam_clearance_credit_ft") or 0.0)
+    dump_door_insert_credit = float(metrics.get("dump_door_insert_credit_ft") or 0.0)
+    gn_crisscross_credit = float(metrics.get("gn_crisscross_credit_ft") or 0.0)
+    gn_crisscross_pair_count = int(metrics.get("gn_crisscross_pair_count") or 0)
 
     implicated = [p["position_id"] for p in positions]
 
@@ -407,6 +590,12 @@ def _pj_total_length(positions, carrier, skus, offsets, height_ref):
             notes.append(f"{rear_underride_credit:.1f}' tongue-under-rear credit")
         if seam_clearance_credit > 0:
             notes.append(f"{seam_clearance_credit:.1f}' low-profile seam credit")
+        if dump_door_insert_credit > 0:
+            notes.append(f"{dump_door_insert_credit:.1f}' dump door insertion credit")
+        if gn_crisscross_credit > 0:
+            notes.append(
+                f"{gn_crisscross_credit:.1f}' GN crisscross credit across {gn_crisscross_pair_count} pair(s)"
+            )
         overlap_note = f" (includes {'; '.join(notes)})." if notes else "."
         return [Violation(
             severity="error",
@@ -421,37 +610,55 @@ def _pj_total_length(positions, carrier, skus, offsets, height_ref):
     return []
 
 
-def _col_height(col_sorted, skus, height_ref, use_axle_drop=True):
+def _col_height(col_sorted, skus, height_ref, use_axle_drop=True, offsets=None):
     """Compute cumulative stack height for a sorted list of positions (layer 1 -> top)."""
     total = 0.0
+    ordered = [_row_to_dict(row) for row in (col_sorted or [])]
+    gooseneck_flags = []
+    for row in ordered:
+        sku = skus.get(row.get("item_number")) or {}
+        gooseneck_flags.append(_position_uses_gooseneck(row, sku))
+
     for i, row in enumerate(col_sorted):
         p = _row_to_dict(row)
         sku = skus.get(p.get("item_number"))
         if not sku:
             continue
-        dump_height_override_ft = _position_dump_height_override_ft(p, sku)
-        if dump_height_override_ft is not None:
-            total += dump_height_override_ft
-            continue
-        if _position_uses_gooseneck(p, sku):
-            total += _PJ_GOOSENECK_HEIGHT_FT
-            continue
-        cat = sku.get("pj_category", "")
-        ref = height_ref.get(cat)
-        if not ref:
-            continue
         is_top = (i == len(col_sorted) - 1)
-        # GN with axle dropped uses the lower height value
-        if use_axle_drop and bool(p.get("gn_axle_dropped")) and ref.get("gn_axle_dropped_ft") is not None:
-            total += ref["gn_axle_dropped_ft"]
-        elif is_top:
-            total += ref["height_top_ft"]
-        else:
-            total += ref["height_mid_ft"]
+        is_gooseneck = gooseneck_flags[i]
+        has_gooseneck_above = any(gooseneck_flags[i + 1:]) if i + 1 < len(gooseneck_flags) else False
+
+        if is_gooseneck:
+            if has_gooseneck_above:
+                total += _position_nominal_height_ft(
+                    p,
+                    sku,
+                    height_ref,
+                    is_top=is_top,
+                    use_axle_drop=use_axle_drop,
+                )
+            else:
+                total += _PJ_GOOSENECK_HEIGHT_FT
+            continue
+
+        non_dump_stacked_height_ft = pj_non_dump_stacking_height_ft(p, sku, is_top)
+        if non_dump_stacked_height_ft is not None:
+            total += non_dump_stacked_height_ft
+            continue
+        total += _position_nominal_height_ft(
+            p,
+            sku,
+            height_ref,
+            is_top=is_top,
+            use_axle_drop=use_axle_drop,
+        )
+    gn_pair_count = _column_gn_crisscross_pair_count(col_sorted, skus)
+    if gn_pair_count > 0:
+        total = max(total - _gn_crisscross_height_credit_ft(offsets, gn_pair_count), 0.0)
     return round(total, 3)
 
 
-def _pj_height_lower(positions, carrier, skus, height_ref):
+def _pj_height_lower(positions, carrier, skus, height_ref, offsets):
     """PJ_HEIGHT_LOWER - column height on lower deck <= clearance above lower deck."""
     clearance = 10.0
     if carrier:
@@ -465,7 +672,7 @@ def _pj_height_lower(positions, carrier, skus, height_ref):
     violations = []
     for seq, col in columns.items():
         col_sorted = sorted(col, key=lambda p: p["layer"])
-        total_height = _col_height(col_sorted, skus, height_ref)
+        total_height = _col_height(col_sorted, skus, height_ref, offsets=offsets)
         if total_height > clearance:
             violations.append(Violation(
                 severity="error",
@@ -480,7 +687,7 @@ def _pj_height_lower(positions, carrier, skus, height_ref):
     return violations
 
 
-def _pj_height_upper(positions, carrier, skus, height_ref):
+def _pj_height_upper(positions, carrier, skus, height_ref, offsets):
     """PJ_HEIGHT_UPPER - column height on upper deck <= clearance above upper deck."""
     clearance = 8.5
     if carrier:
@@ -494,7 +701,7 @@ def _pj_height_upper(positions, carrier, skus, height_ref):
     violations = []
     for seq, col in columns.items():
         col_sorted = sorted(col, key=lambda p: p["layer"])
-        total_height = _col_height(col_sorted, skus, height_ref)
+        total_height = _col_height(col_sorted, skus, height_ref, offsets=offsets)
         if total_height > clearance:
             violations.append(Violation(
                 severity="error",
@@ -687,11 +894,12 @@ def compute_column_heights(positions, brand, height_ref):
         return result
 
     skus = {p["item_number"]: dict(db.get_pj_sku(p["item_number"]) or {}) for p in positions}
+    offsets = db.get_pj_offsets_dict()
     for zone, cols in columns_by_zone.items():
         result[zone] = {}
         for seq, col in cols.items():
             sorted_col = sorted(col, key=lambda p: p["layer"])
-            result[zone][seq] = _col_height(sorted_col, skus, height_ref)
+            result[zone][seq] = _col_height(sorted_col, skus, height_ref, offsets=offsets)
     return result
 
 

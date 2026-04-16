@@ -86,7 +86,7 @@ class ProgradeDumpHeightOverrideTests(unittest.TestCase):
         self.assertIn("dump_height_ft:4.0", override_reason)
 
         load_html = self.client.get(f"/prograde/session/{session_id}/load").get_data(as_text=True)
-        self.assertIn("h=4.0 ft", load_html)
+        self.assertIn("Height (render): 6.0 ft", load_html)
 
     def test_dump_door_off_hides_rear_wall_line(self):
         item_number = self._first_dump_item_number()

@@ -1,44 +1,64 @@
-# ProGrade BT Inventory Gap Workflow (v0.1)
+# ProGrade Inventory Gap Workflow (v0.3)
 
 ## Purpose
-Adds a Big Tex-only inventory-aware panel on the ProGrade load builder page so planners can upload a current orders workbook and see which available SKUs can fill remaining trailer space.
+Defines the current inventory-gap panel behavior on the ProGrade load page for both brands:
+- Big Tex: workbook-backed availability with upload.
+- PJ: catalog-based suggestions from loaded PJ SKUs.
 
-## Entry Point
-- Page: `/prograde/session/<session_id>/load`
-- Upload API: `POST /prograde/api/session/<session_id>/inventory/upload`
+## Entry Points
+- Load page: `/prograde/session/<session_id>/load`
+- BT upload API: `POST /prograde/api/session/<session_id>/inventory/upload`
 
-## Workbook Contract
-- Sheet expected: `All.Orders.Quick` (case-insensitive)
-- Row grain: each row represents one item unit
+## Brand Modes
+### Big Tex mode (`brand=bigtex`)
+- Upload expected workbook sheet: `All.Orders.Quick` (case-insensitive).
 - Parsed columns:
-  - `C` (`Name`): populated = already assigned, blank = available inventory
-  - `M` (`Item #`): SKU key used to aggregate inventory and join to `bigtex_skus`
-  - `R` (`Days Old`): blank = future build, populated = already built
+  - `C` (`Name`): populated means assigned, blank means available.
+  - `M` (`Item #`): SKU key matched to `bigtex_skus`.
+  - `R` (`Days Old`): populated means built, blank means future build.
+- Snapshot aggregates persisted per item:
+  - `total_count`
+  - `available_count`
+  - `assigned_count`
+  - `built_count`
+  - `future_build_count`
+  - `available_built_count`
+  - `available_future_count`
 
-## Aggregation Logic
-For each `Item #`, the importer stores:
-- `total_count`
-- `available_count` (`Name` blank)
-- `assigned_count` (`Name` populated)
-- `built_count` (`Days Old` populated)
-- `future_build_count` (`Days Old` blank)
-- `available_built_count` (`Name` blank + `Days Old` populated)
-- `available_future_count` (`Name` blank + `Days Old` blank)
+### PJ mode (`brand=pj`)
+- No workbook upload in current process.
+- Candidates are derived directly from `pj_skus`.
+- Panel scores fit by stack-level vertical headroom and stack length constraints.
 
-## UI Behavior
-- New panel on load builder: **BT Inventory Gap Finder**
-- Shows:
-  - upload button
-  - latest upload metadata
-  - remaining deck gap (carrier length - current load footprint)
-  - inventory table with available counts highlighted
-  - fit indicator (`Fits Gap`) and `Suggest Qty` based on remaining gap and SKU footprint
+## Panel Behavior
+- Panel title: `BT Inventory Gap Finder` or `PJ Inventory Gap Finder`.
+- Summary tiles:
+  - Remaining gap feet
+  - Available units (BT) or catalog SKU count (PJ)
+  - Candidate row count
+  - Active stack count
+- Table shows:
+  - Category, model, item #
+  - Total footprint, stack height, available qty
+  - One fit column per active stack (Stack 1 Fit, Stack 2 Fit, ...)
+  - Each stack header includes stack length and remaining height
+  - `+` action in a stack-fit cell adds directly to that specific stack target
+
+## Fit and Suggest Logic
+- Horizontal-gap targeting is not used in this mode.
+- Candidate fit is evaluated per active stack using:
+  - Stack remaining vertical headroom
+  - Candidate footprint vs stack length
+  - Existing brand constraints (BT/PJ rule engines) via simulated add checks
+- Stack-fit actions are only shown when the candidate can be added without introducing new errors.
 
 ## Storage
 In ProGrade SQLite (`PROGRADE_DB_PATH`):
-- `bt_inventory_snapshot`: latest per-SKU aggregated counts
-- `bt_inventory_upload_log`: upload metadata history
+- `bt_inventory_snapshot`: latest per-SKU BT aggregates.
+- `bt_inventory_upload_log`: BT upload metadata history.
+- PJ catalog mode does not write a separate inventory snapshot table.
 
-## Current Scope
-- Big Tex sessions only (`brand=bigtex`)
-- PJ inventory ingestion intentionally deferred for later phase
+## Current Process Standards
+- Keep BT upload optional and non-blocking for load building.
+- Keep PJ catalog mode always available when PJ SKUs exist.
+- Keep fit scoring deterministic and tied to current session geometry/constraints.

@@ -331,21 +331,19 @@
               stroke="rgba(125, 211, 252, 0.30)" stroke-width="1"/>
         {# Height meters rendered in the SAME SVG coordinate system as the deck/units. #}
         <g class="pg-height-meter-svg">
-          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.2f'|format(lower_cap_ft) }} ft</text>
+          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(lower_cap_ft) }} ft</text>
           <rect x="{{ left_meter_x }}" y="{{ lower_bar_top_px }}" width="{{ meter_w }}" height="{{ lower_bar_h_px }}" rx="{{ meter_rx }}" fill="rgba(15, 23, 42, 0.28)" stroke="rgba(125, 211, 252, 0.72)" stroke-width="1"/>
           {% if lower_fill_h_px > 0 %}
             <rect x="{{ left_meter_x + 1 }}" y="{{ lower_fill_y }}" width="{{ meter_w - 2 }}" height="{{ lower_fill_h_px }}" rx="{{ meter_rx - 1 }}" fill="{{ lower_fill_color }}" fill-opacity="0.92"/>
           {% endif %}
-          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.2f'|format(lower_used_ft) }}</text>
-          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_y_px - 4 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(134, 239, 172, 0.98)">{{ '%.2f'|format(0.0) }}</text>
+          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(lower_used_ft) }}</text>
 
-          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.2f'|format(upper_cap_ft) }} ft</text>
+          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(upper_cap_ft) }} ft</text>
           <rect x="{{ right_meter_x }}" y="{{ upper_bar_top_px }}" width="{{ meter_w }}" height="{{ upper_bar_h_px }}" rx="{{ meter_rx }}" fill="rgba(15, 23, 42, 0.28)" stroke="rgba(125, 211, 252, 0.72)" stroke-width="1"/>
           {% if upper_fill_h_px > 0 %}
             <rect x="{{ right_meter_x + 1 }}" y="{{ upper_fill_y }}" width="{{ meter_w - 2 }}" height="{{ upper_fill_h_px }}" rx="{{ meter_rx - 1 }}" fill="{{ upper_fill_color }}" fill-opacity="0.92"/>
           {% endif %}
-          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.2f'|format(upper_used_ft) }}</text>
-          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_y_px - 4 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(134, 239, 172, 0.98)">{{ '%.2f'|format(0.0) }}</text>
+          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(upper_used_ft) }}</text>
         </g>
         {# Stepdeck profile line on true deck surfaces (where units sit) #}
         <path d="M {{ margin_l }},{{ lower_y_px }} L {{ step_x_px }},{{ lower_y_px }} L {{ step_x_px }},{{ upper_y_px }} L {{ trailer_end_x_px }},{{ upper_y_px }}"
@@ -355,8 +353,8 @@
         <line x1="{{ margin_l }}" y1="{{ max_height_y_px }}" x2="{{ trailer_end_x_px }}" y2="{{ max_height_y_px }}" stroke="#ef4444" stroke-opacity="0.20" stroke-dasharray="5,4"/>
         <line x1="{{ step_x_px }}" y1="{{ guide_line_y }}" x2="{{ step_x_px }}" y2="{{ ground_y }}" stroke="rgba(148, 163, 184, 0.35)" stroke-dasharray="3,3" stroke-opacity="0.5"/>
 
-        <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ step_x_ft * px_per_ft }}" height="{{ stack_plot_h }}" fill="transparent" data-drop-zone="lower_deck"/>
-        <rect x="{{ step_x_px }}" y="{{ stack_plot_y }}" width="{{ (total_len_ft - step_x_ft) * px_per_ft }}" height="{{ stack_plot_h }}" fill="transparent" data-drop-zone="upper_deck"/>
+        <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ step_x_ft * px_per_ft }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck"/>
+        <rect x="{{ step_x_px }}" y="{{ stack_plot_y }}" width="{{ (total_len_ft - step_x_ft) * px_per_ft }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="upper_deck"/>
 
         {% for zone in zones %}
           {% set zone_origin = (zone_origin_x_ft.get(zone, 0) if zone_origin_x_ft else 0) | float %}
@@ -374,20 +372,23 @@
               {% endif %}
               {% set col_x_px = margin_l + col_x_ft * px_per_ft %}
               {% set col_w_px = col_width_ft * px_per_ft %}
+              {% set slot_w_px = [col_w_px * 0.20, 24] | min %}
+              {% set slot_w_px = [slot_w_px, 14] | max %}
               <rect x="{{ col_x_px }}" y="{{ stack_plot_y }}" width="{{ col_w_px }}" height="{{ stack_plot_h }}"
-                    fill="transparent"
+                    fill="rgba(59,130,246,0.001)"
+                    data-stack-col="1"
                     data-stack-drop="1"
                     data-zone="{{ zone }}"
                     data-target="{{ top_pos.position_id }}"
                     data-target-seq="{{ seq }}"/>
-              <rect x="{{ col_x_px - 2 }}" y="{{ stack_plot_y }}" width="4" height="{{ stack_plot_h }}"
-                    fill="transparent"
+              <rect x="{{ col_x_px - (slot_w_px / 2) }}" y="{{ stack_plot_y }}" width="{{ slot_w_px }}" height="{{ stack_plot_h }}"
+                    fill="rgba(125,211,252,0.01)"
                     data-column-slot="1"
                     data-zone="{{ zone }}"
                     data-insert-index="{{ loop.index0 }}"/>
               {% if loop.last %}
-              <rect x="{{ col_x_px + col_w_px - 2 }}" y="{{ stack_plot_y }}" width="4" height="{{ stack_plot_h }}"
-                    fill="transparent"
+              <rect x="{{ col_x_px + col_w_px - (slot_w_px / 2) }}" y="{{ stack_plot_y }}" width="{{ slot_w_px }}" height="{{ stack_plot_h }}"
+                    fill="rgba(125,211,252,0.01)"
                     data-column-slot="1"
                     data-zone="{{ zone }}"
                     data-insert-index="{{ loop.index }}"/>
@@ -397,7 +398,7 @@
             {% set empty_zone_x = margin_l + zone_origin * px_per_ft %}
             {% set empty_zone_w = (step_x_ft if zone == 'lower_deck' else (total_len_ft - step_x_ft)) * px_per_ft %}
             <rect x="{{ empty_zone_x + 3 }}" y="{{ stack_plot_y }}" width="{{ [empty_zone_w - 6, 8] | max }}" height="{{ stack_plot_h }}"
-                  fill="transparent"
+                  fill="rgba(125,211,252,0.01)"
                   data-column-slot="1"
                   data-zone="{{ zone }}"
                   data-insert-index="0"/>
@@ -407,7 +408,8 @@
         <g clip-path="url(#pg-clip-plot)">
         {% for zone in zones %}
           {% for seq in (zone_cols.get(zone, {}) | sort) %}
-            {% for pos in (zone_cols.get(zone, {}).get(seq, []) | sort(attribute='layer')) %}
+            {% set col_sorted = (zone_cols.get(zone, {}).get(seq, []) | sort(attribute='layer')) %}
+            {% for pos in col_sorted %}
               {% set accent = '#d79a6b' %}
               {% set deck_len = (pos.deck_length_ft or pos.bed_length or 0) | float %}
               {% set deck_h = (pos.deck_component_height_ft or pos.height or 0) | float %}
@@ -424,6 +426,21 @@
                 {% set host_x_start = (nested_host.deck_x_start_ft if nested_host.deck_x_start_ft is defined else nested_host.x_ft) | float %}
                 {% set x_start_ft = host_x_start + ((host_deck_len - deck_len) / 2) %}
                 {% set x_end_ft = x_start_ft + deck_len %}
+              {% endif %}
+              {% set gn_pair = namespace(backshift_steps=0) %}
+              {% if pos.gn_crisscross and (pos.render_tongue_profile or 'standard') == 'gooseneck' %}
+                {% for peer in col_sorted %}
+                  {% set peer_layer = [((peer.layer or 1) | int), 1] | max %}
+                  {% if peer_layer < layer_idx %}
+                    {% if (peer.render_tongue_profile or 'standard') == 'gooseneck' and ((peer.is_rotated and pos.is_rotated) or ((not peer.is_rotated) and (not pos.is_rotated))) %}
+                      {% set gn_pair.backshift_steps = gn_pair.backshift_steps + 1 %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+              {% if gn_pair.backshift_steps > 0 %}
+                {% set gn_backshift_ft = (-3.0 if not pos.is_rotated else 3.0) * gn_pair.backshift_steps %}
+                {% set x_start_ft = x_start_ft + gn_backshift_ft %}
               {% endif %}
               {% set x_end_ft = x_start_ft + deck_len %}
               {% set y_surface_ft = (pos.y_surface_ft if pos.y_surface_ft is defined else (lower_surface_ft if zone == 'lower_deck' else upper_surface_ft)) | float %}
@@ -509,45 +526,82 @@
               {% set wheel_hub_r = wheel_hub_r_px %}
               {% set wheel_cy = y_surface_px - wheel_r %}
               {% set body_bottom_px = body_top_px + body_h_px %}
-              {% set btn_size = [[body_h_px * 0.38, 12] | min, 9] | max %}
+              {% if is_dump_profile %}
+                {% set render_x0 = dump_body_x0 %}
+                {% set render_x1 = dump_body_x1 %}
+                {% set render_top_y = dump_wall_top_y %}
+                {% set render_bottom_y = dump_floor_y + dump_floor_h_px %}
+              {% else %}
+                {% set render_x0 = x_start_px %}
+                {% set render_x1 = x_end_px %}
+                {% set render_top_y = body_top_px %}
+                {% set render_bottom_y = body_bottom_px %}
+              {% endif %}
+              {% set render_h_px = [render_bottom_y - render_top_y, 8] | max %}
+              {% set btn_size = [[body_h_px * 0.44, 14] | min, 11.2] | max %}
+              {% set btn_size = [[render_h_px * 0.48, btn_size] | min, 11.2] | max %}
               {% set btn_gap = 1.6 %}
-              {% set btn_y = body_top_px + 1.2 %}
-              {% set btn_max_y = body_bottom_px - btn_size - 0.8 %}
+              {% set btn_y = render_top_y + 0.9 %}
+              {% set btn_max_y = render_bottom_y - btn_size - 0.8 %}
               {% if btn_y > btn_max_y %}
                 {% set btn_y = btn_max_y %}
               {% endif %}
-              {% set btn_y = [btn_y, body_top_px + 0.2] | max %}
-              {% set delete_x = x_start_px + body_w_px - btn_size - 1.2 %}
+              {% set btn_y = [btn_y, render_top_y + 0.2] | max %}
+              {% set delete_x = render_x1 - btn_size - 1.0 %}
               {% set rotate_x = delete_x - btn_size - btn_gap %}
-              {% set rotate_x = [rotate_x, x_start_px + 1.2] | max %}
+              {% set rotate_x = [rotate_x, render_x0 + 1.0] | max %}
               {% set door_h = [btn_size - 2, 8] | max %}
               {% set door_w = [((delete_x + btn_size) - rotate_x), 18] | max %}
               {% set door_x = rotate_x %}
-              {% set door_max_x = x_start_px + body_w_px - door_w - 1.0 %}
+              {% set door_max_x = render_x1 - door_w - 1.0 %}
               {% if door_x > door_max_x %}
                 {% set door_x = door_max_x %}
               {% endif %}
-              {% set door_x = [door_x, x_start_px + 1.0] | max %}
+              {% set door_x = [door_x, render_x0 + 1.0] | max %}
               {% set door_y = btn_y + btn_size + 1.2 %}
-              {% set door_max_y = body_bottom_px - door_h - 0.8 %}
+              {% set door_max_y = render_bottom_y - door_h - 0.8 %}
               {% if door_y > door_max_y %}
                 {% set door_y = door_max_y %}
               {% endif %}
-              {% set door_y = [door_y, body_top_px + 0.2] | max %}
+              {% set door_y = [door_y, render_top_y + 0.2] | max %}
+              {% set control_strip_pad = 4.0 %}
+              {% set control_strip_x0 = [rotate_x - control_strip_pad, render_x0 - 2.0] | max %}
+              {% set control_strip_x1 = [delete_x + btn_size + control_strip_pad, render_x1 + 2.0] | min %}
+              {% set control_strip_y0 = [btn_y - control_strip_pad, render_top_y - 1.0] | max %}
+              {% set control_strip_y1 = btn_y + btn_size + control_strip_pad %}
+              {% if is_dump_profile %}
+                {% set control_strip_y1 = [control_strip_y1, door_y + door_h + control_strip_pad] | max %}
+              {% endif %}
+              {% set control_strip_y1 = [control_strip_y1, render_bottom_y + 1.0] | min %}
+              {% set control_strip_w = [control_strip_x1 - control_strip_x0, 10] | max %}
+              {% set control_strip_h = [control_strip_y1 - control_strip_y0, 10] | max %}
               {% set unit_badge_r = [btn_size * 0.55, 5.0] | max %}
-              {% set unit_badge_cx = x_start_px + unit_badge_r + 1.8 %}
-              {% set unit_badge_cy = body_top_px + unit_badge_r + 1.8 %}
-              {% set unit_badge_max_x = body_w_px + x_start_px - unit_badge_r - 0.8 %}
+              {% set unit_badge_cx = render_x0 + unit_badge_r + 1.4 %}
+              {% set unit_badge_cy = render_top_y + unit_badge_r + 1.4 %}
+              {% set unit_badge_max_x = render_x1 - unit_badge_r - 0.8 %}
               {% if unit_badge_cx > unit_badge_max_x %}
                 {% set unit_badge_cx = unit_badge_max_x %}
               {% endif %}
-              {% set unit_badge_max_y = body_bottom_px - unit_badge_r - 0.8 %}
+              {% set unit_badge_max_y = render_bottom_y - unit_badge_r - 0.8 %}
               {% if unit_badge_cy > unit_badge_max_y %}
                 {% set unit_badge_cy = unit_badge_max_y %}
               {% endif %}
               {% set rear_notch_w_px = [[rear_clear_len_ft * px_per_ft, body_w_px - 4] | min, 0] | max %}
               {% set rear_notch_h_px = [[rear_clear_h_ft * py_per_ft, body_h_px - 3] | min, 0] | max %}
               {% set rear_on_right = pos.is_rotated %}
+              {% set drag_bound_x0 = render_x0 %}
+              {% set drag_bound_x1 = render_x1 %}
+              {% set drag_bound_y0 = [render_top_y + btn_size + 2.0, y_surface_px - wheel_r - 2] | max %}
+              {% set drag_bound_y1 = [render_bottom_y, wheel_cy + wheel_r + 2] | max %}
+              {% set drag_pad_x = 14 %}
+              {% set drag_pad_top = 1.0 %}
+              {% set drag_pad_bottom = 9.0 %}
+              {% set drag_hit_x = drag_bound_x0 - drag_pad_x %}
+              {% set drag_hit_top_guard = btn_y + btn_size + 0.8 %}
+              {% set drag_hit_y = [drag_bound_y0 - drag_pad_top, drag_hit_top_guard] | max %}
+              {% set drag_hit_bottom = drag_bound_y1 + drag_pad_bottom %}
+              {% set drag_hit_w = [drag_bound_x1 - drag_bound_x0 + (drag_pad_x * 2), 18] | max %}
+              {% set drag_hit_h = [[drag_hit_bottom - drag_hit_y, 14] | max, 240] | min %}
 
               <g class="unit-card pg-spatial-unit {% if pos.is_nested %}nested{% endif %}"
                  id="pos-{{ pos.position_id }}"
@@ -556,8 +610,11 @@
                  data-zone="{{ zone }}"
                  data-seq="{{ seq }}"
                  data-layer="{{ pos.layer }}"
+                 data-tongue-profile="{{ tongue_profile }}"
+                 data-gn-crisscross="{% if pos.gn_crisscross %}1{% else %}0{% endif %}"
+                 data-tongue-pill-class="unit-tongue-pill {% if tongue_profile == 'gooseneck' %}gn{% else %}std{% endif %}"
                  data-is-rotated="{% if pos.is_rotated %}1{% else %}0{% endif %}"
-                 data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | x={{ '%.2f'|format(x_start_ft) }} ft | deck={{ '%.1f'|format(deck_len) }} ft | tongue={{ '%.1f'|format(tongue_len) }} ft | h={{ '%.1f'|format(deck_h) }} ft">
+                 data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | x={{ '%.2f'|format(x_start_ft) }} ft | Deck (render): {{ '%.1f'|format(deck_len) }} ft | Tongue (render): {{ '%.1f'|format(tongue_len) }} ft | Height (render): {{ '%.1f'|format(deck_h) }} ft{% if pos.gn_crisscross %} | GN crisscross: on{% endif %}">
                 {% if session.brand == 'pj' %}
                   {% if is_dump_profile %}
                   <rect class="pg-unit-body"
@@ -604,21 +661,7 @@
                         x2="{{ dump_rear_x }}"
                         y2="{{ dump_floor_y + dump_floor_h_px }}"
                         stroke="{{ accent }}"
-                        stroke-width="2.4"/>
-                  {% endif %}
-                  {% if (not pos.dump_door_removed) and rear_notch_w_px > 1 and rear_notch_h_px > 1 %}
-                    {% set dump_notch_w_px = [rear_notch_w_px, dump_w_px - 1] | min %}
-                    {% if rear_on_right %}
-                      {% set dump_notch_x = dump_x1 - dump_notch_w_px %}
-                    {% else %}
-                      {% set dump_notch_x = dump_x0 %}
-                    {% endif %}
-                  <rect x="{{ dump_notch_x }}"
-                        y="{{ body_bottom_px - rear_notch_h_px }}"
-                        width="{{ dump_notch_w_px }}"
-                        height="{{ rear_notch_h_px }}"
-                        fill="rgba(2, 6, 23, 0.52)"
-                        stroke="none"/>
+                        stroke-width="1.35"/>
                   {% endif %}
                   {% else %}
                     {% if rear_notch_w_px > 1 and rear_notch_h_px > 1 %}
@@ -662,33 +705,35 @@
                 {% endif %}
 
                 {% if tongue_profile == 'gooseneck' %}
-                  {% if pos.is_rotated %}
-                    {% set p0x = tongue_attach_ft %}
-                    {% set p1x = tongue_attach_ft - gn_base_ft %}
-                    {% set p2x = p1x %}
-                    {% set p3x = tongue_attach_ft - (gn_base_ft + gn_crown_ft) %}
-                    {% set p4x = tongue_attach_ft - gn_total_ft %}
-                  {% else %}
-                    {% set p0x = tongue_attach_ft %}
-                    {% set p1x = tongue_attach_ft + gn_base_ft %}
-                    {% set p2x = p1x %}
-                    {% set p3x = tongue_attach_ft + (gn_base_ft + gn_crown_ft) %}
-                    {% set p4x = tongue_attach_ft + gn_total_ft %}
-                  {% endif %}
+                  {% set gn_dir = -1 if pos.is_rotated else 1 %}
+                  {% set gn_top_run_ft = 2.30 %}
+                  {% set gn_diag_run_ft = ((gn_total_ft - gn_top_run_ft) * 0.60) %}
+                  {% set gn_render_rise_ft = 5.9 %}
+                  {% set gn_tip_render_surface_ft = y_surface_ft + 3.0 %}
+                  {% set p0x = tongue_attach_ft %}
+                  {% set p1x = p0x %}
+                  {% set p2x = tongue_attach_ft + (gn_dir * gn_top_run_ft) %}
+                  {% set p3x = p2x + (gn_dir * gn_diag_run_ft) %}
                   {% set p0px = margin_l + p0x * px_per_ft %}
                   {% set p1px = margin_l + p1x * px_per_ft %}
                   {% set p2px = margin_l + p2x * px_per_ft %}
                   {% set p3px = margin_l + p3x * px_per_ft %}
-                  {% set p4px = margin_l + p4x * px_per_ft %}
                   {% set p0py = body_bottom_px %}
-                  {% set p2py = (ground_y - ((y_surface_ft + gn_rise_ft) - display_floor_ft) * py_per_ft) %}
-                  {% set p4py = (ground_y - ((y_surface_ft + gn_tip_surface_ft) - display_floor_ft) * py_per_ft) %}
-                  {% set gn_thick_px = [0.36 * py_per_ft, 4.2] | max %}
-                  <path d="M {{ p0px }},{{ p0py }} L {{ p1px }},{{ p0py }} L {{ p2px }},{{ p2py }} L {{ p3px }},{{ p2py }} L {{ p4px }},{{ p4py }} L {{ p4px }},{{ p4py + gn_thick_px }} L {{ p3px }},{{ p2py + gn_thick_px }} L {{ p2px }},{{ p2py + gn_thick_px }} L {{ p1px }},{{ p0py + gn_thick_px }} L {{ p0px }},{{ p0py + gn_thick_px }} Z"
-                        fill="{{ accent }}22"
+                  {% set p1py = ground_y - ((y_surface_ft + gn_render_rise_ft) - display_floor_ft) * py_per_ft %}
+                  {% set p2py = p1py %}
+                  {% set p3py = ground_y - (gn_tip_render_surface_ft - display_floor_ft) * py_per_ft %}
+                  {% set gn_thick_px = [0.26 * py_per_ft, 3.4] | max %}
+                  <path d="M {{ p0px }},{{ p0py }} L {{ p1px }},{{ p1py }} L {{ p2px }},{{ p2py }} L {{ p3px }},{{ p3py }}"
+                        fill="none"
+                        stroke="{{ accent }}90"
+                        stroke-width="{{ gn_thick_px }}"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        clip-path="url(#pg-clip-cab)"/>
+                  <path d="M {{ p0px }},{{ p0py }} L {{ p1px }},{{ p1py }} L {{ p2px }},{{ p2py }} L {{ p3px }},{{ p3py }}"
+                        fill="none"
                         stroke="{{ accent }}"
-                        stroke-width="1.4"
-                        {% if pos.is_nested %}stroke-dasharray="3,2"{% endif %}
+                        stroke-width="{% if pos.gn_crisscross %}1.5{% else %}1.35{% endif %}"
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         clip-path="url(#pg-clip-cab)"/>
@@ -707,19 +752,42 @@
                   {% endif %}
                 {% endif %}
 
-                <circle cx="{{ unit_badge_cx }}" cy="{{ unit_badge_cy }}" r="{{ unit_badge_r }}" fill="rgba(2,6,23,0.88)" stroke="{{ accent }}" stroke-width="1"/>
-                <text x="{{ unit_badge_cx }}" y="{{ unit_badge_cy + (unit_badge_r * 0.37) }}" text-anchor="middle" font-size="{{ [unit_badge_r * 1.25, 10] | min }}" font-family="var(--font-mono)" font-weight="800" fill="#e2e8f0">{{ pos.unit_sequence_num or '' }}</text>
-                <text x="{{ x_start_px + (body_w_px / 2) }}" y="{{ item_text_y }}" text-anchor="middle" font-size="13.2" font-family="var(--font-mono)" font-weight="800" fill="#e2e8f0" style="paint-order:stroke;stroke:rgba(2,6,23,.82);stroke-width:1.5px">{{ item_code }}</text>
-                <g style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); removeUnit('{{ pos.position_id }}');">
-                  <rect x="{{ delete_x }}" y="{{ btn_y }}" width="{{ btn_size }}" height="{{ btn_size }}" rx="2" fill="rgba(15,23,42,0.90)" stroke="#ef4444" stroke-width="1.1"/>
-                  <text x="{{ delete_x + (btn_size/2) }}" y="{{ btn_y + (btn_size * 0.77) }}" text-anchor="middle" font-size="{{ [btn_size * 0.74, 9.8] | min }}" font-weight="800" fill="#ef4444">x</text>
+                <g class="pg-unit-drag-handle">
+                  <circle cx="{{ unit_badge_cx }}" cy="{{ unit_badge_cy }}" r="{{ unit_badge_r }}" fill="rgba(2,6,23,0.88)" stroke="{{ accent }}" stroke-width="1"/>
+                  <text x="{{ unit_badge_cx }}" y="{{ unit_badge_cy + (unit_badge_r * 0.37) }}" text-anchor="middle" font-size="{{ [unit_badge_r * 1.25, 10] | min }}" font-family="var(--font-mono)" font-weight="800" fill="#e2e8f0">{{ pos.unit_sequence_num or '' }}</text>
                 </g>
-                <g style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); rotateUnit('{{ pos.position_id }}');">
-                  <rect x="{{ rotate_x }}" y="{{ btn_y }}" width="{{ btn_size }}" height="{{ btn_size }}" rx="2" fill="rgba(15,23,42,0.90)" stroke="#94a3b8" stroke-width="1.1"/>
-                  <text x="{{ rotate_x + (btn_size/2) }}" y="{{ btn_y + (btn_size * 0.77) }}" text-anchor="middle" font-size="{{ [btn_size * 0.74, 9.8] | min }}" font-weight="800" fill="#cbd5e1">&#8635;</text>
+                <text x="{{ x_start_px + (body_w_px / 2) }}" y="{{ item_text_y }}" text-anchor="middle" font-size="13.2" font-family="var(--font-mono)" font-weight="800" fill="#e2e8f0" style="paint-order:stroke;stroke:rgba(2,6,23,.82);stroke-width:1.5px">{{ item_code }}</text>
+                <rect class="pg-unit-drag-hitbox"
+                      x="{{ drag_hit_x }}"
+                      y="{{ drag_hit_y }}"
+                      width="{{ drag_hit_w }}"
+                      height="{{ drag_hit_h }}"
+                      fill="rgba(148,163,184,0.001)"
+                      stroke="none"
+                      rx="3"/>
+                <rect class="pg-unit-control-strip"
+                      x="{{ control_strip_x0 }}"
+                      y="{{ control_strip_y0 }}"
+                      width="{{ control_strip_w }}"
+                      height="{{ control_strip_h }}"
+                      fill="transparent"
+                      stroke="none"
+                      rx="3"
+                      onmousedown="event.stopPropagation();"
+                      onclick="event.stopPropagation();"/>
+                <g class="pg-unit-control pg-unit-control-delete" style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); removeUnit('{{ pos.position_id }}');">
+                  <rect x="{{ delete_x - 3 }}" y="{{ btn_y - 3 }}" width="{{ btn_size + 6 }}" height="{{ btn_size + 6 }}" rx="4" fill="transparent" stroke="none"/>
+                  <rect x="{{ delete_x }}" y="{{ btn_y }}" width="{{ btn_size }}" height="{{ btn_size }}" rx="2.4" fill="rgba(2,6,23,0.96)" stroke="#fb7185" stroke-width="1.25"/>
+                  <text x="{{ delete_x + (btn_size/2) }}" y="{{ btn_y + (btn_size * 0.77) }}" text-anchor="middle" font-size="{{ [btn_size * 0.74, 10.2] | min }}" font-weight="800" fill="#fda4af">x</text>
+                </g>
+                <g class="pg-unit-control pg-unit-control-rotate" style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); rotateUnit('{{ pos.position_id }}');">
+                  <rect x="{{ rotate_x - 3 }}" y="{{ btn_y - 3 }}" width="{{ btn_size + 6 }}" height="{{ btn_size + 6 }}" rx="4" fill="transparent" stroke="none"/>
+                  <rect x="{{ rotate_x }}" y="{{ btn_y }}" width="{{ btn_size }}" height="{{ btn_size }}" rx="2.4" fill="rgba(2,6,23,0.96)" stroke="#e2e8f0" stroke-width="1.2"/>
+                  <text x="{{ rotate_x + (btn_size/2) }}" y="{{ btn_y + (btn_size * 0.77) }}" text-anchor="middle" font-size="{{ [btn_size * 0.74, 10.2] | min }}" font-weight="800" fill="#f8fafc">&#8635;</text>
                 </g>
                 {% if session.brand == 'pj' and is_dump_profile %}
-                <g style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); toggleDumpDoor('{{ pos.position_id }}');">
+                <g class="pg-unit-control pg-unit-control-door" style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); toggleDumpDoor('{{ pos.position_id }}');">
+                  <rect x="{{ door_x - 3 }}" y="{{ door_y - 3 }}" width="{{ door_w + 6 }}" height="{{ door_h + 6 }}" rx="4" fill="transparent" stroke="none"/>
                   <rect x="{{ door_x }}" y="{{ door_y }}" width="{{ door_w }}" height="{{ door_h }}" rx="2" fill="rgba(15,23,42,0.90)" stroke="#f59e0b" stroke-width="1"/>
                   <text x="{{ door_x + (door_w / 2) }}" y="{{ door_y + (door_h * 0.73) }}" text-anchor="middle" font-size="{{ [door_h * 0.72, 7.8] | min }}" font-weight="700" fill="#f59e0b">
                     {% if pos.dump_door_removed %}Door Off{% else %}Door On{% endif %}
@@ -728,11 +796,11 @@
                 {% endif %}
 
                 {% if pos.neck_overhangs_step %}
-                  <text x="{{ step_x_px + 4 }}" y="{{ [body_top_px - 4, 11] | max }}" font-size="8.4" fill="#f59e0b">&#8599; OVERHANG</text>
+                  <text class="pg-unit-annotation" x="{{ step_x_px + 4 }}" y="{{ [body_top_px - 4, 11] | max }}" font-size="8.4" fill="#f59e0b">&#8599; OVERHANG</text>
                 {% endif %}
                 {% if pos.neck_overhangs_cab and (pos.overhang_ft or 0) > 0 %}
-                  <rect x="{{ trailer_end_x_px - 60 }}" y="{{ [body_top_px - 13, 2] | max }}" width="58" height="11" rx="4" fill="rgba(245,158,11,.24)" stroke="#f59e0b" stroke-width="0.8"/>
-                  <text x="{{ trailer_end_x_px - 31 }}" y="{{ [body_top_px - 5, 9] | max }}" text-anchor="middle" font-size="7.4" fill="#f59e0b">+{{ '%.1f'|format(pos.overhang_ft) }} ft overhang</text>
+                  <rect class="pg-unit-annotation" x="{{ trailer_end_x_px - 60 }}" y="{{ [body_top_px - 13, 2] | max }}" width="58" height="11" rx="4" fill="rgba(245,158,11,.24)" stroke="#f59e0b" stroke-width="0.8"/>
+                  <text class="pg-unit-annotation" x="{{ trailer_end_x_px - 31 }}" y="{{ [body_top_px - 5, 9] | max }}" text-anchor="middle" font-size="7.4" fill="#f59e0b">+{{ '%.1f'|format(pos.overhang_ft) }} ft overhang</text>
                 {% endif %}
               </g>
             {% endfor %}
@@ -745,6 +813,9 @@
         {% set remaining_ft = [total_len_ft - total_used_ft, 0] | max %}
         {% set total_seg_x = margin_l + (total_used_left_ft * px_per_ft) %}
         {% set total_seg_w = ([total_used_ft * px_per_ft, 1] | max) if total_used_ft > 0 else 0 %}
+        {% set left_overhang_seg_ft = [left_overhang_ft, 0] | max %}
+        {% set left_overhang_seg_w = left_overhang_seg_ft * px_per_ft %}
+        {% set left_overhang_seg_x = margin_l - left_overhang_seg_w %}
         <g class="pg-measure-svg">
           <rect x="{{ margin_l }}" y="{{ measure_top_y }}" width="{{ plot_w }}" height="{{ measure_h_px }}" rx="6"
                 fill="rgba(30, 64, 175, 0.10)" stroke="rgba(147, 197, 253, 0.48)" stroke-dasharray="4,3"/>
@@ -753,42 +824,14 @@
           <line x1="{{ margin_l }}" y1="{{ measure_top_y + (measure_row_h * 2) }}" x2="{{ trailer_end_x_px }}" y2="{{ measure_top_y + (measure_row_h * 2) }}"
                 stroke="rgba(148,163,184,.22)" stroke-dasharray="3,3"/>
           <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)">Upper</text>
+                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)"></text>
           <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + measure_row_h + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)">Lower</text>
+                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)">Upper</text>
           <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)">Total</text>
+                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)">Lower</text>
 
           {% for seg in (measure_segments_by_zone.get('upper_deck', []) if measure_segments_by_zone else []) %}
             {% set zone_origin = (zone_origin_x_ft.get('upper_deck', 0) if zone_origin_x_ft else 0) | float %}
-            {% set seg_start_ft = zone_origin + (seg.x_local_ft or 0) %}
-            {% set seg_end_ft = seg_start_ft + (seg.length_ft or 0) %}
-            {% set clip_start_ft = [0, [seg_start_ft, total_len_ft] | min] | max %}
-            {% set clip_end_ft = [0, [seg_end_ft, total_len_ft] | min] | max %}
-            {% set clip_len_ft = [clip_end_ft - clip_start_ft, 0] | max %}
-            {% if clip_len_ft > 0 %}
-              {% set seg_x = margin_l + (clip_start_ft * px_per_ft) %}
-              {% set seg_w = [clip_len_ft * px_per_ft, 1] | max %}
-              {% if seg.kind == 'stack' %}
-                {% set seg_label = 'Stack ' ~ (seg.stack_index or seg.sequence or '?') ~ ': ' ~ ('%.1f'|format(seg.length_ft or 0)) ~ ' ft' %}
-                {% set seg_fill = 'rgba(56,189,248,0.16)' %}
-                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
-              {% else %}
-                {% set seg_label = ('%.1f'|format(seg.length_ft or 0)) ~ ' ft rem' %}
-                {% set seg_fill = 'rgba(34,197,94,0.12)' %}
-                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
-              {% endif %}
-              <rect x="{{ seg_x }}" y="{{ measure_top_y + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
-                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
-              {% if seg_w > 50 %}
-                <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}" text-anchor="middle"
-                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224, 242, 254, 0.95)">{{ seg_label }}</text>
-              {% endif %}
-            {% endif %}
-          {% endfor %}
-
-          {% for seg in (measure_segments_by_zone.get('lower_deck', []) if measure_segments_by_zone else []) %}
-            {% set zone_origin = (zone_origin_x_ft.get('lower_deck', 0) if zone_origin_x_ft else 0) | float %}
             {% set seg_start_ft = zone_origin + (seg.x_local_ft or 0) %}
             {% set seg_end_ft = seg_start_ft + (seg.length_ft or 0) %}
             {% set clip_start_ft = [0, [seg_start_ft, total_len_ft] | min] | max %}
@@ -814,13 +857,51 @@
               {% endif %}
             {% endif %}
           {% endfor %}
+
+          {% for seg in (measure_segments_by_zone.get('lower_deck', []) if measure_segments_by_zone else []) %}
+            {% set zone_origin = (zone_origin_x_ft.get('lower_deck', 0) if zone_origin_x_ft else 0) | float %}
+            {% set seg_start_ft = zone_origin + (seg.x_local_ft or 0) %}
+            {% set seg_end_ft = seg_start_ft + (seg.length_ft or 0) %}
+            {% set clip_start_ft = [0, [seg_start_ft, total_len_ft] | min] | max %}
+            {% set clip_end_ft = [0, [seg_end_ft, total_len_ft] | min] | max %}
+            {% set clip_len_ft = [clip_end_ft - clip_start_ft, 0] | max %}
+            {% if clip_len_ft > 0 %}
+              {% set seg_x = margin_l + (clip_start_ft * px_per_ft) %}
+              {% set seg_w = [clip_len_ft * px_per_ft, 1] | max %}
+              {% if seg.kind == 'stack' %}
+                {% set seg_label = 'Stack ' ~ (seg.stack_index or seg.sequence or '?') ~ ': ' ~ ('%.1f'|format(seg.length_ft or 0)) ~ ' ft' %}
+                {% set seg_fill = 'rgba(56,189,248,0.16)' %}
+                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
+              {% else %}
+                {% set seg_label = ('%.1f'|format(seg.length_ft or 0)) ~ ' ft rem' %}
+                {% set seg_fill = 'rgba(34,197,94,0.12)' %}
+                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
+              {% endif %}
+              <rect x="{{ seg_x }}" y="{{ measure_top_y + (measure_row_h * 2) + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
+                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
+              {% if seg_w > 50 %}
+                <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="middle"
+                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224, 242, 254, 0.95)">{{ seg_label }}</text>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
           {% if total_seg_w > 0 %}
-          <rect x="{{ total_seg_x }}" y="{{ measure_top_y + (measure_row_h * 2) + 2 }}" width="{{ total_seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
+          <rect x="{{ total_seg_x }}" y="{{ measure_top_y + 2 }}" width="{{ total_seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
                 fill="rgba(245,158,11,0.16)" stroke="rgba(245,158,11,0.55)"/>
           {% endif %}
-          <text x="{{ margin_l + (plot_w / 2) }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="middle"
+          {% if left_overhang_seg_w > 0.5 %}
+          <rect x="{{ left_overhang_seg_x }}" y="{{ measure_top_y + 2 }}" width="{{ left_overhang_seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
+                fill="rgba(245,158,11,0.22)" stroke="rgba(245,158,11,0.72)"/>
+          {% if left_overhang_seg_w > 60 %}
+          <text x="{{ left_overhang_seg_x + (left_overhang_seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}" text-anchor="middle"
+                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(254, 243, 199, 0.95)">
+            Overhang {{ '%.1f'|format(left_overhang_seg_ft) }} ft
+          </text>
+          {% endif %}
+          {% endif %}
+          <text x="{{ margin_l + (plot_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}" text-anchor="middle"
                 font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224, 242, 254, 0.92)">
-            Total: {{ '%.1f'|format(total_used_ft) }} ft | Remaining: {{ '%.1f'|format(remaining_ft) }} ft | Overhang: {% if total_overhang_ft > 0.05 %}+{{ '%.1f'|format(total_overhang_ft) }}{% else %}0.0{% endif %} ft
+            Used In Trailer: {{ '%.1f'|format(total_used_ft) }} / {{ '%.1f'|format(total_len_ft) }} ft | Remaining: {{ '%.1f'|format(remaining_ft) }} ft | Overhang: {% if total_overhang_ft > 0.05 %}+{{ '%.1f'|format(total_overhang_ft) }}{% else %}0.0{% endif %} ft
           </text>
         </g>
             </svg>

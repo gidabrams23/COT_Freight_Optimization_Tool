@@ -112,6 +112,45 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertNotIn(bt_session_id, pj_html)
         self.assertIn('href="/prograde/session/new?brand=pj"', pj_html)
 
+    def test_all_sessions_shows_qty_column_from_position_count(self):
+        profile_id = self._create_planner_profile("Qty Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "Qty Tester",
+            "QTY Session",
+            is_saved=True,
+            created_by_profile_id=profile_id,
+            created_by_name="Qty Tester",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-QTY-1",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-QTY-2",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=2,
+        )
+
+        resp = self.client.get("/prograde/sessions?brand=bigtex")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("<th>QTY</th>", html)
+        self.assertIn('class="td-mono td-qty">2</td>', html)
+
     def test_session_can_be_deleted_from_all_sessions(self):
         profile_id = self._create_planner_profile("Delete Tester")
         self._set_active_profile(profile_id)
@@ -147,10 +186,12 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertIsNone(self.db.get_session(session_id))
         self.assertEqual(len(self.db.get_positions(session_id)), 0)
 
-    def test_root_route_redirects_to_account_landing_for_selected_brand(self):
+    def test_root_route_renders_account_landing_for_selected_brand(self):
         resp = self.client.get("/prograde/?brand=pj", follow_redirects=False)
-        self.assertEqual(resp.status_code, 302)
-        self.assertIn("/prograde/account?brand=pj", resp.headers.get("Location", ""))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("Select Account", html)
+        self.assertIn('name="brand" value="pj"', html)
 
     def test_account_landing_shows_account_selection(self):
         resp = self.client.get("/prograde/account?brand=bigtex")
@@ -158,6 +199,43 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         html = resp.get_data(as_text=True)
         self.assertIn("Select Account", html)
         self.assertIn("Add New Account", html)
+
+    def test_account_select_sets_active_profile_for_session(self):
+        profile_id = self._create_planner_profile("Session Selection Tester")
+        resp = self.client.post(
+            "/prograde/account/select",
+            data={"brand": "bigtex", "profile_id": str(profile_id)},
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/prograde/sessions?brand=bigtex", resp.headers.get("Location", ""))
+
+        with self.client.session_transaction() as sess:
+            self.assertEqual(sess.get("prograde_profile_id"), profile_id)
+            self.assertEqual(sess.get("prograde_profile_name"), "Session Selection Tester")
+            self.assertEqual(sess.get("prograde_profile_is_admin"), 0)
+
+        sessions_resp = self.client.get("/prograde/sessions?brand=bigtex", follow_redirects=False)
+        self.assertEqual(sessions_resp.status_code, 200)
+
+    def test_account_create_sets_active_profile_for_session(self):
+        resp = self.client.post(
+            "/prograde/account/create",
+            data={"brand": "pj", "name": "Quick Add Planner"},
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/prograde/sessions?brand=pj", resp.headers.get("Location", ""))
+
+        with self.client.session_transaction() as sess:
+            created_profile_id = sess.get("prograde_profile_id")
+            self.assertIsNotNone(created_profile_id)
+            self.assertEqual(sess.get("prograde_profile_name"), "Quick Add Planner")
+            self.assertEqual(sess.get("prograde_profile_is_admin"), 0)
+
+        profile = self.db.get_access_profile(created_profile_id)
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["name"], "Quick Add Planner")
 
     def test_sessions_requires_active_account(self):
         resp = self.client.get("/prograde/sessions?brand=bigtex", follow_redirects=False)
@@ -222,6 +300,71 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(row["created_by_profile_id"], profile_id)
         self.assertEqual(row["created_by_name"], "Builder User")
         self.assertEqual(row["planner_name"], "Builder User")
+
+    def test_pj_add_stack_can_enable_gooseneck_crisscross(self):
+        profile_id = self.db.create_access_profile("PJ Crisscross Planner")
+        self._set_active_profile(profile_id)
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Crisscross Planner",
+            "PJ Crisscross Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Crisscross Planner",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-A", "LS", "gooseneck", 30.0, 30.0, 9.0, 39.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-B", "DL", "gooseneck", 14.0, 14.0, 9.0, 23.0),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-GN-A", "deck_zone": "lower_deck", "pj_tongue_profile": "gooseneck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json()
+        self.assertTrue(base_payload["ok"])
+        base_position_id = base_payload["position_id"]
+
+        add_top = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN-B",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_top.status_code, 200)
+        top_payload = add_top.get_json()
+        self.assertTrue(top_payload["ok"])
+        self.assertTrue(top_payload["gn_crisscross_applied"])
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 2)
+        rows.sort(key=lambda r: int(r["layer"]))
+        lower, upper = rows
+        self.assertEqual(int(lower["sequence"]), int(upper["sequence"]))
+        self.assertEqual(bool(lower["is_rotated"]), bool(upper["is_rotated"]))
+        self.assertIn("gn_crisscross:1", str(lower.get("override_reason") or ""))
+        self.assertIn("gn_crisscross:1", str(upper.get("override_reason") or ""))
 
 
 if __name__ == "__main__":

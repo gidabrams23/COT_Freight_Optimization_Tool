@@ -20,13 +20,13 @@ Try 2 at building a web optimization app.
 ## ProGrade docs
 
 - `docs/specs/PROGRADE_EDIT_MAP.md`: file-by-file edit map for ProGrade, focused on stacking logic and schematic changes.
-- `docs/specs/PROGRADE_BT_INVENTORY_GAP_WORKFLOW.md`: Big Tex inventory upload and gap-finder behavior.
+- `docs/specs/PROGRADE_BT_INVENTORY_GAP_WORKFLOW.md`: Inventory gap workflow (BT upload mode + PJ catalog mode).
 - `docs/specs/PROGRADE_VISUAL_GUIDELINES.md`: UI visual contract for ProGrade pages.
 
 ## ProGrade account workflow
 
 - ProGrade account profiles are stored in the ProGrade database (`prograde_access_profiles`) and do not reuse COT `access_profiles`.
-- Landing page for ProGrade account access is `/prograde/account` with:
+- Landing page for ProGrade account access is `/prograde` (also available at `/prograde/account`) with:
   - account dropdown selection
   - quick add account by name
 - Once selected, the active account persists in the current user session and is used for new load creation.

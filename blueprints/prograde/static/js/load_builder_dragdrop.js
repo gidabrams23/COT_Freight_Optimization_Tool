@@ -84,8 +84,9 @@ function initSkuDragAndDrop() {
     item.addEventListener("click", () => {
       if (item.disabled) return;
       const itemNumber = String(item.dataset.item || "").trim();
+      const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
       if (!itemNumber) return;
-      openPicker(null, null, null, itemNumber, "standard");
+      openPicker(null, null, null, itemNumber, inventoryTongueMode);
     });
   });
 
@@ -97,12 +98,13 @@ function initSkuDragAndDrop() {
         return;
       }
       draggedSkuItem = item.dataset.item || null;
-      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode: "standard" } : null;
+      const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
+      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode: inventoryTongueMode } : null;
       item.classList.add("dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "copy";
         evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
-        evt.dataTransfer.setData("application/x-prograde-sku-mode", "standard");
+        evt.dataTransfer.setData("application/x-prograde-sku-mode", inventoryTongueMode);
         evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
       }
     });

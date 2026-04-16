@@ -55,6 +55,7 @@
             <th>Label</th>
             <th>Built By</th>
             <th>Carrier</th>
+            <th>QTY</th>
             <th>Updated</th>
             <th>Status</th>
             <th>Actions</th>
@@ -68,6 +69,7 @@
               <td>{{ s.session_label or '-' }}</td>
               <td>{{ s.builder_name or '-' }}</td>
               <td>{{ s.carrier_type or '-' }}</td>
+              <td class="td-mono td-qty">{{ (s.trailer_qty if s.trailer_qty is not none else 0)|int }}</td>
               <td class="td-mono">{{ (s.updated_at or s.created_at or '-')|string|replace('T', ' ')|replace('Z', '') }}</td>
               <td>
                 {% if s.is_saved %}
@@ -89,7 +91,7 @@
             {% endfor %}
           {% else %}
             <tr>
-              <td colspan="7" style="text-align:center;color:var(--text-secondary);padding:16px;">No saved sessions yet.</td>
+              <td colspan="8" style="text-align:center;color:var(--text-secondary);padding:16px;">No saved sessions yet.</td>
             </tr>
           {% endif %}
         </tbody>

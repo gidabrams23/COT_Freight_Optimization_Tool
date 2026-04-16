@@ -35,15 +35,21 @@ class ProgradeOverlapMetricTests(unittest.TestCase):
     def test_pj_metrics_accept_sqlite_row_objects(self):
         positions = self._sqlite_rows(
             [
-                ("PJ-L-1", "lower_deck", 1, 1, 1, 0),
-                ("PJ-U-1", "upper_deck", 1, 1, 0, 0),
+                ("PJ-L-1", "lower_deck", 1, 1, 0, 0),
+                ("PJ-U-1", "upper_deck", 1, 1, 1, 0),
             ]
         )
         skus = {
-            "PJ-L-1": {"total_footprint": 25.0, "tongue_feet": 4.0, "pj_category": "utility", "model": "UL"},
-            "PJ-U-1": {"total_footprint": 20.0, "tongue_feet": 6.0, "pj_category": "utility", "model": "UL"},
+            "PJ-L-1": {"total_footprint": 25.0, "tongue_feet": 4.0, "pj_category": "deck_over", "model": "DO"},
+            "PJ-U-1": {"total_footprint": 20.0, "tongue_feet": 6.0, "pj_category": "deck_over", "model": "DO"},
         }
-        metrics = compute_pj_length_metrics(positions, skus=skus, offsets={"gn_in_dump_hidden_ft": 7.0})
+        height_ref = {"deck_over": {"height_mid_ft": 2.0, "height_top_ft": 2.0, "gn_axle_dropped_ft": 1.5}}
+        metrics = compute_pj_length_metrics(
+            positions,
+            skus=skus,
+            offsets={"gn_in_dump_hidden_ft": 7.0},
+            height_ref=height_ref,
+        )
 
         self.assertEqual(metrics["legacy_total_ft"], 45.0)
         self.assertEqual(metrics["overlap_credit_ft"], 4.0)
@@ -157,6 +163,110 @@ class ProgradeOverlapMetricTests(unittest.TestCase):
         self.assertEqual(metrics["blocked_lower_ft"], 0.0)
         self.assertEqual(metrics["adjusted_lower_usage_ft"], 25.0)
         self.assertEqual(metrics["effective_total_ft"], 37.0)
+
+    def test_pj_metrics_apply_gn_crisscross_length_credit(self):
+        positions = [
+            {
+                "position_id": "GN-1",
+                "item_number": "PJ-GN-LOW",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_rotated": 0,
+                "is_nested": 0,
+                "override_reason": "tongue_profile:gooseneck",
+            },
+            {
+                "position_id": "GN-2",
+                "item_number": "PJ-GN-UP",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 2,
+                "is_rotated": 0,
+                "is_nested": 0,
+                "override_reason": "tongue_profile:gooseneck",
+            },
+        ]
+        skus = {
+            "PJ-GN-LOW": {
+                "bed_length_measured": 20.0,
+                "tongue_feet": 4.0,
+                "total_footprint": 24.0,
+                "pj_category": "gooseneck",
+                "model": "LS",
+            },
+            "PJ-GN-UP": {
+                "bed_length_measured": 20.0,
+                "tongue_feet": 4.0,
+                "total_footprint": 24.0,
+                "pj_category": "gooseneck",
+                "model": "LS",
+            },
+        }
+        metrics = compute_pj_length_metrics(
+            positions,
+            skus=skus,
+            offsets={
+                "gn_in_dump_hidden_ft": 7.0,
+                "gn_crisscross_length_save_ft": 2.0,
+            },
+        )
+
+        self.assertEqual(metrics["legacy_total_ft"], 58.0)
+        self.assertEqual(metrics["gn_crisscross_pair_count"], 1)
+        self.assertEqual(metrics["gn_crisscross_credit_ft"], 2.0)
+        self.assertEqual(metrics["effective_total_ft"], 56.0)
+
+    def test_pj_dump_door_insert_credit_leaves_one_foot_exposed_tongue(self):
+        positions = [
+            {
+                "position_id": "L1",
+                "item_number": "PJ-L-DOOR",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_rotated": 0,
+                "is_nested": 0,
+                "override_reason": None,
+            },
+            {
+                "position_id": "U1",
+                "item_number": "PJ-U-DUMP",
+                "deck_zone": "upper_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_rotated": 0,
+                "is_nested": 0,
+                "override_reason": "dump_door_removed:1",
+            },
+        ]
+        skus = {
+            "PJ-L-DOOR": {
+                "bed_length_measured": 14.0,
+                "tongue_feet": 5.0,
+                "total_footprint": 19.0,
+                "pj_category": "utility",
+                "model": "UL",
+            },
+            "PJ-U-DUMP": {
+                "bed_length_measured": 12.0,
+                "tongue_feet": 4.0,
+                "total_footprint": 16.0,
+                "pj_category": "dump_lowside",
+                "model": "D3",
+            },
+        }
+        metrics = compute_pj_length_metrics(
+            positions,
+            skus=skus,
+            offsets={"gn_in_dump_hidden_ft": 7.0},
+            lower_cap_ft=41.0,
+            upper_cap_ft=11.0,
+            height_ref={"utility": {"height_mid_ft": 2.0, "height_top_ft": 2.0, "gn_axle_dropped_ft": 1.5}},
+        )
+
+        # 5.0' tongue with door-off insertion leaves 1.0' exposed => 4.0' credit.
+        self.assertEqual(metrics["dump_door_insert_credit_ft"], 4.0)
 
 
 if __name__ == "__main__":
