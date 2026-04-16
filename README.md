@@ -179,13 +179,13 @@ If your local DB is the source of truth (plant defaults, auto-hotshot toggles, S
 
 1. Export local DB snapshots into seed CSV files:
    ```bash
-   python scripts/export_seed_data.py --tables optimizer_settings sku_specifications planning_settings access_profiles access_profile_identities
+   python scripts/export_seed_data.py --tables optimizer_settings sku_specifications item_sku_lookup planning_settings access_profiles access_profile_identities
    ```
 2. Commit and push the updated files under `data/seed/`.
 3. Deploy to Render.
 4. For an existing Render disk (already has a DB), open a Render shell and apply the seed snapshots into the live DB:
    ```bash
-   python scripts/apply_seed_snapshots.py --tables optimizer_settings sku_specifications planning_settings access_profiles access_profile_identities
+   python scripts/apply_seed_snapshots.py --tables optimizer_settings sku_specifications item_sku_lookup planning_settings access_profiles access_profile_identities
    ```
 5. Restart the service.
 

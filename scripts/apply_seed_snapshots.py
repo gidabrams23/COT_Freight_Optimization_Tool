@@ -34,6 +34,10 @@ UPSERT_TABLES = {
         ],
         "key_columns": ["sku"],
     },
+    "item_sku_lookup": {
+        "columns": ["plant", "bin", "item_pattern", "sku", "created_at"],
+        "key_columns": ["plant", "bin", "item_pattern"],
+    },
     "rate_matrix": {
         "columns": [
             "origin_plant",
@@ -172,7 +176,7 @@ def _parse_args():
         "--tables",
         nargs="+",
         choices=sorted(UPSERT_TABLES.keys()),
-        default=["optimizer_settings", "sku_specifications", "planning_settings"],
+        default=["optimizer_settings", "sku_specifications", "item_sku_lookup", "planning_settings"],
         help="Tables to upsert from seed snapshots.",
     )
     parser.add_argument(

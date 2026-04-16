@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import re
+import csv
 import shutil
 import tempfile
 import uuid
@@ -194,6 +195,10 @@ def init_db():
         "ALTER TABLE load_sessions ADD COLUMN created_by_profile_id INTEGER",
         "ALTER TABLE load_sessions ADD COLUMN created_by_name TEXT",
         "ALTER TABLE load_positions ADD COLUMN is_rotated INTEGER DEFAULT 0",
+        "ALTER TABLE bt_inventory_upload_log ADD COLUMN source_format TEXT DEFAULT 'workbook'",
+        "ALTER TABLE bt_inventory_upload_log ADD COLUMN deduped_rows INTEGER DEFAULT 0",
+        "ALTER TABLE bt_inventory_upload_log ADD COLUMN duplicate_rows INTEGER DEFAULT 0",
+        "ALTER TABLE bt_inventory_upload_log ADD COLUMN warehouse_count INTEGER DEFAULT 0",
     ]
     for m in migrations:
         try:
@@ -366,13 +371,31 @@ def init_db():
         updated_at DATETIME
     );
 
+    CREATE TABLE IF NOT EXISTS bt_inventory_snapshot_whse (
+        item_number TEXT NOT NULL,
+        whse_code TEXT NOT NULL,
+        total_count INTEGER DEFAULT 0,
+        available_count INTEGER DEFAULT 0,
+        assigned_count INTEGER DEFAULT 0,
+        built_count INTEGER DEFAULT 0,
+        future_build_count INTEGER DEFAULT 0,
+        available_built_count INTEGER DEFAULT 0,
+        available_future_count INTEGER DEFAULT 0,
+        updated_at DATETIME,
+        PRIMARY KEY (item_number, whse_code)
+    );
+
     CREATE TABLE IF NOT EXISTS bt_inventory_upload_log (
         upload_id TEXT PRIMARY KEY,
         source_filename TEXT,
         sheet_name TEXT,
+        source_format TEXT DEFAULT 'workbook',
         processed_rows INTEGER DEFAULT 0,
         valid_rows INTEGER DEFAULT 0,
         distinct_items INTEGER DEFAULT 0,
+        deduped_rows INTEGER DEFAULT 0,
+        duplicate_rows INTEGER DEFAULT 0,
+        warehouse_count INTEGER DEFAULT 0,
         uploaded_at DATETIME
     );
 
@@ -384,6 +407,9 @@ def init_db():
 
     CREATE INDEX IF NOT EXISTS idx_bt_inventory_snapshot_available
         ON bt_inventory_snapshot(available_count DESC, item_number);
+
+    CREATE INDEX IF NOT EXISTS idx_bt_inventory_snapshot_whse_lookup
+        ON bt_inventory_snapshot_whse(whse_code, available_count DESC, item_number);
 
     CREATE INDEX IF NOT EXISTS idx_bt_inventory_upload_log_uploaded_at
         ON bt_inventory_upload_log(uploaded_at DESC);
@@ -483,61 +509,47 @@ def init_db():
 
     conn.commit()
 
-    # Auto-seed SKU catalog from bundled CSV files if tables are empty.
-    # This ensures the app works out-of-the-box on first deploy (Azure, Render, etc.)
-    # without requiring a manual Excel import.
+    # Auto-seed SKU catalogs from bundled CSV files.
+    # We upsert on every startup so existing environments are backfilled with
+    # any newly added seed rows without requiring a manual import.
     _seed_skus_from_csv(conn)
 
     conn.close()
 
 
 def _seed_skus_from_csv(conn):
-    """Populate pj_skus and bigtex_skus from bundled seed CSVs if the tables are empty."""
+    """Upsert pj_skus and bigtex_skus from bundled seed CSVs."""
     import csv as _csv
 
     seed_dir = ROOT_DIR / "data" / "seed"
     c = conn.cursor()
 
-    pj_count = c.execute("SELECT COUNT(*) FROM pj_skus").fetchone()[0]
-    if pj_count == 0:
-        pj_seed = seed_dir / "pj_skus.csv"
-        if pj_seed.exists():
-            with open(pj_seed, newline="", encoding="utf-8") as f:
-                reader = _csv.DictReader(f)
-                rows = list(reader)
-            if rows:
-                cols = list(rows[0].keys())
-                placeholders = ", ".join("?" * len(cols))
-                col_list = ", ".join(cols)
-                now = datetime.utcnow().isoformat()
-                c.executemany(
-                    f"INSERT OR IGNORE INTO pj_skus ({col_list}) VALUES ({placeholders})",
-                    [
-                        [row.get(col) or None for col in cols]
-                        for row in rows
-                    ],
-                )
-                conn.commit()
+    def _upsert_seed_csv(table_name, seed_filename, key_column):
+        seed_path = seed_dir / seed_filename
+        if not seed_path.exists():
+            return 0
 
-    bt_count = c.execute("SELECT COUNT(*) FROM bigtex_skus").fetchone()[0]
-    if bt_count == 0:
-        bt_seed = seed_dir / "bigtex_skus.csv"
-        if bt_seed.exists():
-            with open(bt_seed, newline="", encoding="utf-8") as f:
-                reader = _csv.DictReader(f)
-                rows = list(reader)
-            if rows:
-                cols = list(rows[0].keys())
-                placeholders = ", ".join("?" * len(cols))
-                col_list = ", ".join(cols)
-                c.executemany(
-                    f"INSERT OR IGNORE INTO bigtex_skus ({col_list}) VALUES ({placeholders})",
-                    [
-                        [row.get(col) or None for col in cols]
-                        for row in rows
-                    ],
-                )
-                conn.commit()
+        with open(seed_path, newline="", encoding="utf-8") as f:
+            rows = list(_csv.DictReader(f))
+        if not rows:
+            return 0
+
+        cols = list(rows[0].keys())
+        placeholders = ", ".join("?" * len(cols))
+        col_list = ", ".join(cols)
+        update_cols = [col for col in cols if col != key_column]
+        update_clause = ", ".join(f"{col}=excluded.{col}" for col in update_cols)
+        query = (
+            f"INSERT INTO {table_name} ({col_list}) VALUES ({placeholders}) "
+            f"ON CONFLICT({key_column}) DO UPDATE SET {update_clause}"
+        )
+        payload = [[row.get(col) or None for col in cols] for row in rows]
+        c.executemany(query, payload)
+        return len(payload)
+
+    _upsert_seed_csv("pj_skus", "pj_skus.csv", "item_number")
+    _upsert_seed_csv("bigtex_skus", "bigtex_skus.csv", "item_number")
+    conn.commit()
 
 
 def has_seed_data():
@@ -1059,17 +1071,65 @@ def get_bt_inventory_upload_meta():
         ).fetchone()
 
 
-def get_bt_inventory_snapshot_rows(limit=300):
+def _normalize_bt_whse_code(value):
+    code = str(value or "").strip().upper()
+    if not code or code == "ALL":
+        return ""
+    return code
+
+
+def get_bt_inventory_whse_codes():
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT whse_code
+            FROM bt_inventory_snapshot_whse
+            WHERE TRIM(COALESCE(whse_code, '')) <> ''
+            ORDER BY whse_code ASC
+            """
+        ).fetchall()
+    return [str(row["whse_code"]).strip().upper() for row in rows if str(row["whse_code"]).strip()]
+
+
+def get_bt_inventory_snapshot_rows(limit=300, whse_code=None):
     try:
         row_limit = int(limit)
     except (TypeError, ValueError):
         row_limit = 300
     row_limit = max(1, min(row_limit, 2000))
+    whse = _normalize_bt_whse_code(whse_code)
     with get_db() as conn:
+        if whse:
+            return conn.execute(
+                """
+                SELECT
+                    inv.item_number,
+                    inv.whse_code,
+                    inv.total_count,
+                    inv.available_count,
+                    inv.assigned_count,
+                    inv.built_count,
+                    inv.future_build_count,
+                    inv.available_built_count,
+                    inv.available_future_count,
+                    inv.updated_at,
+                    sku.mcat AS sku_mcat,
+                    sku.model AS sku_model,
+                    sku.total_footprint AS sku_total_footprint
+                FROM bt_inventory_snapshot_whse inv
+                LEFT JOIN bigtex_skus sku
+                    ON sku.item_number = inv.item_number
+                WHERE inv.whse_code = ?
+                ORDER BY inv.available_count DESC, inv.total_count DESC, inv.item_number ASC
+                LIMIT ?
+                """,
+                (whse, row_limit),
+            ).fetchall()
         return conn.execute(
             """
             SELECT
                 inv.item_number,
+                '' AS whse_code,
                 inv.total_count,
                 inv.available_count,
                 inv.assigned_count,
@@ -1091,29 +1151,163 @@ def get_bt_inventory_snapshot_rows(limit=300):
         ).fetchall()
 
 
-def _resolve_sheet_by_name(workbook, sheet_name):
-    if sheet_name in workbook.sheetnames:
-        return sheet_name
-    expected = str(sheet_name or "").strip().lower()
-    for candidate in workbook.sheetnames:
-        if str(candidate).strip().lower() == expected:
-            return candidate
+def _clear_bt_inventory_snapshots(conn):
+    conn.execute("DELETE FROM bt_inventory_snapshot")
+    conn.execute("DELETE FROM bt_inventory_snapshot_whse")
+
+
+def _insert_bt_inventory_snapshot_rows(conn, rows, *, include_whse=False):
+    if include_whse:
+        conn.executemany(
+            """
+            INSERT INTO bt_inventory_snapshot_whse
+            (
+                item_number,
+                whse_code,
+                total_count,
+                available_count,
+                assigned_count,
+                built_count,
+                future_build_count,
+                available_built_count,
+                available_future_count,
+                updated_at
+            )
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+            """,
+            rows,
+        )
+        return
+    conn.executemany(
+        """
+        INSERT INTO bt_inventory_snapshot
+        (
+            item_number,
+            total_count,
+            available_count,
+            assigned_count,
+            built_count,
+            future_build_count,
+            available_built_count,
+            available_future_count,
+            updated_at
+        )
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """,
+        rows,
+    )
+
+
+def _insert_bt_inventory_upload_log(
+    conn,
+    *,
+    upload_id,
+    source_filename,
+    sheet_name,
+    source_format,
+    processed_rows,
+    valid_rows,
+    distinct_items,
+    deduped_rows,
+    duplicate_rows,
+    warehouse_count,
+    uploaded_at,
+):
+    conn.execute(
+        """
+        INSERT INTO bt_inventory_upload_log
+        (
+            upload_id,
+            source_filename,
+            sheet_name,
+            source_format,
+            processed_rows,
+            valid_rows,
+            distinct_items,
+            deduped_rows,
+            duplicate_rows,
+            warehouse_count,
+            uploaded_at
+        )
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            upload_id,
+            source_filename,
+            sheet_name,
+            source_format,
+            int(processed_rows),
+            int(valid_rows),
+            int(distinct_items),
+            int(deduped_rows),
+            int(duplicate_rows),
+            int(warehouse_count),
+            uploaded_at,
+        ),
+    )
+
+
+def _bt_inventory_metric_template():
+    return {
+        "total_count": 0,
+        "available_count": 0,
+        "assigned_count": 0,
+        "built_count": 0,
+        "future_build_count": 0,
+        "available_built_count": 0,
+        "available_future_count": 0,
+    }
+
+
+def _bt_parse_inventory_timestamp(raw_value):
+    value = str(raw_value or "").strip()
+    if not value:
+        return None
+    for fmt in (
+        "%m/%d/%Y %H:%M",
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%y %H:%M",
+        "%m/%d/%y %H:%M:%S",
+        "%m/%d/%Y %I:%M %p",
+        "%m/%d/%Y",
+    ):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
     return None
 
 
-def _is_blank_cell(value):
-    if value is None:
-        return True
-    if isinstance(value, str) and value.strip() == "":
-        return True
-    return False
+def _coerce_nonnegative_int(value):
+    parsed = _coerce_int(value, default=0)
+    try:
+        return max(int(parsed or 0), 0)
+    except (TypeError, ValueError):
+        return 0
 
 
-def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Orders.Quick"):
-    source_path = Path(str(workbook_path))
-    if not source_path.exists():
-        raise FileNotFoundError(f"Orders workbook not found: {source_path}")
+def _open_csv_with_fallback(path):
+    last_error = None
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+        handle = None
+        try:
+            handle = open(path, "r", newline="", encoding=encoding)
+            handle.read(1024)
+            handle.seek(0)
+            return handle
+        except UnicodeDecodeError as exc:
+            last_error = exc
+            if handle is not None:
+                try:
+                    handle.close()
+                except OSError:
+                    pass
+    if last_error:
+        raise last_error
+    return open(path, "r", newline="", encoding="utf-8-sig")
 
+
+def _import_bigtex_inventory_orders_workbook(source_path, sheet_name="All.Orders.Quick"):
     from openpyxl import load_workbook
 
     # Match existing ProGrade import pattern: use a local temp copy for stability.
@@ -1134,17 +1328,7 @@ def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Order
         item_col = 12   # M
         name_col = 2    # C
         days_old_col = 17  # R
-        metrics = defaultdict(
-            lambda: {
-                "total_count": 0,
-                "available_count": 0,
-                "assigned_count": 0,
-                "built_count": 0,
-                "future_build_count": 0,
-                "available_built_count": 0,
-                "available_future_count": 0,
-            }
-        )
+        metrics = defaultdict(_bt_inventory_metric_template)
         processed_rows = 0
         valid_rows = 0
 
@@ -1190,23 +1374,9 @@ def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Order
         now = datetime.utcnow().isoformat()
         upload_id = str(uuid.uuid4())
         with get_db() as conn:
-            conn.execute("DELETE FROM bt_inventory_snapshot")
-            conn.executemany(
-                """
-                INSERT INTO bt_inventory_snapshot
-                (
-                    item_number,
-                    total_count,
-                    available_count,
-                    assigned_count,
-                    built_count,
-                    future_build_count,
-                    available_built_count,
-                    available_future_count,
-                    updated_at
-                )
-                VALUES (?,?,?,?,?,?,?,?,?)
-                """,
+            _clear_bt_inventory_snapshots(conn)
+            _insert_bt_inventory_snapshot_rows(
+                conn,
                 [
                     (
                         item_number,
@@ -1221,22 +1391,21 @@ def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Order
                     )
                     for item_number, counts in metrics.items()
                 ],
+                include_whse=False,
             )
-            conn.execute(
-                """
-                INSERT INTO bt_inventory_upload_log
-                (upload_id, source_filename, sheet_name, processed_rows, valid_rows, distinct_items, uploaded_at)
-                VALUES (?,?,?,?,?,?,?)
-                """,
-                (
-                    upload_id,
-                    source_path.name,
-                    selected_sheet,
-                    int(processed_rows),
-                    int(valid_rows),
-                    int(len(metrics)),
-                    now,
-                ),
+            _insert_bt_inventory_upload_log(
+                conn,
+                upload_id=upload_id,
+                source_filename=source_path.name,
+                sheet_name=selected_sheet,
+                source_format="workbook",
+                processed_rows=processed_rows,
+                valid_rows=valid_rows,
+                distinct_items=len(metrics),
+                deduped_rows=valid_rows,
+                duplicate_rows=max(processed_rows - valid_rows, 0),
+                warehouse_count=0,
+                uploaded_at=now,
             )
 
         sku_item_numbers = {str(r["item_number"]).strip().upper() for r in get_bigtex_skus()}
@@ -1247,10 +1416,14 @@ def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Order
 
         return {
             "source_filename": source_path.name,
+            "source_format": "workbook",
             "sheet_name": selected_sheet,
             "processed_rows": int(processed_rows),
             "valid_rows": int(valid_rows),
+            "deduped_rows": int(valid_rows),
+            "duplicate_rows": int(max(processed_rows - valid_rows, 0)),
             "distinct_items": int(len(metrics)),
+            "warehouse_count": 0,
             "available_total": int(available_total),
             "built_total": int(built_total),
             "future_build_total": int(future_total),
@@ -1268,6 +1441,217 @@ def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Order
         except OSError:
             pass
 
+
+def _import_bigtex_inventory_csv_report(source_path):
+    with _open_csv_with_fallback(source_path) as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames:
+            raise ValueError("CSV report is missing a header row.")
+        field_map = {_normalize_header(field): field for field in reader.fieldnames}
+
+        item_key = next(
+            (
+                field_map[k]
+                for k in ("itemnum", "itemnumber", "itemno", "item", "sku")
+                if k in field_map
+            ),
+            None,
+        )
+        whse_key = next((field_map[k] for k in ("whse", "warehouse", "warehousecode") if k in field_map), None)
+        serid_key = next((field_map[k] for k in ("serid", "serialid", "serialnumber", "serial") if k in field_map), None)
+        onhand_key = next((field_map[k] for k in ("onhand", "qtyonhand", "onhandqty") if k in field_map), None)
+        committed_key = next(
+            (
+                field_map[k]
+                for k in ("committed", "committedqty", "qtycommitted", "committedunits")
+                if k in field_map
+            ),
+            None,
+        )
+        ts_key = next((field_map[k] for k in ("tslastupdated", "lastupdated", "updatedat") if k in field_map), None)
+
+        if not item_key or not whse_key or not serid_key or not onhand_key or not committed_key:
+            raise ValueError(
+                "CSV report is missing required columns. Expected itemnum, whse, serid, onhand, committed_."
+            )
+
+        serial_rows = {}
+        processed_rows = 0
+        valid_rows = 0
+        duplicate_rows = 0
+        conflict_serial_rows = 0
+
+        for row in reader:
+            processed_rows += 1
+            item_number = str(row.get(item_key) or "").strip().upper()
+            whse_code = _normalize_bt_whse_code(row.get(whse_key))
+            serial_id = str(row.get(serid_key) or "").strip()
+            if not item_number or not whse_code or not serial_id:
+                continue
+
+            onhand = _coerce_nonnegative_int(row.get(onhand_key))
+            committed = _coerce_nonnegative_int(row.get(committed_key))
+            ts_raw = row.get(ts_key) if ts_key else None
+            ts_value = _bt_parse_inventory_timestamp(ts_raw)
+            valid_rows += 1
+
+            incoming = {
+                "item_number": item_number,
+                "whse_code": whse_code,
+                "onhand": onhand,
+                "committed": committed,
+                "ts_raw": str(ts_raw or "").strip(),
+                "ts_value": ts_value,
+            }
+            existing = serial_rows.get(serial_id)
+            if existing is None:
+                serial_rows[serial_id] = incoming
+                continue
+
+            duplicate_rows += 1
+            if (
+                existing["item_number"] == incoming["item_number"]
+                and existing["whse_code"] == incoming["whse_code"]
+                and existing["onhand"] == incoming["onhand"]
+                and existing["committed"] == incoming["committed"]
+            ):
+                continue
+
+            conflict_serial_rows += 1
+            existing_ts = existing.get("ts_value")
+            incoming_ts = incoming.get("ts_value")
+            if incoming_ts and (not existing_ts or incoming_ts >= existing_ts):
+                serial_rows[serial_id] = incoming
+
+        if not serial_rows:
+            raise ValueError("No inventory rows parsed from CSV report.")
+
+        metrics_by_item = defaultdict(_bt_inventory_metric_template)
+        metrics_by_item_whse = defaultdict(_bt_inventory_metric_template)
+
+        for record in serial_rows.values():
+            item_number = record["item_number"]
+            whse_code = record["whse_code"]
+            onhand = int(record["onhand"])
+            committed = int(record["committed"])
+            available = onhand - committed
+
+            aggregate = metrics_by_item[item_number]
+            aggregate["total_count"] += onhand
+            aggregate["available_count"] += available
+            aggregate["assigned_count"] += committed
+
+            whse_aggregate = metrics_by_item_whse[(item_number, whse_code)]
+            whse_aggregate["total_count"] += onhand
+            whse_aggregate["available_count"] += available
+            whse_aggregate["assigned_count"] += committed
+
+        now = datetime.utcnow().isoformat()
+        upload_id = str(uuid.uuid4())
+        with get_db() as conn:
+            _clear_bt_inventory_snapshots(conn)
+            _insert_bt_inventory_snapshot_rows(
+                conn,
+                [
+                    (
+                        item_number,
+                        counts["total_count"],
+                        counts["available_count"],
+                        counts["assigned_count"],
+                        0,
+                        0,
+                        0,
+                        0,
+                        now,
+                    )
+                    for item_number, counts in metrics_by_item.items()
+                ],
+                include_whse=False,
+            )
+            _insert_bt_inventory_snapshot_rows(
+                conn,
+                [
+                    (
+                        item_number,
+                        whse_code,
+                        counts["total_count"],
+                        counts["available_count"],
+                        counts["assigned_count"],
+                        0,
+                        0,
+                        0,
+                        0,
+                        now,
+                    )
+                    for (item_number, whse_code), counts in metrics_by_item_whse.items()
+                ],
+                include_whse=True,
+            )
+            _insert_bt_inventory_upload_log(
+                conn,
+                upload_id=upload_id,
+                source_filename=source_path.name,
+                sheet_name="",
+                source_format="csv_inventory",
+                processed_rows=processed_rows,
+                valid_rows=valid_rows,
+                distinct_items=len(metrics_by_item),
+                deduped_rows=len(serial_rows),
+                duplicate_rows=duplicate_rows,
+                warehouse_count=len({whse for (_, whse) in metrics_by_item_whse.keys()}),
+                uploaded_at=now,
+            )
+
+        sku_item_numbers = {str(r["item_number"]).strip().upper() for r in get_bigtex_skus()}
+        unmatched_items = [item for item in metrics_by_item.keys() if item not in sku_item_numbers]
+        available_total = sum(int(v["available_count"]) for v in metrics_by_item.values())
+
+        return {
+            "source_filename": source_path.name,
+            "source_format": "csv_inventory",
+            "sheet_name": "",
+            "processed_rows": int(processed_rows),
+            "valid_rows": int(valid_rows),
+            "deduped_rows": int(len(serial_rows)),
+            "duplicate_rows": int(duplicate_rows),
+            "conflict_serial_rows": int(conflict_serial_rows),
+            "distinct_items": int(len(metrics_by_item)),
+            "warehouse_count": int(len({whse for (_, whse) in metrics_by_item_whse.keys()})),
+            "available_total": int(available_total),
+            "built_total": 0,
+            "future_build_total": 0,
+            "unmatched_item_count": int(len(unmatched_items)),
+            "unmatched_items": sorted(unmatched_items)[:25],
+        }
+
+
+def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Orders.Quick"):
+    source_path = Path(str(workbook_path))
+    if not source_path.exists():
+        raise FileNotFoundError(f"Inventory source file not found: {source_path}")
+
+    ext = source_path.suffix.lower()
+    if ext == ".csv":
+        return _import_bigtex_inventory_csv_report(source_path)
+    return _import_bigtex_inventory_orders_workbook(source_path, sheet_name=sheet_name)
+
+
+def _resolve_sheet_by_name(workbook, sheet_name):
+    if sheet_name in workbook.sheetnames:
+        return sheet_name
+    expected = str(sheet_name or "").strip().lower()
+    for candidate in workbook.sheetnames:
+        if str(candidate).strip().lower() == expected:
+            return candidate
+    return None
+
+
+def _is_blank_cell(value):
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    return False
 
 def import_bigtex_skus_from_workbook(workbook_path=None, sheet_name="Data"):
     source_path = get_bigtex_workbook_path(workbook_path)
@@ -1367,20 +1751,37 @@ def import_bigtex_skus_from_workbook(workbook_path=None, sheet_name="Data"):
             raise ValueError("No Big Tex rows were parsed from workbook Data tab.")
 
         with get_db() as conn:
-            conn.execute("DELETE FROM bigtex_skus")
+            before_count = int(conn.execute("SELECT COUNT(*) FROM bigtex_skus").fetchone()[0] or 0)
             conn.executemany(
                 """
-                INSERT OR REPLACE INTO bigtex_skus
+                INSERT INTO bigtex_skus
                 (item_number, mcat, tier, model, gvwr, floor_type, bed_length, width, tongue, stack_height, total_footprint, updated_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(item_number) DO UPDATE SET
+                    mcat = excluded.mcat,
+                    tier = excluded.tier,
+                    model = excluded.model,
+                    gvwr = excluded.gvwr,
+                    floor_type = excluded.floor_type,
+                    bed_length = excluded.bed_length,
+                    width = excluded.width,
+                    tongue = excluded.tongue,
+                    stack_height = excluded.stack_height,
+                    total_footprint = excluded.total_footprint,
+                    updated_at = excluded.updated_at
                 """,
                 list(parsed.values()),
             )
+            after_count = int(conn.execute("SELECT COUNT(*) FROM bigtex_skus").fetchone()[0] or 0)
+        created_count = max(after_count - before_count, 0)
 
         return {
             "source_path": str(source_path),
             "sheet_name": selected_sheet,
             "row_count": len(parsed),
+            "created_count": created_count,
+            "updated_count": max(len(parsed) - created_count, 0),
+            "total_row_count": after_count,
         }
     finally:
         try:
@@ -1537,15 +1938,34 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
             raise ValueError("No PJ rows were parsed from workbook tabs listed in ToC.")
 
         with get_db() as conn:
-            conn.execute("DELETE FROM pj_skus")
+            before_count = int(conn.execute("SELECT COUNT(*) FROM pj_skus").fetchone()[0] or 0)
             conn.executemany(
                 """
-                INSERT OR REPLACE INTO pj_skus
+                INSERT INTO pj_skus
                 (item_number, model, pj_category, description, gvwr, bed_length_stated, bed_length_measured, tongue_group, tongue_feet, total_footprint, dump_side_height_ft, can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed, pairing_rule, notes, updated_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(item_number) DO UPDATE SET
+                    model = excluded.model,
+                    pj_category = excluded.pj_category,
+                    description = excluded.description,
+                    gvwr = excluded.gvwr,
+                    bed_length_stated = excluded.bed_length_stated,
+                    bed_length_measured = excluded.bed_length_measured,
+                    tongue_group = excluded.tongue_group,
+                    tongue_feet = excluded.tongue_feet,
+                    total_footprint = excluded.total_footprint,
+                    dump_side_height_ft = excluded.dump_side_height_ft,
+                    can_nest_inside_dump = excluded.can_nest_inside_dump,
+                    gn_axle_droppable = excluded.gn_axle_droppable,
+                    tongue_overlap_allowed = excluded.tongue_overlap_allowed,
+                    pairing_rule = excluded.pairing_rule,
+                    notes = excluded.notes,
+                    updated_at = excluded.updated_at
                 """,
                 list(parsed_rows.values()),
             )
+            after_count = int(conn.execute("SELECT COUNT(*) FROM pj_skus").fetchone()[0] or 0)
+        created_count = max(after_count - before_count, 0)
 
         disconnects = {
             "models_without_direct_tongue_group": models_without_direct_tongue_group,
@@ -1560,6 +1980,9 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
             "source_path": str(source_path),
             "toc_sheet_name": toc_payload["toc_sheet_name"],
             "row_count": len(parsed_rows),
+            "created_count": created_count,
+            "updated_count": max(len(parsed_rows) - created_count, 0),
+            "total_row_count": after_count,
             "model_count": len(toc_models),
             "disconnect_counts": disconnect_counts,
             "disconnects": disconnects,
