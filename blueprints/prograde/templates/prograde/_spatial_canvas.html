@@ -24,30 +24,11 @@
 {% set step_height_ft = upper_surface_ft - lower_surface_ft %}
 {% set rear_clear_len_ft = (rear_clearance_len_ft or 5.0) | float %}
 {% set rear_clear_h_ft = (rear_clearance_height_ft or 0.5) | float %}
-{% set lower_ns = namespace(max_used_ft=0.0) %}
-{% set upper_ns = namespace(max_used_ft=0.0) %}
-{% for zone in zones %}
-  {% for seq in (zone_cols.get(zone, {}) | sort) %}
-    {% for pos in (zone_cols.get(zone, {}).get(seq, []) | sort(attribute='layer')) %}
-      {% set deck_h_ft = (pos.deck_component_height_ft or pos.height or 0) | float %}
-      {% set y_surface_ft = (pos.y_surface_ft if pos.y_surface_ft is defined else (lower_surface_ft if zone == 'lower_deck' else upper_surface_ft)) | float %}
-      {% set y_top_ft = y_surface_ft + deck_h_ft %}
-      {% set render_top_ft = y_top_ft %}
-      {% if zone == 'lower_deck' %}
-        {% set used_ft = render_top_ft - lower_surface_ft %}
-        {% if used_ft > lower_ns.max_used_ft %}
-          {% set lower_ns.max_used_ft = used_ft %}
-        {% endif %}
-      {% else %}
-        {% set used_ft = render_top_ft - upper_surface_ft %}
-        {% if used_ft > upper_ns.max_used_ft %}
-          {% set upper_ns.max_used_ft = used_ft %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
-  {% endfor %}
-{% endfor %}
-{% set required_span_ft = [lower_cap_ft, upper_cap_ft + step_height_ft, lower_ns.max_used_ft, upper_ns.max_used_ft + step_height_ft] | max %}
+{# Use Python-computed y_body_top_ft heights for accurate canvas scale and gauge.
+   A 10% headroom factor ensures the tallest stack never kisses the top edge. #}
+{% set lower_used_ft = (max_stacked_ft_by_zone.get('lower_deck', 0.0) if max_stacked_ft_by_zone else 0.0) | float %}
+{% set upper_used_ft = (max_stacked_ft_by_zone.get('upper_deck', 0.0) if max_stacked_ft_by_zone else 0.0) | float %}
+{% set required_span_ft = [lower_cap_ft, upper_cap_ft + step_height_ft, lower_used_ft * 1.10, (upper_used_ft + step_height_ft) * 1.10] | max %}
 {% set py_per_ft = ((ground_y - guide_line_y) / required_span_ft) if required_span_ft > 0 else 1 %}
 {% set px_per_ft = (plot_w / total_len_ft) if total_len_ft > 0 else 1 %}
 {% set step_x_px = margin_l + step_x_ft * px_per_ft %}
@@ -68,8 +49,6 @@
 {% set wheel_hub_r_px = [wheel_r_px * 0.34, 1.2] | max %}
 {% set lower_bar_h_px = [lower_y_px - guide_line_y, 1] | max %}
 {% set upper_bar_h_px = [upper_y_px - guide_line_y, 1] | max %}
-{% set lower_used_ft = [lower_ns.max_used_ft, 0] | max %}
-{% set upper_used_ft = [upper_ns.max_used_ft, 0] | max %}
 {% set lower_fill_h_px = ([lower_used_ft * py_per_ft, lower_bar_h_px] | min) if lower_bar_h_px > 0 else 0 %}
 {% set upper_fill_h_px = ([upper_used_ft * py_per_ft, upper_bar_h_px] | min) if upper_bar_h_px > 0 else 0 %}
 {% set lower_used_pct = ((lower_used_ft / lower_cap_ft) * 100) if lower_cap_ft > 0 else 0 %}
@@ -320,7 +299,7 @@
              <rect x="0" y="0" width="{{ trailer_end_x_px }}" height="{{ svg_h }}"/>
            </clipPath>
            <clipPath id="pg-clip-plot">
-             <rect x="0" y="{{ stack_plot_y }}" width="{{ trailer_end_x_px }}" height="{{ stack_plot_h + 2 }}"/>
+             <rect x="0" y="{{ margin_t }}" width="{{ trailer_end_x_px }}" height="{{ svg_h - margin_t }}"/>
            </clipPath>
          </defs>
 
@@ -817,19 +796,62 @@
         {% set left_overhang_seg_w = left_overhang_seg_ft * px_per_ft %}
         {% set left_overhang_seg_x = margin_l - left_overhang_seg_w %}
         <g class="pg-measure-svg">
+          {# Container #}
           <rect x="{{ margin_l }}" y="{{ measure_top_y }}" width="{{ plot_w }}" height="{{ measure_h_px }}" rx="6"
-                fill="rgba(30, 64, 175, 0.10)" stroke="rgba(147, 197, 253, 0.48)" stroke-dasharray="4,3"/>
+                fill="rgba(15, 23, 42, 0.35)" stroke="rgba(147, 197, 253, 0.22)" stroke-dasharray="4,3"/>
+          {# Row dividers #}
           <line x1="{{ margin_l }}" y1="{{ measure_top_y + measure_row_h }}" x2="{{ trailer_end_x_px }}" y2="{{ measure_top_y + measure_row_h }}"
-                stroke="rgba(148,163,184,.22)" stroke-dasharray="3,3"/>
+                stroke="rgba(148,163,184,.18)" stroke-dasharray="3,3"/>
           <line x1="{{ margin_l }}" y1="{{ measure_top_y + (measure_row_h * 2) }}" x2="{{ trailer_end_x_px }}" y2="{{ measure_top_y + (measure_row_h * 2) }}"
-                stroke="rgba(148,163,184,.22)" stroke-dasharray="3,3"/>
-          <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)"></text>
+                stroke="rgba(148,163,184,.18)" stroke-dasharray="3,3"/>
+          {# Row labels #}
           <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + measure_row_h + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)">Upper</text>
+                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(148,163,184,0.75)">Upper</text>
           <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(191, 219, 254, 0.9)">Lower</text>
+                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(148,163,184,0.75)">Lower</text>
 
+          {# ── TOP ROW: positional span overview ───────────────────────────── #}
+
+          {# 1. Left overhang — orange, left of trailer origin #}
+          {% if left_overhang_seg_w > 0.5 %}
+            <rect x="{{ left_overhang_seg_x }}" y="{{ measure_top_y + 2 }}"
+                  width="{{ left_overhang_seg_w }}" height="{{ measure_row_h - 4 }}" rx="3"
+                  fill="rgba(251,146,60,0.22)" stroke="rgba(251,146,60,0.72)" stroke-width="1"/>
+            {% if left_overhang_seg_w > 44 %}
+              <text x="{{ left_overhang_seg_x + (left_overhang_seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}"
+                    text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="700"
+                    fill="rgba(254,215,170,0.95)">+{{ '%.1f'|format(left_overhang_seg_ft) }} ft</text>
+            {% endif %}
+          {% endif %}
+
+          {# 2. Used in trailer — blue, from load start to load end #}
+          {% set used_end_x = total_seg_x + total_seg_w %}
+          {% if total_seg_w > 0 %}
+            <rect x="{{ total_seg_x }}" y="{{ measure_top_y + 2 }}"
+                  width="{{ total_seg_w }}" height="{{ measure_row_h - 4 }}" rx="3"
+                  fill="rgba(56,189,248,0.18)" stroke="rgba(56,189,248,0.52)" stroke-width="1"/>
+            {% if total_seg_w > 60 %}
+              <text x="{{ total_seg_x + (total_seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}"
+                    text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="700"
+                    fill="rgba(186,230,253,0.95)">{{ '%.1f'|format(total_used_ft) }} / {{ '%.1f'|format(total_len_ft) }} ft</text>
+            {% endif %}
+          {% endif %}
+
+          {# 3. Remaining — muted green dashed, from load end to trailer end #}
+          {% set remaining_seg_x = used_end_x %}
+          {% set remaining_seg_w = [trailer_end_x_px - remaining_seg_x - 2, 0] | max %}
+          {% if remaining_seg_w > 2 %}
+            <rect x="{{ remaining_seg_x + 1 }}" y="{{ measure_top_y + 2 }}"
+                  width="{{ remaining_seg_w - 1 }}" height="{{ measure_row_h - 4 }}" rx="3"
+                  fill="rgba(34,197,94,0.09)" stroke="rgba(34,197,94,0.42)" stroke-width="1" stroke-dasharray="3,2"/>
+            {% if remaining_seg_w > 52 %}
+              <text x="{{ remaining_seg_x + 1 + ((remaining_seg_w - 1) / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}"
+                    text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="700"
+                    fill="rgba(134,239,172,0.90)">{{ '%.1f'|format(remaining_ft) }} ft rem</text>
+            {% endif %}
+          {% endif %}
+
+          {# ── UPPER DECK ROW ──────────────────────────────────────────────── #}
           {% for seg in (measure_segments_by_zone.get('upper_deck', []) if measure_segments_by_zone else []) %}
             {% set zone_origin = (zone_origin_x_ft.get('upper_deck', 0) if zone_origin_x_ft else 0) | float %}
             {% set seg_start_ft = zone_origin + (seg.x_local_ft or 0) %}
@@ -842,22 +864,23 @@
               {% set seg_w = [clip_len_ft * px_per_ft, 1] | max %}
               {% if seg.kind == 'stack' %}
                 {% set seg_label = 'Stack ' ~ (seg.stack_index or seg.sequence or '?') ~ ': ' ~ ('%.1f'|format(seg.length_ft or 0)) ~ ' ft' %}
-                {% set seg_fill = 'rgba(56,189,248,0.16)' %}
-                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
+                {% set seg_fill = 'rgba(56,189,248,0.15)' %}
+                {% set seg_stroke = 'rgba(56,189,248,0.40)' %}
               {% else %}
                 {% set seg_label = ('%.1f'|format(seg.length_ft or 0)) ~ ' ft rem' %}
-                {% set seg_fill = 'rgba(34,197,94,0.12)' %}
-                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
+                {% set seg_fill = 'rgba(34,197,94,0.09)' %}
+                {% set seg_stroke = 'rgba(34,197,94,0.38)' %}
               {% endif %}
-              <rect x="{{ seg_x }}" y="{{ measure_top_y + measure_row_h + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
-                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
+              <rect x="{{ seg_x }}" y="{{ measure_top_y + measure_row_h + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="3"
+                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" stroke-width="1" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
               {% if seg_w > 50 %}
                 <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + measure_row_h + (measure_row_h / 2) + 3 }}" text-anchor="middle"
-                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224, 242, 254, 0.95)">{{ seg_label }}</text>
+                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
               {% endif %}
             {% endif %}
           {% endfor %}
 
+          {# ── LOWER DECK ROW ──────────────────────────────────────────────── #}
           {% for seg in (measure_segments_by_zone.get('lower_deck', []) if measure_segments_by_zone else []) %}
             {% set zone_origin = (zone_origin_x_ft.get('lower_deck', 0) if zone_origin_x_ft else 0) | float %}
             {% set seg_start_ft = zone_origin + (seg.x_local_ft or 0) %}
@@ -870,39 +893,21 @@
               {% set seg_w = [clip_len_ft * px_per_ft, 1] | max %}
               {% if seg.kind == 'stack' %}
                 {% set seg_label = 'Stack ' ~ (seg.stack_index or seg.sequence or '?') ~ ': ' ~ ('%.1f'|format(seg.length_ft or 0)) ~ ' ft' %}
-                {% set seg_fill = 'rgba(56,189,248,0.16)' %}
-                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
+                {% set seg_fill = 'rgba(56,189,248,0.15)' %}
+                {% set seg_stroke = 'rgba(56,189,248,0.40)' %}
               {% else %}
                 {% set seg_label = ('%.1f'|format(seg.length_ft or 0)) ~ ' ft rem' %}
-                {% set seg_fill = 'rgba(34,197,94,0.12)' %}
-                {% set seg_stroke = 'rgba(148,163,184,.28)' %}
+                {% set seg_fill = 'rgba(34,197,94,0.09)' %}
+                {% set seg_stroke = 'rgba(34,197,94,0.38)' %}
               {% endif %}
-              <rect x="{{ seg_x }}" y="{{ measure_top_y + (measure_row_h * 2) + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
-                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
+              <rect x="{{ seg_x }}" y="{{ measure_top_y + (measure_row_h * 2) + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="3"
+                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" stroke-width="1" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
               {% if seg_w > 50 %}
                 <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="middle"
-                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224, 242, 254, 0.95)">{{ seg_label }}</text>
+                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
               {% endif %}
             {% endif %}
           {% endfor %}
-          {% if total_seg_w > 0 %}
-          <rect x="{{ total_seg_x }}" y="{{ measure_top_y + 2 }}" width="{{ total_seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
-                fill="rgba(245,158,11,0.16)" stroke="rgba(245,158,11,0.55)"/>
-          {% endif %}
-          {% if left_overhang_seg_w > 0.5 %}
-          <rect x="{{ left_overhang_seg_x }}" y="{{ measure_top_y + 2 }}" width="{{ left_overhang_seg_w }}" height="{{ measure_row_h - 4 }}" rx="4"
-                fill="rgba(245,158,11,0.22)" stroke="rgba(245,158,11,0.72)"/>
-          {% if left_overhang_seg_w > 60 %}
-          <text x="{{ left_overhang_seg_x + (left_overhang_seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}" text-anchor="middle"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(254, 243, 199, 0.95)">
-            Overhang {{ '%.1f'|format(left_overhang_seg_ft) }} ft
-          </text>
-          {% endif %}
-          {% endif %}
-          <text x="{{ margin_l + (plot_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}" text-anchor="middle"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224, 242, 254, 0.92)">
-            Used In Trailer: {{ '%.1f'|format(total_used_ft) }} / {{ '%.1f'|format(total_len_ft) }} ft | Remaining: {{ '%.1f'|format(remaining_ft) }} ft | Overhang: {% if total_overhang_ft > 0.05 %}+{{ '%.1f'|format(total_overhang_ft) }}{% else %}0.0{% endif %} ft
-          </text>
         </g>
             </svg>
       </div>

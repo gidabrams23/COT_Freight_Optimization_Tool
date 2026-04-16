@@ -2067,6 +2067,20 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 }
             )
 
+    # True max rendered height above each zone surface, derived from y_body_top_ft.
+    # Used by the canvas template for accurate scale + gauge display.
+    max_stacked_ft_by_zone: dict = {}
+    for zone in zones:
+        zs_ft = _as_float(zone_surface_ft.get(zone), 0.0)
+        zone_max = 0.0
+        for seq_col in (zone_cols.get(zone) or {}).values():
+            for unit in seq_col:
+                top = _as_float(unit.get("y_body_top_ft"), 0.0)
+                used = max(top - zs_ft, 0.0)
+                if used > zone_max:
+                    zone_max = used
+        max_stacked_ft_by_zone[zone] = round(zone_max, 3)
+
     # Global horizontal occupancy span from rendered geometry.
     spatial_min_x_ft = 0.0
     spatial_max_x_ft = 0.0
@@ -2197,6 +2211,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         spatial_columns=spatial_columns,
         measure_segments_by_zone=measure_segments_by_zone,
         zone_origin_x_ft=zone_origin_x_ft,
+        max_stacked_ft_by_zone=max_stacked_ft_by_zone,
         trailer_geometry=trailer_geometry,
         rear_clearance_len_ft=_REAR_POCKET_LEN_FT,
         rear_clearance_height_ft=_REAR_POCKET_HEIGHT_FT,

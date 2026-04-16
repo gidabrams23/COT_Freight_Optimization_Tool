@@ -482,7 +482,62 @@ def init_db():
         )
 
     conn.commit()
+
+    # Auto-seed SKU catalog from bundled CSV files if tables are empty.
+    # This ensures the app works out-of-the-box on first deploy (Azure, Render, etc.)
+    # without requiring a manual Excel import.
+    _seed_skus_from_csv(conn)
+
     conn.close()
+
+
+def _seed_skus_from_csv(conn):
+    """Populate pj_skus and bigtex_skus from bundled seed CSVs if the tables are empty."""
+    import csv as _csv
+
+    seed_dir = ROOT_DIR / "data" / "seed"
+    c = conn.cursor()
+
+    pj_count = c.execute("SELECT COUNT(*) FROM pj_skus").fetchone()[0]
+    if pj_count == 0:
+        pj_seed = seed_dir / "pj_skus.csv"
+        if pj_seed.exists():
+            with open(pj_seed, newline="", encoding="utf-8") as f:
+                reader = _csv.DictReader(f)
+                rows = list(reader)
+            if rows:
+                cols = list(rows[0].keys())
+                placeholders = ", ".join("?" * len(cols))
+                col_list = ", ".join(cols)
+                now = datetime.utcnow().isoformat()
+                c.executemany(
+                    f"INSERT OR IGNORE INTO pj_skus ({col_list}) VALUES ({placeholders})",
+                    [
+                        [row.get(col) or None for col in cols]
+                        for row in rows
+                    ],
+                )
+                conn.commit()
+
+    bt_count = c.execute("SELECT COUNT(*) FROM bigtex_skus").fetchone()[0]
+    if bt_count == 0:
+        bt_seed = seed_dir / "bigtex_skus.csv"
+        if bt_seed.exists():
+            with open(bt_seed, newline="", encoding="utf-8") as f:
+                reader = _csv.DictReader(f)
+                rows = list(reader)
+            if rows:
+                cols = list(rows[0].keys())
+                placeholders = ", ".join("?" * len(cols))
+                col_list = ", ".join(cols)
+                c.executemany(
+                    f"INSERT OR IGNORE INTO bigtex_skus ({col_list}) VALUES ({placeholders})",
+                    [
+                        [row.get(col) or None for col in cols]
+                        for row in rows
+                    ],
+                )
+                conn.commit()
 
 
 def has_seed_data():
