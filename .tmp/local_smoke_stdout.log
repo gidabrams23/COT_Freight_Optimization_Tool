@@ -1,0 +1,34 @@
+2026-04-09 15:14:48,507 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-09 15:14:51,184 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-09 15:14:51,367 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-09 15:14:51,369 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-09 15:14:51,370 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-09 15:14:51,370 [WARNING] blueprints.cot.routes: ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); Microsoft SSO is disabled.
+2026-04-09 15:14:51,382 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-09 15:14:51,414 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-09 15:14:51,414 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-09 15:14:51,420 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-09 15:14:51,420 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-09 15:14:51,432 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-09 15:14:51,433 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+ * Serving Flask app 'blueprints.cot.routes'
+ * Debug mode: on
+2026-04-09 15:14:51,806 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-04-09 15:14:51,806 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-04-09 15:14:51,809 [INFO] werkzeug:  * Restarting with stat
+2026-04-09 15:14:52,072 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-09 15:14:54,496 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-09 15:14:54,761 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-09 15:14:54,764 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-09 15:14:54,764 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-09 15:14:54,765 [WARNING] blueprints.cot.routes: ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); Microsoft SSO is disabled.
+2026-04-09 15:14:54,781 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-09 15:14:54,820 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-09 15:14:54,821 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-09 15:14:54,829 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-09 15:14:54,829 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-09 15:14:54,842 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-09 15:14:54,843 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-09 15:14:55,306 [WARNING] werkzeug:  * Debugger is active!
+2026-04-09 15:14:55,320 [INFO] werkzeug:  * Debugger PIN: 144-967-316

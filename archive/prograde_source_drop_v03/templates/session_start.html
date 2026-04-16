@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}New Session — ProGrade{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">New Load Session</div>
+    <div class="page-subtitle">Pick a brand and carrier, then start building</div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="card" style="max-width:520px">
+    <div class="card-header">
+      <div class="card-title">Session Setup</div>
+    </div>
+
+    <form method="POST" action="{{ url_for('session_new') }}">
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select name="brand" class="form-control" id="brand-select" required>
+          <option value="">— Select —</option>
+          <option value="pj">PJ Trailers</option>
+          <option value="bigtex">Big Tex Trailers</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Carrier Type</label>
+        <select name="carrier_type" class="form-control" id="carrier-select" required>
+          <option value="">— Select brand first —</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Planner Name</label>
+        <input type="text" name="planner_name" class="form-control" placeholder="e.g. Shawn" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Session Label</label>
+        <input type="text" name="session_label" class="form-control"
+               placeholder="e.g. Mar-25 PJ Run 1" />
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary">Start Session →</button>
+        <a href="{{ url_for('index') }}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CARRIERS = {
+  pj:     [{ val: '53_step_deck', lbl: "53' Step Deck" }],
+  bigtex: [{ val: '53_flatbed',   lbl: "53' Flatbed" }],
+};
+document.getElementById('brand-select').addEventListener('change', function() {
+  const sel = document.getElementById('carrier-select');
+  sel.innerHTML = '';
+  const opts = CARRIERS[this.value] || [];
+  if (!opts.length) {
+    sel.innerHTML = '<option value="">— Select brand first —</option>';
+    return;
+  }
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.val; opt.textContent = o.lbl;
+    sel.appendChild(opt);
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python seed.py)",
+      "Bash(python -c \"import app; print\\(''app imports OK''\\); import db; db.init_db\\(\\); print\\(''DB init OK''\\); skus = db.get_pj_skus\\(\\); print\\(f''PJ SKUs: {len\\(skus\\)}''\\); bt = db.get_bigtex_skus\\(\\); print\\(f''BT SKUs: {len\\(bt\\)}''\\); cfgs = db.get_bt_stack_configs\\(\\); print\\(f''BT stack configs: {len\\(cfgs\\)}''\\)\")",
+      "Bash(python -c \"import app; print\\(''app imports OK''\\); import db; skus = db.get_pj_skus\\(\\); print\\(f''PJ SKUs: {len\\(skus\\)}''\\); bt = db.get_bigtex_skus\\(\\); print\\(f''BT SKUs: {len\\(bt\\)}''\\); cfgs = db.get_bt_stack_configs\\(\\); print\\(f''BT stack configs: {len\\(cfgs\\)}''\\)\")"
+    ]
+  }
+}

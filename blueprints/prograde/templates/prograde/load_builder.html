@@ -1,0 +1,4412 @@
+{% extends "prograde/base.html" %}
+{% block title %}Load Builder - {{ session_display_id or session.session_label or session.session_id[:8] }}{% endblock %}
+
+{% block head %}
+<style>
+/* -- Canvas layout ------------------------------ */
+body {
+  overflow: hidden;
+}
+.main-content {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+.canvas-top-bar {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  padding: 10px var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pg-top-left {
+  flex: 1 1 320px;
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+}
+.pg-session-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, rgba(11, 20, 37, 0.95), rgba(11, 34, 55, 0.82));
+  padding: 8px 12px;
+}
+.pg-session-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.pg-session-id-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.pg-session-id-value {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: .04em;
+  font-family: var(--font-mono);
+  color: rgba(224, 242, 254, 0.98);
+}
+.pg-session-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pg-session-name {
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.96);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pg-session-sep {
+  color: var(--text-tertiary);
+}
+.pg-top-middle {
+  flex: 1 1 420px;
+  min-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pg-top-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: rgba(15, 23, 42, 0.66);
+}
+.pg-action-btn {
+  min-height: 30px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.pg-action-save {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  border-color: rgba(125, 211, 252, 0.52);
+  color: #f8fafc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+.pg-action-save:hover {
+  background: linear-gradient(135deg, #1d4ed8, #0284c7);
+  border-color: rgba(147, 197, 253, 0.72);
+}
+.pg-layout {
+  display: flex;
+  gap: var(--space-md);
+  align-items: stretch;
+  padding-top: var(--space-md);
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  overflow: hidden;
+}
+.pg-canvas-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.pg-sidebar {
+  flex: 0 0 clamp(316px, 24vw, 372px);
+  width: clamp(316px, 24vw, 372px);
+  min-width: 300px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  overflow: auto;
+  padding-right: 2px;
+}
+.deck-total {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 4px;
+}
+.deck-total-val {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.deck-total-cap {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.deck-util-bar {
+  flex: 1;
+  min-width: 120px;
+  max-width: 240px;
+  padding: 0 2px;
+}
+.brand-path-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: rgba(15, 23, 42, 0.55);
+}
+.brand-path-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-right: 2px;
+}
+.brand-path-btn {
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.brand-path-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  background: var(--status-info-bg);
+}
+.brand-path-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #fff;
+}
+.render-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: rgba(15, 23, 42, 0.55);
+}
+.render-mode-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-right: 2px;
+}
+.render-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.render-mode-option input[type="radio"] {
+  accent-color: var(--accent-primary);
+}
+
+/* -- Zone layout -------------------------------- */
+.zones-container {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+}
+.zone-panel {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.zone-header-bar {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.zone-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-secondary);
+}
+.zone-length-chip {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.zone-columns-scroll {
+  overflow-x: auto;
+  padding: var(--space-sm);
+}
+.zone-columns {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;   /* units grow upward from the deck */
+  min-height: 80px;
+}
+
+/* -- Unit column -------------------------------- */
+.unit-col {
+  display: flex;
+  flex-direction: column-reverse;  /* layer 1 at bottom, top layers stack up */
+  gap: 4px;
+  min-width: 0;
+  position: relative;
+}
+.unit-col-meta {
+  margin-top: 4px;
+  text-align: center;
+}
+
+/* Height progress bar per column */
+.col-height-bar {
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.col-height-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width .3s, background .3s;
+}
+.col-height-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+
+/* Stack drag handle + drop slot */
+.stack-drag-handle {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  cursor: grab;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.stack-drag-handle:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--status-info-bg);
+}
+.stack-drag-handle:active {
+  cursor: grabbing;
+}
+.column-drop-slot {
+  flex: 0 0 16px;
+  min-width: 16px;
+  height: 112px;
+  border: 1px dashed rgba(147, 197, 253, 0.75);
+  border-radius: var(--radius-md);
+  color: rgba(147, 197, 253, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: copy;
+  transition: border-color .15s, color .15s, background .15s, box-shadow .15s;
+}
+.column-drop-slot:hover {
+  border-color: var(--accent-primary);
+  color: #dbeafe;
+  background: var(--status-info-bg);
+}
+.column-drop-slot.drop-target-active {
+  border-color: #f8fafc;
+  color: #f8fafc;
+  background: rgba(34, 197, 94, 0.26);
+  box-shadow: 0 0 0 1px rgba(240, 253, 250, 0.55);
+}
+
+/* "New column" button */
+.zone-new-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 20px;
+  align-self: stretch;
+  transition: all .15s;
+}
+.zone-new-col:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--status-info-bg);
+}
+
+/* -- Unit card (revised) ------------------------ */
+.unit-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  position: relative;
+}
+.unit-card:hover { border-color: var(--border-subtle); }
+.unit-card.nested {
+  border-style: dashed;
+  border-color: var(--border-subtle);
+  margin-left: 10px;
+  background: var(--bg-tertiary);
+}
+.unit-card.has-error   { border-color: var(--status-error); }
+.unit-card.has-warning { border-color: var(--status-warning); }
+
+.unit-card-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.unit-card-fp {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+.unit-card-ht {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* GN axle-drop toggle */
+.axle-drop-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.axle-drop-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.axle-drop-cb { accent-color: var(--accent-primary); cursor: pointer; }
+.axle-drop-active { color: var(--status-info) !important; }
+
+/* Remove button */
+.unit-action-row {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  transform: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  z-index: 3;
+}
+.unit-tongue-pill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  padding: 2px 5px;
+  color: var(--text-secondary);
+  background: rgba(15, 23, 42, 0.55);
+}
+.unit-tongue-pill.std {
+  border-color: rgba(96, 165, 250, 0.55);
+  color: rgba(191, 219, 254, 0.95);
+}
+.unit-tongue-pill.gn {
+  border-color: rgba(110, 231, 183, 0.55);
+  color: rgba(167, 243, 208, 0.95);
+}
+.unit-remove {
+  position: relative;
+  background: none; border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: var(--radius-sm);
+}
+.unit-remove:hover { background: var(--status-error-bg); color: var(--status-error); }
+.unit-rotate {
+  position: relative;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: var(--radius-sm);
+}
+.unit-rotate:hover {
+  border-color: var(--accent-primary);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.unit-rotate.active {
+  border-color: color-mix(in srgb, var(--accent-primary) 70%, transparent);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.unit-dump-door {
+  position: relative;
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 23, 42, 0.56);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: .02em;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.unit-dump-door:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  background: var(--status-info-bg);
+}
+.unit-dump-door.active {
+  border-color: rgba(248, 113, 113, 0.7);
+  color: rgba(254, 202, 202, 0.95);
+  background: rgba(127, 29, 29, 0.45);
+}
+
+/* Violation highlight overlay on card */
+.violation-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+/* -- Zone footer -------------------------------- */
+.zone-footer-bar {
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  gap: var(--space-lg);
+  font-size: 11px;
+  align-items: center;
+}
+.zone-stat { display: flex; flex-direction: column; align-items: center; }
+.zone-stat-val {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.zone-stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
+
+/* -- Violation panel ---------------------------- */
+.viol-group-hdr {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--text-tertiary);
+}
+.violation-item {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+.violation-item.error   { background: var(--status-error-bg);   border-left: 3px solid var(--status-error); }
+.violation-item.warning { background: var(--status-warning-bg); border-left: 3px solid var(--status-warning); }
+.violation-item.info    { background: var(--status-info-bg);    border-left: 3px solid var(--status-info); }
+.violation-item.acknowledged {
+  opacity: .55;
+  border-left-color: var(--border-subtle);
+  background: var(--bg-secondary);
+}
+.violation-ack-btn {
+  margin-top: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-warning);
+  background: none;
+  color: var(--status-warning);
+  cursor: pointer;
+}
+.violation-ack-btn:hover { background: var(--status-warning); color: #000; }
+.violation-unack-btn {
+  margin-top: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.violation-unack-btn:hover { background: var(--bg-tertiary); }
+
+/* -- Picker panel ------------------------------- */
+.picker-search {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-default);
+}
+.picker-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sku-view-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sku-view-btn {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.sku-view-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+.sku-view-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.sku-list {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+  background: linear-gradient(180deg, rgba(3, 10, 24, 0.94), rgba(2, 6, 23, 0.9));
+}
+.sku-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sku-empty.hidden {
+  display: none;
+}
+.sku-group,
+.sku-model-group {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sku-group:last-child,
+.sku-model-group:last-child {
+  border-bottom: none;
+}
+.sku-group-summary,
+.sku-model-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.sku-group-summary {
+  background: rgba(15, 23, 42, 0.48);
+}
+.sku-model-summary {
+  background: rgba(15, 23, 42, 0.24);
+}
+.sku-group-summary::-webkit-details-marker,
+.sku-model-summary::-webkit-details-marker {
+  display: none;
+}
+.sku-group-summary:hover,
+.sku-model-summary:hover {
+  background: rgba(51, 65, 85, 0.56);
+}
+.sku-group[open] > .sku-group-summary,
+.sku-model-group[open] > .sku-model-summary {
+  box-shadow: inset 3px 0 0 rgba(56, 189, 248, 0.72);
+}
+.sku-group-left,
+.sku-model-left {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sku-caret {
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  transform: rotate(-45deg);
+  transition: transform .14s ease;
+  flex: 0 0 auto;
+}
+.sku-group[open] > .sku-group-summary .sku-caret,
+.sku-model-group[open] > .sku-model-summary .sku-caret {
+  transform: rotate(45deg);
+}
+.sku-group-label,
+.sku-model-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sku-count-badge {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
+}
+.sku-model-wrap {
+  margin-left: 8px;
+  border-left: 1px solid var(--border-subtle);
+}
+.sku-items {
+  padding: 0 0 4px;
+}
+.sku-item-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 5px 12px 5px 26px;
+  border-top: 1px solid rgba(71, 85, 105, 0.32);
+  border-bottom: 1px solid rgba(71, 85, 105, 0.32);
+  background: rgba(2, 6, 23, 0.82);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.96);
+}
+.sku-list-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 26px;
+  border-top: 1px solid rgba(51, 65, 85, 0.45);
+  background: rgba(15, 23, 42, 0.2);
+}
+.sku-list-item:hover {
+  background: rgba(30, 58, 138, 0.2);
+}
+.sku-list-item[draggable="true"] {
+  cursor: grab;
+}
+.sku-list-item.dragging {
+  opacity: 0.55;
+  border-left: 3px solid var(--accent-primary);
+}
+.sku-item-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+.sku-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sku-item-length {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(186, 230, 253, 0.96);
+  justify-self: end;
+}
+.sku-item-height {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(186, 230, 253, 0.96);
+  justify-self: end;
+}
+.sku-item-head.with-desc,
+.sku-list-item.with-desc {
+  grid-template-columns: minmax(90px, 1fr) minmax(160px, 2fr) auto;
+}
+.sku-item-head.with-desc.with-tongue,
+.sku-list-item.with-desc.with-tongue {
+  grid-template-columns: minmax(78px, 1fr) minmax(130px, 2fr) auto auto;
+}
+.sku-item-head.pj-table,
+.sku-list-item.pj-table {
+  grid-template-columns: minmax(90px, 1fr) minmax(60px, auto) minmax(60px, auto) minmax(86px, auto) minmax(86px, auto);
+}
+.sku-item-tongue {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sku-item-dump-height {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sku-row-tongue-btn {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.sku-row-tongue-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+.sku-row-tongue-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.drop-target-active {
+  outline: 2px solid rgba(125, 211, 252, 0.65);
+  outline-offset: 2px;
+}
+.prograde-schematic .pg-unit-drag-hitbox {
+  pointer-events: all;
+  cursor: grab;
+  fill: rgba(148, 163, 184, 0.001);
+  stroke: rgba(125, 211, 252, 0.0);
+  stroke-width: 1;
+}
+.prograde-schematic .unit-card.dragging .pg-unit-drag-hitbox {
+  cursor: grabbing;
+  fill: rgba(125, 211, 252, 0.12) !important;
+  stroke: rgba(125, 211, 252, 0.55);
+  stroke-width: 1.2;
+}
+.prograde-schematic .unit-card.unit-dragging .pg-unit-drag-hitbox {
+  fill: rgba(125, 211, 252, 0.08) !important;
+  stroke: rgba(125, 211, 252, 0.45);
+  stroke-width: 1.1;
+}
+.prograde-schematic .pg-spatial-unit > * {
+  pointer-events: none;
+}
+.prograde-schematic .pg-spatial-unit > .pg-unit-drag-hitbox,
+.prograde-schematic .pg-spatial-unit > .pg-unit-control-strip,
+.prograde-schematic .pg-spatial-unit > .pg-unit-control {
+  pointer-events: all;
+}
+.prograde-schematic .pg-spatial-unit > .pg-unit-control * {
+  pointer-events: all;
+}
+.prograde-schematic .pg-spatial-unit > .pg-unit-drag-handle,
+.prograde-schematic .pg-spatial-unit > .pg-unit-drag-handle * {
+  pointer-events: all;
+}
+.prograde-schematic .pg-unit-drag-handle {
+  cursor: grab;
+}
+.prograde-schematic .unit-card.unit-dragging .pg-unit-drag-handle {
+  cursor: grabbing;
+}
+.prograde-schematic .pg-unit-annotation {
+  pointer-events: none;
+}
+.prograde-schematic [data-stack-drop],
+.prograde-schematic [data-column-slot],
+.prograde-schematic [data-drop-zone] {
+  pointer-events: all;
+}
+.prograde-schematic [data-stack-drop] {
+  fill: rgba(59, 130, 246, 0.008);
+  stroke: transparent;
+  stroke-width: 0;
+}
+.prograde-schematic [data-column-slot] {
+  fill: rgba(125, 211, 252, 0.025);
+  stroke: transparent;
+  stroke-width: 0;
+}
+.prograde-schematic [data-drop-zone] {
+  fill: rgba(59, 130, 246, 0.008);
+}
+.prograde-schematic [data-stack-drop].drop-target-active {
+  fill: rgba(125, 211, 252, 0.16) !important;
+  stroke: rgba(125, 211, 252, 0.58);
+  stroke-width: 1.2;
+}
+.prograde-schematic [data-column-slot].drop-target-active {
+  fill: rgba(125, 211, 252, 0.16) !important;
+  stroke: rgba(125, 211, 252, 0.58);
+  stroke-width: 1.2;
+}
+.prograde-schematic [data-drop-zone].drop-target-active {
+  fill: rgba(125, 211, 252, 0.1) !important;
+}
+.prograde-schematic .pg-spatial-unit.stack-dragging .pg-unit-body {
+  stroke: rgba(125, 211, 252, 0.72) !important;
+  stroke-width: 1.6;
+}
+.prograde-schematic .pg-spatial-unit.stack-dragging .pg-unit-drag-hitbox {
+  fill: rgba(125, 211, 252, 0.13) !important;
+  stroke: rgba(125, 211, 252, 0.58);
+  stroke-width: 1.2;
+}
+.prograde-schematic .pg-spatial-unit.stack-dragging {
+  opacity: 1;
+  filter: none;
+}
+.prograde-schematic [data-stack-drop].drop-before,
+.prograde-schematic .unit-card.drop-before .pg-unit-drag-hitbox {
+  fill: rgba(125, 211, 252, 0.16) !important;
+  stroke: rgba(125, 211, 252, 0.6);
+  stroke-width: 1.2;
+}
+.prograde-schematic [data-stack-drop].drop-after,
+.prograde-schematic .unit-card.drop-after .pg-unit-drag-hitbox {
+  fill: rgba(125, 211, 252, 0.16) !important;
+  stroke: rgba(125, 211, 252, 0.6);
+  stroke-width: 1.2;
+}
+.pg-drag-hint-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 4px 0;
+}
+.stack-drag-live-indicator {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(15, 23, 42, 0.45);
+  white-space: nowrap;
+}
+.pg-stack-drop-marker {
+  position: fixed;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.92);
+  box-shadow: none;
+  z-index: 4200;
+  pointer-events: none;
+  display: none;
+}
+.pg-stack-drop-marker.active {
+  display: block;
+}
+.pg-stack-drop-marker.after {
+  background: rgba(125, 211, 252, 0.92);
+}
+
+/* -- Zone picker modal -------------------------- */
+.modal-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  min-width: 300px;
+}
+.modal-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.modal-options { display: flex; flex-direction: column; gap: 8px; }
+
+/* COT-style schematic framing */
+.prograde-schematic {
+  --stepdeck-line-color: rgba(148, 163, 184, 0.86);
+  --stepdeck-line-glow: rgba(148, 163, 184, 0.24);
+  --height-ft-px: 14px;
+  --step-rise-px: calc(1.5 * var(--height-ft-px));
+  --meter-gutter: 96px;
+  background: rgba(2, 6, 23, 0.86);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 10px;
+  overflow: visible;
+}
+.prograde-schematic .trailer-body {
+  padding-left: calc(var(--meter-gutter) + 12px);
+  padding-right: calc(var(--meter-gutter) + 12px);
+  padding-bottom: 34px;
+  overflow: visible;
+  position: relative;
+}
+.prograde-schematic .trailer-deck-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 3px solid rgba(35, 54, 72, 0.95);
+  border-radius: 12px;
+  overflow: visible;
+  background: rgba(2, 6, 23, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08), 0 20px 55px rgba(2, 6, 23, 0.55);
+  padding-top: 4px;
+}
+.prograde-schematic .trailer-deck {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  align-self: stretch;
+  position: relative;
+  overflow: visible;
+}
+.prograde-schematic .trailer-deck.lower {
+  z-index: 1;
+}
+.prograde-schematic .trailer-deck.upper {
+  border-right: 1px solid rgba(35, 54, 72, 0.95);
+  align-self: stretch;
+  margin-left: 0;
+  z-index: 2;
+}
+.prograde-schematic .deck-stage-upper .deck-positions {
+  padding-bottom: calc(var(--step-rise-px) - 4px);
+  justify-content: flex-end;
+  margin-left: calc(-1 * var(--upper-seam-overhang-ft, 0) * var(--deck-ft-px, 10px));
+}
+.prograde-schematic .deck-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+  position: relative;
+  z-index: 5;
+}
+.prograde-schematic .deck-label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: rgba(147, 197, 253, 0.9);
+  background: rgba(19, 127, 236, 0.12);
+  border: 1px solid rgba(19, 127, 236, 0.45);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.prograde-schematic .trailer-deck.lower .deck-label {
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(51, 65, 85, 0.85);
+}
+.prograde-schematic .deck-measure {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(51, 65, 85, 0.75);
+  background: rgba(15, 23, 42, 0.5);
+}
+.prograde-schematic .deck-stage {
+  flex: 1;
+  min-height: 190px;
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  padding-top: 4px;
+  padding-bottom: 2px;
+  overflow: visible;
+}
+.prograde-schematic .deck-stage::after {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  bottom: 1px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--stepdeck-line-color);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.6), 0 0 10px var(--stepdeck-line-glow);
+  pointer-events: none;
+}
+.prograde-schematic .trailer-deck.lower .deck-stage::after {
+  background: var(--stepdeck-line-color);
+}
+.prograde-schematic .trailer-deck.upper .deck-stage::after {
+  background: var(--stepdeck-line-color);
+  bottom: calc(1px + var(--step-rise-px));
+  left: -8px;
+  right: auto;
+  width: calc(var(--zone-line-used-pct, 100%) + 8px);
+  border-right: 2px solid rgba(203, 213, 225, 0.9);
+  border-radius: 2px 0 0 2px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.6), 0 0 10px var(--stepdeck-line-glow);
+}
+.prograde-schematic .trailer-deck.upper .deck-stage::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  bottom: 1px;
+  width: 0;
+  height: var(--step-rise-px);
+  border-left: 3px solid var(--stepdeck-line-color);
+  pointer-events: none;
+  opacity: 0.9;
+}
+.prograde-schematic .zone-columns-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  overflow: visible;
+  padding: 0;
+  position: relative;
+  z-index: 3;
+}
+.prograde-schematic .zone-height-indicator {
+  width: var(--meter-gutter);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  position: absolute;
+  bottom: 12px;
+  height: auto;
+  z-index: 5;
+  pointer-events: none;
+}
+.prograde-schematic .zone-height-indicator.is-lower {
+  left: calc(-1 * var(--meter-gutter));
+}
+.prograde-schematic .zone-height-indicator.is-upper {
+  right: calc(-1 * var(--meter-gutter));
+  bottom: calc(12px + var(--step-rise-px));
+}
+.prograde-schematic .zone-height-indicator-track {
+  width: 44px;
+  min-height: 0;
+  height: max(64px, calc(var(--zone-height-cap-ft, 0) * var(--height-ft-px)));
+  flex: 0 0 auto;
+  align-self: center;
+  border-radius: 12px;
+  border: 1px solid rgba(71, 85, 105, 0.9);
+  background: rgba(30, 41, 59, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(2, 6, 23, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.prograde-schematic .zone-height-indicator.is-lower .zone-height-indicator-track {
+  margin-left: auto;
+  margin-right: 8px;
+}
+.prograde-schematic .zone-height-indicator.is-upper .zone-height-indicator-track {
+  margin-left: 8px;
+  margin-right: auto;
+}
+.prograde-schematic .zone-height-indicator-empty {
+  width: 100%;
+  height: var(--height-empty, 0%);
+  min-height: 0;
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.55), rgba(51, 65, 85, 0.42));
+  color: rgba(226, 232, 240, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 3px;
+  text-align: center;
+}
+.prograde-schematic .zone-height-indicator-fill {
+  width: 100%;
+  height: var(--height-used, 0%);
+  min-height: 0;
+  background: linear-gradient(0deg, rgba(34, 197, 94, 0.95), rgba(74, 222, 128, 0.72));
+  color: rgba(240, 253, 250, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 3px;
+  text-align: center;
+}
+.prograde-schematic .zone-height-indicator.is-warning .zone-height-indicator-fill {
+  background: linear-gradient(0deg, rgba(234, 179, 8, 0.95), rgba(250, 204, 21, 0.72));
+  color: rgba(15, 23, 42, 0.92);
+}
+.prograde-schematic .zone-height-indicator.is-over .zone-height-indicator-fill {
+  background: linear-gradient(0deg, rgba(239, 68, 68, 0.95), rgba(248, 113, 113, 0.78));
+  color: rgba(255, 241, 242, 0.98);
+}
+.prograde-schematic .zone-height-indicator-empty-label,
+.prograde-schematic .zone-height-indicator-fill-label {
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+  white-space: normal;
+}
+.prograde-schematic .zone-blank-space {
+  position: absolute;
+  left: 0;
+  border: 1px dashed rgba(147, 197, 253, 0.62);
+  background: rgba(30, 64, 175, 0.16);
+  color: rgba(191, 219, 254, 0.96);
+  border-radius: 6px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+.prograde-schematic .trailer-deck.lower .zone-blank-space {
+  bottom: 6px;
+}
+.prograde-schematic .trailer-deck.upper .zone-blank-space {
+  bottom: calc(6px + var(--step-rise-px));
+}
+.prograde-schematic .zone-blank-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.prograde-schematic .zone-left-overhang {
+  position: absolute;
+  left: calc(-1 * var(--left-overhang-ft, 0) * var(--deck-ft-px, 10px));
+  bottom: 3px;
+  width: calc(var(--left-overhang-ft, 0) * var(--deck-ft-px, 10px));
+  min-width: 0;
+  height: 18px;
+  border: 1px dashed rgba(248, 113, 113, 0.84);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  background: rgba(127, 29, 29, 0.28);
+  color: rgba(254, 226, 226, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  pointer-events: none;
+  z-index: 2;
+}
+.prograde-schematic .zone-left-overhang::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -7px;
+  bottom: -2px;
+  border-right: 1px dashed rgba(248, 113, 113, 0.85);
+}
+.prograde-schematic .zone-left-overhang-label {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+.prograde-schematic .stepdeck-measure-row {
+  position: relative;
+  height: 22px;
+  margin-top: 8px;
+}
+.prograde-schematic .stepdeck-measure-track-live {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed rgba(147, 197, 253, 0.62);
+  border-radius: 6px;
+  background: rgba(30, 64, 175, 0.12);
+  overflow: hidden;
+}
+.prograde-schematic .stepdeck-live-segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px dashed rgba(125, 211, 252, 0.38);
+  padding: 0 6px;
+  background: rgba(30, 64, 175, 0.08);
+}
+.prograde-schematic .stepdeck-live-segment:last-child {
+  border-right: 0;
+}
+.prograde-schematic .stepdeck-live-segment.is-stack {
+  background: rgba(56, 189, 248, 0.16);
+}
+.prograde-schematic .stepdeck-live-segment.is-remaining {
+  background: rgba(34, 197, 94, 0.12);
+}
+.prograde-schematic .stepdeck-live-segment-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prograde-schematic .deck-positions {
+  flex: 1 1 auto;
+  min-height: 100%;
+  gap: 2px;
+  align-items: flex-end;
+  align-content: flex-end;
+  flex-wrap: nowrap;
+  row-gap: 8px;
+  padding-bottom: 0;
+  border-bottom: 0;
+  width: 100%;
+}
+.prograde-schematic .trailer-deck.lower .zone-columns-scroll {
+  padding-right: 0;
+}
+.prograde-schematic .trailer-deck.lower .deck-positions {
+  justify-content: flex-start;
+}
+.prograde-schematic .trailer-deck.upper .deck-positions {
+  justify-content: flex-end;
+  margin-left: 0;
+}
+.prograde-schematic .position-column {
+  min-width: 0;
+}
+.prograde-schematic .position-column[data-stack-col] {
+  flex: 0 0 auto;
+  width: max(16px, calc(var(--deck-span, 1) * var(--deck-ft-px, 10px)));
+}
+.prograde-schematic .position-stack {
+  display: flex;
+  gap: 0;
+  justify-content: flex-start;
+  align-items: flex-start;
+  flex-direction: column-reverse;
+  padding: 3px 2px 4px 2px;
+  width: 100%;
+  position: relative;
+  min-height: 126px;
+  overflow: visible;
+}
+.prograde-schematic.render-mode-standard .position-stack {
+  padding-left: calc(calc(var(--tongue-pad-ft, 0) * var(--deck-ft-px, 10px)) + 2px);
+}
+.prograde-schematic .pg-unit-block {
+  position: relative;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 3px 6px 3px 6px;
+  height: max(22px, calc(var(--stack-height-ft, 1) * var(--height-ft-px)));
+  min-height: 22px;
+  width: max(16px, calc(var(--footprint-ft, 1) * var(--deck-ft-px, 10px)));
+  max-width: none;
+  border-radius: 6px;
+  border: 1.5px solid color-mix(in srgb, var(--accent, #137fec) 82%, white 18%);
+  background: color-mix(in srgb, var(--accent, #137fec) 12%, rgba(2, 6, 23, 0.82));
+  box-shadow:
+    inset 0 0 10px color-mix(in srgb, var(--accent, #137fec) 22%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 0 1px rgba(2, 6, 23, 0.4),
+    0 4px 10px rgba(2, 6, 23, 0.35);
+  overflow: visible;
+}
+.prograde-schematic.render-mode-standard .pg-unit-block {
+  width: max(16px, calc(var(--bed-ft, var(--footprint-ft, 1)) * var(--deck-ft-px, 10px)));
+}
+.prograde-schematic .pg-unit-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+.prograde-schematic .pg-unit-block .unit-card-id,
+.prograde-schematic .pg-unit-block .unit-card-fp,
+.prograde-schematic .pg-unit-block .unit-card-ht,
+.prograde-schematic .pg-unit-block .axle-drop-row,
+.prograde-schematic .pg-unit-block .unit-tongue {
+  position: relative;
+  z-index: 1;
+}
+.prograde-schematic .pg-unit-block .unit-remove,
+.prograde-schematic .pg-unit-block .unit-rotate {
+  z-index: 2;
+}
+.prograde-schematic .pg-unit-block .unit-render {
+  display: none;
+  position: absolute;
+  inset: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.prograde-schematic .pg-unit-block .unit-render > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.prograde-schematic .pg-unit-block > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+.prograde-schematic .pg-unit-block .unit-tongue {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  transform: translate(calc(-100% - 3px), 0);
+  width: max(8px, calc(var(--tongue-ft, 0) * var(--deck-ft-px, 10px)));
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.prograde-schematic.render-mode-standard .pg-unit-block[data-has-tongue="1"] .unit-tongue {
+  display: block;
+}
+.prograde-schematic .pg-unit-block.is-rotated .unit-tongue {
+  left: auto;
+  right: 0;
+  transform: translate(calc(100% + 3px), 0) scaleX(-1);
+}
+.prograde-schematic .pg-unit-block .unit-tongue svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.prograde-schematic .pg-unit-block .unit-tongue path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent, #137fec) 88%, white 12%);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.prograde-schematic.render-mode-standard .unit-render-standard,
+.prograde-schematic.render-mode-advanced .unit-render-advanced {
+  display: block;
+}
+.prograde-schematic.render-mode-advanced .pg-unit-block .unit-tongue {
+  display: none;
+  pointer-events: none;
+}
+.prograde-schematic.render-mode-advanced .pg-unit-block {
+  overflow: hidden;
+}
+.prograde-schematic.render-mode-standard .unit-render-advanced {
+  display: none;
+}
+.prograde-schematic.render-mode-advanced .unit-render-standard {
+  display: none;
+}
+.prograde-schematic .pg-unit-block.is-rotated .unit-render {
+  transform: scaleX(-1);
+  transform-origin: center center;
+}
+.prograde-schematic .unit-geometry {
+  display: none;
+}
+.prograde-schematic .unit-card {
+  cursor: grab;
+}
+.prograde-schematic .unit-card.nested {
+  margin-left: 8px;
+}
+.prograde-schematic .unit-card.dragging {
+  opacity: .5;
+}
+.prograde-schematic .pg-unit-block .unit-card-id {
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prograde-schematic .pg-unit-block .unit-card-fp,
+.prograde-schematic .pg-unit-block .unit-card-ht {
+  display: none;
+}
+.prograde-schematic .pg-unit-block .axle-drop-row {
+  display: none;
+}
+.prograde-schematic .stepdeck-total-ruler {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.prograde-schematic .stepdeck-total-track {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(71, 85, 105, 0.9);
+  background: rgba(15, 23, 42, 0.75);
+  overflow: visible;
+}
+.prograde-schematic .stepdeck-total-used {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--total-used-pct, 0%);
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.62), rgba(34, 197, 94, 0.45));
+}
+.prograde-schematic .stepdeck-total-blank {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--total-rem-pct, 0%);
+  border-right: 1px dashed rgba(147, 197, 253, 0.65);
+  background: rgba(30, 64, 175, 0.24);
+}
+.prograde-schematic .stepdeck-total-blank-chip {
+  position: absolute;
+  left: 6px;
+  top: -22px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed rgba(147, 197, 253, 0.72);
+  background: rgba(30, 64, 175, 0.35);
+  color: rgba(191, 219, 254, 0.98);
+  border-radius: 5px;
+  padding: 0 7px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.prograde-schematic .stepdeck-total-over {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: rgba(254, 202, 202, 0.98);
+}
+.prograde-schematic .stepdeck-total-break {
+  position: absolute;
+  left: var(--step-break-pct, 77.358%);
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: rgba(241, 245, 249, 0.85);
+  box-shadow: 0 0 8px rgba(148, 163, 184, 0.45);
+}
+.prograde-schematic .stepdeck-total-labels {
+  position: relative;
+  height: 12px;
+  color: rgba(148, 163, 184, 0.82);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.prograde-schematic .stepdeck-total-labels span {
+  position: absolute;
+  top: 0;
+}
+.prograde-schematic .stepdeck-total-label-start {
+  left: 0;
+}
+.prograde-schematic .stepdeck-total-label-break {
+  left: var(--step-break-pct, 77.358%);
+  transform: translateX(-50%);
+}
+.prograde-schematic .stepdeck-total-label-end {
+  right: 0;
+}
+.prograde-schematic .trailer-truck {
+  left: 0;
+  right: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  background: rgba(2, 6, 23, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* Category legend */
+.pg-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 8px;
+  padding: 6px 8px 8px;
+}
+.pg-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  line-height: 1.15;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.pg-legend-swatch {
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+  border: 1px solid color-mix(in srgb, var(--accent, #137fec) 82%, white 18%);
+  background: color-mix(in srgb, var(--accent, #137fec) 20%, transparent);
+  box-shadow: inset 0 0 10px color-mix(in srgb, var(--accent, #137fec) 30%, transparent);
+}
+
+.pg-hover-tooltip {
+  position: fixed;
+  z-index: 4000;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.85);
+  background: rgba(2, 6, 23, 0.97);
+  color: #e2e8f0;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.pg-hover-tooltip.hidden {
+  display: none;
+}
+.pg-hover-tooltip-row + .pg-hover-tooltip-row {
+  margin-top: 2px;
+}
+
+/* Manifest table */
+.pg-data-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.66fr) minmax(0, 1.34fr);
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+.pg-data-grid > .card {
+  min-height: 0;
+  height: 100%;
+  margin-top: 0 !important;
+}
+.pg-data-grid > .card + .card {
+  margin-top: 0 !important;
+}
+.manifest-wrap {
+  margin-top: 0;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.manifest-wrap .card-header {
+  background: linear-gradient(90deg, rgba(14, 36, 66, 0.92), rgba(10, 26, 53, 0.88));
+  border-bottom: 1px solid rgba(56, 189, 248, 0.24);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px !important;
+}
+.manifest-wrap .card-subtitle {
+  color: rgba(186, 230, 253, 0.82);
+}
+.manifest-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  background: rgba(2, 6, 23, 0.36);
+}
+.manifest-table {
+  width: auto;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 10.5px;
+  line-height: 1.28;
+}
+.manifest-table th,
+.manifest-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 5px 6px;
+  text-align: left;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+.manifest-table th {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: rgba(186, 230, 253, 0.9);
+  background: rgba(14, 49, 84, 0.78);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.manifest-table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.35);
+}
+.manifest-table tbody tr:hover {
+  background: rgba(14, 116, 144, 0.24);
+}
+.manifest-table td.mono {
+  font-family: var(--font-mono);
+  color: rgba(226, 232, 240, 0.96);
+}
+.manifest-table .manifest-col-num {
+  text-align: right;
+}
+.manifest-table .manifest-col-unit { width: 34px; }
+.manifest-table td.manifest-col-total {
+  color: rgba(147, 197, 253, 0.98);
+  font-weight: 700;
+}
+
+/* Inventory gap table */
+.inventory-wrap {
+  margin-top: 0;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.inventory-wrap .card-header {
+  background: linear-gradient(90deg, rgba(9, 34, 45, 0.94), rgba(10, 42, 51, 0.88));
+  border-bottom: 1px solid rgba(45, 212, 191, 0.26);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px !important;
+}
+.inventory-header-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.inventory-header-stats {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.inventory-header-stat {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(15, 23, 42, 0.52);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: rgba(191, 219, 254, 0.96);
+}
+.inventory-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  background: rgba(2, 6, 23, 0.34);
+}
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  line-height: 1.24;
+}
+.inventory-table th,
+.inventory-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 6px 7px;
+  text-align: left;
+  vertical-align: middle;
+}
+.inventory-table th {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: rgba(167, 243, 208, 0.9);
+  background: rgba(6, 44, 52, 0.44);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.inventory-table th.inventory-stack-col {
+  min-width: 110px;
+  padding: 5px 6px;
+}
+.inventory-stack-card {
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  border-radius: 6px;
+  background: linear-gradient(145deg, rgba(8, 38, 49, 0.78), rgba(6, 30, 41, 0.76));
+  padding: 4px 6px;
+}
+.inventory-stack-card-title {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: rgba(153, 246, 228, 0.95);
+  text-transform: uppercase;
+}
+.inventory-stack-card-metric {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: rgba(226, 232, 240, 0.96);
+  line-height: 1.15;
+}
+.inventory-table th.inventory-available-col {
+  color: rgba(134, 239, 172, 0.98);
+  text-shadow: 0 0 8px rgba(74, 222, 128, 0.25);
+}
+.inventory-table tbody tr:nth-child(even) {
+  background: rgba(10, 24, 34, 0.3);
+}
+.inventory-table tbody tr.inventory-has-available {
+  box-shadow: inset 2px 0 0 rgba(74, 222, 128, 0.72);
+}
+.inventory-table tbody tr:hover {
+  background: rgba(20, 83, 45, 0.25);
+}
+.inventory-table td.mono {
+  font-family: var(--font-mono);
+  color: rgba(226, 232, 240, 0.96);
+}
+.inventory-avail {
+  text-align: center;
+}
+.inventory-avail-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  background: rgba(15, 23, 42, 0.64);
+  color: rgba(226, 232, 240, 0.92);
+  font-weight: 700;
+}
+.inventory-avail-pill.has-stock {
+  border-color: rgba(74, 222, 128, 0.72);
+  background: linear-gradient(145deg, rgba(20, 83, 45, 0.78), rgba(16, 185, 129, 0.26));
+  color: rgba(187, 247, 208, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.2);
+}
+.inventory-avail-pill.no-stock {
+  color: rgba(148, 163, 184, 0.92);
+}
+.inventory-add-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.56);
+  background: linear-gradient(145deg, rgba(30, 58, 138, 0.78), rgba(14, 116, 144, 0.62));
+  color: rgba(224, 242, 254, 0.98);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease, opacity .12s ease;
+}
+.inventory-add-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  filter: brightness(1.08);
+}
+.inventory-add-btn:active:not(:disabled) {
+  cursor: pointer;
+  transform: translateY(0);
+}
+.inventory-add-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: rgba(71, 85, 105, 0.52);
+  background: rgba(30, 41, 59, 0.64);
+  color: rgba(148, 163, 184, 0.9);
+}
+.inventory-add-btn.dragging {
+  opacity: 0.62;
+  filter: saturate(1.2);
+}
+.inventory-stack-fit-cell {
+  text-align: center;
+  min-width: 82px;
+}
+.inventory-fit-yes {
+  color: rgba(74, 222, 128, 0.98);
+  font-weight: 700;
+}
+.inventory-fit-no {
+  color: rgba(248, 250, 252, 0.78);
+}
+.inventory-unmapped {
+  color: rgba(253, 224, 71, 0.98);
+  font-weight: 700;
+  background: rgba(113, 63, 18, 0.35);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+@media (max-width: 1320px) {
+  body {
+    overflow: auto;
+  }
+  .main-content {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .canvas-top-bar {
+    align-items: stretch;
+  }
+  .pg-top-left,
+  .pg-top-middle,
+  .pg-top-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .pg-top-actions {
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+  .pg-layout {
+    height: auto;
+    overflow: visible;
+    flex-direction: column;
+  }
+  .pg-data-grid {
+    grid-template-columns: 1fr;
+  }
+  .inventory-header-row,
+  .inventory-header-stats {
+    flex-wrap: wrap;
+  }
+  .pg-sidebar {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set category_palette = category_palette | default({'unknown': '#64748b'}) %}
+{% set category_legend = category_legend | default([('unknown', 'Unknown')]) %}
+
+{% if session.status == 'stale' %}
+<div class="stale-banner" id="pg-stale-banner">
+  Warning: settings changed since last validation. Constraint check below uses current assumptions.
+</div>
+{% endif %}
+
+<!-- -- Top Bar ------------------------------------- -->
+<div class="canvas-top-bar" id="pg-top-bar">
+  <div class="pg-top-left">
+    <div class="pg-session-chip">
+      <div class="pg-session-id-row">
+        <span class="pg-session-id-label">Session ID</span>
+        <span class="pg-session-id-value">{{ session_display_id or session.session_id[:8] }}</span>
+        <span class="badge {% if session.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}">
+          {{ session.brand | upper }}
+        </span>
+        {% if session.is_saved %}
+        <span class="badge badge-success">Saved</span>
+        {% else %}
+        <span class="badge badge-warning">Not Saved</span>
+        {% endif %}
+      </div>
+      <div class="pg-session-meta">
+        <span class="pg-session-name">{{ session.session_label or 'Untitled Session' }}</span>
+        <span class="pg-session-sep">&middot;</span>
+        <span>{{ session.carrier_type }}</span>
+        <span class="pg-session-sep">&middot;</span>
+        <span>{{ session.builder_name or session.planner_name or 'Planner Unassigned' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pg-top-middle">
+    <div class="brand-path-group" aria-label="Create load">
+      <span class="brand-path-label">Brand</span>
+      <span class="brand-path-btn active">{{ "Big Tex" if selected_brand == "bigtex" else "PJ" }}</span>
+      <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}">Create Load</a>
+    </div>
+    <div id="violation-summary">
+      {% if violations_error > 0 %}
+        <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
+      {% endif %}
+      {% if violations_warning > 0 %}
+        <span class="badge badge-warning" style="margin-left:4px">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
+      {% endif %}
+      {% if violations_error == 0 and violations_warning == 0 %}
+        <span class="badge badge-success">Clear</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="pg-top-actions">
+    <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
+    <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
+    <a href="{{ url_for('prograde.export_load', session_id=session.session_id, brand=selected_brand) }}"
+       class="btn btn-secondary btn-sm pg-action-btn" target="_blank">Export / Print</a>
+    <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
+  </div>
+  <div class="pg-drag-hint-row">
+    <span>Drag unit body to move entire stack. Drag unit number badge to move only that unit.</span>
+    <span id="stack-drag-live-indicator" class="stack-drag-live-indicator hidden" aria-live="polite"></span>
+  </div>
+</div>
+<div id="pg-stack-drop-marker" class="pg-stack-drop-marker" aria-hidden="true"></div>
+
+<!-- -- Main Canvas + Sidebar ---------------------- -->
+<div class="page-body pg-layout">
+
+  <!-- Canvas -->
+  {% include "prograde/_load_canvas.html" %}
+
+  <!-- -- Sidebar ------------------------------- -->
+  <div class="pg-sidebar">
+
+    <!-- SKU Picker -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div>
+          <div class="card-title">Add SKUs</div>
+          <div class="card-subtitle" style="margin-top:2px;">
+            {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as Category -&gt; Model -&gt; Item. Sections auto-collapse while browsing.
+          </div>
+        </div>
+      </div>
+      <div class="picker-search">
+        <div class="picker-search-row">
+          <input type="text" id="sku-filter" class="form-control"
+                 placeholder="Filter by category, model, item, or deck dimensions..." style="font-size:12px" />
+          {% if session.brand == 'bigtex' %}
+          <div class="sku-view-controls" aria-label="SKU hierarchy view">
+            <button type="button" class="sku-view-btn" id="sku-collapse-models-btn">Models</button>
+            <button type="button" class="sku-view-btn" id="sku-expand-items-btn">Items</button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="sku-list" id="sku-list"></div>
+      <div class="sku-empty hidden" id="sku-empty">No SKUs match this filter.</div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
+        <div class="card-title">SKU Visual Key</div>
+      </div>
+      <div class="pg-legend">
+        {% for cat_key, cat_label in category_legend %}
+        <div class="pg-legend-item">
+          <span class="pg-legend-swatch" style="--accent: {{ category_palette.get(cat_key, '#137fec') }}"></span>
+          <span>{{ cat_label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Violation Panel -->
+    <div class="card" style="padding:0;overflow:hidden" id="violation-panel">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div class="card-title">Constraint Check</div>
+        <span id="viol-count-badge">
+          {% if violations_error > 0 %}
+            <span class="badge badge-error">{{ violations_error }}E</span>
+          {% endif %}
+          {% if violations_warning > 0 %}
+            <span class="badge badge-warning" style="margin-left:3px">{{ violations_warning }}W</span>
+          {% endif %}
+          {% if violations_info > 0 %}
+            <span class="badge badge-info" style="margin-left:3px">{{ violations_info }}I</span>
+          {% endif %}
+        </span>
+      </div>
+
+      <div style="max-height:300px;overflow-y:auto;padding:var(--space-sm)">
+        {% if violations %}
+
+          {% set errors   = violations | selectattr('severity','equalto','error')   | list %}
+          {% set warnings = violations | selectattr('severity','equalto','warning') | list %}
+          {% set infos    = violations | selectattr('severity','equalto','info')    | list %}
+
+          {% if errors %}
+          <div class="viol-group-hdr">Errors</div>
+          {% for v in errors %}
+          <div class="violation-item error">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+              {% if v.suggested_fix %}
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          {% if warnings %}
+          <div class="viol-group-hdr" style="margin-top:4px">Warnings</div>
+          {% for v in warnings %}
+          <div class="violation-item warning {% if v.acknowledged %}acknowledged{% endif %}"
+               id="viol-{{ v.rule_code | replace('_','-') }}">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+              {% if v.suggested_fix %}
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
+              {% endif %}
+              {% if not v.acknowledged %}
+              <button class="violation-ack-btn"
+                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'add', this)">
+                Acknowledge
+              </button>
+              {% else %}
+              <button class="violation-unack-btn"
+                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'remove', this)">
+                Un-acknowledge
+              </button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          {% if infos %}
+          <div class="viol-group-hdr" style="margin-top:4px">Notes</div>
+          {% for v in infos %}
+          <div class="violation-item info">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+        {% else %}
+        <div style="padding:16px;text-align:center;font-size:12px;color:var(--status-success)">
+          No constraint violations
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /page-body -->
+
+<!-- -- Zone / Stack Picker Modal ------------------- -->
+<div class="modal-backdrop" id="zone-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Add to which zone?</div>
+    <div class="modal-options" id="modal-options"></div>
+    <div style="margin-top:14px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SESSION_ID = "{{ session.session_id }}";
+const SESSION_BRAND = "{{ session.brand }}";
+const ZONES = {{ zones | tojson }};
+const ZONE_LABELS = {{ zone_labels | tojson }};
+const SESSION_API_BASE = "{{ url_for('prograde.api_check', session_id='__SESSION_ID__') }}"
+  .replace("__SESSION_ID__", SESSION_ID)
+  .replace(/\/check$/, "");
+const INVENTORY_UPLOAD_ENDPOINT = "{{ url_for('prograde.api_upload_bt_inventory', session_id=session.session_id) }}";
+const SKU_RAW = {{ skus | tojson }};
+const SKU_FILTER = document.getElementById("sku-filter");
+const SKU_LIST = document.getElementById("sku-list");
+const SKU_EMPTY = document.getElementById("sku-empty");
+const SKU_COLLAPSE_MODELS_BTN = document.getElementById("sku-collapse-models-btn");
+const SKU_EXPAND_ITEMS_BTN = document.getElementById("sku-expand-items-btn");
+const RENDER_MODE_STORAGE_KEY = "prograde_pj_render_mode";
+const PJ_GOOSENECK_MODEL_PREFIXES = new Set(["LD", "LQ", "LS", "LX", "LY", "PL"]);
+const PJ_CRISSCROSS_ASSUMPTIONS = {{ pj_crisscross_assumptions | default({}) | tojson }};
+const PJ_GN_CRISSCROSS_LENGTH_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.length_save_ft ?? 2.0);
+const PJ_GN_CRISSCROSS_HEIGHT_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.height_save_ft ?? 1.0);
+const PJ_GN_CRISSCROSS_WIDTH_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.width_save_ft ?? 0.6);
+
+let pendingItem = null;
+let pendingTongueMode = null;
+let pendingDumpHeightFt = null;
+let pendingZone = null;
+let pendingSeq = null;
+let pendingTarget = null;
+let draggedSkuItem = null;
+let activeDrag = null;
+let skuHierarchyMode = "models";
+let suppressSkuAutoCollapse = false;
+const pjSkuTongueSelection = new Map();
+const pjSkuDumpHeightSelection = new Map();
+
+function getRenderModeInputs() {
+  return Array.from(document.querySelectorAll('input[name="render-mode"]'));
+}
+
+function getSchematicRoot() {
+  return document.querySelector(".prograde-schematic");
+}
+
+function initRenderModeToggle() {
+  const schematicRoot = getSchematicRoot();
+  const renderModeInputs = getRenderModeInputs();
+  if (SESSION_BRAND !== "pj" || !schematicRoot || !renderModeInputs.length) {
+    return;
+  }
+
+  const applyRenderMode = (modeRaw) => {
+    const mode = String(modeRaw || "").toLowerCase() === "standard" ? "standard" : "advanced";
+    schematicRoot.classList.remove("render-mode-standard", "render-mode-advanced");
+    schematicRoot.classList.add(mode === "standard" ? "render-mode-standard" : "render-mode-advanced");
+    renderModeInputs.forEach((input) => {
+      input.checked = input.value === mode;
+    });
+    try {
+      localStorage.setItem(RENDER_MODE_STORAGE_KEY, mode);
+    } catch (e) {}
+    window.requestAnimationFrame(initStepdeckMeasureRow);
+  };
+
+  let initialMode = "advanced";
+  try {
+    const savedMode = localStorage.getItem(RENDER_MODE_STORAGE_KEY);
+    if (savedMode === "standard" || savedMode === "advanced") {
+      initialMode = savedMode;
+    }
+  } catch (e) {}
+  applyRenderMode(initialMode);
+
+  renderModeInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      applyRenderMode(input.value);
+    });
+  });
+}
+
+function initSpatialScale() {
+  const spatialSvg = document.getElementById("pg-canvas-svg");
+  if (spatialSvg) {
+    const applySpatialScale = () => {
+      const rect = spatialSvg.getBoundingClientRect();
+      const totalLengthFt = Number(spatialSvg.dataset.totalLengthFt || 53);
+      const maxHeightFt = Number(spatialSvg.dataset.maxHeightFt || 13.5);
+      if (!Number.isFinite(rect.width) || rect.width <= 0) return;
+      if (!Number.isFinite(rect.height) || rect.height <= 0) return;
+      const pxPerFt = rect.width / (Number.isFinite(totalLengthFt) && totalLengthFt > 0 ? totalLengthFt : 53);
+      const pyPerFt = rect.height / (Number.isFinite(maxHeightFt) && maxHeightFt > 0 ? maxHeightFt : 13.5);
+      spatialSvg.style.setProperty("--px-per-ft", `${pxPerFt}`);
+      spatialSvg.style.setProperty("--py-per-ft", `${pyPerFt}`);
+    };
+    applySpatialScale();
+    if (window.__pgSpatialScaleHandler) {
+      window.removeEventListener("resize", window.__pgSpatialScaleHandler);
+    }
+    window.__pgSpatialScaleHandler = applySpatialScale;
+    window.addEventListener("resize", window.__pgSpatialScaleHandler);
+    return;
+  }
+
+  const schematicRoot = getSchematicRoot();
+  if (!schematicRoot) return;
+
+  const applyScale = () => {
+    const zonePanels = Array.from(schematicRoot.querySelectorAll(".trailer-deck[data-drop-zone]"));
+    if (!zonePanels.length) return;
+
+    const pxCandidates = [];
+    const heightPxCandidates = [];
+    zonePanels.forEach((zonePanel) => {
+      const track = zonePanel.querySelector(".zone-columns-scroll");
+      if (!track) return;
+      const trackWidth = track.getBoundingClientRect().width;
+      if (!Number.isFinite(trackWidth) || trackWidth <= 0) return;
+      const slotWidthTotal = Array.from(track.querySelectorAll(".column-drop-slot")).reduce((sum, slot) => {
+        const slotWidth = slot.getBoundingClientRect().width;
+        return sum + (Number.isFinite(slotWidth) ? slotWidth : 0);
+      }, 0);
+      const usableTrackWidth = Math.max(trackWidth - slotWidthTotal, trackWidth * 0.55);
+
+      const capRaw = Number(zonePanel.dataset.zoneCap || 0);
+      const usedRaw = Number(zonePanel.dataset.zoneUsed || 0);
+      const capFeet = Number.isFinite(capRaw) && capRaw > 0 ? capRaw : 0;
+      const usedFeet = Number.isFinite(usedRaw) && usedRaw > 0 ? usedRaw : 0;
+      const neededFeet = capFeet > 0 ? capFeet : Math.max(usedFeet, 1);
+      pxCandidates.push(usableTrackWidth / neededFeet);
+
+      const stage = zonePanel.querySelector(".deck-stage");
+      if (!stage) return;
+      const stageHeight = stage.getBoundingClientRect().height;
+      if (!Number.isFinite(stageHeight) || stageHeight <= 0) return;
+      const heightCapRaw = Number(zonePanel.dataset.zoneHeightCap || 0);
+      const heightCapFeet = Number.isFinite(heightCapRaw) && heightCapRaw > 0 ? heightCapRaw : 0;
+      const neededHeightFeet = heightCapFeet > 0 ? heightCapFeet : 4;
+      const usableStageHeight = Math.max(stageHeight - 6, 40);
+      heightPxCandidates.push(usableStageHeight / neededHeightFeet);
+    });
+
+    if (pxCandidates.length) {
+      const pxPerFootRaw = Math.min(...pxCandidates);
+      const pxPerFoot = Math.max(1.4, pxPerFootRaw);
+      schematicRoot.style.setProperty("--deck-ft-px", `${pxPerFoot}px`);
+    }
+
+    if (heightPxCandidates.length) {
+      const heightPxPerFootRaw = Math.min(...heightPxCandidates);
+      const heightPxPerFoot = Math.max(12.0, Math.min(heightPxPerFootRaw, 22.0));
+      schematicRoot.style.setProperty("--height-ft-px", `${heightPxPerFoot}px`);
+    }
+
+    window.requestAnimationFrame(initStepdeckMeasureRow);
+  };
+
+  applyScale();
+  if (window.__pgSpatialScaleHandler) {
+    window.removeEventListener("resize", window.__pgSpatialScaleHandler);
+  }
+  window.__pgSpatialScaleHandler = applyScale;
+  window.addEventListener("resize", window.__pgSpatialScaleHandler);
+}
+
+function initStepdeckMeasureRow() {
+  const schematicRoot = getSchematicRoot();
+  if (!schematicRoot) return;
+  const deckRow = schematicRoot.querySelector(".trailer-deck-row.step-deck-frame");
+  const measureTrack = schematicRoot.querySelector(".stepdeck-measure-track-live");
+  if (!deckRow || !measureTrack) return;
+
+  const totalCapRaw = Number(measureTrack.dataset.totalCap || 0);
+  const totalCap = Number.isFinite(totalCapRaw) && totalCapRaw > 0 ? totalCapRaw : 53.0;
+  const deckRect = deckRow.getBoundingClientRect();
+  const trackRect = measureTrack.getBoundingClientRect();
+  const trackWidth = trackRect.width;
+  if (!Number.isFinite(trackWidth) || trackWidth <= 0) return;
+
+  const cols = Array.from(deckRow.querySelectorAll(".position-column[data-stack-col]"));
+  const stackEntries = cols.map((col) => {
+    const rect = col.getBoundingClientRect();
+    const leftPx = rect.left - deckRect.left;
+    const widthPx = rect.width;
+    const feetRaw = parseFloat(getComputedStyle(col).getPropertyValue("--deck-span"));
+    const feet = Number.isFinite(feetRaw) && feetRaw > 0 ? feetRaw : 0;
+    return { leftPx, widthPx, feet };
+  }).filter((entry) => entry.widthPx > 1 && entry.feet > 0.02)
+    .sort((a, b) => a.leftPx - b.leftPx);
+
+  measureTrack.innerHTML = "";
+  if (!stackEntries.length) {
+    const empty = document.createElement("div");
+    empty.className = "stepdeck-live-segment is-remaining";
+    empty.style.left = "0px";
+    empty.style.width = `${trackWidth}px`;
+    empty.innerHTML = `<span class="stepdeck-live-segment-label">${totalCap.toFixed(1)} ft remaining</span>`;
+    measureTrack.appendChild(empty);
+    return;
+  }
+
+  let totalStackFeet = 0;
+  stackEntries.forEach((entry) => { totalStackFeet += entry.feet; });
+  const remainingFeet = Math.max(totalCap - totalStackFeet, 0);
+
+  stackEntries.forEach((entry, idx) => {
+    const seg = document.createElement("div");
+    seg.className = "stepdeck-live-segment is-stack";
+    const left = Math.max(0, Math.min(entry.leftPx, trackWidth));
+    const width = Math.max(1, Math.min(entry.widthPx, trackWidth - left));
+    seg.style.left = `${left}px`;
+    seg.style.width = `${width}px`;
+    seg.innerHTML = `<span class="stepdeck-live-segment-label">Stack ${idx + 1}: ${entry.feet.toFixed(1)} ft</span>`;
+    measureTrack.appendChild(seg);
+  });
+
+  if (remainingFeet <= 0.02) return;
+
+  let bestGap = null;
+  for (let i = 0; i < stackEntries.length - 1; i += 1) {
+    const gapLeft = stackEntries[i].leftPx + stackEntries[i].widthPx;
+    const gapRight = stackEntries[i + 1].leftPx;
+    const gapWidth = gapRight - gapLeft;
+    if (gapWidth <= 1) continue;
+    if (!bestGap || gapWidth > bestGap.widthPx) {
+      bestGap = { leftPx: gapLeft, widthPx: gapWidth };
+    }
+  }
+
+  if (!bestGap) {
+    const leftGapWidth = stackEntries[0].leftPx;
+    const rightGapLeft = stackEntries[stackEntries.length - 1].leftPx + stackEntries[stackEntries.length - 1].widthPx;
+    const rightGapWidth = trackWidth - rightGapLeft;
+    if (rightGapWidth >= leftGapWidth && rightGapWidth > 1) {
+      bestGap = { leftPx: rightGapLeft, widthPx: rightGapWidth };
+    } else if (leftGapWidth > 1) {
+      bestGap = { leftPx: 0, widthPx: leftGapWidth };
+    }
+  }
+
+  if (!bestGap) return;
+  const rem = document.createElement("div");
+  rem.className = "stepdeck-live-segment is-remaining";
+  rem.style.left = `${Math.max(0, bestGap.leftPx)}px`;
+  rem.style.width = `${Math.max(1, bestGap.widthPx)}px`;
+  rem.innerHTML = `<span class="stepdeck-live-segment-label">${remainingFeet.toFixed(1)} ft remaining</span>`;
+  measureTrack.appendChild(rem);
+}
+
+function _feetNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _formatFeet(value) {
+  const rounded = Math.round(_feetNumber(value) * 10) / 10;
+  return `${rounded.toFixed(1)}'`;
+}
+
+function _skuCategoryLabel(sku) {
+  if (SESSION_BRAND === "pj") {
+    const picker = String(sku.picker_category_label || sku.picker_category || "").trim();
+    const fallback = String(sku.pj_category || sku.mcat || "").trim();
+    return picker || fallback || "Uncategorized";
+  }
+  const resolved = String(sku.mcat || sku.pj_category || "Uncategorized").trim();
+  return resolved || "Uncategorized";
+}
+
+function _skuModelLabel(sku) {
+  const resolved = String(sku.model || "Unknown Model").trim();
+  return resolved || "Unknown Model";
+}
+
+function _pjTongueMode(rawMode) {
+  return String(rawMode || "").toLowerCase() === "gooseneck" ? "gooseneck" : "standard";
+}
+
+function _positionUsesGooseneckById(positionId) {
+  const id = String(positionId || "").trim();
+  if (!id) return false;
+  const unitCard = document.querySelector(`.unit-card[data-pos-id="${id}"]`);
+  if (!unitCard) return false;
+  return _pjTongueMode(unitCard.dataset.tongueProfile || "standard") === "gooseneck";
+}
+
+function _stackTargetUsesGooseneck(target) {
+  if (!target) return false;
+  if (target.matches && target.matches(".unit-card[data-pos-id]")) {
+    return _positionUsesGooseneckById(target.dataset.posId);
+  }
+  if (target.matches && target.matches("[data-stack-drop]")) {
+    return _positionUsesGooseneckById(target.dataset.target);
+  }
+  return false;
+}
+
+function _payloadUsesGooseneck(payload) {
+  if (!payload) return false;
+  if (payload.type === "sku") {
+    return _pjTongueMode(payload.tongueMode || "standard") === "gooseneck";
+  }
+  if (payload.type === "unit") {
+    return _positionUsesGooseneckById(payload.positionId);
+  }
+  return false;
+}
+
+function _positionFacingIsRotatedById(positionId) {
+  const id = String(positionId || "").trim();
+  if (!id) return false;
+  const unitCard = document.querySelector(`.unit-card[data-pos-id="${id}"]`);
+  if (!unitCard) return false;
+  return String(unitCard.dataset.isRotated || "0") === "1";
+}
+
+function _stackTargetFacingIsRotated(target) {
+  if (!target) return false;
+  if (target.matches && target.matches(".unit-card[data-pos-id]")) {
+    return String(target.dataset.isRotated || "0") === "1";
+  }
+  if (target.matches && target.matches("[data-stack-drop]")) {
+    return _positionFacingIsRotatedById(target.dataset.target);
+  }
+  return false;
+}
+
+function _payloadFacingIsRotated(payload) {
+  if (!payload) return false;
+  if (payload.type === "sku") {
+    // New units are inserted non-rotated by default.
+    return false;
+  }
+  if (payload.type === "unit") {
+    return _positionFacingIsRotatedById(payload.positionId);
+  }
+  return false;
+}
+
+function _shouldEnableGnCrisscrossOnDrop(payload, target) {
+  if (SESSION_BRAND !== "pj") return false;
+  if (!_payloadUsesGooseneck(payload)) return false;
+  if (!_stackTargetUsesGooseneck(target)) return false;
+  return _payloadFacingIsRotated(payload) === _stackTargetFacingIsRotated(target);
+}
+
+function _pjTongueProfile(sku) {
+  const explicit = _pjTongueMode(String(sku.picker_tongue_profile || "").trim());
+  if (String(sku.picker_tongue_profile || "").trim()) {
+    return explicit;
+  }
+  const category = String(sku.pj_category || "").trim().toLowerCase();
+  if (category.includes("gooseneck") || category === "pintle") {
+    return "gooseneck";
+  }
+  const model = _skuModelLabel(sku).toUpperCase();
+  const modelPrefix = model.replace(/[^A-Z0-9]/g, "").slice(0, 2);
+  if (PJ_GOOSENECK_MODEL_PREFIXES.has(modelPrefix)) {
+    return "gooseneck";
+  }
+  return "standard";
+}
+
+function _skuItemNumber(sku) {
+  return String(sku.item_number || "").trim();
+}
+
+function _skuDescription(sku) {
+  return String(sku.description || "").trim();
+}
+
+function _pjDeckLengthFt(sku) {
+  return _feetNumber(
+    sku.deck_length_ft
+    ?? sku.bed_length_measured
+    ?? sku.bed_length_stated
+    ?? sku.bed_length
+    ?? 0
+  );
+}
+
+function _pjDeckHeightFt(sku) {
+  return _feetNumber(
+    sku.deck_height_ft
+    ?? sku.height_top_ft
+    ?? sku.height_mid_ft
+    ?? 0
+  );
+}
+
+function _pjDeckProfileLabel(sku) {
+  return `L ${_formatFeet(_pjDeckLengthFt(sku))} x H ${_formatFeet(_pjDeckHeightFt(sku))}`;
+}
+
+function _pjDisplayItemCode(sku) {
+  const explicit = String(sku.picker_item_code || "").trim().toUpperCase();
+  if (explicit) return explicit;
+  const itemNumber = _skuItemNumber(sku).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!itemNumber) return "";
+  let modelPrefix = _pjModelCode(sku);
+  if (!modelPrefix) {
+    modelPrefix = itemNumber.slice(0, 2);
+  }
+  let tail = itemNumber.startsWith(modelPrefix) ? itemNumber.slice(modelPrefix.length) : itemNumber;
+  tail = tail.replace(/^[A-Z]+/, "");
+  let digits = (tail.match(/\d/g) || []).join("");
+  if (!digits) {
+    digits = (itemNumber.match(/\d/g) || []).join("");
+  }
+  const category = String(sku.pj_category || "").trim().toLowerCase();
+  if (
+    digits.length >= 3
+    && digits.startsWith("2")
+    && (modelPrefix === "C4" || modelPrefix === "C5" || modelPrefix.startsWith("U") || category === "utility")
+  ) {
+    digits = digits.slice(1);
+  }
+  if (digits.length < 2) return itemNumber;
+  return `${modelPrefix}${digits.slice(0, 2)}`;
+}
+
+function _skuTotalLength(sku) {
+  const explicit = Number(sku.total_footprint);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return explicit;
+  }
+  const bed = _feetNumber(sku.bed_length || sku.bed_length_measured || sku.bed_length_stated);
+  const tongue = _feetNumber(sku.tongue || sku.tongue_feet);
+  return bed + tongue;
+}
+
+function updateSkuHierarchyButtons() {
+  if (!SKU_COLLAPSE_MODELS_BTN || !SKU_EXPAND_ITEMS_BTN) return;
+  SKU_COLLAPSE_MODELS_BTN.classList.toggle("active", skuHierarchyMode === "models");
+  SKU_EXPAND_ITEMS_BTN.classList.toggle("active", skuHierarchyMode === "items");
+}
+
+function applySkuHierarchyMode() {
+  if (SESSION_BRAND !== "bigtex") return;
+  const showItems = skuHierarchyMode === "items";
+  suppressSkuAutoCollapse = true;
+  try {
+    document.querySelectorAll(".sku-group").forEach((group) => {
+      group.open = true;
+    });
+    document.querySelectorAll(".sku-model-group").forEach((group) => {
+      group.open = showItems;
+    });
+  } finally {
+    suppressSkuAutoCollapse = false;
+  }
+  updateSkuHierarchyButtons();
+}
+
+function shouldAutoCollapseSkuSections(queryOverride = null) {
+  const query = queryOverride == null
+    ? (SKU_FILTER ? SKU_FILTER.value : "")
+    : queryOverride;
+  if (String(query || "").trim()) return false;
+  if (SESSION_BRAND === "bigtex" && skuHierarchyMode === "items") return false;
+  return true;
+}
+
+function bindSkuAutoCollapseHandlers() {
+  document.querySelectorAll(".sku-group, .sku-model-group").forEach((group) => {
+    if (group.dataset.autoCollapseBound === "1") return;
+    group.dataset.autoCollapseBound = "1";
+    group.addEventListener("toggle", () => {
+      if (suppressSkuAutoCollapse) return;
+      if (!group.open || !shouldAutoCollapseSkuSections()) return;
+
+      if (group.classList.contains("sku-group")) {
+        document.querySelectorAll(".sku-group").forEach((other) => {
+          if (other === group || other.style.display === "none") return;
+          other.open = false;
+        });
+        return;
+      }
+
+      const modelWrap = group.closest(".sku-model-wrap");
+      if (!modelWrap) return;
+      modelWrap.querySelectorAll(":scope > .sku-model-group").forEach((other) => {
+        if (other === group || other.style.display === "none") return;
+        other.open = false;
+      });
+    });
+  });
+}
+
+function initSkuHierarchyControls() {
+  if (SESSION_BRAND !== "bigtex") return;
+  if (SKU_COLLAPSE_MODELS_BTN && SKU_COLLAPSE_MODELS_BTN.dataset.bound !== "1") {
+    SKU_COLLAPSE_MODELS_BTN.dataset.bound = "1";
+    SKU_COLLAPSE_MODELS_BTN.addEventListener("click", () => {
+      skuHierarchyMode = "models";
+      applySkuFilter(SKU_FILTER ? SKU_FILTER.value : "");
+    });
+  }
+  if (SKU_EXPAND_ITEMS_BTN && SKU_EXPAND_ITEMS_BTN.dataset.bound !== "1") {
+    SKU_EXPAND_ITEMS_BTN.dataset.bound = "1";
+    SKU_EXPAND_ITEMS_BTN.addEventListener("click", () => {
+      skuHierarchyMode = "items";
+      applySkuFilter(SKU_FILTER ? SKU_FILTER.value : "");
+    });
+  }
+  updateSkuHierarchyButtons();
+}
+
+function _pjModelCode(sku) {
+  const explicit = String(sku.picker_model_code || "").trim().toUpperCase();
+  if (explicit) return explicit;
+  const model = _skuModelLabel(sku).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (model) return model.slice(0, 2);
+  const item = _skuItemNumber(sku).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return item.slice(0, 2);
+}
+
+function _normalizePjDumpHeightFt(rawValue, fallback = null) {
+  const value = Number(rawValue);
+  if (!Number.isFinite(value)) return fallback;
+  if (Math.abs(value - 3.0) <= 0.05) return 3.0;
+  if (Math.abs(value - 4.0) <= 0.05) return 4.0;
+  return fallback;
+}
+
+function _isPjDumpSku(sku) {
+  const pickerCategory = String(sku.picker_category || "").trim().toLowerCase();
+  if (pickerCategory === "dump") return true;
+  const rawCategory = String(sku.pj_category || "").trim().toLowerCase();
+  return rawCategory.includes("dump");
+}
+
+function _getSkuTongueSelection(itemNumber, fallbackMode) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  if (!key) return _pjTongueMode(fallbackMode || "standard");
+  if (pjSkuTongueSelection.has(key)) {
+    return _pjTongueMode(pjSkuTongueSelection.get(key));
+  }
+  return _pjTongueMode(fallbackMode || "standard");
+}
+
+function _setSkuTongueSelection(itemNumber, mode) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  if (!key) return;
+  pjSkuTongueSelection.set(key, _pjTongueMode(mode));
+}
+
+function _getSkuDumpHeightSelection(itemNumber, fallbackHeightFt) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  const fallback = _normalizePjDumpHeightFt(fallbackHeightFt, null);
+  if (!key) return fallback;
+  if (pjSkuDumpHeightSelection.has(key)) {
+    return _normalizePjDumpHeightFt(pjSkuDumpHeightSelection.get(key), fallback);
+  }
+  return fallback;
+}
+
+function _setSkuDumpHeightSelection(itemNumber, dumpHeightFt) {
+  const key = String(itemNumber || "").trim().toUpperCase();
+  const normalized = _normalizePjDumpHeightFt(dumpHeightFt, null);
+  if (!key || normalized === null) return;
+  pjSkuDumpHeightSelection.set(key, normalized);
+}
+
+function buildSkuTreeData() {
+  const tree = new Map();
+  (SKU_RAW || []).forEach((raw) => {
+    const sku = raw || {};
+    const itemNumber = _skuItemNumber(sku);
+    if (!itemNumber) return;
+
+    const tongueProfile = SESSION_BRAND === "pj" ? _pjTongueProfile(sku) : "";
+
+    const category = _skuCategoryLabel(sku);
+    const model = _skuModelLabel(sku);
+    const modelCode = SESSION_BRAND === "pj" ? _pjModelCode(sku) : model;
+    const deckLength = _pjDeckLengthFt(sku);
+    const deckHeight = _pjDeckHeightFt(sku);
+    const deckProfile = _pjDeckProfileLabel(sku);
+    const isDumpProfile = SESSION_BRAND === "pj"
+      ? Boolean(sku.picker_is_dump || _isPjDumpSku(sku))
+      : false;
+    const dumpDefaultHeight = isDumpProfile
+      ? _normalizePjDumpHeightFt(sku.picker_dump_height_ft ?? sku.dump_side_height_ft ?? deckHeight, null)
+      : null;
+    const description = _skuDescription(sku);
+    const totalLength = _skuTotalLength(sku);
+    const itemDisplay = SESSION_BRAND === "pj" ? _pjDisplayItemCode(sku) : itemNumber;
+    const groupLabel = SESSION_BRAND === "pj" ? modelCode : model;
+    const search = `${itemNumber} ${itemDisplay} ${model} ${modelCode} ${category} ${description} ${deckProfile} ${tongueProfile}`.toLowerCase();
+
+    if (!tree.has(category)) {
+      tree.set(category, new Map());
+    }
+    const modelMap = tree.get(category);
+    if (!modelMap.has(groupLabel)) {
+      modelMap.set(groupLabel, []);
+    }
+    modelMap.get(groupLabel).push({
+      itemNumber,
+      itemDisplay,
+      description,
+      totalLength,
+      deckLength,
+      deckHeight,
+      deckProfile,
+      model,
+      modelCode,
+      tongueProfile,
+      isDumpProfile,
+      dumpDefaultHeight,
+      search,
+    });
+  });
+
+  const alphaSort = (a, b) =>
+    String(a[0] || "").localeCompare(String(b[0] || ""), undefined, { numeric: true, sensitivity: "base" });
+  const itemSort = (a, b) =>
+    String(a.itemNumber || "").localeCompare(String(b.itemNumber || ""), undefined, { numeric: true, sensitivity: "base" });
+
+  return Array.from(tree.entries())
+    .sort(alphaSort)
+    .map(([category, modelMap]) => {
+      const models = Array.from(modelMap.entries())
+        .sort(alphaSort)
+        .map(([model, items]) => {
+          items.sort(itemSort);
+          return { model, items, count: items.length };
+        });
+      const count = models.reduce((sum, m) => sum + m.count, 0);
+      return { category, models, count };
+    });
+}
+
+function renderSkuTree() {
+  if (!SKU_LIST) return;
+  SKU_LIST.innerHTML = "";
+
+  const treeData = buildSkuTreeData();
+  treeData.forEach((categoryGroup) => {
+    const catDetails = document.createElement("details");
+    catDetails.className = "sku-group";
+    if (SESSION_BRAND === "bigtex") {
+      catDetails.open = true;
+    }
+
+    const catSummary = document.createElement("summary");
+    catSummary.className = "sku-group-summary";
+    const catLeft = document.createElement("span");
+    catLeft.className = "sku-group-left";
+    const catCaret = document.createElement("span");
+    catCaret.className = "sku-caret";
+    const catLabel = document.createElement("span");
+    catLabel.className = "sku-group-label";
+    catLabel.textContent = categoryGroup.category;
+    catLeft.appendChild(catCaret);
+    catLeft.appendChild(catLabel);
+    const catCount = document.createElement("span");
+    catCount.className = "sku-count-badge";
+    catCount.textContent = String(categoryGroup.count);
+    catSummary.appendChild(catLeft);
+    catSummary.appendChild(catCount);
+    catDetails.appendChild(catSummary);
+
+    const modelWrap = document.createElement("div");
+    modelWrap.className = "sku-model-wrap";
+
+    categoryGroup.models.forEach((modelGroup) => {
+      const modelDetails = document.createElement("details");
+      modelDetails.className = "sku-model-group";
+
+      const modelSummary = document.createElement("summary");
+      modelSummary.className = "sku-model-summary";
+      const modelLeft = document.createElement("span");
+      modelLeft.className = "sku-model-left";
+      const modelCaret = document.createElement("span");
+      modelCaret.className = "sku-caret";
+      const modelLabel = document.createElement("span");
+      modelLabel.className = "sku-model-label";
+      modelLabel.textContent = modelGroup.model;
+      modelLeft.appendChild(modelCaret);
+      modelLeft.appendChild(modelLabel);
+      const modelCount = document.createElement("span");
+      modelCount.className = "sku-count-badge";
+      modelCount.textContent = String(modelGroup.count);
+      modelSummary.appendChild(modelLeft);
+      modelSummary.appendChild(modelCount);
+      modelDetails.appendChild(modelSummary);
+
+      const itemsWrap = document.createElement("div");
+      itemsWrap.className = "sku-items";
+      const itemHeader = document.createElement("div");
+      itemHeader.className = "sku-item-head";
+      if (SESSION_BRAND === "pj") {
+        itemHeader.classList.add("pj-table");
+        itemHeader.innerHTML = "<span>Item</span><span>Deck L</span><span>Deck H</span><span>Tongue</span><span>Dump H</span>";
+      } else {
+        itemHeader.innerHTML = "<span>Item</span><span>Total Length</span>";
+      }
+      itemsWrap.appendChild(itemHeader);
+
+      modelGroup.items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "sku-list-item sku-pick-item";
+        if (SESSION_BRAND === "pj") {
+          row.classList.add("pj-table");
+        }
+        row.draggable = true;
+        row.dataset.item = item.itemNumber;
+        row.dataset.itemLabel = SESSION_BRAND === "pj" ? item.itemDisplay : item.itemNumber;
+        row.dataset.search = item.search;
+        row.dataset.length = SESSION_BRAND === "pj"
+          ? `L ${_formatFeet(item.deckLength)} x H ${_formatFeet(item.deckHeight)}`
+          : _formatFeet(item.totalLength);
+        row.dataset.description = item.description || "";
+        if (SESSION_BRAND === "pj") {
+          const selectedTongue = _getSkuTongueSelection(item.itemNumber, item.tongueProfile);
+          row.dataset.defaultTongue = _pjTongueMode(item.tongueProfile);
+          row.dataset.selectedTongue = selectedTongue;
+          const isDump = item.isDumpProfile === true;
+          row.dataset.isDump = isDump ? "1" : "0";
+          if (isDump) {
+            const defaultDumpHeight = _normalizePjDumpHeightFt(item.dumpDefaultHeight ?? item.deckHeight, null);
+            const selectedDumpHeight = _getSkuDumpHeightSelection(item.itemNumber, defaultDumpHeight);
+            if (defaultDumpHeight !== null) {
+              row.dataset.defaultDumpHeightFt = String(defaultDumpHeight);
+            }
+            if (selectedDumpHeight !== null) {
+              row.dataset.selectedDumpHeightFt = String(selectedDumpHeight);
+            }
+          } else {
+            row.dataset.defaultDumpHeightFt = "";
+            row.dataset.selectedDumpHeightFt = "";
+          }
+        }
+
+        const itemId = document.createElement("span");
+        itemId.className = "sku-item-id";
+        itemId.textContent = SESSION_BRAND === "pj" ? item.itemDisplay : item.itemNumber;
+        const itemLen = document.createElement("span");
+        itemLen.className = "sku-item-length";
+        itemLen.textContent = SESSION_BRAND === "pj" ? _formatFeet(item.deckLength) : _formatFeet(item.totalLength);
+        const itemHeight = document.createElement("span");
+        itemHeight.className = "sku-item-height";
+        if (SESSION_BRAND === "pj") {
+          itemHeight.textContent = _formatFeet(item.deckHeight);
+        }
+        const itemTongue = document.createElement("span");
+        itemTongue.className = "sku-item-tongue";
+        const itemDumpHeight = document.createElement("span");
+        itemDumpHeight.className = "sku-item-dump-height";
+        if (SESSION_BRAND === "pj") {
+          const isDump = row.dataset.isDump === "1";
+          const btnStandard = document.createElement("button");
+          btnStandard.type = "button";
+          btnStandard.className = "sku-row-tongue-btn";
+          btnStandard.dataset.mode = "standard";
+          btnStandard.textContent = "Std";
+
+          const btnGn = document.createElement("button");
+          btnGn.type = "button";
+          btnGn.className = "sku-row-tongue-btn";
+          btnGn.dataset.mode = "gooseneck";
+          btnGn.textContent = "GN";
+
+          const syncButtons = () => {
+            const selected = _pjTongueMode(row.dataset.selectedTongue || row.dataset.defaultTongue || "standard");
+            btnStandard.classList.toggle("active", selected === "standard");
+            btnGn.classList.toggle("active", selected === "gooseneck");
+          };
+
+          [btnStandard, btnGn].forEach((btn) => {
+            const stop = (evt) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+            };
+            btn.addEventListener("mousedown", stop);
+            btn.addEventListener("click", (evt) => {
+              stop(evt);
+              const selected = _pjTongueMode(btn.dataset.mode || "standard");
+              row.dataset.selectedTongue = selected;
+              _setSkuTongueSelection(item.itemNumber, selected);
+              syncButtons();
+            });
+            itemTongue.appendChild(btn);
+          });
+          syncButtons();
+
+          if (isDump) {
+            const btnDump3 = document.createElement("button");
+            btnDump3.type = "button";
+            btnDump3.className = "sku-row-tongue-btn";
+            btnDump3.dataset.mode = "3.0";
+            btnDump3.textContent = "3ft";
+
+            const btnDump4 = document.createElement("button");
+            btnDump4.type = "button";
+            btnDump4.className = "sku-row-tongue-btn";
+            btnDump4.dataset.mode = "4.0";
+            btnDump4.textContent = "4ft";
+
+            const syncDumpButtons = () => {
+              const fallbackHeight = _normalizePjDumpHeightFt(
+                row.dataset.defaultDumpHeightFt || item.dumpDefaultHeight || item.deckHeight,
+                null,
+              );
+              const selectedHeight = _normalizePjDumpHeightFt(
+                row.dataset.selectedDumpHeightFt || fallbackHeight,
+                fallbackHeight,
+              );
+              if (selectedHeight !== null) {
+                row.dataset.selectedDumpHeightFt = String(selectedHeight);
+                _setSkuDumpHeightSelection(item.itemNumber, selectedHeight);
+                itemHeight.textContent = _formatFeet(selectedHeight);
+                row.dataset.length = `L ${_formatFeet(item.deckLength)} x H ${_formatFeet(selectedHeight)}`;
+              }
+              btnDump3.classList.toggle("active", selectedHeight === 3.0);
+              btnDump4.classList.toggle("active", selectedHeight === 4.0);
+            };
+
+            [btnDump3, btnDump4].forEach((btn) => {
+              const stop = (evt) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+              };
+              btn.addEventListener("mousedown", stop);
+              btn.addEventListener("click", (evt) => {
+                stop(evt);
+                const selectedHeight = _normalizePjDumpHeightFt(btn.dataset.mode, null);
+                if (selectedHeight === null) return;
+                row.dataset.selectedDumpHeightFt = String(selectedHeight);
+                _setSkuDumpHeightSelection(item.itemNumber, selectedHeight);
+                syncDumpButtons();
+              });
+              itemDumpHeight.appendChild(btn);
+            });
+            syncDumpButtons();
+          } else {
+            itemDumpHeight.textContent = "--";
+          }
+        }
+
+        row.appendChild(itemId);
+        row.appendChild(itemLen);
+        if (SESSION_BRAND === "pj") {
+          row.appendChild(itemHeight);
+          row.appendChild(itemTongue);
+          row.appendChild(itemDumpHeight);
+        }
+        itemsWrap.appendChild(row);
+      });
+
+      modelDetails.appendChild(itemsWrap);
+      modelWrap.appendChild(modelDetails);
+    });
+
+    catDetails.appendChild(modelWrap);
+    SKU_LIST.appendChild(catDetails);
+  });
+
+  bindSkuAutoCollapseHandlers();
+}
+
+function applySkuFilter(rawQuery) {
+  const query = String(rawQuery || "").trim().toLowerCase();
+  let visibleItems = 0;
+
+  document.querySelectorAll(".sku-pick-item").forEach((item) => {
+    const search = String(item.dataset.search || "").toLowerCase();
+    const visible = !query || search.includes(query);
+    item.style.display = visible ? "" : "none";
+    if (visible) visibleItems += 1;
+  });
+
+  document.querySelectorAll(".sku-model-group").forEach((modelGroup) => {
+    const rows = Array.from(modelGroup.querySelectorAll(".sku-pick-item"));
+    const visibleRowCount = rows.filter((row) => row.style.display !== "none").length;
+    const visible = visibleRowCount > 0;
+    modelGroup.style.display = visible ? "" : "none";
+    const head = modelGroup.querySelector(".sku-item-head");
+    if (head) {
+      head.style.display = visible ? "" : "none";
+    }
+    if (query && visible) {
+      modelGroup.open = true;
+    }
+  });
+
+  document.querySelectorAll(".sku-group").forEach((categoryGroup) => {
+    const modelWrap = categoryGroup.querySelector(".sku-model-wrap");
+    const modelGroups = modelWrap ? Array.from(modelWrap.children).filter((el) => el.classList.contains("sku-model-group")) : [];
+    const visibleModelCount = modelGroups.filter((group) => group.style.display !== "none").length;
+    const visible = visibleModelCount > 0;
+    categoryGroup.style.display = visible ? "" : "none";
+    if (query && visible) {
+      categoryGroup.open = true;
+    }
+  });
+
+  if (!query) {
+    applySkuHierarchyMode();
+  }
+
+  if (SKU_EMPTY) {
+    SKU_EMPTY.classList.toggle("hidden", visibleItems > 0);
+  }
+}
+
+if (SKU_FILTER) {
+  SKU_FILTER.addEventListener("input", function () {
+    applySkuFilter(this.value);
+  });
+}
+
+function initInventoryUploadControls() {
+  const uploadBtn = document.getElementById("inv-upload-btn");
+  const uploadInput = document.getElementById("inv-upload-input");
+  if (!uploadBtn || !uploadInput) return;
+  if (uploadBtn.dataset.bound === "1") return;
+  uploadBtn.dataset.bound = "1";
+
+  uploadBtn.addEventListener("click", () => {
+    if (uploadBtn.disabled) return;
+    uploadInput.click();
+  });
+
+  uploadInput.addEventListener("change", async () => {
+    const file = uploadInput.files && uploadInput.files.length ? uploadInput.files[0] : null;
+    if (!file) return;
+    try {
+      uploadBtn.disabled = true;
+      const formData = new FormData();
+      formData.append("orders_file", file);
+      formData.append("sheet_name", "All.Orders.Quick");
+
+      const resp = await fetch(INVENTORY_UPLOAD_ENDPOINT, {
+        method: "POST",
+        body: formData,
+      });
+      let data = {};
+      try {
+        data = await resp.json();
+      } catch (e) {
+        data = {};
+      }
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      const result = data.import_result || {};
+      showToast(
+        `Inventory upload complete: ${result.valid_rows || 0} valid rows, ${result.distinct_items || 0} SKUs.`,
+        "success",
+      );
+      await refreshBuilderFragments();
+    } catch (e) {
+      showToast(`Inventory upload failed: ${e.message}`, "error");
+    } finally {
+      uploadBtn.disabled = false;
+      uploadInput.value = "";
+    }
+  });
+}
+
+function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMode, preselectedDumpHeightFt) {
+  pendingZone = zone;
+  pendingSeq = seq;
+  pendingTarget = targetPosId;
+  pendingItem = preselectedItem || null;
+  pendingTongueMode = preselectedTongueMode || null;
+  pendingDumpHeightFt = _normalizePjDumpHeightFt(preselectedDumpHeightFt, null);
+
+  const modal = document.getElementById("zone-modal");
+  const opts = document.getElementById("modal-options");
+  const title = document.getElementById("modal-title");
+  opts.innerHTML = "";
+
+  if (pendingItem && pendingZone) {
+    const item = pendingItem;
+    const zoneSelected = pendingZone;
+    const target = pendingTarget;
+    const insertIndex = pendingSeq;
+    const selectedTongueMode = pendingTongueMode;
+    const selectedDumpHeightFt = pendingDumpHeightFt;
+    closeModal();
+    addUnit(item, zoneSelected, target, insertIndex, selectedTongueMode, selectedDumpHeightFt);
+    return;
+  }
+
+  if (pendingItem) {
+    const item = pendingItem;
+    title.textContent = `Add ${pendingItem} to which zone?`;
+    ZONES.forEach((z) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-secondary";
+      btn.textContent = ZONE_LABELS[z] || z;
+      btn.onclick = () => {
+        closeModal();
+        addUnit(item, z, null, null, pendingTongueMode, pendingDumpHeightFt);
+      };
+      opts.appendChild(btn);
+    });
+  } else if (pendingZone) {
+    const zoneSelected = pendingZone;
+    const target = pendingTarget;
+    title.textContent = `Choose unit to add to ${ZONE_LABELS[pendingZone] || pendingZone}`;
+    const list = document.createElement("div");
+    list.style = "max-height:260px;overflow-y:auto;margin-top:4px;border:1px solid var(--border-default);border-radius:var(--radius-md)";
+    document.querySelectorAll(".sku-pick-item").forEach((el) => {
+      if (el.style.display === "none") return;
+      const row = document.createElement("div");
+      row.style = "display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border-subtle);cursor:pointer;gap:8px";
+      const tongueLabel = SESSION_BRAND === "pj"
+        ? (_pjTongueMode(el.dataset.selectedTongue || el.dataset.defaultTongue || "standard") === "gooseneck" ? "GN" : "STD")
+        : "";
+      const dumpHeight = _normalizePjDumpHeightFt(el.dataset.selectedDumpHeightFt || el.dataset.defaultDumpHeightFt, null);
+      const dumpLabel = (SESSION_BRAND === "pj" && el.dataset.isDump === "1" && dumpHeight !== null)
+        ? ` | DUMP ${dumpHeight.toFixed(0)}FT`
+        : "";
+      row.innerHTML = `<div style="font-family:var(--font-mono);font-size:12px;font-weight:600">${el.dataset.itemLabel || el.dataset.item}</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">${el.dataset.length || ""}${tongueLabel ? ` | ${tongueLabel}` : ""}${dumpLabel}</div>`;
+      row.onclick = () => {
+        const insertIndex = pendingSeq;
+        const selectedTongueMode = _pjTongueMode(el.dataset.selectedTongue || el.dataset.defaultTongue || "standard");
+        const selectedDumpHeightFt = _normalizePjDumpHeightFt(el.dataset.selectedDumpHeightFt || el.dataset.defaultDumpHeightFt, null);
+        closeModal();
+        addUnit(el.dataset.item, zoneSelected, target, insertIndex, selectedTongueMode, selectedDumpHeightFt);
+      };
+      row.onmouseover = () => {
+        row.style.background = "var(--bg-secondary)";
+      };
+      row.onmouseout = () => {
+        row.style.background = "";
+      };
+      list.appendChild(row);
+    });
+    opts.appendChild(list);
+  } else {
+    title.textContent = "Add to which zone?";
+    ZONES.forEach((z) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-secondary";
+      btn.textContent = ZONE_LABELS[z] || z;
+      btn.onclick = () => {
+        pendingZone = z;
+        openPicker(z, null, null, null);
+      };
+      opts.appendChild(btn);
+    });
+  }
+
+  modal.classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("zone-modal").classList.remove("open");
+  pendingItem = null;
+  pendingTongueMode = null;
+  pendingDumpHeightFt = null;
+  pendingZone = null;
+  pendingSeq = null;
+  pendingTarget = null;
+}
+
+async function postSession(path, body) {
+  const resp = await fetch(SESSION_API_BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  let data = {};
+  try {
+    data = await resp.json();
+  } catch (e) {
+    data = {};
+  }
+  if (!resp.ok || !data.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
+}
+
+function replaceNodeByIdFromDoc(id, sourceDoc) {
+  const current = document.getElementById(id);
+  const incoming = sourceDoc.getElementById(id);
+  if (current && incoming) {
+    current.replaceWith(incoming);
+  }
+}
+
+function alignManifestAndInventoryTop() {
+  const manifestCard = document.getElementById("pg-manifest-card");
+  const inventoryCard = document.getElementById("pg-inventory-card");
+  if (!manifestCard || !inventoryCard) return;
+
+  manifestCard.style.marginTop = "0px";
+  inventoryCard.style.marginTop = "0px";
+
+  const manifestTop = manifestCard.getBoundingClientRect().top;
+  const inventoryTop = inventoryCard.getBoundingClientRect().top;
+  const delta = inventoryTop - manifestTop;
+  if (Math.abs(delta) <= 0.5) return;
+
+  if (delta > 0) {
+    inventoryCard.style.marginTop = `${-delta}px`;
+  } else {
+    manifestCard.style.marginTop = `${delta}px`;
+  }
+}
+
+async function refreshBuilderFragments() {
+  const resp = await fetch(window.location.pathname + window.location.search, {
+    headers: {
+      "X-Requested-With": "XMLHttpRequest",
+      "Cache-Control": "no-store",
+    },
+  });
+  if (!resp.ok) {
+    throw new Error("Failed to refresh load layout");
+  }
+
+  const html = await resp.text();
+  const sourceDoc = new DOMParser().parseFromString(html, "text/html");
+
+  const currentTopBar = document.getElementById("pg-top-bar");
+  const incomingStale = sourceDoc.getElementById("pg-stale-banner");
+  const currentStale = document.getElementById("pg-stale-banner");
+  if (incomingStale && currentTopBar) {
+    if (currentStale) {
+      currentStale.replaceWith(incomingStale);
+    } else {
+      currentTopBar.parentNode.insertBefore(incomingStale, currentTopBar);
+    }
+  } else if (currentStale) {
+    currentStale.remove();
+  }
+
+  replaceNodeByIdFromDoc("pg-top-bar", sourceDoc);
+  replaceNodeByIdFromDoc("pg-canvas-column", sourceDoc);
+  replaceNodeByIdFromDoc("violation-panel", sourceDoc);
+  replaceNodeByIdFromDoc("pg-manifest-card", sourceDoc);
+  replaceNodeByIdFromDoc("pg-inventory-card", sourceDoc);
+
+  initRenderModeToggle();
+  initSpatialScale();
+  initSchematicHoverTooltips();
+  initSkuDragAndDrop();
+  initInventoryUploadControls();
+  window.requestAnimationFrame(alignManifestAndInventoryTop);
+}
+
+async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt, enableGnCrisscross = false) {
+  try {
+    const body = { item_number: itemNumber, deck_zone: zone };
+    if (stackOnPosId) body.stack_on = stackOnPosId;
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
+      body.insert_index = Number(insertIndex);
+    }
+    if (SESSION_BRAND === "pj") {
+      body.pj_tongue_profile = _pjTongueMode(tongueMode || _getSkuTongueSelection(itemNumber, "standard"));
+      const normalizedDumpHeight = _normalizePjDumpHeightFt(dumpHeightFt, null);
+      if (normalizedDumpHeight !== null) {
+        body.pj_dump_height_ft = normalizedDumpHeight;
+      }
+      if (enableGnCrisscross) {
+        body.pj_enable_gn_crisscross = true;
+      }
+    }
+    await postSession("/add", body);
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Failed to add unit: ${e.message}`, "error");
+  }
+}
+
+async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCrisscross = false) {
+  try {
+    const body = { position_id: positionId, to_zone: toZone };
+    if (toSequence !== undefined && toSequence !== null && toSequence !== "") {
+      body.to_sequence = Number(toSequence);
+    }
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
+      body.insert_index = Number(insertIndex);
+    }
+    if (SESSION_BRAND === "pj" && enableGnCrisscross) {
+      body.pj_enable_gn_crisscross = true;
+    }
+    await postSession("/position/move", body);
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Failed to move unit: ${e.message}`, "error");
+  }
+}
+
+async function moveStack(fromZone, sequence, toZone, insertIndex) {
+  try {
+    const body = {
+      from_zone: fromZone,
+      sequence: Number(sequence),
+      to_zone: toZone,
+    };
+    if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
+      body.insert_index = Number(insertIndex);
+    }
+    await postSession("/column/move", body);
+    await refreshBuilderFragments();
+    showToast("Stack moved.", "success");
+  } catch (e) {
+    showToast(`Failed to move stack: ${e.message}`, "error");
+  }
+}
+
+async function removeUnit(positionId) {
+  try {
+    await postSession("/remove", { position_id: positionId });
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Failed to remove unit: ${e.message}`, "error");
+  }
+}
+
+async function rotateUnit(positionId) {
+  try {
+    await postSession("/rotate", { position_id: positionId });
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Failed to rotate unit: ${e.message}`, "error");
+  }
+}
+
+async function toggleDumpDoor(positionId) {
+  try {
+    await postSession("/toggle_dump_door", { position_id: positionId });
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Failed to toggle dump door: ${e.message}`, "error");
+  }
+}
+
+async function toggleAxleDrop(positionId, checkbox) {
+  try {
+    await postSession("/toggle_axle_drop", { position_id: positionId });
+    await refreshBuilderFragments();
+  } catch (e) {
+    checkbox.checked = !checkbox.checked;
+    showToast(`Toggle failed: ${e.message}`, "error");
+  }
+}
+
+async function acknowledgeViolation(ruleCode, action, btn) {
+  try {
+    await postSession("/acknowledge", { rule_code: ruleCode, action });
+    const item = document.getElementById("viol-" + ruleCode.replace(/_/g, "-"));
+    if (!item) {
+      await refreshBuilderFragments();
+      return;
+    }
+    if (action === "add") {
+      item.classList.add("acknowledged");
+      btn.className = "violation-unack-btn";
+      btn.textContent = "Un-acknowledge";
+      btn.onclick = () => acknowledgeViolation(ruleCode, "remove", btn);
+    } else {
+      item.classList.remove("acknowledged");
+      btn.className = "violation-ack-btn";
+      btn.textContent = "Acknowledge";
+      btn.onclick = () => acknowledgeViolation(ruleCode, "add", btn);
+    }
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Acknowledge failed: ${e.message}`, "error");
+  }
+}
+
+async function saveSession(buttonEl) {
+  const btn = buttonEl && buttonEl.tagName ? buttonEl : document.getElementById("save-session-btn");
+  if (btn && btn.dataset.saving === "1") {
+    return;
+  }
+  const originalLabel = btn ? btn.textContent : "Save Session";
+  try {
+    if (btn) {
+      btn.dataset.saving = "1";
+      btn.disabled = true;
+      btn.textContent = "Saving...";
+    }
+    await postSession("/save", {});
+    await refreshBuilderFragments();
+    showToast("Session saved and added to All Sessions", "success");
+  } catch (e) {
+    showToast(`Save failed: ${e.message}`, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.dataset.saving = "0";
+      btn.textContent = originalLabel;
+    }
+  }
+}
+
+async function resetSession() {
+  if (!window.confirm("Clear all positions and acknowledgements in this session?")) {
+    return;
+  }
+  try {
+    await postSession("/reset", {});
+    await refreshBuilderFragments();
+  } catch (e) {
+    showToast(`Reset failed: ${e.message}`, "error");
+  }
+}
+
+async function refreshViolations() {
+  await refreshBuilderFragments();
+}
+
+function initSkuDragAndDrop() {
+  const skuItems = document.querySelectorAll(".sku-pick-item");
+  const inventoryPickItems = document.querySelectorAll(".inventory-pick-item");
+  const unitCards = document.querySelectorAll(".unit-card[data-pos-id]");
+  const deckTargets = document.querySelectorAll("[data-drop-zone]");
+  const stackTargets = document.querySelectorAll("[data-stack-drop]");
+  const columnSlots = document.querySelectorAll("[data-column-slot]");
+  const cardDropTargets = document.querySelectorAll(".unit-card[data-pos-id]");
+  let draggedUnitId = null;
+  let draggedStack = null;
+  const bindOnce = (el, flagName) => {
+    if (!el || el.dataset[flagName] === "1") return false;
+    el.dataset[flagName] = "1";
+    return true;
+  };
+
+  const zoneLabel = (zone) => {
+    if (zone === "upper_deck") return "upper deck";
+    if (zone === "lower_deck") return "lower deck";
+    return "deck";
+  };
+
+  const setDragLiveText = (text) => {
+    const dragLiveIndicator = document.getElementById("stack-drag-live-indicator");
+    if (!dragLiveIndicator) return;
+    const normalized = String(text || "").trim();
+    if (!normalized) {
+      dragLiveIndicator.classList.add("hidden");
+      dragLiveIndicator.textContent = "";
+      return;
+    }
+    dragLiveIndicator.textContent = normalized;
+    dragLiveIndicator.classList.remove("hidden");
+  };
+
+  const showDropMarker = (x, top, height, isAfter = false) => {
+    const dropMarker = document.getElementById("pg-stack-drop-marker");
+    if (!dropMarker) return;
+    if (!Number.isFinite(x) || !Number.isFinite(top) || !Number.isFinite(height) || height <= 0) {
+      dropMarker.classList.remove("active", "after");
+      return;
+    }
+    dropMarker.style.left = `${Math.round(x - 2)}px`;
+    dropMarker.style.top = `${Math.round(top)}px`;
+    dropMarker.style.height = `${Math.max(24, Math.round(height))}px`;
+    dropMarker.classList.toggle("after", Boolean(isAfter));
+    dropMarker.classList.add("active");
+  };
+
+  const hideDropMarker = () => {
+    const dropMarker = document.getElementById("pg-stack-drop-marker");
+    if (!dropMarker) return;
+    dropMarker.classList.remove("active", "after");
+  };
+
+  const clearDropPlacementHints = () => {
+    document.querySelectorAll(".drop-before, .drop-after").forEach((el) => {
+      el.classList.remove("drop-before", "drop-after");
+    });
+    hideDropMarker();
+  };
+
+  const clearHighlights = () => {
+    document.querySelectorAll(".drop-target-active").forEach((el) => el.classList.remove("drop-target-active"));
+    clearDropPlacementHints();
+  };
+
+  // Resolve valid schematic drop targets from any nested SVG/HTML node.
+  const resolveDropTarget = (node) => {
+    if (!node || !node.closest) return null;
+    return node.closest("[data-column-slot], [data-stack-drop], .unit-card[data-pos-id], [data-drop-zone]");
+  };
+
+  const markStackClass = (zone, sequence, className, enabled) => {
+    if (!zone || !Number.isInteger(Number(sequence))) return;
+    const seq = String(Number(sequence));
+    document.querySelectorAll(`.unit-card[data-zone="${zone}"][data-seq="${seq}"]`).forEach((el) => {
+      el.classList.toggle(className, Boolean(enabled));
+    });
+  };
+
+  let mouseStackDrag = null;
+  let mouseUnitDrag = null;
+  const clearMouseStackHover = () => {
+    if (!mouseStackDrag || !mouseStackDrag.hoverTarget) return;
+    mouseStackDrag.hoverTarget.classList.remove("drop-target-active", "drop-before", "drop-after");
+    mouseStackDrag.hoverTarget = null;
+  };
+  const clearMouseUnitHover = () => {
+    if (!mouseUnitDrag || !mouseUnitDrag.hoverTarget) return;
+    mouseUnitDrag.hoverTarget.classList.remove("drop-target-active", "drop-before", "drop-after");
+    mouseUnitDrag.hoverTarget = null;
+  };
+
+  const parseStackPayload = (raw) => {
+    if (!raw) return null;
+    const parts = String(raw).split("|");
+    if (parts.length !== 2) return null;
+    const seq = Number(parts[1]);
+    if (!Number.isInteger(seq)) return null;
+    return { zone: parts[0], sequence: seq };
+  };
+
+  const getPayload = (evt) => {
+    if (activeDrag && activeDrag.type) {
+      return activeDrag;
+    }
+    const transfer = evt.dataTransfer || null;
+    const stackRaw = transfer ? transfer.getData("application/x-prograde-stack") : "";
+    const unitRaw = transfer ? transfer.getData("application/x-prograde-unit") : "";
+    const skuRaw = transfer ? transfer.getData("application/x-prograde-sku") : "";
+    const skuModeRaw = transfer ? transfer.getData("application/x-prograde-sku-mode") : "";
+    const skuDumpHeightRaw = transfer ? transfer.getData("application/x-prograde-sku-dump-height") : "";
+    const plainRaw = transfer ? transfer.getData("text/plain") : "";
+
+    if (stackRaw) {
+      const parsed = parseStackPayload(stackRaw);
+      if (parsed) return { type: "stack", ...parsed };
+    }
+    if (draggedStack) {
+      return { type: "stack", ...draggedStack };
+    }
+
+    const unitId = unitRaw || draggedUnitId;
+    if (unitId) {
+      return { type: "unit", positionId: unitId };
+    }
+
+    const skuItem = skuRaw || draggedSkuItem || plainRaw;
+    if (skuItem) {
+      return {
+        type: "sku",
+        itemNumber: skuItem,
+        tongueMode: _pjTongueMode(skuModeRaw || "standard"),
+        dumpHeightFt: _normalizePjDumpHeightFt(skuDumpHeightRaw, null),
+      };
+    }
+    return null;
+  };
+
+  skuItems.forEach((item) => {
+    if (!bindOnce(item, "dragBound")) return;
+    item.addEventListener("dragstart", (evt) => {
+      draggedSkuItem = item.dataset.item || null;
+      const tongueMode = _pjTongueMode(item.dataset.selectedTongue || item.dataset.defaultTongue || "standard");
+      const dumpHeightFt = _normalizePjDumpHeightFt(item.dataset.selectedDumpHeightFt || item.dataset.defaultDumpHeightFt, null);
+      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt } : null;
+      item.classList.add("dragging");
+      if (evt.dataTransfer) {
+        evt.dataTransfer.effectAllowed = "copy";
+        evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
+        evt.dataTransfer.setData("application/x-prograde-sku-mode", tongueMode);
+        evt.dataTransfer.setData("application/x-prograde-sku-dump-height", dumpHeightFt == null ? "" : String(dumpHeightFt));
+        evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
+      }
+    });
+    item.addEventListener("dragend", () => {
+      draggedSkuItem = null;
+      activeDrag = null;
+      item.classList.remove("dragging");
+      clearHighlights();
+      setDragLiveText("");
+    });
+  });
+
+  inventoryPickItems.forEach((item) => {
+    if (!bindOnce(item, "clickBound")) {
+      return;
+    }
+    item.addEventListener("click", async () => {
+      if (item.disabled) return;
+      const itemNumber = String(item.dataset.item || "").trim();
+      const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
+      if (!itemNumber) return;
+      const stackTarget = String(item.dataset.stackTarget || "").trim();
+      const stackZone = String(item.dataset.stackZone || "").trim();
+      if (stackTarget && stackZone) {
+        await addUnit(itemNumber, stackZone, stackTarget, null, inventoryTongueMode, null);
+        return;
+      }
+      openPicker(null, null, null, itemNumber, inventoryTongueMode, null);
+    });
+  });
+
+  inventoryPickItems.forEach((item) => {
+    if (!bindOnce(item, "dragBound")) return;
+    item.addEventListener("dragstart", (evt) => {
+      if (item.disabled) {
+        evt.preventDefault();
+        return;
+      }
+      draggedSkuItem = item.dataset.item || null;
+      const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
+      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode: inventoryTongueMode, dumpHeightFt: null } : null;
+      item.classList.add("dragging");
+      if (evt.dataTransfer) {
+        evt.dataTransfer.effectAllowed = "copy";
+        evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
+        evt.dataTransfer.setData("application/x-prograde-sku-mode", inventoryTongueMode);
+        evt.dataTransfer.setData("application/x-prograde-sku-dump-height", "");
+        evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
+      }
+    });
+    item.addEventListener("dragend", () => {
+      draggedSkuItem = null;
+      activeDrag = null;
+      item.classList.remove("dragging");
+      clearHighlights();
+      setDragLiveText("");
+    });
+  });
+
+  const stopManualUnitDrag = () => {
+    if (!mouseUnitDrag) return;
+    if (mouseUnitDrag.started && mouseUnitDrag.sourceCard) {
+      mouseUnitDrag.sourceCard.classList.remove("unit-dragging");
+    }
+    clearMouseUnitHover();
+    mouseUnitDrag = null;
+    draggedUnitId = null;
+    activeDrag = null;
+    clearHighlights();
+    setDragLiveText("");
+    document.removeEventListener("mousemove", onManualUnitMouseMove);
+    document.removeEventListener("mouseup", onManualUnitMouseUp, true);
+  };
+
+  function beginManualUnitDragIfNeeded(evt) {
+    if (!mouseUnitDrag || mouseUnitDrag.started) return;
+    const dx = Math.abs(Number(evt.clientX || 0) - mouseUnitDrag.originX);
+    const dy = Math.abs(Number(evt.clientY || 0) - mouseUnitDrag.originY);
+    if ((dx + dy) < 4) return;
+    mouseUnitDrag.started = true;
+    draggedStack = null;
+    draggedUnitId = mouseUnitDrag.positionId;
+    activeDrag = { type: "unit", positionId: mouseUnitDrag.positionId };
+    if (mouseUnitDrag.sourceCard) {
+      mouseUnitDrag.sourceCard.classList.add("unit-dragging");
+    }
+    setDragLiveText("Moving unit.");
+  }
+
+  function onManualUnitMouseMove(evt) {
+    if (!mouseUnitDrag) return;
+    if ((evt.buttons & 1) !== 1) {
+      stopManualUnitDrag();
+      return;
+    }
+    beginManualUnitDragIfNeeded(evt);
+    if (!mouseUnitDrag.started) return;
+    evt.preventDefault();
+    const payload = { type: "unit", positionId: mouseUnitDrag.positionId };
+    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
+    const target = resolveDropTarget(probeNode);
+    clearDropPlacementHints();
+    clearMouseUnitHover();
+    if (!target) return;
+    target.classList.add("drop-target-active");
+    mouseUnitDrag.hoverTarget = target;
+    setDropPlacementHint(target, payload, evt);
+  }
+
+  async function onManualUnitMouseUp(evt) {
+    if (!mouseUnitDrag) return;
+    const state = mouseUnitDrag;
+    document.removeEventListener("mousemove", onManualUnitMouseMove);
+    document.removeEventListener("mouseup", onManualUnitMouseUp, true);
+    if (!state.started) {
+      stopManualUnitDrag();
+      return;
+    }
+    const payload = { type: "unit", positionId: state.positionId };
+    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
+    const target = resolveDropTarget(probeNode) || state.hoverTarget;
+    stopManualUnitDrag();
+    if (!target) return;
+    try {
+      await dispatchDrop(target, payload, evt);
+    } catch (e) {
+      showToast(`Drop failed: ${e.message || e}`, "error");
+    }
+  }
+
+  const stopManualStackDrag = () => {
+    if (!mouseStackDrag) return;
+    if (mouseStackDrag.started) {
+      markStackClass(mouseStackDrag.zone, mouseStackDrag.sequence, "stack-dragging", false);
+      if (mouseStackDrag.sourceCard) {
+        mouseStackDrag.sourceCard.classList.remove("dragging");
+      }
+    }
+    clearMouseStackHover();
+    mouseStackDrag = null;
+    draggedUnitId = null;
+    draggedStack = null;
+    activeDrag = null;
+    clearHighlights();
+    setDragLiveText("");
+    document.removeEventListener("mousemove", onManualStackMouseMove);
+    document.removeEventListener("mouseup", onManualStackMouseUp, true);
+  };
+
+  function beginManualStackDragIfNeeded(evt) {
+    if (!mouseStackDrag || mouseStackDrag.started) return;
+    const dx = Math.abs(Number(evt.clientX || 0) - mouseStackDrag.originX);
+    const dy = Math.abs(Number(evt.clientY || 0) - mouseStackDrag.originY);
+    if ((dx + dy) < 4) return;
+    mouseStackDrag.started = true;
+    draggedUnitId = null;
+    draggedStack = { zone: mouseStackDrag.zone, sequence: mouseStackDrag.sequence };
+    activeDrag = { type: "stack", zone: mouseStackDrag.zone, sequence: mouseStackDrag.sequence };
+    markStackClass(mouseStackDrag.zone, mouseStackDrag.sequence, "stack-dragging", true);
+    if (mouseStackDrag.sourceCard) {
+      mouseStackDrag.sourceCard.classList.add("dragging");
+    }
+    setDragLiveText(`Moving stack ${mouseStackDrag.sequence}. Drop left/right of another stack to reposition on ${zoneLabel(mouseStackDrag.zone)}.`);
+  }
+
+  function onManualStackMouseMove(evt) {
+    if (!mouseStackDrag) return;
+    if ((evt.buttons & 1) !== 1) {
+      stopManualStackDrag();
+      return;
+    }
+    beginManualStackDragIfNeeded(evt);
+    if (!mouseStackDrag.started) return;
+    evt.preventDefault();
+    const payload = { type: "stack", zone: mouseStackDrag.zone, sequence: mouseStackDrag.sequence };
+    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
+    const target = resolveDropTarget(probeNode);
+    clearDropPlacementHints();
+    clearMouseStackHover();
+    if (!target) return;
+    target.classList.add("drop-target-active");
+    mouseStackDrag.hoverTarget = target;
+    setDropPlacementHint(target, payload, evt);
+  }
+
+  async function onManualStackMouseUp(evt) {
+    if (!mouseStackDrag) return;
+    const state = mouseStackDrag;
+    document.removeEventListener("mousemove", onManualStackMouseMove);
+    document.removeEventListener("mouseup", onManualStackMouseUp, true);
+    if (!state.started) {
+      stopManualStackDrag();
+      return;
+    }
+    const payload = { type: "stack", zone: state.zone, sequence: state.sequence };
+    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
+    const target = resolveDropTarget(probeNode) || state.hoverTarget;
+    stopManualStackDrag();
+    if (!target) return;
+    try {
+      await dispatchDrop(target, payload, evt);
+    } catch (e) {
+      showToast(`Drop failed: ${e.message || e}`, "error");
+    }
+  }
+
+  unitCards.forEach((card) => {
+    if (!bindOnce(card, "dragBound")) return;
+    card.setAttribute("draggable", "false");
+    card.addEventListener("mousedown", (evt) => {
+      if (evt.button !== 0) return;
+      const dragSource = evt.target;
+      if (dragSource && dragSource.closest && (dragSource.closest(".pg-unit-control") || dragSource.closest(".pg-unit-control-strip"))) {
+        return;
+      }
+      if (dragSource && dragSource.closest && dragSource.closest(".pg-unit-drag-handle")) {
+        const positionId = String(card.dataset.posId || "").trim();
+        if (!positionId) return;
+        stopManualStackDrag();
+        stopManualUnitDrag();
+        mouseUnitDrag = {
+          positionId,
+          zone: card.dataset.zone || "",
+          sequence: Number(card.dataset.seq || 0),
+          originX: Number(evt.clientX || 0),
+          originY: Number(evt.clientY || 0),
+          sourceCard: card,
+          started: false,
+          hoverTarget: null,
+        };
+        document.addEventListener("mousemove", onManualUnitMouseMove);
+        document.addEventListener("mouseup", onManualUnitMouseUp, true);
+        return;
+      }
+      const zone = card.dataset.zone || "";
+      const sequence = Number(card.dataset.seq || 0);
+      if (!zone || !Number.isInteger(sequence) || sequence <= 0) return;
+      stopManualStackDrag();
+      stopManualUnitDrag();
+      mouseStackDrag = {
+        zone,
+        sequence,
+        originX: Number(evt.clientX || 0),
+        originY: Number(evt.clientY || 0),
+        sourceCard: card,
+        started: false,
+        hoverTarget: null,
+      };
+      document.addEventListener("mousemove", onManualStackMouseMove);
+      document.addEventListener("mouseup", onManualStackMouseUp, true);
+    });
+    card.addEventListener("dragstart", (evt) => {
+      const dragSource = evt.target;
+      if (dragSource && dragSource.closest && (dragSource.closest(".pg-unit-control") || dragSource.closest(".pg-unit-control-strip"))) {
+        evt.preventDefault();
+        return;
+      }
+      const zone = card.dataset.zone || "";
+      const sequence = Number(card.dataset.seq || 0);
+      if (!zone || !Number.isInteger(sequence) || sequence <= 0) {
+        evt.preventDefault();
+        return;
+      }
+      draggedUnitId = null;
+      draggedStack = { zone, sequence };
+      activeDrag = { type: "stack", zone, sequence };
+      markStackClass(zone, sequence, "stack-dragging", true);
+      if (evt.dataTransfer) {
+        evt.dataTransfer.effectAllowed = "move";
+        evt.dataTransfer.setData("application/x-prograde-stack", `${zone}|${sequence}`);
+      }
+      card.classList.add("dragging");
+      setDragLiveText(`Moving stack ${sequence}.`);
+    });
+    card.addEventListener("dragend", () => {
+      if (draggedStack) {
+        markStackClass(draggedStack.zone, draggedStack.sequence, "stack-dragging", false);
+      }
+      draggedUnitId = null;
+      draggedStack = null;
+      activeDrag = null;
+      card.classList.remove("dragging");
+      clearHighlights();
+      setDragLiveText("");
+    });
+  });
+
+  const bindDropTarget = (target, onDrop) => {
+    if (!bindOnce(target, "dropBound")) return;
+    target.addEventListener("dragenter", (evt) => {
+      evt.preventDefault();
+      target.classList.add("drop-target-active");
+    });
+    target.addEventListener("dragover", (evt) => {
+      evt.preventDefault();
+      const payload = getPayload(evt);
+      clearDropPlacementHints();
+      setDropPlacementHint(target, payload, evt);
+      if (evt.dataTransfer) {
+        evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
+      }
+    });
+    target.addEventListener("dragleave", (evt) => {
+      if (!target.contains(evt.relatedTarget)) {
+        target.classList.remove("drop-target-active");
+        target.classList.remove("drop-before", "drop-after");
+        hideDropMarker();
+      }
+    });
+    target.addEventListener("drop", async (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      target.classList.remove("drop-target-active");
+      target.classList.remove("drop-before", "drop-after");
+      const payload = getPayload(evt);
+      clearHighlights();
+      setDragLiveText("");
+      if (!payload) return;
+      try {
+        await onDrop(payload, evt);
+      } catch (e) {
+        showToast(`Drop failed: ${e.message || e}`, "error");
+      }
+    });
+  };
+
+  const getSortedStackSequencesForZone = (zone) => {
+    if (!zone) return [];
+    return Array.from(document.querySelectorAll(`[data-stack-drop][data-zone="${zone}"]`))
+      .map((el) => Number(el.dataset.targetSeq || 0))
+      .filter((seq) => Number.isInteger(seq) && seq > 0)
+      .sort((a, b) => a - b);
+  };
+
+  const getInsertIndexForTargetSequence = (zone, targetSeq) => {
+    const seq = Number(targetSeq || 0);
+    if (!Number.isInteger(seq) || seq <= 0) return null;
+    const ordered = getSortedStackSequencesForZone(zone);
+    const idx = ordered.findIndex((value) => value === seq);
+    return idx >= 0 ? idx : null;
+  };
+
+  const getInsertIndexFromDropSide = (target, zone, targetSeq, evt) => {
+    const baseIndex = getInsertIndexForTargetSequence(zone, targetSeq);
+    if (baseIndex === null) return null;
+    if (!evt) return baseIndex;
+    const rect = target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
+      return baseIndex;
+    }
+    const placeAfter = Number(evt.clientX || 0) >= (rect.left + (rect.width / 2));
+    return placeAfter ? baseIndex + 1 : baseIndex;
+  };
+
+  const getVisualStackTargetsForZone = (zone) => {
+    if (!zone) return [];
+    return Array.from(document.querySelectorAll(`[data-stack-drop][data-zone="${zone}"]`))
+      .map((el) => ({
+        el,
+        seq: Number(el.dataset.targetSeq || 0),
+        rect: el.getBoundingClientRect ? el.getBoundingClientRect() : null,
+      }))
+      .filter((entry) => Number.isInteger(entry.seq) && entry.seq > 0 && entry.rect && Number.isFinite(entry.rect.left))
+      .sort((a, b) => {
+        const aLeft = a.rect && Number.isFinite(a.rect.left) ? a.rect.left : null;
+        const bLeft = b.rect && Number.isFinite(b.rect.left) ? b.rect.left : null;
+        if (aLeft !== null && bLeft !== null && aLeft !== bLeft) {
+          return aLeft - bLeft;
+        }
+        return a.seq - b.seq;
+      });
+  };
+
+  const getInsertIndexFromDeckPointer = (zone, evt) => {
+    const targets = getVisualStackTargetsForZone(zone);
+    if (!targets.length) return 0;
+    const pointerX = Number(evt && evt.clientX);
+    if (!Number.isFinite(pointerX)) return targets.length;
+    for (let idx = 0; idx < targets.length; idx += 1) {
+      const rect = targets[idx].rect || null;
+      if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
+        continue;
+      }
+      const midpoint = rect.left + (rect.width / 2);
+      if (pointerX < midpoint) {
+        return idx;
+      }
+    }
+    return targets.length;
+  };
+
+  const showDeckInsertMarker = (zone, insertIndex, fallbackTarget = null) => {
+    const targets = getVisualStackTargetsForZone(zone);
+    if (!targets.length) {
+      const rect = fallbackTarget && fallbackTarget.getBoundingClientRect ? fallbackTarget.getBoundingClientRect() : null;
+      if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
+        hideDropMarker();
+        return;
+      }
+      showDropMarker(rect.left + (rect.width / 2), rect.top, rect.height, false);
+      return;
+    }
+
+    const top = Math.min(...targets.map((entry) => entry.rect.top));
+    const bottom = Math.max(...targets.map((entry) => entry.rect.bottom));
+    let markerX = targets[0].rect.left;
+    if (insertIndex <= 0) {
+      markerX = targets[0].rect.left;
+    } else if (insertIndex >= targets.length) {
+      markerX = targets[targets.length - 1].rect.right;
+    } else {
+      markerX = targets[insertIndex].rect.left;
+    }
+    showDropMarker(markerX, top, bottom - top, false);
+  };
+
+  const setDropPlacementHint = (target, payload, evt) => {
+    if (!target || !payload || !evt) return;
+    if (payload.type === "unit") {
+      if (target.matches(".unit-card[data-pos-id]") || target.matches("[data-stack-drop]")) {
+        const zone = String(target.dataset.zone || "").trim();
+        setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
+        return;
+      }
+      if (target.matches("[data-column-slot]")) {
+        const zone = String(target.dataset.zone || "").trim();
+        setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
+        return;
+      }
+      if (target.matches("[data-drop-zone]")) {
+        const zone = String(target.dataset.dropZone || "").trim();
+        setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
+      }
+      return;
+    }
+    if (payload.type !== "stack") return;
+    if (target.matches("[data-stack-drop]") || target.matches(".unit-card[data-pos-id]")) {
+      const rect = target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+      if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) return;
+      const placeAfter = Number(evt.clientX || 0) >= (rect.left + (rect.width / 2));
+      const targetSeq = Number(target.dataset.targetSeq || target.dataset.seq || 0);
+      const zone = String(target.dataset.zone || "").trim();
+      target.classList.toggle("drop-before", !placeAfter);
+      target.classList.toggle("drop-after", placeAfter);
+      showDropMarker(placeAfter ? rect.right : rect.left, rect.top, rect.height, placeAfter);
+      if (Number.isInteger(targetSeq) && targetSeq > 0) {
+        setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
+      }
+      return;
+    }
+    if (target.matches("[data-column-slot]")) {
+      const zone = String(target.dataset.zone || "").trim();
+      const insertIndex = Number(target.dataset.insertIndex || 0);
+      const rect = target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+      if (rect && Number.isFinite(rect.left) && Number.isFinite(rect.width)) {
+        showDropMarker(rect.left + (rect.width / 2), rect.top, rect.height, false);
+      }
+      setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
+      return;
+    }
+    if (target.matches("[data-drop-zone]")) {
+      const zone = String(target.dataset.dropZone || "").trim();
+      const insertIndex = getInsertIndexFromDeckPointer(zone, evt);
+      showDeckInsertMarker(zone, insertIndex, target);
+      setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
+    }
+  };
+
+  const dispatchDrop = async (target, payload, evt = null) => {
+    if (!payload) return;
+    if (target.matches("[data-column-slot]")) {
+      const zone = target.dataset.zone;
+      const insertIndex = Number(target.dataset.insertIndex || 0);
+      if (!zone) return;
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt);
+      } else if (payload.type === "unit") {
+        await moveUnit(payload.positionId, zone, null, insertIndex);
+      } else if (payload.type === "stack") {
+        await moveStack(payload.zone, payload.sequence, zone, insertIndex);
+      }
+      return;
+    }
+
+    if (target.matches("[data-stack-drop]")) {
+      const zone = target.dataset.zone;
+      const stackTarget = target.dataset.target;
+      const targetSeq = Number(target.dataset.targetSeq || 0);
+      if (!zone) return;
+      const enableGnCrisscross = _shouldEnableGnCrisscrossOnDrop(payload, target);
+      if (payload.type === "sku") {
+        await addUnit(
+          payload.itemNumber,
+          zone,
+          stackTarget || null,
+          null,
+          payload.tongueMode,
+          payload.dumpHeightFt,
+          enableGnCrisscross
+        );
+      } else if (payload.type === "unit") {
+        await moveUnit(
+          payload.positionId,
+          zone,
+          targetSeq > 0 ? targetSeq : null,
+          null,
+          enableGnCrisscross
+        );
+      } else if (payload.type === "stack") {
+        const insertIndex = getInsertIndexFromDropSide(target, zone, targetSeq, evt);
+        await moveStack(payload.zone, payload.sequence, zone, insertIndex);
+      }
+      return;
+    }
+
+    if (target.matches(".unit-card[data-pos-id]")) {
+      const zone = target.dataset.zone;
+      const posId = target.dataset.posId;
+      const targetSeq = Number(target.dataset.seq || 0);
+      if (!zone || !posId) return;
+      const enableGnCrisscross = _shouldEnableGnCrisscrossOnDrop(payload, target);
+      if (payload.type === "sku") {
+        await addUnit(
+          payload.itemNumber,
+          zone,
+          posId,
+          null,
+          payload.tongueMode,
+          payload.dumpHeightFt,
+          enableGnCrisscross
+        );
+      } else if (payload.type === "unit") {
+        await moveUnit(
+          payload.positionId,
+          zone,
+          targetSeq > 0 ? targetSeq : null,
+          null,
+          enableGnCrisscross
+        );
+      } else if (payload.type === "stack") {
+        const insertIndex = getInsertIndexFromDropSide(target, zone, targetSeq, evt);
+        await moveStack(payload.zone, payload.sequence, zone, insertIndex);
+      }
+      return;
+    }
+
+    if (target.matches("[data-drop-zone]")) {
+      const zone = target.dataset.dropZone;
+      if (!zone) return;
+      const insertIndex = getInsertIndexFromDeckPointer(zone, evt);
+      if (payload.type === "sku") {
+        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt);
+      } else if (payload.type === "unit") {
+        await moveUnit(payload.positionId, zone, null, insertIndex);
+      } else if (payload.type === "stack") {
+        await moveStack(payload.zone, payload.sequence, zone, insertIndex);
+      }
+    }
+  };
+
+  deckTargets.forEach((deck) => {
+    bindDropTarget(deck, async (payload, evt) => {
+      await dispatchDrop(deck, payload, evt);
+    });
+  });
+
+  stackTargets.forEach((stack) => {
+    bindDropTarget(stack, async (payload, evt) => {
+      await dispatchDrop(stack, payload, evt);
+    });
+  });
+
+  columnSlots.forEach((slot) => {
+    bindDropTarget(slot, async (payload, evt) => {
+      await dispatchDrop(slot, payload, evt);
+    });
+  });
+
+  // Allow dropping directly on an existing unit card to append/move into that stack.
+  cardDropTargets.forEach((card) => {
+    bindDropTarget(card, async (payload, evt) => {
+      await dispatchDrop(card, payload, evt);
+    });
+  });
+
+  if (!window.__pgGlobalDropBound) {
+    window.__pgGlobalDropBound = true;
+    document.addEventListener("dragover", (evt) => {
+      const target = resolveDropTarget(evt.target);
+      if (!target) {
+        clearDropPlacementHints();
+        return;
+      }
+      evt.preventDefault();
+      const payload = getPayload(evt);
+      clearDropPlacementHints();
+      setDropPlacementHint(target, payload, evt);
+      if (evt.dataTransfer) {
+        evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
+      }
+    });
+
+    document.addEventListener("drop", async (evt) => {
+      if (evt.defaultPrevented) return;
+      const target = resolveDropTarget(evt.target);
+      if (!target) return;
+      evt.preventDefault();
+      const payload = getPayload(evt);
+      setDragLiveText("");
+      clearDropPlacementHints();
+      if (!payload) return;
+      try {
+        await dispatchDrop(target, payload, evt);
+      } catch (e) {
+        showToast(`Drop failed: ${e.message || e}`, "error");
+      }
+    });
+  }
+}
+
+function initSchematicHoverTooltips() {
+  if (window.__pgTooltipBound) return;
+  window.__pgTooltipBound = true;
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "pg-hover-tooltip hidden";
+  tooltip.setAttribute("aria-hidden", "true");
+  document.body.appendChild(tooltip);
+
+  let activeTarget = null;
+
+  const escapeHtml = (value) =>
+    String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  function setTooltipContent(text) {
+    const rows = String(text || "")
+      .split("|")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    tooltip.innerHTML = rows
+      .map((row) => `<div class="pg-hover-tooltip-row">${escapeHtml(row)}</div>`)
+      .join("");
+  }
+
+  function positionTooltip(evt) {
+    if (!activeTarget) return;
+    const pad = 14;
+    const rect = tooltip.getBoundingClientRect();
+    let left = evt.clientX + pad;
+    let top = evt.clientY + pad;
+    if (left + rect.width > window.innerWidth - 10) {
+      left = Math.max(10, evt.clientX - rect.width - pad);
+    }
+    if (top + rect.height > window.innerHeight - 10) {
+      top = Math.max(10, evt.clientY - rect.height - pad);
+    }
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+
+  function hideTooltip() {
+    activeTarget = null;
+    tooltip.classList.add("hidden");
+    tooltip.innerHTML = "";
+  }
+
+  document.addEventListener("mouseover", (evt) => {
+    const target = evt.target && evt.target.closest ? evt.target.closest("[data-tooltip]") : null;
+    if (!target) return;
+    const text = target.getAttribute("data-tooltip");
+    if (!text) return;
+    activeTarget = target;
+    setTooltipContent(text);
+    tooltip.classList.remove("hidden");
+  });
+
+  document.addEventListener("mousemove", (evt) => {
+    if (!activeTarget) return;
+    positionTooltip(evt);
+  });
+
+  document.addEventListener("mouseout", (evt) => {
+    if (!activeTarget) return;
+    const leaving = evt.target && evt.target.closest ? evt.target.closest("[data-tooltip]") : null;
+    if (!leaving || leaving !== activeTarget) return;
+    const entering = evt.relatedTarget && evt.relatedTarget.closest ? evt.relatedTarget.closest("[data-tooltip]") : null;
+    if (entering === activeTarget) return;
+    hideTooltip();
+  });
+
+  document.addEventListener("scroll", hideTooltip, true);
+  window.addEventListener("blur", hideTooltip);
+  window.addEventListener("resize", hideTooltip);
+}
+
+document.getElementById("zone-modal").addEventListener("click", function (e) {
+  if (e.target === this) closeModal();
+});
+initSkuHierarchyControls();
+renderSkuTree();
+applySkuFilter(SKU_FILTER ? SKU_FILTER.value : "");
+initRenderModeToggle();
+initSpatialScale();
+initSchematicHoverTooltips();
+initSkuDragAndDrop();
+initInventoryUploadControls();
+if (!window.__pgManifestInventoryAlignBound) {
+  window.__pgManifestInventoryAlignBound = true;
+  window.addEventListener("resize", () => window.requestAnimationFrame(alignManifestAndInventoryTop));
+}
+window.requestAnimationFrame(alignManifestAndInventoryTop);
+</script>
+{% endblock %}
+
+

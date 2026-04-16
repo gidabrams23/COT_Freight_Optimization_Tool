@@ -1,0 +1,11 @@
+url=http://127.0.0.1:5000/prograde/session/135c8b1e-3a46-4f0c-8a74-469cca098d98/load
+schematic_count=1
+schematic_box={'x': 240, 'y': 76.375, 'width': 1135, 'height': 386}
+bars=2
+bar_0_box={'x': 280, 'y': 242.375, 'width': 88, 'height': 118}
+bar_0_text=1.50 / 10.00 ft 8.50 ft remaining
+bar_1_box={'x': 1252, 'y': 214.375, 'width': 88, 'height': 118}
+bar_1_text=1.25 / 8.50 ft 7.25 ft remaining
+ruler=1
+ruler_text=1.0 ft remaining | 0' | 41.5' | 53.0'
+zone_blank_count=1

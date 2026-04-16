@@ -1,0 +1,102 @@
+{% extends "prograde/base.html" %}
+{% block title %}Sessions - ProGrade{% endblock %}
+
+{% block content %}
+{% set selected_brand = selected_brand | default('bigtex') %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Saved Sessions</div>
+    <div class="page-subtitle">
+      {% if can_manage_sessions %}
+      Review all saved loads and continue planning.
+      {% else %}
+      Review loads built by your selected account.
+      {% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <a href="{{ url_for('prograde.account_landing', brand=selected_brand, next=url_for('prograde.sessions', brand=selected_brand)) }}" class="btn btn-secondary">Account</a>
+    <a href="{{ url_for('prograde.session_new', brand=selected_brand) }}" class="btn btn-primary">Create Load</a>
+    <a href="{{ url_for('prograde.settings', brand=selected_brand) }}" class="btn btn-secondary">Settings</a>
+  </div>
+</div>
+
+<div class="page-body">
+  {% if account_notice %}
+  <div class="settings-alert visible" style="margin-bottom:12px;">
+    {{ account_notice.message }}
+  </div>
+  {% endif %}
+
+  {% if not has_seed_data %}
+  <div class="settings-alert visible" style="background: var(--status-warning-bg); border-color: var(--status-warning); color: var(--status-warning); margin-bottom: 12px;">
+    ProGrade seed data is not loaded. Open Settings and run imports before building loads.
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">{{ 'PJ' if selected_brand == 'pj' else 'Big Tex' }} Sessions</div>
+        <div class="card-subtitle">
+          {% if can_manage_sessions %}
+          {{ sessions|length }} saved session{% if sessions|length != 1 %}s{% endif %} across all planners
+          {% else %}
+          {{ sessions|length }} of your saved session{% if sessions|length != 1 %}s{% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>Label</th>
+            <th>Built By</th>
+            <th>Carrier</th>
+            <th>QTY</th>
+            <th>Updated</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if sessions %}
+            {% for s in sessions %}
+            <tr>
+              <td class="td-mono">{{ s.display_id or s.session_id }}</td>
+              <td>{{ s.session_label or '-' }}</td>
+              <td>{{ s.builder_name or '-' }}</td>
+              <td>{{ s.carrier_type or '-' }}</td>
+              <td class="td-mono td-qty">{{ (s.trailer_qty if s.trailer_qty is not none else 0)|int }}</td>
+              <td class="td-mono">{{ (s.updated_at or s.created_at or '-')|string|replace('T', ' ')|replace('Z', '') }}</td>
+              <td>
+                {% if s.is_saved %}
+                <span class="badge badge-success">Saved</span>
+                {% else %}
+                <span class="badge badge-neutral">{{ s.status or 'draft' }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                  <a href="{{ url_for('prograde.load_builder', session_id=s.session_id, brand=selected_brand) }}" class="btn btn-secondary btn-sm">Open</a>
+                  <a href="{{ url_for('prograde.export_load', session_id=s.session_id, brand=selected_brand) }}" class="btn btn-ghost btn-sm" target="_blank">Export</a>
+                  <form method="POST" action="{{ url_for('prograde.session_delete', session_id=s.session_id) }}" onsubmit="return confirm('Delete this session?');">
+                    <button type="submit" class="btn btn-ghost btn-sm">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="8" style="text-align:center;color:var(--text-secondary);padding:16px;">No saved sessions yet.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,264 @@
+2026-03-24 10:03:31,385 [INFO] __main__: Verbose startup logging enabled.
+2026-03-24 10:03:35,939 [INFO] __main__: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-03-24 10:03:36,140 [INFO] __main__: Starting app initialization.
+2026-03-24 10:03:36,150 [INFO] __main__: Flask app initialization complete.
+2026-03-24 10:03:36,153 [INFO] __main__: Blueprint registration check: no blueprints configured (routes are defined directly on app).
+2026-03-24 10:03:36,156 [WARNING] __main__: ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); Microsoft SSO is disabled.
+2026-03-24 10:03:36,203 [INFO] __main__: Database init starting.
+2026-03-24 10:03:36,373 [INFO] __main__: Database init complete.
+2026-03-24 10:03:36,374 [INFO] __main__: Ensuring default access profiles.
+2026-03-24 10:03:36,385 [INFO] __main__: Default access profiles ensured.
+2026-03-24 10:03:36,386 [INFO] __main__: Syncing access profile seed snapshot.
+2026-03-24 10:03:36,407 [WARNING] __main__: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-03-24 10:03:36,408 [INFO] __main__: Access profile seed snapshot sync complete.
+ * Serving Flask app 'app'
+ * Debug mode: on
+2026-03-24 10:03:36,744 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-03-24 10:03:36,745 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-03-24 10:03:36,751 [INFO] werkzeug:  * Restarting with stat
+2026-03-24 10:03:37,157 [INFO] __main__: Verbose startup logging enabled.
+2026-03-24 10:03:39,285 [INFO] __main__: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-03-24 10:03:39,459 [INFO] __main__: Starting app initialization.
+2026-03-24 10:03:39,461 [INFO] __main__: Flask app initialization complete.
+2026-03-24 10:03:39,462 [INFO] __main__: Blueprint registration check: no blueprints configured (routes are defined directly on app).
+2026-03-24 10:03:39,462 [WARNING] __main__: ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); Microsoft SSO is disabled.
+2026-03-24 10:03:39,475 [INFO] __main__: Database init starting.
+2026-03-24 10:03:39,505 [INFO] __main__: Database init complete.
+2026-03-24 10:03:39,505 [INFO] __main__: Ensuring default access profiles.
+2026-03-24 10:03:39,510 [INFO] __main__: Default access profiles ensured.
+2026-03-24 10:03:39,511 [INFO] __main__: Syncing access profile seed snapshot.
+2026-03-24 10:03:39,521 [WARNING] __main__: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-03-24 10:03:39,521 [INFO] __main__: Access profile seed snapshot sync complete.
+2026-03-24 10:03:39,624 [WARNING] werkzeug:  * Debugger is active!
+2026-03-24 10:03:39,636 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-03-24 10:03:53,878 [DEBUG] __main__: before_request fired: method=GET path=/healthz
+2026-03-24 10:03:53,878 [INFO] __main__: Health check route hit at /healthz - returning 200.
+2026-03-24 10:03:53,880 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:03:53] "GET /healthz HTTP/1.1" 200 -
+2026-03-24 10:09:08,531 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-24 10:09:08,730 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:08] "GET /login HTTP/1.1" 200 -
+2026-03-24 10:09:08,982 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:09:08,992 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:08] "GET /static/styles.css HTTP/1.1" 200 -
+2026-03-24 10:09:20,218 [DEBUG] __main__: before_request fired: method=POST path=/login
+2026-03-24 10:09:20,260 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:20] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-03-24 10:09:20,270 [DEBUG] __main__: before_request fired: method=GET path=/orders
+2026-03-24 10:09:21,440 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:21] "GET /orders HTTP/1.1" 200 -
+2026-03-24 10:09:21,473 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:09:21,478 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:09:21,482 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:09:21,482 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:21] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-03-24 10:09:21,485 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:21] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:09:21,491 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:21] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-03-24 10:09:22,432 [DEBUG] __main__: before_request fired: method=GET path=/api/orders/12603851/stack-config
+2026-03-24 10:09:22,635 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:09:22,776 [DEBUG] __main__: before_request fired: method=GET path=/orders
+2026-03-24 10:09:22,829 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:22] "GET /api/orders/12603851/stack-config HTTP/1.1" 200 -
+2026-03-24 10:09:22,961 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:22] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:09:23,576 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:23] "GET /orders HTTP/1.1" 200 -
+2026-03-24 10:09:23,618 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:09:23,622 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:23] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:09:23,627 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:09:23,630 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:09:23,634 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:23] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:23,635 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:23] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:24,243 [DEBUG] __main__: before_request fired: method=GET path=/api/orders/12603851/stack-config
+2026-03-24 10:09:24,275 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:24] "GET /api/orders/12603851/stack-config HTTP/1.1" 200 -
+2026-03-24 10:09:24,468 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:09:24,612 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:24] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:09:25,276 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:09:25,390 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:25] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:09:26,538 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:09:26,546 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:26] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:09:27,229 [DEBUG] __main__: before_request fired: method=GET path=/planning-sessions
+2026-03-24 10:09:27,609 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:27] "GET /planning-sessions HTTP/1.1" 200 -
+2026-03-24 10:09:27,646 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:09:27,646 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:09:27,647 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:09:27,650 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:27] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:09:27,652 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:27] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:27,653 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:27] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:27,882 [DEBUG] __main__: before_request fired: method=GET path=/planning-sessions/267/summary
+2026-03-24 10:09:27,985 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:27] "GET /planning-sessions/267/summary HTTP/1.1" 200 -
+2026-03-24 10:09:29,200 [DEBUG] __main__: before_request fired: method=GET path=/loads
+2026-03-24 10:09:29,466 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:29] "[35m[1mGET /loads?session_id=260&tab=draft HTTP/1.1[0m" 500 -
+2026-03-24 10:09:29,520 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:29] "GET /loads?__debugger__=yes&cmd=resource&f=style.css HTTP/1.1" 200 -
+2026-03-24 10:09:29,521 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:29] "GET /loads?__debugger__=yes&cmd=resource&f=debugger.js HTTP/1.1" 200 -
+2026-03-24 10:09:29,621 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:29] "GET /loads?__debugger__=yes&cmd=resource&f=console.png&s=VrbmHLZiBBskBAVE7bFB HTTP/1.1" 200 -
+2026-03-24 10:09:30,493 [DEBUG] __main__: before_request fired: method=GET path=/settings
+2026-03-24 10:09:31,154 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:31] "GET /settings?tab=overview HTTP/1.1" 200 -
+2026-03-24 10:09:31,193 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:09:31,200 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:09:31,201 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:09:31,203 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:31] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:09:31,207 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:31] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:31,210 [DEBUG] __main__: before_request fired: method=GET path=/static/rates_v2.js
+2026-03-24 10:09:31,214 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:31] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:31,220 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:31] "GET /static/rates_v2.js HTTP/1.1" 200 -
+2026-03-24 10:09:32,363 [DEBUG] __main__: before_request fired: method=GET path=/settings
+2026-03-24 10:09:32,510 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:32] "GET /settings?tab=rates HTTP/1.1" 200 -
+2026-03-24 10:09:32,531 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:09:32,534 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:32] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:09:32,544 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:09:32,546 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:09:32,548 [DEBUG] __main__: before_request fired: method=GET path=/static/rates_v2.js
+2026-03-24 10:09:32,551 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:32] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:32,553 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:32] "[36mGET /static/rates_v2.js HTTP/1.1[0m" 304 -
+2026-03-24 10:09:32,553 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:32] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:33,567 [DEBUG] __main__: before_request fired: method=GET path=/dashboard
+2026-03-24 10:09:33,820 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:33] "GET /dashboard HTTP/1.1" 200 -
+2026-03-24 10:09:33,850 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:09:33,854 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:33] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:09:33,859 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:09:33,862 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:33] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:09:33,892 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:09:33,895 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:09:33] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:11:24,200 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-24 10:11:24,216 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:24] "GET /login HTTP/1.1" 200 -
+2026-03-24 10:11:24,234 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:11:24,240 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:24] "GET /static/styles.css HTTP/1.1" 200 -
+2026-03-24 10:11:25,499 [DEBUG] __main__: before_request fired: method=POST path=/login
+2026-03-24 10:11:25,518 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:25] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-03-24 10:11:25,523 [DEBUG] __main__: before_request fired: method=GET path=/orders
+2026-03-24 10:11:26,052 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:26] "GET /orders HTTP/1.1" 200 -
+2026-03-24 10:11:26,067 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:11:26,069 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:11:26,070 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:11:26,071 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:26] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:11:26,075 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:26] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-03-24 10:11:26,077 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:26] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-03-24 10:11:26,551 [DEBUG] __main__: before_request fired: method=GET path=/api/orders/12603851/stack-config
+2026-03-24 10:11:26,571 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:26] "GET /api/orders/12603851/stack-config HTTP/1.1" 200 -
+2026-03-24 10:11:26,755 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:11:26,833 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:26] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:11:27,282 [DEBUG] __main__: before_request fired: method=GET path=/orders
+2026-03-24 10:11:27,800 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:27] "GET /orders HTTP/1.1" 200 -
+2026-03-24 10:11:27,823 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:11:27,825 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:27] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:11:27,828 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:11:27,828 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:11:27,831 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:27] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:11:27,833 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:27] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:11:28,069 [DEBUG] __main__: before_request fired: method=GET path=/api/orders/12603851/stack-config
+2026-03-24 10:11:28,083 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:28] "GET /api/orders/12603851/stack-config HTTP/1.1" 200 -
+2026-03-24 10:11:28,285 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:11:28,360 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:28] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:11:30,085 [DEBUG] __main__: before_request fired: method=GET path=/planning-sessions/260
+2026-03-24 10:11:30,202 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:30] "GET /planning-sessions/260 HTTP/1.1" 200 -
+2026-03-24 10:11:30,287 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:11:30,289 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:11:30,290 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:30] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:11:30,292 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:30] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:11:30,294 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:11:30,303 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:30] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:11:31,017 [DEBUG] __main__: before_request fired: method=GET path=/loads/70
+2026-03-24 10:11:31,154 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:31] "GET /loads/70 HTTP/1.1" 200 -
+2026-03-24 10:11:31,168 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:11:31,172 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:11:31,173 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:11:31,173 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:31] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:11:31,176 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:31] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:11:31,177 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:31] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:11:31,206 [DEBUG] __main__: before_request fired: method=GET path=/api/loads/70/route-geometry
+2026-03-24 10:11:31,245 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:11:31] "GET /api/loads/70/route-geometry HTTP/1.1" 200 -
+2026-03-24 10:40:55,205 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-24 10:40:55,249 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:55] "GET /login?next=/upload? HTTP/1.1" 200 -
+2026-03-24 10:40:55,320 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:40:55,337 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:55] "GET /static/styles.css HTTP/1.1" 200 -
+2026-03-24 10:40:55,514 [DEBUG] __main__: before_request fired: method=GET path=/favicon.ico
+2026-03-24 10:40:55,521 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:55] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-24 10:40:58,051 [DEBUG] __main__: before_request fired: method=POST path=/login
+2026-03-24 10:40:58,081 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:58] "[32mPOST /login?next=/upload? HTTP/1.1[0m" 302 -
+2026-03-24 10:40:58,093 [DEBUG] __main__: before_request fired: method=GET path=/upload
+2026-03-24 10:40:58,097 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:58] "[32mGET /upload HTTP/1.1[0m" 302 -
+2026-03-24 10:40:58,108 [DEBUG] __main__: before_request fired: method=GET path=/orders
+2026-03-24 10:40:58,693 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:58] "GET /orders HTTP/1.1" 200 -
+2026-03-24 10:40:58,745 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:40:58,747 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:58] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:40:58,752 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:40:58,753 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:40:58,755 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:58] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:40:58,757 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:58] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:40:59,231 [DEBUG] __main__: before_request fired: method=GET path=/api/orders/12603851/stack-config
+2026-03-24 10:40:59,252 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:59] "GET /api/orders/12603851/stack-config HTTP/1.1" 200 -
+2026-03-24 10:40:59,416 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:40:59,491 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:40:59] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:12,197 [DEBUG] __main__: before_request fired: method=GET path=/loads
+2026-03-24 10:41:12,201 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:12] "[32mGET /loads HTTP/1.1[0m" 302 -
+2026-03-24 10:41:12,213 [DEBUG] __main__: before_request fired: method=GET path=/orders
+2026-03-24 10:41:12,569 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:12] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+2026-03-24 10:41:12,631 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:41:12,633 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:12] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:41:12,646 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:41:12,648 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:41:12,649 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:12] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:41:12,651 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:12] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:41:13,030 [DEBUG] __main__: before_request fired: method=GET path=/api/orders/12603851/stack-config
+2026-03-24 10:41:13,042 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:13] "GET /api/orders/12603851/stack-config HTTP/1.1" 200 -
+2026-03-24 10:41:13,231 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:13,294 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:13] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:14,278 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:14,324 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:14] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:15,064 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:15,108 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:15] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:17,445 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:17,495 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:17] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:18,212 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:18,249 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:18] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:19,219 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:19,269 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:19] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:19,793 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:19,844 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:19] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:21,221 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:21,263 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:21] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:21,760 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:21,826 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:21] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:25,541 [DEBUG] __main__: before_request fired: method=POST path=/orders/optimize
+2026-03-24 10:41:28,409 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:28] "[32mPOST /orders/optimize HTTP/1.1[0m" 302 -
+2026-03-24 10:41:28,418 [DEBUG] __main__: before_request fired: method=GET path=/loads
+2026-03-24 10:41:28,538 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:28] "[35m[1mGET /loads?plants=GA&session_id=268 HTTP/1.1[0m" 500 -
+2026-03-24 10:41:28,637 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:28] "GET /loads?__debugger__=yes&cmd=resource&f=style.css HTTP/1.1" 200 -
+2026-03-24 10:41:28,638 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:28] "GET /loads?__debugger__=yes&cmd=resource&f=debugger.js HTTP/1.1" 200 -
+2026-03-24 10:41:28,710 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:28] "GET /loads?__debugger__=yes&cmd=resource&f=console.png&s=VrbmHLZiBBskBAVE7bFB HTTP/1.1" 200 -
+2026-03-24 10:41:28,733 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:28] "GET /loads?__debugger__=yes&cmd=resource&f=console.png HTTP/1.1" 200 -
+2026-03-24 10:41:34,952 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-24 10:41:34,975 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:34] "GET /login?next=/upload? HTTP/1.1" 200 -
+2026-03-24 10:41:35,036 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:41:35,038 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:35] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:41:37,632 [DEBUG] __main__: before_request fired: method=POST path=/login
+2026-03-24 10:41:37,656 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:37] "[32mPOST /login?next=/upload? HTTP/1.1[0m" 302 -
+2026-03-24 10:41:37,666 [DEBUG] __main__: before_request fired: method=GET path=/upload
+2026-03-24 10:41:37,672 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:37] "[32mGET /upload HTTP/1.1[0m" 302 -
+2026-03-24 10:41:37,684 [DEBUG] __main__: before_request fired: method=GET path=/orders
+2026-03-24 10:41:38,164 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:38] "GET /orders HTTP/1.1" 200 -
+2026-03-24 10:41:38,229 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:41:38,231 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:38] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:41:38,237 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:41:38,238 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:41:38,240 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:38] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:41:38,243 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:38] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:41:38,635 [DEBUG] __main__: before_request fired: method=GET path=/api/orders/12603851/stack-config
+2026-03-24 10:41:38,664 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:38] "GET /api/orders/12603851/stack-config HTTP/1.1" 200 -
+2026-03-24 10:41:38,829 [DEBUG] __main__: before_request fired: method=POST path=/api/orders/scope-count
+2026-03-24 10:41:38,935 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:38] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-03-24 10:41:42,963 [DEBUG] __main__: before_request fired: method=GET path=/planning-sessions
+2026-03-24 10:41:43,152 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:43] "GET /planning-sessions HTTP/1.1" 200 -
+2026-03-24 10:41:43,216 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:41:43,219 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:43] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:41:43,236 [DEBUG] __main__: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-03-24 10:41:43,237 [DEBUG] __main__: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-03-24 10:41:43,240 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:43] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:41:43,241 [DEBUG] __main__: before_request fired: method=GET path=/planning-sessions/268/summary
+2026-03-24 10:41:43,244 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:43] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-03-24 10:41:43,273 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:43] "GET /planning-sessions/268/summary HTTP/1.1" 200 -
+2026-03-24 10:41:46,090 [DEBUG] __main__: before_request fired: method=GET path=/planning-sessions/268/resume
+2026-03-24 10:41:46,097 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:46] "[32mGET /planning-sessions/268/resume HTTP/1.1[0m" 302 -
+2026-03-24 10:41:46,120 [DEBUG] __main__: before_request fired: method=GET path=/loads
+2026-03-24 10:41:46,203 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:46] "[35m[1mGET /loads?session_id=268 HTTP/1.1[0m" 500 -
+2026-03-24 10:41:46,242 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:46] "[36mGET /loads?__debugger__=yes&cmd=resource&f=style.css HTTP/1.1[0m" 304 -
+2026-03-24 10:41:46,248 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:46] "[36mGET /loads?__debugger__=yes&cmd=resource&f=debugger.js HTTP/1.1[0m" 304 -
+2026-03-24 10:41:46,270 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:41:46] "[36mGET /loads?__debugger__=yes&cmd=resource&f=console.png&s=VrbmHLZiBBskBAVE7bFB HTTP/1.1[0m" 304 -
+2026-03-24 10:42:30,286 [DEBUG] __main__: before_request fired: method=GET path=/login
+2026-03-24 10:42:30,307 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:42:30] "GET /login?next=/upload? HTTP/1.1" 200 -
+2026-03-24 10:42:30,392 [DEBUG] __main__: before_request fired: method=GET path=/static/styles.css
+2026-03-24 10:42:30,394 [INFO] werkzeug: 127.0.0.1 - - [24/Mar/2026 10:42:30] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-03-24 10:42:32,926 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\app.py', reloading

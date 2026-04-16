@@ -1,0 +1,13 @@
+page_url=http://127.0.0.1:5000/prograde/session/135c8b1e-3a46-4f0c-8a74-469cca098d98/load
+schematic_found=True
+schematic_box={'x': 240, 'y': 76.375, 'width': 1135, 'height': 386}
+indicator_count=2
+indicator_0_box={'x': 280, 'y': 242.375, 'width': 88, 'height': 118}
+indicator_0_text=1.50 / 10.00 ft 8.50 ft remaining
+indicator_1_box={'x': 1252, 'y': 224.375, 'width': 88, 'height': 118}
+indicator_1_text=1.25 / 8.50 ft 7.25 ft remaining
+blank_box_count=1
+blank_0_box={'x': 376, 'y': 338.375, 'width': 278.6875, 'height': 22}
+blank_0_text=17.5 ft remaining
+ruler_count=1
+ruler_text=1.5 ft remaining | 0' | 42' | 54'

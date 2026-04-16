@@ -1,0 +1,126 @@
+{% extends "prograde/base.html" %}
+{% block title %}Export — {{ session.session_label or session.session_id[:8] }}{% endblock %}
+
+{% block head %}
+<style>
+  @media print {
+    .sidebar, .page-header .btn, .no-print { display: none !important; }
+    .main-content { margin-left: 0 !important; }
+    body { background: white; color: black; }
+    .card { border: 1px solid #ccc; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Load Schematic — {{ session.session_label or session.session_id[:8] }}</div>
+    <div class="page-subtitle">{{ session.brand | upper }} · {{ session.carrier_type }} · Planner: {{ session.builder_name or session.planner_name or '—' }}</div>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="window.print()" class="btn btn-primary">Print</button>
+    <a href="{{ url_for('prograde.load_builder', session_id=session.session_id, brand=selected_brand) }}" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<div class="page-body">
+
+  <!-- Summary -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;gap:32px;flex-wrap:wrap">
+      <div>
+        <div class="td-label">Total Footprint</div>
+        <div style="font-size:20px;font-weight:700;font-family:var(--font-mono)">
+          {{ "%.1f"|format(total_footprint) }}' / {{ carrier.total_length_ft }}'
+        </div>
+      </div>
+      <div>
+        <div class="td-label">Unit Count</div>
+        <div style="font-size:20px;font-weight:700">{{ positions|length }}</div>
+      </div>
+      <div>
+        <div class="td-label">Status</div>
+        <div style="margin-top:4px">
+          {% if violations_error > 0 %}
+            <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
+          {% elif violations_warning > 0 %}
+            <span class="badge badge-warning">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
+          {% else %}
+            <span class="badge badge-success">✓ Clear</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone tables -->
+  {% for zone in zones %}
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-header">
+      <div class="card-title">{{ zone_labels[zone] }}</div>
+      <div class="card-subtitle">
+        Length: {{ "%.1f"|format(zone_lengths[zone]) }}'
+        {% if zone_caps[zone] %} / {{ zone_caps[zone] }}'{% endif %}
+      </div>
+    </div>
+
+    {% set zone_pos = positions | selectattr('deck_zone', 'equalto', zone) | list %}
+    {% if zone_pos %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Seq</th>
+            <th>Layer</th>
+            <th>Item #</th>
+            <th>Footprint</th>
+            <th>Height</th>
+            <th>Nested In</th>
+            <th>GN Drop</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in zone_pos | sort(attribute='sequence') %}
+          <tr>
+            <td class="td-mono">{{ p.sequence }}</td>
+            <td class="td-mono">{{ p.layer }}</td>
+            <td class="td-mono"><strong>{{ p.item_number }}</strong></td>
+            <td class="td-mono">{{ p.footprint }}'</td>
+            <td class="td-mono">{{ p.height }}'</td>
+            <td class="td-mono">{{ p.nested_inside or '—' }}</td>
+            <td>{% if p.gn_axle_dropped %}Yes{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">Empty zone</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- Violations -->
+  {% if violations %}
+  <div class="card">
+    <div class="card-header"><div class="card-title">Constraint Violations</div></div>
+    <div class="violation-panel">
+      {% for v in violations %}
+      <div class="violation-item {{ v.severity }}">
+        <div>
+          <div class="violation-code">{{ v.rule_code }}</div>
+          <div class="violation-msg">{{ v.message }}</div>
+          {% if v.suggested_fix %}
+          <div class="violation-fix">→ {{ v.suggested_fix }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+

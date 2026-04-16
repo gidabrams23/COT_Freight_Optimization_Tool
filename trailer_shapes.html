@@ -1,0 +1,743 @@
+{#
+  trailer_shapes.html
+  Jinja2 macro library — PJ Trailers side-view SVG silhouettes for canvas unit cards.
+
+  Usage:
+    {% from 'prograde/macros/trailer_shapes.html' import trailer_shape %}
+    {{ trailer_shape(unit, scale_px_per_ft=6, height_scale=10) }}
+
+  Each shape is a side-view silhouette of the trailer category.
+  Orientation: rear of trailer at LEFT, tongue points RIGHT (toward truck cab).
+  The truck/step-deck surface is the bottom reference line.
+
+  Arguments passed to trailer_shape():
+    unit               — load_position dict/object with keys:
+                           pj_category       (str)  e.g. 'dump_lowside'
+                           bed_length_measured (float) feet, already adjusted for offsets
+                           tongue_feet        (float) from pj_tongue_groups
+                           stack_height_mid   (float) feet, height when at mid/bottom
+                           stack_height_top   (float) feet, height when at top layer
+                           dump_side_height_ft (float|None) for dump variants
+                           is_top_layer       (bool)  controls which height value to use
+    scale_px_per_ft    — horizontal pixels per foot (default 6)
+    height_scale       — vertical pixels per foot (default 10)
+
+  SVG coordinate system:
+    - x increases rightward (rear → front)
+    - y increases downward (top → bottom)
+    - "Deck surface" (truck step deck) is at y = svg_height - 12
+    - Shapes extend UPWARD from the deck surface
+    - Tongue extends RIGHTWARD from the front of the bed
+
+  Truck deck reference line is drawn as a dashed line at y = svg_height - 12.
+  Wheel centers sit at y = svg_height - 19  (7px above deck = wheel radius)
+  Standard deck frame top sits at y = svg_height - 22
+
+  Category → shape mapping:
+    utility              → A-frame wedge tongue, stake pocket tabs, small wheels
+    car_hauler           → Flat C-channel tongue, spare mount stub, two axles
+    car_hauler_deckover  → Same as car_hauler (EV Voyager)
+    tilt                 → Same as car_hauler (T1, TH, T6 etc — C-channel tongue group)
+    tilt_deckover        → Dual-rail I-beam tongue, higher deck, fender humps (T8)
+    dump_lowside         → Tall box, thick rear gate, tarp cap, scissor diagonal
+    dump_highside_3ft    → Same box shape, taller (5.0' contribution)
+    dump_highside_4ft    → Same box shape, tallest (6.0' contribution)
+    dump_small           → Smaller box (D5 — only one that nests inside dumps)
+    dump_gn              → Dump box with gooseneck neck instead of straight tongue
+    dump_variants        → Fallback to dump_lowside shape
+    deck_over            → Dual-rail I-beam tongue, higher deck, fender humps (F8/L6/L7)
+    gooseneck_flatdeck   → Rising bezier neck to large over-cab coupler (LD/LDQ)
+    gooseneck_quest      → Same neck shape (LQ)
+    gooseneck_pintle     → Same neck shape, longer tongue (PLP — 7' tongue group)
+    gooseneck_variants   → Same neck shape (LS, LX, LY)
+
+  Color palette (matches canvas category colors — override via CSS variables):
+    utility:         #0ea5e9
+    car_hauler:      #22c55e
+    dump:            #f59e0b
+    deck_over/tilt:  #a78bfa
+    gooseneck:       #6366f1
+
+  ============================================================
+  SHAPE GEOMETRY REFERENCE (all values at scale 6px/ft, deck at y=88 in 100px tall SVG)
+  ============================================================
+
+  UTILITY (pj_category = 'utility'):
+    Bed:           rect, x=0, y=70, width=bed_px, height=4
+    Wheels:        circle at (bed_px*0.45, 81), r=7
+    Fender arch:   quadratic bezier over wheel
+    Stake pockets: 4 small rects along top of bed, y=63 to y=70
+    Tongue (A-frame, side view = wedge shape):
+                   polygon points = "(bed_px, 70) (bed_px, 74) (bed_px+tongue_px, 83)"
+    Coupler:       circle at (bed_px+tongue_px, 83), r=4.5
+
+  CAR HAULER / TILT (pj_category in 'car_hauler', 'tilt', 'car_hauler_deckover'):
+    Bed:           rect, x=0, y=70, width=bed_px, height=4
+    Wheels:        two circles at (bed_px*0.27, 81) and (bed_px*0.75, 81), r=7
+    Fender arches: over each wheel
+    Spare mount:   rect at (bed_px, 59), width=5, height=11 (adds 1' measured length)
+    Tongue (C-channel, flat horizontal):
+                   rect x=bed_px+5, y=71, width=tongue_px-5, height=3
+    Coupler:       rect (adjustable head) + circle at (bed_px+tongue_px, 72), r=3.5
+
+  DUMP LOWSIDE (pj_category = 'dump_lowside'):
+    box_height_px  = stack_height_mid * height_scale  (4.0' default = 40px)
+    Chassis:       rect, x=0, y=70, width=bed_px, height=4
+    Box outer:     rect, x=0, y=(70-box_height_px), width=bed_px, height=box_height_px, stroke-width=2
+    Box inner:     rect, inset 2.5px on all sides, lighter fill
+    Rear gate:     thick vertical line at x=0, from box top to chassis bottom, stroke-width=3.5
+    Tarp cap:      rounded rect, x=6, y=(70-box_height_px-5), width=bed_px*0.7, height=5
+    Scissor lift:  diagonal line from (bed_px*0.2, 74) to (bed_px*0.75, 67)
+    Tongue:        rect, x=bed_px, y=68, width=tongue_px, height=6
+    Coupler:       circle at (bed_px+tongue_px, 71), r=5
+    Wheel:         circle at (bed_px*0.5, 81), r=7
+
+  DUMP HIGHSIDE 3FT (pj_category = 'dump_highside_3ft'):
+    Same as dump_lowside but box_height_px = 5.0 * height_scale = 50px
+
+  DUMP HIGHSIDE 4FT (pj_category = 'dump_highside_4ft'):
+    Same as dump_lowside but box_height_px = 6.0 * height_scale = 60px
+
+  DUMP SMALL D5 (pj_category = 'dump_small'):
+    Smaller version of dump_lowside. box_height_px = 3.0 * height_scale = 30px
+    When rendered NESTED inside another dump: show at 60% opacity, inset inside host box.
+
+  TILT DECK-OVER / T8 (pj_category = 'tilt_deckover'):
+    deck_y         = svg_height - 37  (higher deck = over axles, ~2.5' above truck deck)
+    Deck:          rect, x=0, y=deck_y, width=bed_px, height=5
+    Wheels:        larger, r=10. Centers at (bed_px*0.35, svg_height-22) and (bed_px*0.77, svg_height-22)
+    Fender humps:  rect over each wheel position, rounded corners, height=9px
+    Tilt hinge:    vertical line at x=bed_px*0.14 (T8 tilt pivot marker)
+    Spare mount:   rect at (bed_px, deck_y-11), width=5, height=11
+    Tongue (I-beam, dual rail — the visual key):
+      Top rail:    rect x=bed_px+5, y=deck_y-5, width=tongue_px-5, height=4.5
+      Bottom rail: rect x=bed_px+5, y=deck_y+4, width=tongue_px-5, height=4.5
+      Web:         rect at center of tongue, width=8, height=4.5 (connects the two rails)
+    Coupler plate: tall rect + circle at end of tongue
+
+  DECK-OVER / F8, L6, L7 (pj_category = 'deck_over'):
+    Same as tilt_deckover but WITHOUT the tilt hinge line at x=bed_px*0.14
+
+  GOOSENECK (pj_category in 'gooseneck_flatdeck', 'gooseneck_quest', 'gooseneck_pintle', 'gooseneck_variants'):
+    deck_y         = svg_height - 24  (low-pro deck, very close to truck deck surface)
+    Deck:          rect, x=0, y=deck_y, width=bed_px, height=4
+    Wheels:        4 small wheels in 2 tandem pairs (r=5)
+      Pair 1:      x = bed_px*0.25 and bed_px*0.33, cy = svg_height - 17
+      Pair 2:      x = bed_px*0.70 and bed_px*0.78, cy = svg_height - 17
+    neck_start_x   = bed_px  (front face of deck)
+    neck_end_x     = bed_px + tongue_px  (coupler location)
+    coupler_y      = deck_y - 27  (coupler sits ~2.7' above truck deck = truck-bed height)
+
+    NECK SHAPE (the defining bezier curve, filled closed path):
+      The neck rises from the deck face up to the over-cab coupler.
+      Draw as a single closed path (clockwise from deck top-front):
+
+      Top edge of neck:
+        M (neck_start_x, deck_y)
+        C (neck_start_x + tongue_px*0.25, deck_y - 4)
+          (neck_start_x + tongue_px*0.73, coupler_y)
+          (neck_end_x, coupler_y)
+
+      Coupler face (right side):
+        L (neck_end_x, coupler_y + 4)
+
+      Bottom edge of neck (mirror of top):
+        C (neck_start_x + tongue_px*0.73, coupler_y + 4)
+          (neck_start_x + tongue_px*0.25, deck_y + 4)
+          (neck_start_x, deck_y + 4)
+
+      Close:
+        Z
+
+      In SVG path notation (example with bed_px=150, tongue_px=54, deck_y=76, coupler_y=49):
+        d="M 150,76 C 163,72 189,49 204,49 L 204,53 C 189,53 163,80 150,80 Z"
+
+    Cross-brace:  short vertical line at x = neck_start_x + tongue_px*0.6, between top and bottom edges
+
+    COUPLER (large concentric-ring disc — much larger than ball coupler):
+      Outer ring:  circle at (neck_end_x, coupler_y + 2), r=9
+      Inner ring:  circle at same center, r=4, slightly darker fill
+      Center dot:  circle at same center, r=1.75, solid fill
+
+    HEIGHT INDICATOR (dashed vertical line showing how far above truck deck the coupler sits):
+      line from (neck_end_x + 10, coupler_y) to (neck_end_x + 10, svg_height - 12)
+      stroke-dasharray="2,2", opacity=0.4
+
+  ============================================================
+  IMPLEMENTATION NOTES FOR CODEX
+  ============================================================
+
+  1. RENDER CONTEXT
+     These shapes appear inside unit cards on the load canvas.
+     Each card's width is proportional to the unit's total_footprint.
+     Each card's height is fixed (determined by the zone's height budget display).
+     The SVG viewBox should be: "0 0 {total_footprint * scale_px_per_ft} 100"
+     Use width="100%" height="100%" on the SVG so it fills the card.
+
+  2. PARAMETERIZATION PATTERN
+     All x-coordinates that depend on bed length use: bed_px = bed_length_measured * scale_px_per_ft
+     All x-coordinates that depend on tongue use: tongue_px = tongue_feet * scale_px_per_ft
+     The SVG viewBox width = (bed_length_measured + tongue_feet) * scale_px_per_ft
+     Vertical positions are fixed (do not scale with dimensions).
+
+  3. COLOR APPLICATION
+     Each category has a stroke color and a fill color (stroke at 10-20% opacity).
+     Apply stroke to all structural lines.
+     Apply fill at rgba(r,g,b,0.10) to bed rectangles and neck shape.
+     Apply fill at rgba(r,g,b,0.22-0.30) to tongue and accent elements.
+     Wheel hubs: rgba(r,g,b,0.30) fill.
+
+     Category → hex stroke color:
+       utility:              #0ea5e9
+       car_hauler, tilt:     #22c55e
+       dump_*:               #f59e0b
+       deck_over, tilt_deckover: #a78bfa
+       gooseneck_*:          #6366f1
+
+  4. VIOLATION STATE
+     When the unit has a constraint violation, override the stroke color to a muted amber
+     so the warning remains visible without overpowering the schematic linework.
+
+  5. NESTED UNIT (D5 inside dump)
+     When is_nested=True on a D5 unit, render the D5 shape at 60% opacity
+     positioned inside the host dump's box rectangle, centered horizontally,
+     aligned to the bottom of the box interior.
+
+  6. GN AXLE DROP TOGGLE
+     When gn_axle_dropped=True, add a small downward-arrow indicator (▼) near
+     the rear axle pair to signal the axles are in the dropped position.
+     Adjust coupler_y by +4px (coupler sits slightly lower when axles dropped).
+
+  7. LAYER CONTEXT
+     Pass is_top_layer to the macro. When True:
+       - Render spare mount stub on car_hauler shapes (it's normally hidden under next layer)
+       - Use stack_height_top value for the height annotation
+     When False:
+       - Hide spare mount stub (covered by the unit stacked on top)
+       - Use stack_height_mid value
+
+  ============================================================
+  JINJA2 MACRO IMPLEMENTATION
+  ============================================================
+#}
+
+{% macro trailer_shape(unit, scale_px_per_ft=6, height_scale=10) %}
+  {%- set bed_px = (unit.bed_length_measured * scale_px_per_ft) | int -%}
+  {%- set tongue_px = (unit.tongue_feet * scale_px_per_ft) | int -%}
+  {%- set cat = unit.pj_category -%}
+  {%- set total_px = [bed_px + tongue_px, 1] | max -%}
+  {%- set unit_height_ft = (
+        unit.height
+        if unit.height is defined and unit.height is not none and (unit.height | float) > 0
+        else (
+          unit.stack_height_top
+          if unit.stack_height_top is defined and unit.stack_height_top is not none and (unit.stack_height_top | float) > 0
+          else (
+            unit.stack_height_mid
+            if unit.stack_height_mid is defined and unit.stack_height_mid is not none and (unit.stack_height_mid | float) > 0
+            else 2.5
+          )
+        )
+      ) | float -%}
+  {%- set is_gn_cat = cat in ('gooseneck_flatdeck', 'gooseneck_quest', 'gooseneck_pintle', 'gooseneck_variants') -%}
+  {%- set headroom_px = 40 if is_gn_cat else (34 if cat in ('deck_over', 'tilt_deckover') else 30) -%}
+  {%- set svg_h_raw = (unit_height_ft * height_scale + headroom_px) | round(0, 'ceil') | int -%}
+  {%- set svg_h_min = 60 if is_gn_cat else 52 -%}
+  {%- set svg_h_max = 110 -%}
+  {%- set svg_h = [([svg_h_raw, svg_h_min] | max), svg_h_max] | min -%}
+  {%- set deck_y = svg_h - 12 -%}
+  {%- set is_dump_cat = cat in ('dump_lowside', 'dump_highside_3ft', 'dump_highside_4ft', 'dump_small', 'dump_variants') -%}
+  {%- if cat == 'dump_highside_4ft' -%}
+    {%- set dump_box_h = 60 -%}
+  {%- elif cat == 'dump_highside_3ft' -%}
+    {%- set dump_box_h = 50 -%}
+  {%- elif cat == 'dump_small' -%}
+    {%- set dump_box_h = 30 -%}
+  {%- else -%}
+    {%- set dump_box_h = 40 -%}
+  {%- endif -%}
+  {%- if unit.dump_side_height_ft is defined and unit.dump_side_height_ft is not none and (unit.dump_side_height_ft | float) > 0 -%}
+    {%- set dump_box_h = (unit.dump_side_height_ft * height_scale) | int -%}
+  {%- endif -%}
+  {%- if is_dump_cat -%}
+    {%- set content_top = deck_y - 18 - dump_box_h - 5 -%}
+  {%- elif cat in ('tilt_deckover', 'deck_over') -%}
+    {%- set content_top = deck_y - 36 -%}
+  {%- elif cat in ('car_hauler', 'tilt', 'car_hauler_deckover') -%}
+    {%- set content_top = deck_y - 29 -%}
+  {%- elif cat == 'utility' -%}
+    {%- set content_top = deck_y - 26 -%}
+  {%- else -%}
+    {%- set content_top = deck_y - 48 -%}
+  {%- endif -%}
+  {%- set content_bottom = deck_y + (12 if (is_gn_cat and unit.gn_axle_dropped) else 2) -%}
+  {%- set crop_top = [content_top - 2, 0] | max -%}
+  {%- set crop_bottom = [content_bottom + 2, crop_top + 1] | max -%}
+  {%- set crop_h = crop_bottom - crop_top -%}
+
+  {%- if cat == 'utility' -%}
+    {%- set color = '#0ea5e9' -%}
+  {%- elif cat in ('car_hauler', 'tilt', 'car_hauler_deckover') -%}
+    {%- set color = '#22c55e' -%}
+  {%- elif cat in ('dump_lowside', 'dump_highside_3ft', 'dump_highside_4ft', 'dump_small', 'dump_gn', 'dump_variants') -%}
+    {%- set color = '#f59e0b' -%}
+  {%- elif cat in ('deck_over', 'tilt_deckover') -%}
+    {%- set color = '#a78bfa' -%}
+  {%- else -%}
+    {%- set color = '#6366f1' -%}
+  {%- endif -%}
+
+  {%- if unit.violation -%}
+    {%- set color = '#d28a58' -%}
+  {%- endif -%}
+
+  <svg viewBox="0 {{ crop_top }} {{ total_px }} {{ crop_h }}"
+       width="100%"
+       height="100%"
+       preserveAspectRatio="xMidYMid meet"
+       xmlns="http://www.w3.org/2000/svg"
+       style="display:block;width:100%;height:100%;overflow:hidden;">
+
+    {# Truck deck reference line #}
+    <line x1="0" y1="{{ deck_y }}" x2="{{ total_px }}" y2="{{ deck_y }}"
+          stroke="{{ color }}" stroke-width="0.4"
+          stroke-dasharray="4,3" stroke-opacity="0.3"/>
+
+    {# ── UTILITY ── #}
+    {% if cat == 'utility' %}
+      {%- set wheel_x = (bed_px * 0.45) | int -%}
+      {%- set frame_y = deck_y - 18 -%}
+      {# Wheel #}
+      <circle cx="{{ wheel_x }}" cy="{{ deck_y - 7 }}" r="7"
+              fill="none" stroke="{{ color }}" stroke-width="1"/>
+      <circle cx="{{ wheel_x }}" cy="{{ deck_y - 7 }}" r="2.5"
+              fill="rgba(14,165,233,0.3)" stroke="{{ color }}" stroke-width="0.5"/>
+      {# Fender arch #}
+      <path d="M {{ wheel_x - 8 }},{{ frame_y + 1 }} Q {{ wheel_x }},{{ frame_y - 4 }} {{ wheel_x + 8 }},{{ frame_y + 1 }}"
+            fill="rgba(14,165,233,0.12)" stroke="{{ color }}" stroke-width="0.75"/>
+      {# Rear plate #}
+      <line x1="0" y1="{{ frame_y }}" x2="0" y2="{{ deck_y }}"
+            stroke="{{ color }}" stroke-width="1.5"/>
+      {# Deck frame #}
+      <rect x="0" y="{{ frame_y }}" width="{{ bed_px }}" height="4"
+            fill="rgba(14,165,233,0.12)" stroke="{{ color }}" stroke-width="1"/>
+      {# Stake pockets #}
+      {% for i in range(4) %}
+        {%- set sp_x = ((bed_px / 5) * (i + 1)) | int -%}
+        <rect x="{{ sp_x - 1 }}" y="{{ frame_y - 8 }}" width="3" height="8"
+              fill="rgba(14,165,233,0.22)" stroke="{{ color }}" stroke-width="0.75"/>
+      {% endfor %}
+      {# A-frame tongue (wedge shape from side) #}
+      <polygon points="{{ bed_px }},{{ frame_y }} {{ bed_px }},{{ frame_y + 4 }} {{ bed_px + tongue_px }},{{ deck_y - 5 }}"
+               fill="rgba(14,165,233,0.16)" stroke="{{ color }}" stroke-width="1.1"/>
+      {# Coupler ball #}
+      <circle cx="{{ bed_px + tongue_px }}" cy="{{ deck_y - 5 }}" r="4.5"
+              fill="none" stroke="{{ color }}" stroke-width="1.5"/>
+      <circle cx="{{ bed_px + tongue_px }}" cy="{{ deck_y - 5 }}" r="1.75"
+              fill="{{ color }}"/>
+
+    {# ── CAR HAULER / TILT / EV ── #}
+    {% elif cat in ('car_hauler', 'tilt', 'car_hauler_deckover') %}
+      {%- set w1x = (bed_px * 0.27) | int -%}
+      {%- set w2x = (bed_px * 0.75) | int -%}
+      {%- set frame_y = deck_y - 18 -%}
+      {# Wheels #}
+      {% for wx in [w1x, w2x] %}
+        <circle cx="{{ wx }}" cy="{{ deck_y - 7 }}" r="7"
+                fill="none" stroke="{{ color }}" stroke-width="1"/>
+        <circle cx="{{ wx }}" cy="{{ deck_y - 7 }}" r="2.5"
+                fill="rgba(34,197,94,0.3)" stroke="{{ color }}" stroke-width="0.5"/>
+        <path d="M {{ wx - 8 }},{{ frame_y + 1 }} Q {{ wx }},{{ frame_y - 4 }} {{ wx + 8 }},{{ frame_y + 1 }}"
+              fill="rgba(34,197,94,0.12)" stroke="{{ color }}" stroke-width="0.75"/>
+      {% endfor %}
+      {# Rear plate #}
+      <line x1="0" y1="{{ frame_y }}" x2="0" y2="{{ deck_y }}"
+            stroke="{{ color }}" stroke-width="1.5"/>
+      {# Deck #}
+      <rect x="0" y="{{ frame_y }}" width="{{ bed_px }}" height="4"
+            fill="rgba(34,197,94,0.1)" stroke="{{ color }}" stroke-width="1"/>
+      {# Spare mount stub (shown only when is_top_layer) #}
+      {% if unit.is_top_layer %}
+        <rect x="{{ bed_px }}" y="{{ frame_y - 11 }}" width="5" height="11"
+              fill="rgba(34,197,94,0.25)" stroke="{{ color }}" stroke-width="1"/>
+      {% endif %}
+      {# C-channel tongue (flat horizontal, thin) #}
+      {%- set tongue_start = bed_px + (5 if unit.is_top_layer else 0) -%}
+      <rect x="{{ tongue_start }}" y="{{ frame_y + 1 }}" width="{{ tongue_px - 5 }}" height="3"
+            fill="rgba(34,197,94,0.22)" stroke="{{ color }}" stroke-width="1"/>
+      {# Adjustable coupler head #}
+      <rect x="{{ bed_px + tongue_px - 6 }}" y="{{ frame_y - 2 }}" width="6" height="11"
+            fill="rgba(34,197,94,0.3)" stroke="{{ color }}" stroke-width="1" rx="1"/>
+      <circle cx="{{ bed_px + tongue_px - 3 }}" cy="{{ frame_y + 3 }}" r="3.5"
+              fill="none" stroke="{{ color }}" stroke-width="1.25"/>
+      <circle cx="{{ bed_px + tongue_px - 3 }}" cy="{{ frame_y + 3 }}" r="1.5"
+              fill="{{ color }}"/>
+
+    {# ── DUMP (all variants) ── #}
+    {% elif cat in ('dump_lowside', 'dump_highside_3ft', 'dump_highside_4ft', 'dump_small', 'dump_variants') %}
+      {%- set box_h = dump_box_h -%}
+      {%- set box_top = deck_y - 18 - box_h -%}
+      {%- set chassis_y = deck_y - 18 -%}
+      {# Wheel #}
+      <circle cx="{{ (bed_px * 0.5) | int }}" cy="{{ deck_y - 7 }}" r="7"
+              fill="none" stroke="{{ color }}" stroke-width="1"/>
+      <circle cx="{{ (bed_px * 0.5) | int }}" cy="{{ deck_y - 7 }}" r="2.5"
+              fill="rgba(245,158,11,0.3)" stroke="{{ color }}" stroke-width="0.5"/>
+      {# Chassis #}
+      <rect x="0" y="{{ chassis_y }}" width="{{ bed_px }}" height="4"
+            fill="rgba(245,158,11,0.1)" stroke="{{ color }}" stroke-width="1"/>
+      {# Dump box outer (thick walls) #}
+      <rect x="0" y="{{ box_top }}" width="{{ bed_px }}" height="{{ box_h }}"
+            fill="rgba(245,158,11,0.1)" stroke="{{ color }}" stroke-width="2"/>
+      {# Inner panel #}
+      <rect x="2.5" y="{{ box_top + 2.5 }}" width="{{ bed_px - 5 }}" height="{{ box_h - 5 }}"
+            fill="rgba(245,158,11,0.04)" stroke="{{ color }}" stroke-width="0.5"/>
+      {# Rear gate (extra thick) #}
+      <line x1="0" y1="{{ box_top }}" x2="0" y2="{{ chassis_y + 4 }}"
+            stroke="{{ color }}" stroke-width="3.5"/>
+      {# Tarp cap on top #}
+      <rect x="6" y="{{ box_top - 5 }}" width="{{ (bed_px * 0.7) | int }}" height="5"
+            fill="rgba(245,158,11,0.2)" stroke="{{ color }}" stroke-width="0.75" rx="2"/>
+      {# Hydraulic scissor #}
+      <line x1="{{ (bed_px * 0.2) | int }}" y1="{{ chassis_y + 4 }}"
+            x2="{{ (bed_px * 0.75) | int }}" y2="{{ chassis_y - 3 }}"
+            stroke="{{ color }}" stroke-width="1.25" stroke-opacity="0.45"/>
+      {# Tongue (heavier gauge than C-channel) #}
+      <rect x="{{ bed_px }}" y="{{ chassis_y - 2 }}" width="{{ tongue_px }}" height="6"
+            fill="rgba(245,158,11,0.2)" stroke="{{ color }}" stroke-width="1"/>
+      {# Coupler #}
+      <circle cx="{{ bed_px + tongue_px }}" cy="{{ chassis_y + 1 }}" r="5"
+              fill="none" stroke="{{ color }}" stroke-width="1.5"/>
+      <circle cx="{{ bed_px + tongue_px }}" cy="{{ chassis_y + 1 }}" r="2"
+              fill="{{ color }}"/>
+
+    {# ── TILT DECK-OVER (T8) ── #}
+    {% elif cat == 'tilt_deckover' %}
+      {%- set high_deck_y = deck_y - 25 -%}
+      {%- set w1x = (bed_px * 0.35) | int -%}
+      {%- set w2x = (bed_px * 0.77) | int -%}
+      {# Large wheels #}
+      {% for wx in [w1x, w2x] %}
+        <circle cx="{{ wx }}" cy="{{ deck_y - 10 }}" r="10"
+                fill="none" stroke="{{ color }}" stroke-width="1"/>
+        <circle cx="{{ wx }}" cy="{{ deck_y - 10 }}" r="3.5"
+                fill="rgba(167,139,250,0.3)" stroke="{{ color }}" stroke-width="0.5"/>
+        {# Fender hump #}
+        <rect x="{{ wx - 7 }}" y="{{ high_deck_y - 6 }}" width="14" height="9"
+              fill="rgba(167,139,250,0.18)" stroke="{{ color }}" stroke-width="0.75" rx="2"/>
+      {% endfor %}
+      {# High deck #}
+      <rect x="0" y="{{ high_deck_y }}" width="{{ bed_px }}" height="5"
+            fill="rgba(167,139,250,0.1)" stroke="{{ color }}" stroke-width="1"/>
+      {# Tilt hinge marker #}
+      <line x1="{{ (bed_px * 0.14) | int }}" y1="{{ high_deck_y }}"
+            x2="{{ (bed_px * 0.14) | int }}" y2="{{ high_deck_y + 5 }}"
+            stroke="{{ color }}" stroke-width="1.5" stroke-opacity="0.6"/>
+      {# Rear plate #}
+      <line x1="0" y1="{{ high_deck_y }}" x2="0" y2="{{ deck_y }}"
+            stroke="{{ color }}" stroke-width="1.5"/>
+      {# Spare mount #}
+      {% if unit.is_top_layer %}
+        <rect x="{{ bed_px }}" y="{{ high_deck_y - 11 }}" width="5" height="11"
+              fill="rgba(167,139,250,0.22)" stroke="{{ color }}" stroke-width="0.75"/>
+      {% endif %}
+      {# I-BEAM TONGUE: two parallel rails (the key visual identifier) #}
+      {%- set t_start = bed_px + (5 if unit.is_top_layer else 0) -%}
+      {%- set t_top = high_deck_y - 5 -%}
+      {%- set t_bot = high_deck_y + 4 -%}
+      <rect x="{{ t_start }}" y="{{ t_top }}" width="{{ tongue_px - 5 }}" height="4.5"
+            fill="rgba(167,139,250,0.28)" stroke="{{ color }}" stroke-width="1.1"/>
+      <rect x="{{ t_start }}" y="{{ t_bot }}" width="{{ tongue_px - 5 }}" height="4.5"
+            fill="rgba(167,139,250,0.28)" stroke="{{ color }}" stroke-width="1.1"/>
+      {# Web (vertical section between rails, visible at center of tongue) #}
+      {%- set web_x = (t_start + (tongue_px * 0.4)) | int -%}
+      <rect x="{{ web_x }}" y="{{ t_top + 4.5 }}" width="8" height="4"
+            fill="rgba(167,139,250,0.18)" stroke="{{ color }}" stroke-width="0.4"/>
+      {# Coupler plate and ball #}
+      <rect x="{{ bed_px + tongue_px - 7 }}" y="{{ high_deck_y - 8 }}" width="7" height="22"
+            fill="rgba(167,139,250,0.3)" stroke="{{ color }}" stroke-width="1" rx="1"/>
+      <circle cx="{{ bed_px + tongue_px - 3 }}" cy="{{ high_deck_y + 1 }}" r="4.5"
+              fill="none" stroke="{{ color }}" stroke-width="1.5"/>
+      <circle cx="{{ bed_px + tongue_px - 3 }}" cy="{{ high_deck_y + 1 }}" r="1.75"
+              fill="{{ color }}"/>
+
+    {# ── DECK-OVER (F8, L6, L7 — same as tilt_deckover without tilt hinge) ── #}
+    {% elif cat == 'deck_over' %}
+      {# Identical to tilt_deckover but omit the tilt hinge line #}
+      {%- set high_deck_y = deck_y - 25 -%}
+      {%- set w1x = (bed_px * 0.35) | int -%}
+      {%- set w2x = (bed_px * 0.77) | int -%}
+      {% for wx in [w1x, w2x] %}
+        <circle cx="{{ wx }}" cy="{{ deck_y - 10 }}" r="10"
+                fill="none" stroke="{{ color }}" stroke-width="1"/>
+        <circle cx="{{ wx }}" cy="{{ deck_y - 10 }}" r="3.5"
+                fill="rgba(167,139,250,0.3)" stroke="{{ color }}" stroke-width="0.5"/>
+        <rect x="{{ wx - 7 }}" y="{{ high_deck_y - 6 }}" width="14" height="9"
+              fill="rgba(167,139,250,0.18)" stroke="{{ color }}" stroke-width="0.75" rx="2"/>
+      {% endfor %}
+      <rect x="0" y="{{ high_deck_y }}" width="{{ bed_px }}" height="5"
+            fill="rgba(167,139,250,0.1)" stroke="{{ color }}" stroke-width="1"/>
+      <line x1="0" y1="{{ high_deck_y }}" x2="0" y2="{{ deck_y }}"
+            stroke="{{ color }}" stroke-width="1.5"/>
+      {% if unit.is_top_layer %}
+        <rect x="{{ bed_px }}" y="{{ high_deck_y - 11 }}" width="5" height="11"
+              fill="rgba(167,139,250,0.22)" stroke="{{ color }}" stroke-width="0.75"/>
+      {% endif %}
+      {%- set t_start = bed_px + (5 if unit.is_top_layer else 0) -%}
+      {%- set t_top = high_deck_y - 5 -%}
+      {%- set t_bot = high_deck_y + 4 -%}
+      <rect x="{{ t_start }}" y="{{ t_top }}" width="{{ tongue_px - 5 }}" height="4.5"
+            fill="rgba(167,139,250,0.28)" stroke="{{ color }}" stroke-width="1.1"/>
+      <rect x="{{ t_start }}" y="{{ t_bot }}" width="{{ tongue_px - 5 }}" height="4.5"
+            fill="rgba(167,139,250,0.28)" stroke="{{ color }}" stroke-width="1.1"/>
+      {%- set web_x = (t_start + (tongue_px * 0.4)) | int -%}
+      <rect x="{{ web_x }}" y="{{ t_top + 4.5 }}" width="8" height="4"
+            fill="rgba(167,139,250,0.18)" stroke="{{ color }}" stroke-width="0.4"/>
+      <rect x="{{ bed_px + tongue_px - 7 }}" y="{{ high_deck_y - 8 }}" width="7" height="22"
+            fill="rgba(167,139,250,0.3)" stroke="{{ color }}" stroke-width="1" rx="1"/>
+      <circle cx="{{ bed_px + tongue_px - 3 }}" cy="{{ high_deck_y + 1 }}" r="4.5"
+              fill="none" stroke="{{ color }}" stroke-width="1.5"/>
+      <circle cx="{{ bed_px + tongue_px - 3 }}" cy="{{ high_deck_y + 1 }}" r="1.75"
+              fill="{{ color }}"/>
+
+    {# ── GOOSENECK (all GN variants) ── #}
+    {% else %}
+      {# Low-pro deck, very close to truck deck surface #}
+      {%- set lp_deck_y = deck_y - 12 -%}
+      {%- set coupler_y = deck_y - 39 -%}
+      {# Tandem dual wheel pairs #}
+      {%- set p1a = (bed_px * 0.25) | int -%}
+      {%- set p1b = (bed_px * 0.33) | int -%}
+      {%- set p2a = (bed_px * 0.70) | int -%}
+      {%- set p2b = (bed_px * 0.78) | int -%}
+      {% for wx in [p1a, p1b, p2a, p2b] %}
+        <circle cx="{{ wx }}" cy="{{ deck_y - 5 }}" r="5"
+                fill="none" stroke="{{ color }}" stroke-width="1"/>
+        <circle cx="{{ wx }}" cy="{{ deck_y - 5 }}" r="1.75"
+                fill="rgba(99,102,241,0.3)" stroke="{{ color }}" stroke-width="0.4"/>
+      {% endfor %}
+      {# Low-pro flat deck #}
+      <rect x="0" y="{{ lp_deck_y }}" width="{{ bed_px }}" height="4"
+            fill="rgba(99,102,241,0.1)" stroke="{{ color }}" stroke-width="1"/>
+      {# Rear plate #}
+      <line x1="0" y1="{{ lp_deck_y }}" x2="0" y2="{{ deck_y }}"
+            stroke="{{ color }}" stroke-width="1.5"/>
+      {# GN NECK: signature rising bezier curve (closed filled path) #}
+      {%- set ns = bed_px -%}
+      {%- set cp1x = (bed_px + tongue_px * 0.25) | int -%}
+      {%- set cp2x = (bed_px + tongue_px * 0.73) | int -%}
+      {%- set ne = bed_px + tongue_px -%}
+      <path d="M {{ ns }},{{ lp_deck_y }}
+               C {{ cp1x }},{{ lp_deck_y - 4 }} {{ cp2x }},{{ coupler_y }} {{ ne }},{{ coupler_y }}
+               L {{ ne }},{{ coupler_y + 4 }}
+               C {{ cp2x }},{{ coupler_y + 4 }} {{ cp1x }},{{ lp_deck_y + 4 }} {{ ns }},{{ lp_deck_y + 4 }}
+               Z"
+            fill="rgba(99,102,241,0.2)" stroke="{{ color }}" stroke-width="1.5"/>
+      {# Structural cross-brace in neck #}
+      {%- set brace_x = (bed_px + tongue_px * 0.62) | int -%}
+      <line x1="{{ brace_x }}" y1="{{ coupler_y + 1 }}" x2="{{ brace_x }}" y2="{{ coupler_y + 3 }}"
+            stroke="{{ color }}" stroke-width="1.5" stroke-opacity="0.55"/>
+      {# COUPLER: large concentric-ring disc (over-cab gooseneck ball) #}
+      <circle cx="{{ ne }}" cy="{{ coupler_y + 2 }}" r="9"
+              fill="rgba(99,102,241,0.2)" stroke="{{ color }}" stroke-width="1.5"/>
+      <circle cx="{{ ne }}" cy="{{ coupler_y + 2 }}" r="4"
+              fill="rgba(99,102,241,0.38)" stroke="{{ color }}" stroke-width="1"/>
+      <circle cx="{{ ne }}" cy="{{ coupler_y + 2 }}" r="1.75"
+              fill="{{ color }}"/>
+      {# Height indicator: dashed vertical showing how high above truck deck coupler sits #}
+      <line x1="{{ ne + 10 }}" y1="{{ coupler_y + 2 }}" x2="{{ ne + 10 }}" y2="{{ deck_y }}"
+            stroke="{{ color }}" stroke-width="0.5"
+            stroke-dasharray="2,2" stroke-opacity="0.4"/>
+      {# GN axle-drop indicator #}
+      {% if unit.gn_axle_dropped %}
+        <text x="{{ p1a }}" y="{{ deck_y + 10 }}"
+              font-size="8" fill="{{ color }}" text-anchor="middle"
+              font-family="sans-serif">▼</text>
+      {% endif %}
+
+    {% endif %}
+  </svg>
+{% endmacro %}
+
+{% macro trailer_component_shape(unit, scale_px_per_ft=6, height_scale=10) %}
+  {%- set cat = (unit.pj_category or '') -%}
+  {%- set default_gn = cat in ('gooseneck_flatdeck', 'gooseneck_quest', 'gooseneck_pintle', 'gooseneck_variants', 'gooseneck', 'pintle') -%}
+  {%- set tongue_profile = (unit.render_tongue_profile or ('gooseneck' if default_gn else 'standard')) | lower -%}
+  {%- if tongue_profile not in ('gooseneck', 'standard') -%}
+    {%- set tongue_profile = 'standard' -%}
+  {%- endif -%}
+  {%- set deck_profile = (unit.deck_profile or ('dump' if cat in ('dump_lowside', 'dump_highside_3ft', 'dump_highside_4ft', 'dump_small', 'dump_gn', 'dump_variants') else 'flat')) | lower -%}
+  {%- if deck_profile not in ('dump', 'flat') -%}
+    {%- set deck_profile = 'flat' -%}
+  {%- endif -%}
+
+  {%- set deck_len_ft = (unit.deck_length_ft if unit.deck_length_ft is defined and unit.deck_length_ft is not none else (unit.bed_length_measured if unit.bed_length_measured is defined else unit.bed_length)) | float -%}
+  {%- set deck_len_ft = [deck_len_ft, 1.0] | max -%}
+  {%- set tongue_len_ft = (
+        unit.render_tongue_length_ft
+        if unit.render_tongue_length_ft is defined and unit.render_tongue_length_ft is not none and (unit.render_tongue_length_ft | float) > 0
+        else (9.0 if tongue_profile == 'gooseneck' else 4.0)
+      ) | float -%}
+  {%- set deck_h_ft = (
+        unit.deck_height_ft
+        if unit.deck_height_ft is defined and unit.deck_height_ft is not none and (unit.deck_height_ft | float) > 0
+        else (
+          unit.height
+          if unit.height is defined and unit.height is not none and (unit.height | float) > 0
+          else 2.5
+        )
+      ) | float -%}
+  {%- set deck_component_h_ft = (
+        unit.deck_component_height_ft
+        if unit.deck_component_height_ft is defined and unit.deck_component_height_ft is not none and (unit.deck_component_height_ft | float) > 0
+        else deck_h_ft
+      ) | float -%}
+
+  {%- set bed_px = (deck_len_ft * scale_px_per_ft) | int -%}
+  {%- set tongue_px = (tongue_len_ft * scale_px_per_ft) | int -%}
+  {%- set total_px = [bed_px + tongue_px, 1] | max -%}
+  {%- set headroom_px = 52 if tongue_profile == 'gooseneck' else 34 -%}
+  {%- set svg_h_raw = (deck_h_ft * height_scale + headroom_px) | round(0, 'ceil') | int -%}
+  {%- set svg_h = [([svg_h_raw, 66] | max), 128] | min -%}
+  {%- set deck_y = svg_h - 12 -%}
+
+  {%- if unit.violation -%}
+    {%- set color = '#d28a58' -%}
+  {%- elif deck_profile == 'dump' -%}
+    {%- set color = '#f59e0b' -%}
+  {%- else -%}
+    {%- set color = '#a78bfa' -%}
+  {%- endif -%}
+
+  {%- set deck_body_h = [([deck_component_h_ft * height_scale, 8] | max), 88] | min -%}
+  {%- set wheel_r = 5.4 -%}
+  {%- set wheel_hub_r = 1.8 -%}
+  {%- set std_coupler_r = 3.8 -%}
+  {%- set std_coupler_hub_r = 1.4 -%}
+  {%- set gn_coupler_r = 7.8 -%}
+  {%- set gn_coupler_hub_r = 3.6 -%}
+  {%- set wheel_cy = deck_y - 7 -%}
+  {%- set deck_base_y = wheel_cy - wheel_r -%}
+  {%- set chassis_y = deck_base_y - 4 -%}
+  {%- set dump_top = chassis_y - deck_body_h -%}
+  {%- set flat_top = deck_base_y - deck_body_h -%}
+  {%- set crop_top = [(dump_top - 18) if deck_profile == 'dump' else (flat_top - 14), 0] | max -%}
+  {%- set crop_bottom = [deck_y + 8, crop_top + 1] | max -%}
+  {%- set crop_h = crop_bottom - crop_top -%}
+  {%- set gn_open_dump = deck_profile == 'dump' and tongue_profile == 'gooseneck' -%}
+  {%- set tongue_attach_y = (chassis_y + 1) if deck_profile == 'dump' else (deck_base_y - [((deck_body_h * 0.22) | int), 3] | max) -%}
+
+  <svg viewBox="0 {{ crop_top }} {{ total_px }} {{ crop_h }}"
+       width="100%"
+       height="100%"
+       preserveAspectRatio="xMidYMid meet"
+       xmlns="http://www.w3.org/2000/svg"
+       style="display:block;width:100%;height:100%;overflow:hidden;">
+    <line x1="0" y1="{{ deck_y }}" x2="{{ total_px }}" y2="{{ deck_y }}"
+          stroke="{{ color }}" stroke-width="0.5" stroke-dasharray="4,3" stroke-opacity="0.34"/>
+
+    {% if deck_profile == 'dump' %}
+      <circle cx="{{ (bed_px * 0.52) | int }}" cy="{{ wheel_cy }}" r="{{ wheel_r }}"
+              fill="none" stroke="{{ color }}" stroke-width="1"/>
+      <circle cx="{{ (bed_px * 0.52) | int }}" cy="{{ wheel_cy }}" r="{{ wheel_hub_r }}"
+              fill="rgba(245,158,11,0.28)" stroke="{{ color }}" stroke-width="0.45"/>
+
+      {%- set dump_door_removed = unit.dump_door_removed if unit.dump_door_removed is defined else false -%}
+      <rect x="0" y="{{ chassis_y }}" width="{{ bed_px }}" height="4"
+            fill="rgba(245,158,11,0.10)" stroke="{{ color }}" stroke-width="1"/>
+      <rect x="0" y="{{ dump_top }}" width="{{ bed_px }}" height="{{ deck_body_h }}"
+            fill="rgba(245,158,11,0.10)" stroke="none"/>
+      <rect x="2.5" y="{{ dump_top + 2.5 }}" width="{{ [bed_px - 5, 1] | max }}" height="{{ [deck_body_h - 5, 1] | max }}"
+            fill="rgba(245,158,11,0.04)" stroke="none"/>
+      <line x1="0" y1="{{ dump_top }}" x2="0" y2="{{ chassis_y + 4 }}"
+            stroke="{{ color }}" stroke-width="2.6"/>
+      <line x1="0" y1="{{ chassis_y + 4 }}" x2="{{ bed_px }}" y2="{{ chassis_y + 4 }}"
+            stroke="{{ color }}" stroke-width="1.4"/>
+      <line x1="2.5" y1="{{ dump_top + 2.5 }}" x2="2.5" y2="{{ [chassis_y + 1.5, dump_top + 2.5] | max }}"
+            stroke="{{ color }}" stroke-width="0.55" stroke-opacity="0.4"/>
+      <line x1="2.5" y1="{{ [chassis_y + 1.5, dump_top + 2.5] | max }}" x2="{{ [bed_px - 2.5, 2.5] | max }}" y2="{{ [chassis_y + 1.5, dump_top + 2.5] | max }}"
+            stroke="{{ color }}" stroke-width="0.55" stroke-opacity="0.4"/>
+      {% if not dump_door_removed %}
+        {% if gn_open_dump %}
+          <line x1="{{ bed_px }}" y1="{{ dump_top }}" x2="{{ bed_px }}" y2="{{ chassis_y + 4 }}"
+                stroke="{{ color }}" stroke-width="1.2" stroke-dasharray="2,2" stroke-opacity="0.5"/>
+        {% else %}
+          <line x1="{{ bed_px }}" y1="{{ dump_top }}" x2="{{ bed_px }}" y2="{{ chassis_y + 4 }}"
+                stroke="{{ color }}" stroke-width="3.1"/>
+        {% endif %}
+      {% endif %}
+
+      <line x1="{{ (bed_px * 0.2) | int }}" y1="{{ chassis_y + 4 }}"
+            x2="{{ (bed_px * 0.76) | int }}" y2="{{ chassis_y - 4 }}"
+            stroke="{{ color }}" stroke-width="1.1" stroke-opacity="0.5"/>
+    {% else %}
+      {%- set front_drop_y = flat_top + [((deck_body_h * 0.2) | int), 3] | max -%}
+      <path d="M 0,{{ flat_top }}
+               L {{ [bed_px - 1, 0] | max }},{{ flat_top }}
+               L {{ bed_px }},{{ front_drop_y }}
+               L {{ bed_px }},{{ deck_base_y }}
+               L 0,{{ deck_base_y }}
+               Z"
+            fill="rgba(167,139,250,0.12)" stroke="{{ color }}" stroke-width="1.2"/>
+      <line x1="0" y1="{{ flat_top }}" x2="0" y2="{{ deck_base_y }}"
+            stroke="{{ color }}" stroke-width="1.35"/>
+      <circle cx="{{ (bed_px * 0.24) | int }}" cy="{{ wheel_cy }}" r="{{ wheel_r }}"
+              fill="none" stroke="{{ color }}" stroke-width="1"/>
+      <circle cx="{{ (bed_px * 0.24) | int }}" cy="{{ wheel_cy }}" r="{{ wheel_hub_r }}"
+              fill="rgba(167,139,250,0.24)" stroke="{{ color }}" stroke-width="0.4"/>
+      <circle cx="{{ (bed_px * 0.7) | int }}" cy="{{ wheel_cy }}" r="{{ wheel_r }}"
+              fill="none" stroke="{{ color }}" stroke-width="1"/>
+      <circle cx="{{ (bed_px * 0.7) | int }}" cy="{{ wheel_cy }}" r="{{ wheel_hub_r }}"
+              fill="rgba(167,139,250,0.24)" stroke="{{ color }}" stroke-width="0.4"/>
+    {% endif %}
+
+    {% if tongue_profile == 'gooseneck' %}
+      {%- set gn_base_px = 0.5 * scale_px_per_ft -%}
+      {%- set gn_crown_px = 5.0 * scale_px_per_ft -%}
+      {%- set gn_total_px = 9.0 * scale_px_per_ft -%}
+      {%- set gn_rise_px = 6.0 * height_scale -%}
+      {%- set gn_tip_up_px = 1.0 * height_scale -%}
+      {%- set p0x = bed_px - 1 -%}
+      {%- set p0y = deck_base_y - 1 -%}
+      {%- set p1x = bed_px + gn_base_px -%}
+      {%- set p1y = p0y -%}
+      {%- set p2x = p1x -%}
+      {%- set p2y = deck_base_y - gn_rise_px -%}
+      {%- set p3x = bed_px + gn_base_px + gn_crown_px -%}
+      {%- set p3y = p2y -%}
+      {%- set p4x = bed_px + gn_total_px -%}
+      {%- set p4y = deck_base_y - gn_tip_up_px -%}
+      {%- set gn_transform = "" -%}
+      {%- if unit.is_rotated -%}
+        {# Mirror the GN neck leftward in rotated orientation #}
+        {%- set gn_transform = "translate(" ~ (2 * bed_px) ~ " 0) scale(-1 1)" -%}
+      {%- endif -%}
+
+      <g {% if gn_transform %}transform="{{ gn_transform }}"{% endif %}>
+        <path d="M {{ p0x }},{{ p0y }} L {{ p1x }},{{ p1y }} L {{ p2x }},{{ p2y }} L {{ p3x }},{{ p3y }} L {{ p4x }},{{ p4y }}"
+              fill="none" stroke="{{ color }}" stroke-width="4.8" stroke-opacity="0.15"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M {{ p0x }},{{ p0y }} L {{ p1x }},{{ p1y }} L {{ p2x }},{{ p2y }} L {{ p3x }},{{ p3y }} L {{ p4x }},{{ p4y }}"
+              fill="none" stroke="{{ color }}" stroke-width="1.6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="{{ p4x }}" y1="{{ p4y }}" x2="{{ p4x }}" y2="{{ p4y + (0.5 * height_scale) }}"
+              stroke="{{ color }}" stroke-width="1.0"/>
+        <circle cx="{{ p4x }}" cy="{{ p4y + (0.52 * height_scale) }}" r="{{ gn_coupler_r }}"
+                fill="rgba(99,102,241,0.20)" stroke="{{ color }}" stroke-width="1.3"/>
+        <circle cx="{{ p4x }}" cy="{{ p4y + (0.52 * height_scale) }}" r="{{ gn_coupler_hub_r }}"
+                fill="rgba(99,102,241,0.36)" stroke="{{ color }}" stroke-width="0.9"/>
+        <circle cx="{{ p4x }}" cy="{{ p4y + (0.52 * height_scale) }}" r="1.4" fill="{{ color }}"/>
+      </g>
+    {% else %}
+      {%- set tong_y = tongue_attach_y -%}
+      <rect x="{{ bed_px }}" y="{{ tong_y }}" width="{{ [tongue_px - 5, 3] | max }}" height="3"
+            fill="rgba(34,197,94,0.2)" stroke="{{ color }}" stroke-width="1"/>
+      <rect x="{{ bed_px }}" y="{{ tong_y + 3 }}" width="{{ [tongue_px - 5, 3] | max }}" height="1"
+            fill="rgba(34,197,94,0.12)" stroke="{{ color }}" stroke-width="0.55"/>
+      <circle cx="{{ bed_px + tongue_px - 2 }}" cy="{{ tong_y + 2 }}" r="{{ std_coupler_r }}"
+              fill="none" stroke="{{ color }}" stroke-width="1.3"/>
+      <circle cx="{{ bed_px + tongue_px - 2 }}" cy="{{ tong_y + 2 }}" r="{{ std_coupler_hub_r }}"
+              fill="{{ color }}"/>
+    {% endif %}
+  </svg>
+{% endmacro %}

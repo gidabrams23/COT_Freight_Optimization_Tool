@@ -429,6 +429,11 @@ def build_loads(
         "excluded_skus": excluded_skus,
     }
 
+    if optimize_mode == "manual" and not form_data.get("time_window_days"):
+        form_data["time_window_days"] = _clean_value(
+            DEFAULT_BUILD_PARAMS.get("time_window_days", "7")
+        )
+
     errors = {}
     validation.validate_required(form_data["origin_plant"], "origin_plant", errors)
     validation.validate_positive_float(form_data["capacity_feet"], "capacity_feet", errors)

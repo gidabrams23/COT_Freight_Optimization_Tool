@@ -1,0 +1,100 @@
+﻿{% extends "prograde/base.html" %}
+{% block title %}Create Load - ProGrade{% endblock %}
+
+{% block content %}
+{% set selected_brand = selected_brand | default('bigtex') %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Create Load</div>
+    <div class="page-subtitle">Pick a brand path and jump straight into the load builder</div>
+  </div>
+</div>
+
+<div class="page-body">
+  {% if error_message %}
+  <div class="settings-alert visible" style="background: var(--status-error-bg); border-color: var(--status-error); color: var(--status-error); margin-bottom: 12px; max-width: 520px;">
+    {{ error_message }}
+  </div>
+  {% endif %}
+
+  <div class="card" style="max-width:760px">
+    <div class="card-header">
+      <div class="card-title">Quick Start</div>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <a href="{{ url_for('prograde.session_new', brand='bigtex') }}" class="btn {% if selected_brand == 'bigtex' %}btn-primary{% else %}btn-secondary{% endif %}" style="padding:12px 18px;font-size:15px;font-weight:700;">
+        Create Load - Big Tex
+      </a>
+      <a href="{{ url_for('prograde.session_new', brand='pj') }}" class="btn {% if selected_brand == 'pj' %}btn-primary{% else %}btn-secondary{% endif %}" style="padding:12px 18px;font-size:15px;font-weight:700;">
+        Create Load - PJ
+      </a>
+    </div>
+    <div class="card-subtitle" style="margin-bottom:4px;">Manual setup (optional)</div>
+  </div>
+
+  <div class="card" style="max-width:760px;margin-top:12px;">
+    <div class="card-header">
+      <div class="card-title">Session Setup</div>
+    </div>
+
+    <form method="POST" action="{{ url_for('prograde.session_new') }}">
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select name="brand" class="form-control" id="brand-select" required>
+          <option value="">- Select -</option>
+          <option value="pj">PJ Trailers</option>
+          <option value="bigtex">Big Tex Trailers</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Carrier Type</label>
+        <select name="carrier_type" class="form-control" id="carrier-select" required>
+          <option value="">- Select brand first -</option>
+        </select>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">Both brands currently run as 53' Step Deck.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Planner Name</label>
+        <input type="text" name="planner_name" class="form-control" placeholder="e.g. Shawn" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Session Label</label>
+        <input type="text" name="session_label" class="form-control" placeholder="e.g. Mar-25 PJ Run 1" />
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary">Create Load</button>
+        <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CARRIERS = {
+  pj: [{ val: "53_step_deck", lbl: "53' Step Deck" }],
+  bigtex: [{ val: "53_step_deck", lbl: "53' Step Deck" }],
+};
+
+document.getElementById("brand-select").addEventListener("change", function () {
+  const sel = document.getElementById("carrier-select");
+  sel.innerHTML = "";
+  const opts = CARRIERS[this.value] || [];
+  if (!opts.length) {
+    sel.innerHTML = '<option value="">- Select brand first -</option>';
+    return;
+  }
+  opts.forEach((o) => {
+    const opt = document.createElement("option");
+    opt.value = o.val;
+    opt.textContent = o.lbl;
+    sel.appendChild(opt);
+  });
+});
+</script>
+{% endblock %}

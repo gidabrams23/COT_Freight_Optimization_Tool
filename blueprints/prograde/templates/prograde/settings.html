@@ -1,0 +1,1358 @@
+﻿{% extends "prograde/base.html" %}
+{% block title %}Settings - ProGrade{% endblock %}
+
+{% block head %}
+<style>
+.pg-settings-tabs {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.pg-settings-tab {
+  min-width: 140px;
+}
+.pg-settings-tab.active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+.pg-settings-intro.hidden,
+.pg-settings-section.hidden {
+  display: none !important;
+}
+.pg-settings-intro p {
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.pg-settings-intro ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+}
+.pg-group-row th {
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--accent-primary);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 10px;
+}
+.pg-group-row th.pg-group-spacer {
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+}
+.pg-ident-col {
+  background: rgba(15, 23, 42, 0.45);
+  font-weight: 700;
+}
+.pg-ident-cell {
+  font-weight: 600;
+}
+.pg-small-help {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  margin-top: 10px;
+}
+.pj-component-rule-note {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.pj-component-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+.pj-component-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 10px;
+}
+.pj-component-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.pj-component-desc {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.pj-component-svg {
+  width: 100%;
+  height: 66px;
+  margin-top: 8px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.34);
+}
+.pj-component-subhead {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.bt-cheat-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.bt-view-btn {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.bt-view-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+.bt-view-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--status-info-bg);
+  color: var(--accent-primary);
+}
+.bt-group-row > td {
+  background: rgba(15, 23, 42, 0.35);
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  padding: 0;
+}
+.bt-model-row > td {
+  background: rgba(15, 23, 42, 0.2);
+}
+.bt-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.bt-group-toggle:hover {
+  background: var(--bg-secondary);
+}
+.bt-group-left {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.bt-group-left.model {
+  padding-left: 18px;
+}
+.bt-caret {
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  transform: rotate(-45deg);
+  transition: transform .14s ease;
+  flex: 0 0 auto;
+}
+.bt-caret.open {
+  transform: rotate(45deg);
+}
+.bt-group-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bt-group-meta {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
+}
+.bt-hidden {
+  display: none !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Settings</div>
+    <div class="page-subtitle">Live trailer assumptions and SKU standards for ProGrade.</div>
+  </div>
+  <div id="global-save-status" class="save-status"></div>
+</div>
+
+<div class="page-body settings-sections">
+  {% if error_message %}
+  <div class="settings-alert visible" style="background: var(--status-error-bg); border-color: var(--status-error); color: var(--status-error);">
+    {{ error_message }}
+  </div>
+  {% endif %}
+  <!-- â”€â”€ Stale session warning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="settings-alert" id="stale-alert">
+    Assumptions changed. Open sessions have been flagged for revalidation. Open any session to re-run constraint checks.
+  </div>
+
+  <div class="pg-settings-tabs" role="tablist" aria-label="Settings sections">
+    <button type="button" class="btn btn-secondary btn-sm pg-settings-tab active" data-settings-tab-btn="universal">Universal Settings</button>
+    <button type="button" class="btn btn-secondary btn-sm pg-settings-tab" data-settings-tab-btn="pj">PJ Standards</button>
+    <button type="button" class="btn btn-secondary btn-sm pg-settings-tab" data-settings-tab-btn="bt">Big Tex Standards</button>
+  </div>
+
+  <div class="card pg-settings-intro" data-settings-tab="universal">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Universal Settings</div>
+      </div>
+    </div>
+    <p>Start here for assumptions shared across ProGrade. Trailer type and deck dimensions here are the same values used to render and validate the load-builder schematic.</p>
+    <ul>
+      <li>Carrier Config is the trailer-type registry (53 step deck remains the default profile).</li>
+      <li>Advanced Schematic Links maps each drawing profile to category names.</li>
+      <li>Only production-active settings are shown on this page.</li>
+    </ul>
+  </div>
+
+  <div class="card pg-settings-intro hidden" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ Standards Focus</div>
+      </div>
+    </div>
+    <p>The PJ section is the spatial-canvas source of truth: carrier geometry, GN neck constants, nesting offsets, category heights, and tongue groups. Standard tongues render using SKU `tongue_feet`; GN renders at fixed 9.0 ft.</p>
+  </div>
+
+  <div class="card pg-settings-section hidden" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Carrier Geometry (53 Step Deck)</div>
+        <div class="card-subtitle">Source: <span class="td-mono">carrier_configs</span> where <span class="td-mono">carrier_type='53_step_deck'</span>. Read-only reference for spatial rendering and constraints.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Value</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          {% set cg = carrier_geometry or {} %}
+          {% set total_len = (cg.total_length_ft or 53.0) | float %}
+          {% set lower_len = (cg.lower_deck_length_ft or 41.5) | float %}
+          {% set upper_len = (cg.upper_deck_length_ft or 11.5) | float %}
+          {% set lower_surface = (cg.lower_deck_ground_height_ft or 3.5) | float %}
+          {% set upper_surface = (cg.upper_deck_ground_height_ft or 5.0) | float %}
+          {% set max_h = (cg.max_height_ft or 13.5) | float %}
+          <tr><td>Total length</td><td class="td-mono">{{ '%.2f'|format(total_len) }} ft</td><td>Trailer total usable length</td></tr>
+          <tr><td>Lower deck length</td><td class="td-mono">{{ '%.2f'|format(lower_len) }} ft</td><td>x = 0 to {{ '%.2f'|format(lower_len) }}</td></tr>
+          <tr><td>Upper deck length</td><td class="td-mono">{{ '%.2f'|format(upper_len) }} ft</td><td>x = {{ '%.2f'|format(lower_len) }} to {{ '%.2f'|format(total_len) }}</td></tr>
+          <tr><td>Lower deck surface height</td><td class="td-mono">{{ '%.2f'|format(lower_surface) }} ft</td><td>Above ground</td></tr>
+          <tr><td>Upper deck surface height</td><td class="td-mono">{{ '%.2f'|format(upper_surface) }} ft</td><td>Above ground</td></tr>
+          <tr><td>Step height</td><td class="td-mono">{{ '%.2f'|format(upper_surface - lower_surface) }} ft</td><td>Upper minus lower surface</td></tr>
+          <tr><td>Max legal height</td><td class="td-mono">{{ '%.2f'|format(max_h) }} ft</td><td>Legal envelope</td></tr>
+          <tr><td>Lower deck clearance</td><td class="td-mono">{{ '%.2f'|format(max_h - lower_surface) }} ft</td><td>= max - lower surface</td></tr>
+          <tr><td>Upper deck clearance</td><td class="td-mono">{{ '%.2f'|format(max_h - upper_surface) }} ft</td><td>= max - upper surface</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card pg-settings-section hidden" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">GN Neck Geometry</div>
+        <div class="card-subtitle">Source: computed constants backed by <span class="td-mono">pj_measurement_offsets</span> keys.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>Value</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>GN neck total length</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_total_ft if gn_neck_geometry else 9.0) | float) }} ft</td><td>Rendered GN tongue length</td></tr>
+          <tr><td>GN neck rise height</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_rise_ft if gn_neck_geometry else 6.0) | float) }} ft</td><td>Crown rise above deck surface</td></tr>
+          <tr><td>GN neck base run</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_base_ft if gn_neck_geometry else 0.5) | float) }} ft</td><td>Short deck-level run before rise</td></tr>
+          <tr><td>GN neck crown span</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_crown_ft if gn_neck_geometry else 5.0) | float) }} ft</td><td>Top horizontal beam</td></tr>
+          <tr><td>GN neck descent run</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_descent_ft if gn_neck_geometry else 3.5) | float) }} ft</td><td>Return run toward coupler</td></tr>
+          <tr><td>GN coupler drop</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_coupler_drop_ft if gn_neck_geometry else 5.0) | float) }} ft</td><td>Vertical drop from crown to coupler tip</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card pg-settings-section hidden" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Nesting Offsets</div>
+        <div class="card-subtitle">Source: <span class="td-mono">pj_measurement_offsets</span>.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Key</th><th>Value</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td class="td-mono">gn_in_dump_hidden_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_in_dump_hidden_ft', 7.0) if pj_offset_map else 7.0) | float) }} ft</td><td>GN neck hidden inside dump when nested</td></tr>
+          <tr><td class="td-mono">car_hauler_spare_mount_offset</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('car_hauler_spare_mount_offset', 1.0) if pj_offset_map else 1.0) | float) }} ft</td><td>Spare mount adds to measured bed length</td></tr>
+          <tr><td class="td-mono">dump_tarp_kit_offset</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('dump_tarp_kit_offset', 1.5) if pj_offset_map else 1.5) | float) }} ft</td><td>Tarp kit length impact</td></tr>
+          <tr><td class="td-mono">dtj_cylinder_extra_offset</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('dtj_cylinder_extra_offset', 1.0) if pj_offset_map else 1.0) | float) }} ft</td><td>DTJ extra cylinder offset</td></tr>
+          <tr><td class="td-mono">gn_crisscross_length_save_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_crisscross_length_save_ft', 2.0) if pj_offset_map else 2.0) | float) }} ft</td><td>Placeholder footprint reduction when two stacked GNs crisscross.</td></tr>
+          <tr><td class="td-mono">gn_crisscross_height_save_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_crisscross_height_save_ft', 1.0) if pj_offset_map else 1.0) | float) }} ft</td><td>Placeholder stacked-height reduction for GN crisscross pairing.</td></tr>
+          <tr><td class="td-mono">gn_crisscross_width_save_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_crisscross_width_save_ft', 0.6) if pj_offset_map else 0.6) | float) }} ft</td><td>Placeholder lateral savings for planner reference in interlaced GN pairs.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card pg-settings-section hidden" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ Component Rendering Rules</div>
+        <div class="card-subtitle">Renderings are now assembled from interchangeable components: one deck body + one tongue profile.</div>
+      </div>
+    </div>
+    <div class="pj-component-rule-note">
+      Rules currently wired in load builder: <strong>Standard tongue = 4.0 ft</strong>, <strong>Gooseneck tongue = 9.0 ft</strong>.
+      Deck length and deck height come from each SKU.
+    </div>
+
+    <div class="pj-component-subhead">Tongue Components (Standalone)</div>
+    <div class="pj-component-grid">
+      <div class="pj-component-card">
+        <div class="pj-component-title">Standard Tongue</div>
+        <div class="pj-component-desc">C-channel profile. Fixed 4.0 ft render length. Attaches to either flat or dump deck body.</div>
+        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="54" x2="172" y2="54" stroke="#60a5fa" stroke-opacity="0.35" stroke-dasharray="4,3"/>
+          <rect x="38" y="34" width="90" height="4" fill="rgba(34,197,94,0.20)" stroke="#22c55e" stroke-width="1"/>
+          <rect x="128" y="35" width="34" height="3" fill="rgba(34,197,94,0.18)" stroke="#22c55e" stroke-width="1"/>
+          <circle cx="164" cy="36.5" r="3.2" fill="none" stroke="#22c55e" stroke-width="1.2"/>
+          <circle cx="164" cy="36.5" r="1.2" fill="#22c55e"/>
+        </svg>
+      </div>
+      <div class="pj-component-card">
+        <div class="pj-component-title">Gooseneck Tongue</div>
+        <div class="pj-component-desc">Rising GN neck with over-cab coupler. Fixed 9.0 ft render length and larger ring coupler profile.</div>
+        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="54" x2="172" y2="54" stroke="#818cf8" stroke-opacity="0.35" stroke-dasharray="4,3"/>
+          <path d="M 34 39 C 52 37 74 24 98 24 L 98 31 C 76 31 54 44 34 45 Z"
+                fill="rgba(99,102,241,0.20)" stroke="#6366f1" stroke-width="1.2"/>
+          <path d="M 38 41 L 46 49 L 52 41" fill="rgba(99,102,241,0.18)" stroke="#6366f1" stroke-width="0.8"/>
+          <circle cx="98" cy="27.5" r="7.2" fill="rgba(99,102,241,0.18)" stroke="#6366f1" stroke-width="1.3"/>
+          <circle cx="98" cy="27.5" r="3.4" fill="rgba(99,102,241,0.32)" stroke="#6366f1" stroke-width="0.9"/>
+          <circle cx="98" cy="27.5" r="1.2" fill="#6366f1"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="pj-component-subhead">Deck Components (Standalone)</div>
+    <div class="pj-component-grid">
+      <div class="pj-component-card">
+        <div class="pj-component-title">Flat Deck</div>
+        <div class="pj-component-desc">Dual-axle flat body. Length and effective height come from the selected SKU dimensions.</div>
+        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="54" x2="172" y2="54" stroke="#a78bfa" stroke-opacity="0.35" stroke-dasharray="4,3"/>
+          <line x1="26" y1="36" x2="140" y2="36" stroke="#a78bfa" stroke-width="1.3"/>
+          <line x1="26" y1="36" x2="26" y2="54" stroke="#a78bfa" stroke-width="1.2"/>
+          <line x1="140" y1="36" x2="146" y2="38" stroke="#a78bfa" stroke-width="1.2"/>
+          <circle cx="56" cy="47" r="4.8" fill="none" stroke="#a78bfa" stroke-width="1"/>
+          <circle cx="98" cy="47" r="4.8" fill="none" stroke="#a78bfa" stroke-width="1"/>
+        </svg>
+      </div>
+      <div class="pj-component-card">
+        <div class="pj-component-title">Dump Deck</div>
+        <div class="pj-component-desc">Open-top dump body. Closed rear by default; GN pairings render open rear gate to indicate neck insertion path.</div>
+        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="54" x2="172" y2="54" stroke="#f59e0b" stroke-opacity="0.35" stroke-dasharray="4,3"/>
+          <rect x="54" y="20" width="70" height="18" fill="rgba(245,158,11,0.10)" stroke="none" rx="1"/>
+          <line x1="54" y1="20" x2="54" y2="42" stroke="#f59e0b" stroke-width="2.4"/>
+          <line x1="124" y1="20" x2="124" y2="42" stroke="#f59e0b" stroke-width="1.35"/>
+          <line x1="54" y1="38.5" x2="124" y2="38.5" stroke="#f59e0b" stroke-width="1.4"/>
+          <rect x="54" y="38.5" width="70" height="3.5" fill="rgba(245,158,11,0.10)" stroke="#f59e0b" stroke-width="1"/>
+          <circle cx="89" cy="47" r="4.8" fill="none" stroke="#f59e0b" stroke-width="1"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="pj-component-subhead">Assembled Examples</div>
+    <div class="pj-component-grid">
+      <div class="pj-component-card">
+        <div class="pj-component-title">Flat + Standard</div>
+        <div class="pj-component-desc">Default flat-deck pairing with 4.0 ft tongue.</div>
+        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="54" x2="172" y2="54" stroke="#34d399" stroke-opacity="0.35" stroke-dasharray="4,3"/>
+          <line x1="24" y1="36" x2="124" y2="36" stroke="#34d399" stroke-width="1.2"/>
+          <line x1="24" y1="36" x2="24" y2="54" stroke="#34d399" stroke-width="1.2"/>
+          <circle cx="50" cy="47" r="4.6" fill="none" stroke="#34d399" stroke-width="1"/>
+          <circle cx="90" cy="47" r="4.6" fill="none" stroke="#34d399" stroke-width="1"/>
+          <rect x="124" y="35" width="34" height="3" fill="rgba(52,211,153,0.18)" stroke="#34d399" stroke-width="1"/>
+          <circle cx="160" cy="36.5" r="3.0" fill="none" stroke="#34d399" stroke-width="1.1"/>
+        </svg>
+      </div>
+      <div class="pj-component-card">
+        <div class="pj-component-title">Flat + Gooseneck</div>
+        <div class="pj-component-desc">Same flat deck with GN neck geometry and over-cab coupler.</div>
+        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="54" x2="172" y2="54" stroke="#818cf8" stroke-opacity="0.35" stroke-dasharray="4,3"/>
+          <line x1="20" y1="36" x2="112" y2="36" stroke="#a78bfa" stroke-width="1.2"/>
+          <circle cx="46" cy="47" r="4.6" fill="none" stroke="#a78bfa" stroke-width="1"/>
+          <circle cx="84" cy="47" r="4.6" fill="none" stroke="#a78bfa" stroke-width="1"/>
+          <path d="M 112 38 C 126 36 145 21 162 21 L 162 28 C 145 28 128 43 112 44 Z"
+                fill="rgba(99,102,241,0.18)" stroke="#6366f1" stroke-width="1.2"/>
+          <circle cx="162" cy="24.5" r="6.6" fill="none" stroke="#6366f1" stroke-width="1.2"/>
+          <circle cx="162" cy="24.5" r="3.1" fill="none" stroke="#6366f1" stroke-width="0.9"/>
+        </svg>
+      </div>
+      <div class="pj-component-card">
+        <div class="pj-component-title">Dump + Gooseneck</div>
+        <div class="pj-component-desc">Dump body with open rear marker and GN coupler profile.</div>
+        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="54" x2="172" y2="54" stroke="#f59e0b" stroke-opacity="0.35" stroke-dasharray="4,3"/>
+          <rect x="20" y="20" width="86" height="18" fill="rgba(245,158,11,0.10)" stroke="none" rx="1"/>
+          <line x1="106" y1="20" x2="106" y2="42" stroke="#f59e0b" stroke-width="1.35"/>
+          <line x1="20" y1="38.5" x2="106" y2="38.5" stroke="#f59e0b" stroke-width="1.4"/>
+          <rect x="20" y="38.5" width="86" height="3.5" fill="rgba(245,158,11,0.10)" stroke="#f59e0b" stroke-width="1"/>
+          <circle cx="63" cy="47" r="4.6" fill="none" stroke="#f59e0b" stroke-width="1"/>
+          <path d="M 105 39 C 118 37 140 22 158 22 L 158 29 C 142 29 122 44 105 45 Z"
+                fill="rgba(99,102,241,0.16)" stroke="#6366f1" stroke-width="1.2"/>
+          <circle cx="158" cy="25.5" r="6.6" fill="none" stroke="#6366f1" stroke-width="1.2"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="card pg-settings-intro hidden" data-settings-tab="bt">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Big Tex Standards Focus</div>
+      </div>
+    </div>
+    <p>The Big Tex section groups SKU identifiers separately from stacking dimensions so planners can scan and edit quickly.</p>
+  </div>
+
+  <!-- â”€â”€ 1. Carrier Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="universal">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Carrier Config (Trailer Types)</div>
+        <div class="card-subtitle">Deck dimensions here are wired directly to the load-builder schematic and validations.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr class="pg-group-row">
+            <th class="pg-group-spacer" colspan="2">Trailer Registry</th>
+            <th colspan="3">Deck Geometry</th>
+            <th colspan="4">Height / Clearance</th>
+            <th class="pg-group-spacer">Notes</th>
+          </tr>
+          <tr>
+            <th>Carrier Type</th>
+            <th>Brand</th>
+            <th>Total Length (ft)</th>
+            <th>Lower Deck (ft)</th>
+            <th>Upper Deck (ft)</th>
+            <th>Max Height (ft)</th>
+            <th>Lower Gnd Ht (ft)</th>
+            <th>Upper Gnd Ht (ft)</th>
+            <th>GN Max Lower (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for c in carrier_configs %}
+          <tr>
+            <td class="td-mono">
+              {{ c.carrier_type }}
+              {% if c.carrier_type == '53_step_deck' %}
+                <span class="badge badge-info" style="font-size:10px;margin-left:6px;">Default</span>
+              {% endif %}
+            </td>
+            <td class="td-label">{{ c.brand }}</td>
+            {% set num_fields = [
+              ('total_length_ft',           c.total_length_ft),
+              ('lower_deck_length_ft',      c.lower_deck_length_ft),
+              ('upper_deck_length_ft',      c.upper_deck_length_ft),
+              ('max_height_ft',             c.max_height_ft),
+              ('lower_deck_ground_height_ft', c.lower_deck_ground_height_ft),
+              ('upper_deck_ground_height_ft', c.upper_deck_ground_height_ft),
+              ('gn_max_lower_deck_ft',      c.gn_max_lower_deck_ft),
+            ] %}
+            {% for field, val in num_fields %}
+            <td>
+              <input type="number" step="0.25"
+                     class="editable-cell"
+                     data-table="carrier_configs"
+                     data-pk="{{ c.carrier_type }}"
+                     data-field="{{ field }}"
+                     value="{{ val if val is not none else '' }}" />
+            </td>
+            {% endfor %}
+            <td>
+              <input type="text"
+                     class="editable-cell"
+                     style="min-width:180px"
+                     data-table="carrier_configs"
+                     data-pk="{{ c.carrier_type }}"
+                     data-field="notes"
+                     value="{{ c.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pg-small-help">Tip: update lower and upper deck lengths here to keep the load-builder schematic scale aligned with your real trailer assumptions.</div>
+  </div>
+
+  <div class="card pg-settings-section" data-settings-tab="universal">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Advanced Schematic Category Links (Framework)</div>
+        <div class="card-subtitle">Maps each advanced drawing profile to the category names it should represent.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Drawing Key</th>
+            <th>Drawing Label</th>
+            <th>Render Mode</th>
+            <th>Applies To Categories</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% if advanced_schematic_links %}
+          {% for row in advanced_schematic_links %}
+          <tr>
+            <td class="td-mono">{{ row.drawing_key }}</td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:170px"
+                     data-table="advanced_schematic_links" data-pk="{{ row.drawing_key }}" data-field="drawing_label"
+                     value="{{ row.drawing_label or '' }}" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:110px"
+                     data-table="advanced_schematic_links" data-pk="{{ row.drawing_key }}" data-field="render_mode"
+                     value="{{ row.render_mode or 'advanced' }}" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:260px"
+                     data-table="advanced_schematic_links" data-pk="{{ row.drawing_key }}" data-field="applies_to_categories"
+                     value="{{ row.applies_to_categories or '' }}" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:220px"
+                     data-table="advanced_schematic_links" data-pk="{{ row.drawing_key }}" data-field="notes"
+                     value="{{ row.notes or '' }}" />
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="5" style="text-align:center;color:var(--text-secondary);padding:14px;">
+              Advanced schematic link rows are not initialized yet.
+            </td>
+          </tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 2. PJ Tongue Length Groups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ Tongue Length Groups (Advanced)</div>
+        <div class="card-subtitle">Source: <span class="td-mono">pj_tongue_groups</span>. STD tongues render at SKU `tongue_feet`; GN renders fixed at 9.0 ft.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Group ID</th>
+            <th>Label</th>
+            <th>Tongue (ft)</th>
+            <th>Model Codes</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for g in pj_tongue_groups %}
+          <tr>
+            <td class="td-mono">{{ g.group_id }}</td>
+            <td>
+              <input type="text" class="editable-cell"
+                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="group_label"
+                     value="{{ g.group_label }}" />
+            </td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:70px"
+                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="tongue_feet"
+                     value="{{ g.tongue_feet }}" />
+            </td>
+            <td class="td-label">{{ g.model_codes }}</td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:160px"
+                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="notes"
+                     value="{{ g.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Stacking Height Rules</div>
+        <div class="card-subtitle">PJ-only stacked-height overrides used by manifest, schematic rendering, and height checks.</div>
+      </div>
+    </div>
+    <div class="pj-component-rule-note">
+      <strong>Current PJ rule (all non-dump units):</strong>
+      every non-dump stacked layer uses <strong>1.3 ft</strong> for render height, manifest height, and trailer height checks.
+      Dump profiles continue to use dump-height behavior.
+      This stacked height is the value shown in the manifest Height column and used in trailer height totals.
+    </div>
+  </div>
+
+  <!-- â”€â”€ 3. PJ Stack Height Reference â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Height Reference</div>
+        <div class="card-subtitle">Source: <span class="td-mono">pj_height_reference</span> full table.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Label</th>
+            <th>Height Mid (ft)</th>
+            <th>Height Top (ft)</th>
+            <th>GN Axle Dropped (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for h in pj_height_reference %}
+          <tr>
+            <td class="td-mono">{{ h.category }}</td>
+            <td>{{ h.label }}</td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="height_mid_ft"
+                     value="{{ h.height_mid_ft }}" />
+            </td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="height_top_ft"
+                     value="{{ h.height_top_ft }}" />
+            </td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="gn_axle_dropped_ft"
+                     value="{{ h.gn_axle_dropped_ft or '' }}"
+                     placeholder="N/A" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:160px"
+                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="notes"
+                     value="{{ h.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 4. PJ Measurement Offsets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ Measurement Offsets (Advanced)</div>
+        <div class="card-subtitle">Measurement offsets update PJ SKU footprints where applicable; GN crisscross offsets are runtime stacking assumptions applied automatically in stacked GN checks/rendering.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rule Key</th>
+            <th>Label</th>
+            <th>Offset (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for o in pj_measurement_offsets %}
+          <tr>
+            <td class="td-mono">{{ o.rule_key }}</td>
+            <td>{{ o.label }}</td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:70px"
+                     data-table="pj_measurement_offsets" data-pk="{{ o.rule_key }}" data-field="offset_ft"
+                     data-recompute="pj_skus"
+                     value="{{ o.offset_ft }}" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:200px"
+                     data-table="pj_measurement_offsets" data-pk="{{ o.rule_key }}" data-field="notes"
+                     value="{{ o.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 5. PJ SKU Cheat Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ SKU Cheat Sheet</div>
+        <div class="card-subtitle">Grouped as identifiers + deck dimensions. Height uses one value per category.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+        <input type="text" class="form-control" id="sku-search" placeholder="Filter PJ SKUsâ€¦" style="width:200px" />
+        <input type="text" id="pj-import-path" class="form-control" value="{{ pj_workbook_path }}" placeholder="PJ workbook path (optional)" style="width:360px" />
+        <button type="button" class="btn btn-secondary btn-sm" id="pj-import-btn">Import PJ Workbook</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="pj-sku-table">
+        <thead>
+          <tr class="pg-group-row">
+            <th colspan="4">SKU Identifiers / Name</th>
+            <th colspan="4">Deck Dimensions</th>
+            <th class="pg-group-spacer">Notes</th>
+          </tr>
+          <tr>
+            <th class="pg-ident-col">Category</th>
+            <th class="pg-ident-col">Model</th>
+            <th class="pg-ident-col">Item #</th>
+            <th class="pg-ident-col">Item Code</th>
+            <th>Height (ft)</th>
+            <th>Bed Length (ft)</th>
+            <th>Tongue (ft)</th>
+            <th>Footprint (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in pj_skus %}
+          {% set h = pj_height_map.get(s.pj_category) if pj_height_map else None %}
+          <tr class="pj-sku-row" data-search="{{ s.item_number }} {{ s.item_code or '' }} {{ s.model }} {{ s.pj_category }} {{ s.description or '' }}">
+            <td class="pg-ident-cell">
+              <select class="editable-select"
+                      data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="pj_category">
+                {% for val, lbl in pj_categories %}
+                  <option value="{{ val }}" {% if s.pj_category == val %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="td-mono pg-ident-cell">{{ s.model }}</td>
+            <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
+            <td class="td-mono pg-ident-cell">{{ s.item_code or '' }}</td>
+            <td>
+              <input type="number" step="0.25"
+                     class="editable-cell" style="min-width:90px"
+                     data-height-category="{{ s.pj_category or '' }}"
+                     data-table="pj_height_reference" data-pk="{{ s.pj_category or '' }}" data-field="height_top_ft"
+                     value="{{ h.get('height_top_ft') if h else '' }}"
+                     {% if not s.pj_category %}disabled{% endif %} />
+            </td>
+            <td>
+              <input type="number" step="0.25"
+                     class="editable-cell" style="min-width:90px"
+                     id="measured-input-{{ s.item_number }}"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="bed_length_measured"
+                     value="{{ s.bed_length_measured if s.bed_length_measured is not none else '' }}" />
+            </td>
+            <td>
+              <input type="number" step="0.25"
+                     class="editable-cell" style="min-width:90px"
+                     id="tongue-input-{{ s.item_number }}"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="tongue_feet"
+                     value="{{ s.tongue_feet if s.tongue_feet is not none else '' }}" />
+            </td>
+            <td class="td-mono" id="footprint-{{ s.item_number }}"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:140px"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="notes"
+                     value="{{ s.notes or '' }}" placeholder="â€”" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 6. Big Tex SKU Cheat Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="bt">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Big Tex SKU Cheat Sheet</div>
+        <div class="card-subtitle">Tiered as Category -> Model -> Item. Footprint is computed as bed + tongue.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+        <input type="text" id="bt-sku-search" class="form-control" placeholder="Filter category, model, or itemâ€¦" style="width:220px" />
+        <div class="bt-cheat-controls" aria-label="Cheat sheet hierarchy view">
+          <button type="button" class="bt-view-btn" id="bt-collapse-models-btn">Models</button>
+          <button type="button" class="bt-view-btn" id="bt-expand-items-btn">Items</button>
+        </div>
+        <input type="text" id="bt-import-path" class="form-control" value="{{ bt_workbook_path }}" placeholder="Workbook path (optional)" style="width:360px" />
+        <button type="button" class="btn btn-secondary btn-sm" id="bt-import-btn">Import Data Tab</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="bt-sku-table">
+        <thead>
+          <tr class="pg-group-row">
+            <th colspan="3">SKU Identifiers / Name</th>
+            <th colspan="4">Stacking Dimensions</th>
+          </tr>
+          <tr>
+            <th class="pg-ident-col">Category</th>
+            <th class="pg-ident-col">Model</th>
+            <th class="pg-ident-col">Item</th>
+            <th>Bed Length (ft)</th>
+            <th>Tongue (ft)</th>
+            <th>Footprint (ft)</th>
+            <th>Stack Height (ft)</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% if bt_skus %}
+          {% for category_group in bt_skus | groupby('mcat') %}
+            {% set category_label = category_group.grouper or 'Uncategorized' %}
+            {% set category_items = category_group.list %}
+            {% set category_models = category_items | groupby('model') | list %}
+            <tr class="bt-group-row bt-category-row"
+                data-bt-category="{{ category_label }}"
+                data-search="{{ category_label }}">
+              <td colspan="7">
+                <button type="button" class="bt-group-toggle" data-bt-toggle-category="{{ category_label }}" aria-expanded="true">
+                  <span class="bt-group-left">
+                    <span class="bt-caret open" data-bt-caret></span>
+                    <span class="bt-group-label">{{ category_label }}</span>
+                  </span>
+                  <span class="bt-group-meta">{{ category_models | length }} models · {{ category_items | length }} items</span>
+                </button>
+              </td>
+            </tr>
+            {% for model_group in category_items | groupby('model') %}
+              {% set model_label = model_group.grouper or 'Unknown Model' %}
+              {% set model_items = model_group.list %}
+              <tr class="bt-group-row bt-model-row"
+                  data-bt-category="{{ category_label }}"
+                  data-bt-model="{{ model_label }}"
+                  data-search="{{ category_label }} {{ model_label }}">
+                <td colspan="7">
+                  <button type="button"
+                          class="bt-group-toggle"
+                          data-bt-toggle-model="{{ category_label }}||{{ model_label }}"
+                          data-bt-category="{{ category_label }}"
+                          data-bt-model="{{ model_label }}"
+                          aria-expanded="false">
+                    <span class="bt-group-left model">
+                      <span class="bt-caret" data-bt-caret></span>
+                      <span class="bt-group-label">{{ model_label }}</span>
+                    </span>
+                    <span class="bt-group-meta">{{ model_items | length }} items</span>
+                  </button>
+                </td>
+              </tr>
+              {% for s in model_items %}
+              <tr class="bt-sku-row bt-item-row"
+                  data-bt-item="{{ s.item_number }}"
+                  data-bt-category="{{ category_label }}"
+                  data-bt-model="{{ model_label }}"
+                  data-search="{{ s.item_number }} {{ s.model }} {{ s.mcat }}">
+                <td class="pg-ident-cell">
+                  <input type="text" class="editable-cell" style="min-width:130px"
+                         data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="mcat"
+                         value="{{ s.mcat or category_label }}" />
+                </td>
+                <td class="td-mono pg-ident-cell">{{ s.model or model_label }}</td>
+                <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
+                <td>
+                  <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                         data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="bed_length"
+                         value="{{ s.bed_length or '' }}" />
+                </td>
+                <td>
+                  <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                         data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="tongue"
+                         value="{{ s.tongue or '' }}" />
+                </td>
+                <td class="td-mono bt-footprint-cell"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+                <td>
+                  <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                         data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="stack_height"
+                         value="{{ s.stack_height or '' }}" />
+                </td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="7" style="text-align:center;color:var(--text-secondary);padding:14px;">
+              No Big Tex SKUs loaded yet. Click <strong>Import Data Tab</strong>.
+            </td>
+          </tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- â”€â”€ 7. Big Tex Stack Constraint Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section" data-settings-tab="bt">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Big Tex Stack Constraint Config</div>
+        <div class="card-subtitle">Stack caps by position used during validation.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Config ID</th>
+            <th>Label</th>
+            <th>Load Type</th>
+            <th>Stack Position</th>
+            <th>Max Length (ft)</th>
+            <th>Max Height (ft)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for cfg in bt_stack_configs %}
+          <tr>
+            <td class="td-mono">{{ cfg.config_id }}</td>
+            <td>{{ cfg.label }}</td>
+            <td class="td-label">{{ cfg.load_type }}</td>
+            <td class="td-label">{{ cfg.stack_position }}</td>
+            <td>
+              <input type="number" step="0.5" class="editable-cell" style="min-width:80px"
+                     data-table="bt_stack_configs" data-pk="{{ cfg.config_id }}" data-field="max_length_ft"
+                     value="{{ cfg.max_length_ft or '' }}" placeholder="â€”" />
+            </td>
+            <td>
+              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
+                     data-table="bt_stack_configs" data-pk="{{ cfg.config_id }}" data-field="max_height_ft"
+                     value="{{ cfg.max_height_ft or '' }}" placeholder="â€”" />
+            </td>
+            <td>
+              <input type="text" class="editable-cell" style="min-width:160px"
+                     data-table="bt_stack_configs" data-pk="{{ cfg.config_id }}" data-field="notes"
+                     value="{{ cfg.notes or '' }}" />
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /.settings-sections -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS = document.getElementById('global-save-status');
+const STALE_ALERT = document.getElementById('stale-alert');
+const SETTINGS_TAB_BTNS = Array.from(document.querySelectorAll('[data-settings-tab-btn]'));
+const SETTINGS_SECTIONS = Array.from(document.querySelectorAll('.pg-settings-section'));
+const SETTINGS_INTROS = Array.from(document.querySelectorAll('.pg-settings-intro'));
+const PJ_IMPORT_PATH = document.getElementById('pj-import-path');
+const PJ_IMPORT_BTN = document.getElementById('pj-import-btn');
+const BT_SEARCH = document.getElementById('bt-sku-search');
+const BT_IMPORT_PATH = document.getElementById('bt-import-path');
+const BT_IMPORT_BTN = document.getElementById('bt-import-btn');
+const BT_COLLAPSE_MODELS_BTN = document.getElementById('bt-collapse-models-btn');
+const BT_EXPAND_ITEMS_BTN = document.getElementById('bt-expand-items-btn');
+
+let btHierarchyMode = 'models';
+const btCategoryExpanded = new Map();
+const btModelExpanded = new Map();
+
+function setSettingsTab(tab) {
+  const activeTab = ['universal', 'pj', 'bt'].includes(tab) ? tab : 'universal';
+  SETTINGS_TAB_BTNS.forEach((btn) => {
+    const isActive = btn.dataset.settingsTabBtn === activeTab;
+    btn.classList.toggle('active', isActive);
+  });
+  SETTINGS_SECTIONS.forEach((section) => {
+    const scope = section.dataset.settingsTab || '';
+    const visible = scope === activeTab;
+    section.classList.toggle('hidden', !visible);
+  });
+  SETTINGS_INTROS.forEach((intro) => {
+    intro.classList.toggle('hidden', intro.dataset.settingsTab !== activeTab);
+  });
+
+  try {
+    localStorage.setItem('prograde_settings_tab', activeTab);
+  } catch (e) {}
+}
+
+function setStatus(msg, cls) {
+  STATUS.className = 'save-status ' + cls;
+  STATUS.textContent = msg;
+}
+
+async function saveField(table, pk, field, value, triggerRecompute) {
+  setStatus('Savingâ€¦', 'saving');
+  try {
+    const resp = await fetch("{{ url_for('prograde.api_settings_save') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table, pk, field, value, recompute: triggerRecompute || null }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      setStatus('Saved âœ“', 'saved');
+      if (data.sessions_flagged) {
+        STALE_ALERT.classList.add('visible');
+      }
+      if (table === 'pj_height_reference' && field === 'height_top_ft') {
+        const key = String(pk || '').replace(/"/g, '\\"');
+        document.querySelectorAll(`[data-height-category="${key}"]`).forEach((input) => {
+          input.value = value ?? '';
+        });
+      }
+      if (data.recomputed) {
+        // Update measured/footprint cells for PJ SKUs
+        data.recomputed.forEach(r => {
+          const mCell = document.getElementById('measured-input-' + r.item_number);
+          const tCell = document.getElementById('tongue-input-' + r.item_number);
+          const fCell = document.getElementById('footprint-' + r.item_number);
+          if (mCell) mCell.value = r.bed_length_measured ?? '';
+          if (tCell && r.tongue_feet !== undefined) tCell.value = r.tongue_feet ?? '';
+          if (fCell) fCell.innerHTML = '<strong>' + r.total_footprint + "'</strong>";
+        });
+      }
+      if (data.recomputed_bigtex) {
+        data.recomputed_bigtex.forEach((r) => {
+          document.querySelectorAll('.bt-sku-row').forEach((row) => {
+            if ((row.dataset.btItem || '') !== String(r.item_number || '')) return;
+            const cell = row.querySelector('.bt-footprint-cell');
+            if (cell) {
+              cell.innerHTML = '<strong>' + String(r.total_footprint ?? 0) + "'</strong>";
+            }
+          });
+        });
+      }
+      setTimeout(() => setStatus('', ''), 2500);
+    } else {
+      setStatus('Error', 'error');
+      showToast('Save failed: ' + (data.error || 'unknown'), 'error');
+    }
+  } catch(e) {
+    setStatus('Error', 'error');
+    showToast('Save failed: ' + e.message, 'error');
+  }
+}
+
+// Wire all editable inputs
+document.querySelectorAll('.editable-cell').forEach(input => {
+  input.addEventListener('change', function() {
+    const recompute = this.dataset.recompute || null;
+    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.value, recompute);
+  });
+});
+
+// Wire all editable checkboxes
+document.querySelectorAll('.editable-check').forEach(cb => {
+  cb.addEventListener('change', function() {
+    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.checked ? 1 : 0, null);
+  });
+});
+
+// Wire all editable selects
+document.querySelectorAll('.editable-select').forEach(sel => {
+  sel.addEventListener('change', function() {
+    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.value, null);
+  });
+});
+
+// PJ SKU filter
+const skuSearch = document.getElementById('sku-search');
+if (skuSearch) {
+  skuSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.pj-sku-row').forEach(row => {
+      row.style.display = row.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+
+function btModelKey(category, model) {
+  return `${String(category || '')}||${String(model || '')}`;
+}
+
+function btUpdateViewButtons() {
+  if (BT_COLLAPSE_MODELS_BTN) {
+    BT_COLLAPSE_MODELS_BTN.classList.toggle('active', btHierarchyMode === 'models');
+  }
+  if (BT_EXPAND_ITEMS_BTN) {
+    BT_EXPAND_ITEMS_BTN.classList.toggle('active', btHierarchyMode === 'items');
+  }
+}
+
+function btInitializeHierarchyState() {
+  document.querySelectorAll('.bt-category-row').forEach((row) => {
+    const category = String(row.dataset.btCategory || '');
+    if (!btCategoryExpanded.has(category)) {
+      btCategoryExpanded.set(category, true);
+    }
+  });
+  document.querySelectorAll('.bt-model-row').forEach((row) => {
+    const category = String(row.dataset.btCategory || '');
+    const model = String(row.dataset.btModel || '');
+    const key = btModelKey(category, model);
+    if (!btModelExpanded.has(key)) {
+      btModelExpanded.set(key, false);
+    }
+  });
+}
+
+function btApplyHierarchy(rawQuery) {
+  const query = String(rawQuery || '').trim().toLowerCase();
+  const categoryRows = Array.from(document.querySelectorAll('.bt-category-row'));
+  const modelRows = Array.from(document.querySelectorAll('.bt-model-row'));
+  const itemRows = Array.from(document.querySelectorAll('.bt-item-row'));
+
+  modelRows.forEach((modelRow) => {
+    const category = String(modelRow.dataset.btCategory || '');
+    const model = String(modelRow.dataset.btModel || '');
+    const key = btModelKey(category, model);
+    const categoryOpen = query ? true : (btCategoryExpanded.get(category) !== false);
+    const relatedItems = itemRows.filter(
+      (itemRow) =>
+        String(itemRow.dataset.btCategory || '') === category &&
+        String(itemRow.dataset.btModel || '') === model
+    );
+    const matchingItems = relatedItems.filter((itemRow) => {
+      const search = String(itemRow.dataset.search || '').toLowerCase();
+      return !query || search.includes(query);
+    });
+    const modelMatches = !query || String(modelRow.dataset.search || '').toLowerCase().includes(query);
+    const modelVisible = query ? (modelMatches || matchingItems.length > 0) : true;
+    const modelOpen = query ? matchingItems.length > 0 : (btModelExpanded.get(key) === true);
+
+    modelRow.classList.toggle('bt-hidden', !modelVisible || !categoryOpen);
+    const modelToggle = modelRow.querySelector('[data-bt-toggle-model]');
+    const modelCaret = modelRow.querySelector('[data-bt-caret]');
+    if (modelToggle) {
+      modelToggle.setAttribute('aria-expanded', modelOpen ? 'true' : 'false');
+    }
+    if (modelCaret) {
+      modelCaret.classList.toggle('open', modelOpen);
+    }
+
+    relatedItems.forEach((itemRow) => {
+      const search = String(itemRow.dataset.search || '').toLowerCase();
+      const itemVisible = !query || search.includes(query);
+      const showRow = modelVisible && categoryOpen && modelOpen && itemVisible;
+      itemRow.classList.toggle('bt-hidden', !showRow);
+    });
+  });
+
+  categoryRows.forEach((categoryRow) => {
+    const category = String(categoryRow.dataset.btCategory || '');
+    const categoryOpen = query ? true : (btCategoryExpanded.get(category) !== false);
+    const relatedModelRows = modelRows.filter(
+      (row) => String(row.dataset.btCategory || '') === category
+    );
+    const categoryVisible = relatedModelRows.some((row) => !row.classList.contains('bt-hidden'));
+    categoryRow.classList.toggle('bt-hidden', !categoryVisible);
+
+    const categoryToggle = categoryRow.querySelector('[data-bt-toggle-category]');
+    const categoryCaret = categoryRow.querySelector('[data-bt-caret]');
+    if (categoryToggle) {
+      categoryToggle.setAttribute('aria-expanded', categoryOpen ? 'true' : 'false');
+    }
+    if (categoryCaret) {
+      categoryCaret.classList.toggle('open', categoryOpen);
+    }
+
+    if (!query && !categoryOpen) {
+      relatedModelRows.forEach((modelRow) => {
+        modelRow.classList.add('bt-hidden');
+      });
+      itemRows.forEach((itemRow) => {
+        if (String(itemRow.dataset.btCategory || '') === category) {
+          itemRow.classList.add('bt-hidden');
+        }
+      });
+    }
+  });
+
+  btUpdateViewButtons();
+}
+
+function btSetHierarchyMode(mode) {
+  btHierarchyMode = mode === 'items' ? 'items' : 'models';
+  document.querySelectorAll('.bt-category-row').forEach((row) => {
+    const category = String(row.dataset.btCategory || '');
+    btCategoryExpanded.set(category, true);
+  });
+  document.querySelectorAll('.bt-model-row').forEach((row) => {
+    const category = String(row.dataset.btCategory || '');
+    const model = String(row.dataset.btModel || '');
+    btModelExpanded.set(btModelKey(category, model), btHierarchyMode === 'items');
+  });
+  btApplyHierarchy(BT_SEARCH ? BT_SEARCH.value : '');
+}
+
+function btBindHierarchyControls() {
+  btInitializeHierarchyState();
+
+  if (BT_COLLAPSE_MODELS_BTN && BT_COLLAPSE_MODELS_BTN.dataset.bound !== '1') {
+    BT_COLLAPSE_MODELS_BTN.dataset.bound = '1';
+    BT_COLLAPSE_MODELS_BTN.addEventListener('click', () => btSetHierarchyMode('models'));
+  }
+  if (BT_EXPAND_ITEMS_BTN && BT_EXPAND_ITEMS_BTN.dataset.bound !== '1') {
+    BT_EXPAND_ITEMS_BTN.dataset.bound = '1';
+    BT_EXPAND_ITEMS_BTN.addEventListener('click', () => btSetHierarchyMode('items'));
+  }
+
+  document.querySelectorAll('[data-bt-toggle-category]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const category = String(btn.dataset.btToggleCategory || '');
+      const current = btCategoryExpanded.get(category) !== false;
+      btCategoryExpanded.set(category, !current);
+      btApplyHierarchy(BT_SEARCH ? BT_SEARCH.value : '');
+    });
+  });
+
+  document.querySelectorAll('[data-bt-toggle-model]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const category = String(btn.dataset.btCategory || '');
+      const model = String(btn.dataset.btModel || '');
+      const key = btModelKey(category, model);
+      const current = btModelExpanded.get(key) === true;
+      btModelExpanded.set(key, !current);
+      btApplyHierarchy(BT_SEARCH ? BT_SEARCH.value : '');
+    });
+  });
+
+  btSetHierarchyMode('models');
+}
+
+if (BT_SEARCH) {
+  BT_SEARCH.addEventListener('input', function() {
+    btApplyHierarchy(this.value);
+  });
+}
+
+if (PJ_IMPORT_BTN) {
+  PJ_IMPORT_BTN.addEventListener('click', async function() {
+    const workbookPath = PJ_IMPORT_PATH ? PJ_IMPORT_PATH.value.trim() : '';
+    setStatus('Importingâ€¦', 'saving');
+    try {
+      const resp = await fetch("{{ url_for('prograde.api_pj_import') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workbook_path: workbookPath || null, toc_sheet_name: 'ToC' }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'Import failed');
+      }
+      if (data.sessions_flagged) {
+        STALE_ALERT.classList.add('visible');
+      }
+      const result = data.import_result || {};
+      setStatus('Import complete ✓', 'saved');
+      showToast(`Imported ${result.row_count || 0} PJ rows`, 'success');
+      setTimeout(() => location.reload(), 400);
+    } catch (e) {
+      setStatus('Error', 'error');
+      showToast('PJ import failed: ' + e.message, 'error');
+    }
+  });
+}
+
+if (BT_IMPORT_BTN) {
+  BT_IMPORT_BTN.addEventListener('click', async function() {
+    const workbookPath = BT_IMPORT_PATH ? BT_IMPORT_PATH.value.trim() : '';
+    setStatus('Importingâ€¦', 'saving');
+    try {
+      const resp = await fetch("{{ url_for('prograde.api_bigtex_import') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workbook_path: workbookPath || null, sheet_name: 'Data' }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'Import failed');
+      }
+      if (data.sessions_flagged) {
+        STALE_ALERT.classList.add('visible');
+      }
+      const result = data.import_result || {};
+      setStatus('Import complete ✓', 'saved');
+      showToast(`Imported ${result.row_count || 0} BT rows from ${result.sheet_name || 'Data'}`, 'success');
+      setTimeout(() => location.reload(), 400);
+    } catch (e) {
+      setStatus('Error', 'error');
+      showToast('BT import failed: ' + e.message, 'error');
+    }
+  });
+}
+
+btBindHierarchyControls();
+
+SETTINGS_TAB_BTNS.forEach((btn) => {
+  btn.addEventListener('click', () => setSettingsTab(btn.dataset.settingsTabBtn));
+});
+let initialSettingsTab = 'universal';
+try {
+  const savedTab = localStorage.getItem('prograde_settings_tab');
+  if (savedTab === 'universal' || savedTab === 'pj' || savedTab === 'bt') {
+    initialSettingsTab = savedTab;
+  }
+} catch (e) {}
+setSettingsTab(initialSettingsTab);
+</script>
+{% endblock %}
+
+
+
+

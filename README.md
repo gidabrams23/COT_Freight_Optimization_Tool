@@ -3,7 +3,12 @@ Try 2 at building a web optimization app.
 
 ## Repo layout
 
-- `app.py`: Flask entrypoint
+- `app.py`: compatibility entrypoint/shim (exports Flask app)
+- `blueprints/cot/routes.py`: COT blueprint routes and controller logic
+- `blueprints/prograde/routes.py`: ProGrade blueprint routes + load-builder APIs
+- `blueprints/prograde/db.py`: ProGrade SQLite schema/data helpers (sessions, positions, SKUs, settings, inventory snapshot)
+- `blueprints/prograde/services/`: ProGrade rule engines and constraint checks (BT/PJ)
+- `blueprints/prograde/templates/prograde/load_builder.html`: ProGrade stacking/schematic UI (markup + CSS + JS)
 - `db.py`: SQLite helpers (DB lives at `data/db/app.db`)
 - `services/`: business logic + optimization utilities
 - `templates/`: Jinja templates
@@ -11,6 +16,25 @@ Try 2 at building a web optimization app.
 - `scripts/`: one-off import/maintenance scripts
 - `docs/`: PRDs/specs/notes
 - `data/`: local DB + reference/sample inputs
+
+## ProGrade docs
+
+- `docs/specs/PROGRADE_EDIT_MAP.md`: file-by-file edit map for ProGrade, focused on stacking logic and schematic changes.
+- `docs/specs/PROGRADE_BT_INVENTORY_GAP_WORKFLOW.md`: Inventory gap workflow (BT upload mode + PJ catalog mode).
+- `docs/specs/PROGRADE_VISUAL_GUIDELINES.md`: UI visual contract for ProGrade pages.
+
+## ProGrade account workflow
+
+- ProGrade account profiles are stored in the ProGrade database (`prograde_access_profiles`) and do not reuse COT `access_profiles`.
+- Landing page for ProGrade account access is `/prograde` (also available at `/prograde/account`) with:
+  - account dropdown selection
+  - quick add account by name
+- Once selected, the active account persists in the current user session and is used for new load creation.
+- New loads inherit the currently selected ProGrade account as the builder and display that user in the All Sessions table.
+- `All Sessions` (`/prograde/sessions`) is owner-scoped by default:
+  - admin accounts can view all saved sessions
+  - planner accounts only see sessions they built
+- Default admin account name is seeded from `PROGRADE_DEFAULT_ADMIN_NAME`; fallback is OS `USERNAME` (or `Admin`).
 
 ## Setup
 

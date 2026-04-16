@@ -1,0 +1,45 @@
+<div class="pg-canvas-column" id="pg-canvas-column">
+  {% include "prograde/_spatial_canvas.html" %}
+
+  <div class="pg-data-grid">
+    <div class="manifest-wrap card" id="pg-manifest-card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
+        <div class="card-title">Manifest</div>
+      </div>
+      <div class="manifest-table-wrap">
+        <table class="manifest-table">
+          <thead>
+            <tr>
+              <th class="manifest-col-unit manifest-col-num">#</th>
+              <th class="manifest-col-item">Item Code</th>
+              <th class="manifest-col-bed manifest-col-num">Bed</th>
+              <th class="manifest-col-tongue manifest-col-num">Tongue</th>
+              <th class="manifest-col-total manifest-col-num">Total FP</th>
+              <th class="manifest-col-height manifest-col-num">Stacked Height</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if manifest_rows %}
+              {% for row in manifest_rows %}
+              <tr>
+                <td class="mono manifest-col-unit manifest-col-num">{{ row.unit_number }}</td>
+                <td class="mono manifest-col-item">{{ row.item_code or row.item_number }}</td>
+                <td class="mono manifest-col-bed manifest-col-num">{{ '%.1f'|format(row.bed_length) }}'</td>
+                <td class="mono manifest-col-tongue manifest-col-num">{{ '%.1f'|format(row.tongue_length) }}'</td>
+                <td class="mono manifest-col-total manifest-col-num">{{ '%.1f'|format(row.total_footprint) }}'</td>
+                <td class="mono manifest-col-height manifest-col-num">{{ '%.1f'|format(row.height_each or 0) }}'</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" style="text-align:center;color:var(--text-secondary);padding:10px 8px;">No units on this load yet.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% include 'prograde/_inventory_gap_panel.html' %}
+  </div>
+</div><!-- /canvas -->

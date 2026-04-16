@@ -1,0 +1,862 @@
+{% extends "base.html" %}
+{% block title %}Load Builder — {{ session.session_label or session.session_id[:8] }}{% endblock %}
+
+{% block head %}
+<style>
+/* ── Canvas layout ────────────────────────────── */
+.canvas-top-bar {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  padding: 10px var(--space-xl);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.deck-total {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.deck-total-val {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.deck-total-cap {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.deck-util-bar {
+  flex: 1;
+  min-width: 120px;
+  max-width: 240px;
+}
+
+/* ── Zone layout ──────────────────────────────── */
+.zones-container {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+}
+.zone-panel {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.zone-header-bar {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.zone-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-secondary);
+}
+.zone-length-chip {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.zone-columns-scroll {
+  overflow-x: auto;
+  padding: var(--space-sm);
+}
+.zone-columns {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;   /* units grow upward from the deck */
+  min-height: 80px;
+}
+
+/* ── Unit column ──────────────────────────────── */
+.unit-col {
+  display: flex;
+  flex-direction: column-reverse;  /* layer 1 at bottom, top layers stack up */
+  gap: 3px;
+  min-width: 130px;
+  max-width: 160px;
+  position: relative;
+}
+.unit-col-meta {
+  margin-top: 4px;
+  text-align: center;
+}
+
+/* Height progress bar per column */
+.col-height-bar {
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.col-height-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width .3s, background .3s;
+}
+.col-height-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+
+/* "Add to this column" button */
+.col-stack-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.col-stack-add:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--status-info-bg);
+}
+
+/* "New column" button */
+.zone-new-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 20px;
+  align-self: stretch;
+  transition: all .15s;
+}
+.zone-new-col:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--status-info-bg);
+}
+
+/* ── Unit card (revised) ──────────────────────── */
+.unit-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  position: relative;
+}
+.unit-card:hover { border-color: var(--border-subtle); }
+.unit-card.nested {
+  border-style: dashed;
+  border-color: var(--border-subtle);
+  margin-left: 10px;
+  background: var(--bg-tertiary);
+}
+.unit-card.has-error   { border-color: var(--status-error); }
+.unit-card.has-warning { border-color: var(--status-warning); }
+
+.unit-card-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.unit-card-fp {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+.unit-card-ht {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* GN axle-drop toggle */
+.axle-drop-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.axle-drop-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.axle-drop-cb { accent-color: var(--accent-primary); cursor: pointer; }
+.axle-drop-active { color: var(--status-info) !important; }
+
+/* Remove button */
+.unit-remove {
+  position: absolute;
+  top: 4px; right: 4px;
+  background: none; border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: var(--radius-sm);
+}
+.unit-remove:hover { background: var(--status-error-bg); color: var(--status-error); }
+
+/* Violation highlight overlay on card */
+.violation-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+/* ── Zone footer ──────────────────────────────── */
+.zone-footer-bar {
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  gap: var(--space-lg);
+  font-size: 11px;
+  align-items: center;
+}
+.zone-stat { display: flex; flex-direction: column; align-items: center; }
+.zone-stat-val {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.zone-stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
+
+/* ── Violation panel ──────────────────────────── */
+.viol-group-hdr {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--text-tertiary);
+}
+.violation-item {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+.violation-item.error   { background: var(--status-error-bg);   border-left: 3px solid var(--status-error); }
+.violation-item.warning { background: var(--status-warning-bg); border-left: 3px solid var(--status-warning); }
+.violation-item.info    { background: var(--status-info-bg);    border-left: 3px solid var(--status-info); }
+.violation-item.acknowledged {
+  opacity: .55;
+  border-left-color: var(--border-subtle);
+  background: var(--bg-secondary);
+}
+.violation-ack-btn {
+  margin-top: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-warning);
+  background: none;
+  color: var(--status-warning);
+  cursor: pointer;
+}
+.violation-ack-btn:hover { background: var(--status-warning); color: #000; }
+.violation-unack-btn {
+  margin-top: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.violation-unack-btn:hover { background: var(--bg-tertiary); }
+
+/* ── Picker panel ─────────────────────────────── */
+.picker-search {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-default);
+}
+.sku-list { max-height: 320px; overflow-y: auto; }
+.sku-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  gap: var(--space-sm);
+}
+.sku-list-item:hover { background: var(--bg-secondary); }
+.sku-list-item:last-child { border-bottom: none; }
+.sku-item-id { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.sku-item-fp { font-size: 11px; color: var(--text-secondary); }
+
+/* ── Zone picker modal ────────────────────────── */
+.modal-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  min-width: 300px;
+}
+.modal-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.modal-options { display: flex; flex-direction: column; gap: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if session.status == 'stale' %}
+<div class="stale-banner">
+  ⚠ Settings changed since last validation — constraint check below uses current assumptions.
+</div>
+{% endif %}
+
+<!-- ── Top Bar ───────────────────────────────────── -->
+<div class="canvas-top-bar">
+  <div>
+    <div style="font-size:16px;font-weight:600">
+      {{ session.session_label or session.session_id[:8] }}
+      <span class="badge {% if session.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}" style="margin-left:6px;vertical-align:middle;font-size:11px">
+        {{ session.brand | upper }}
+      </span>
+    </div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">
+      {{ session.carrier_type }} · {{ session.planner_name or '—' }}
+    </div>
+  </div>
+
+  <div class="deck-total">
+    <span class="deck-total-val" id="total-fp-val"
+          style="color:{% if pct_used > 100 %}var(--status-error){% elif pct_used > 90 %}var(--status-warning){% else %}var(--text-primary){% endif %}">
+      {{ "%.1f"|format(total_footprint) }}'
+    </span>
+    <span class="deck-total-cap">/ {{ carrier.total_length_ft }}' used</span>
+  </div>
+
+  <div class="deck-util-bar">
+    <div class="util-bar-wrap">
+      <div class="util-bar {% if pct_used > 100 %}over{% elif pct_used > 90 %}warn{% endif %}"
+           id="total-fp-bar"
+           style="width:{{ [pct_used, 100]|min }}%"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">
+      {{ "%.0f"|format(pct_used) }}% utilized
+    </div>
+  </div>
+
+  <div id="violation-summary">
+    {% if violations_error > 0 %}
+      <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
+    {% endif %}
+    {% if violations_warning > 0 %}
+      <span class="badge badge-warning" style="margin-left:4px">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
+    {% endif %}
+    {% if violations_error == 0 and violations_warning == 0 %}
+      <span class="badge badge-success">✓ Clear</span>
+    {% endif %}
+  </div>
+
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <a href="{{ url_for('export_load', session_id=session.session_id) }}"
+       class="btn btn-secondary btn-sm" target="_blank">Export / Print</a>
+    <a href="{{ url_for('index') }}" class="btn btn-ghost btn-sm">← Sessions</a>
+  </div>
+</div>
+
+<!-- ── Main Canvas + Sidebar ────────────────────── -->
+<div class="page-body" style="display:flex;gap:var(--space-md);align-items:flex-start;padding-top:var(--space-md)">
+
+  <!-- Canvas -->
+  <div style="flex:1;min-width:0">
+    <div class="zones-container">
+
+      {% for zone in zones %}
+      {% set z_len = zone_lengths.get(zone, 0) %}
+      {% set z_cap = z_caps.get(zone) %}
+      {% set z_clr = clearances.get(zone) %}
+      {% set z_pct = (z_len / z_cap * 100) if z_cap else 0 %}
+      {% set cols  = zone_cols.get(zone, {}) %}
+
+      <div class="zone-panel">
+        <div class="zone-header-bar">
+          <span class="zone-title">{{ zone_labels[zone] }}</span>
+          <span class="zone-length-chip"
+                style="color:{% if z_cap and z_len > z_cap %}var(--status-error){% elif z_cap and z_len > z_cap * 0.9 %}var(--status-warning){% else %}var(--status-success){% endif %}">
+            {{ "%.1f"|format(z_len) }}' {% if z_cap %}/ {{ z_cap }}'{% endif %}
+          </span>
+        </div>
+
+        <div class="zone-columns-scroll">
+          <div class="zone-columns" id="zone-{{ zone }}">
+
+            {% if cols %}
+              {% for seq in cols | sort %}
+              {% set col = cols[seq] %}
+              {% set col_h = col_heights.get(zone, {}).get(seq, 0) %}
+              {% set col_h_cap = z_clr or 0 %}
+              {% set col_h_pct = (col_h / col_h_cap * 100) if col_h_cap else 0 %}
+
+              <div class="unit-col" data-zone="{{ zone }}" data-seq="{{ seq }}">
+                <!-- Units (column-reverse puts layer 1 at bottom visually) -->
+                {% for pos in col %}
+                <div class="unit-card {% if pos.is_nested %}nested{% endif %}"
+                     id="pos-{{ pos.position_id }}"
+                     data-pos-id="{{ pos.position_id }}"
+                     data-zone="{{ zone }}"
+                     data-seq="{{ seq }}"
+                     data-layer="{{ pos.layer }}">
+
+                  <!-- Remove -->
+                  <button class="unit-remove" onclick="removeUnit('{{ pos.position_id }}')" title="Remove">×</button>
+
+                  <div class="unit-card-id">
+                    {% if pos.is_nested %}<span style="font-size:9px;color:var(--text-tertiary)">↳ </span>{% endif %}
+                    {{ pos.item_number }}
+                  </div>
+                  <div class="unit-card-fp">{{ pos.footprint }}' fp</div>
+                  <div class="unit-card-ht">ht: {{ pos.height }}'
+                    {% if pos.layer > 1 %}<span style="color:var(--text-tertiary)"> (layer {{ pos.layer }})</span>{% endif %}
+                  </div>
+
+                  <!-- GN axle-drop toggle -->
+                  {% if pos.gn_axle_droppable %}
+                  <div class="axle-drop-row">
+                    <input type="checkbox"
+                           class="axle-drop-cb"
+                           id="axle-{{ pos.position_id }}"
+                           {% if pos.gn_axle_dropped %}checked{% endif %}
+                           onchange="toggleAxleDrop('{{ pos.position_id }}', this)" />
+                    <label for="axle-{{ pos.position_id }}"
+                           class="axle-drop-label {% if pos.gn_axle_dropped %}axle-drop-active{% endif %}">
+                      axle drop
+                    </label>
+                  </div>
+                  {% endif %}
+
+                </div>
+                {% endfor %}
+
+                <!-- Stack-on button (add to top of this column) -->
+                <div class="col-stack-add"
+                     onclick="openPicker('{{ zone }}', {{ seq }}, '{{ col[-1].position_id }}')"
+                     title="Stack a unit on top of column {{ seq }}">
+                  + stack
+                </div>
+
+                <!-- Height indicator -->
+                {% if col_h_cap %}
+                <div>
+                  <div class="col-height-bar">
+                    <div class="col-height-fill"
+                         style="width:{{ [col_h_pct, 100]|min }}%;background:{% if col_h_pct > 100 %}var(--status-error){% elif col_h_pct > 90 %}var(--status-warning){% else %}var(--status-success){% endif %}">
+                    </div>
+                  </div>
+                  <div class="col-height-label"
+                       style="{% if col_h_pct > 100 %}color:var(--status-error){% endif %}">
+                    {{ "%.2f"|format(col_h) }}' / {{ col_h_cap }}'
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
+
+            {% else %}
+            <!-- Empty zone placeholder -->
+            <div style="padding:20px 12px;color:var(--text-tertiary);font-size:12px;text-align:center;width:100%">
+              Empty — add units with the picker →
+            </div>
+            {% endif %}
+
+            <!-- New column drop zone -->
+            <div class="zone-new-col"
+                 onclick="openPicker('{{ zone }}', null, null)"
+                 title="Add new column to {{ zone_labels[zone] }}">
+              +
+            </div>
+
+          </div><!-- /.zone-columns -->
+        </div><!-- /.zone-columns-scroll -->
+
+        <!-- Zone footer stats -->
+        <div class="zone-footer-bar">
+          <div class="zone-stat">
+            <span class="zone-stat-val"
+                  style="color:{% if z_cap and z_len > z_cap %}var(--status-error){% elif z_cap and z_len > z_cap * 0.9 %}var(--status-warning){% else %}var(--text-primary){% endif %}">
+              {{ "%.1f"|format(z_len) }}'
+            </span>
+            <span class="zone-stat-lbl">Length</span>
+          </div>
+          {% if z_cap %}
+          <div class="util-bar-wrap" style="flex:1;min-width:60px">
+            <div class="util-bar {% if z_pct > 100 %}over{% elif z_pct > 90 %}warn{% endif %}"
+                 style="width:{{ [z_pct, 100]|min }}%"></div>
+          </div>
+          {% endif %}
+          <div class="zone-stat">
+            <span class="zone-stat-val">{{ cols | length }}</span>
+            <span class="zone-stat-lbl">Columns</span>
+          </div>
+        </div>
+      </div><!-- /.zone-panel -->
+
+      {% endfor %}
+    </div><!-- /.zones-container -->
+  </div><!-- /canvas -->
+
+  <!-- ── Sidebar ─────────────────────────────── -->
+  <div style="width:272px;flex-shrink:0;display:flex;flex-direction:column;gap:var(--space-md)">
+
+    <!-- SKU Picker -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div class="card-title">Add Unit</div>
+      </div>
+      <div class="picker-search">
+        <input type="text" id="sku-filter" class="form-control"
+               placeholder="Filter by model or item #…" style="font-size:12px" />
+      </div>
+      <div class="sku-list" id="sku-list">
+        {% for sku in skus %}
+        <div class="sku-list-item sku-pick-item"
+             data-item="{{ sku.item_number }}"
+             data-search="{{ sku.item_number }} {{ sku.model }} {{ sku.get('pj_category','') }} {{ sku.get('mcat','') }}"
+             onclick="openPicker(null, null, null, '{{ sku.item_number }}')">
+          <div>
+            <div class="sku-item-id">{{ sku.item_number }}</div>
+            <div class="sku-item-fp">
+              {{ sku.total_footprint }}'fp
+              {% if sku.get('tier') %}
+                <span class="tier-badge tier-{{ sku.tier }}">T{{ sku.tier }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:16px;padding:2px 6px">+</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Violation Panel -->
+    <div class="card" style="padding:0;overflow:hidden" id="violation-panel">
+      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+        <div class="card-title">Constraint Check</div>
+        <span id="viol-count-badge">
+          {% if violations_error > 0 %}
+            <span class="badge badge-error">{{ violations_error }}E</span>
+          {% endif %}
+          {% if violations_warning > 0 %}
+            <span class="badge badge-warning" style="margin-left:3px">{{ violations_warning }}W</span>
+          {% endif %}
+          {% if violations_info > 0 %}
+            <span class="badge badge-info" style="margin-left:3px">{{ violations_info }}I</span>
+          {% endif %}
+        </span>
+      </div>
+
+      <div style="max-height:380px;overflow-y:auto;padding:var(--space-sm)">
+        {% if violations %}
+
+          {% set errors   = violations | selectattr('severity','equalto','error')   | list %}
+          {% set warnings = violations | selectattr('severity','equalto','warning') | list %}
+          {% set infos    = violations | selectattr('severity','equalto','info')    | list %}
+
+          {% if errors %}
+          <div class="viol-group-hdr">Errors</div>
+          {% for v in errors %}
+          <div class="violation-item error">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+              {% if v.suggested_fix %}
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">→ {{ v.suggested_fix }}</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          {% if warnings %}
+          <div class="viol-group-hdr" style="margin-top:4px">Warnings</div>
+          {% for v in warnings %}
+          <div class="violation-item warning {% if v.acknowledged %}acknowledged{% endif %}"
+               id="viol-{{ v.rule_code | replace('_','-') }}">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+              {% if v.suggested_fix %}
+              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">→ {{ v.suggested_fix }}</div>
+              {% endif %}
+              {% if not v.acknowledged %}
+              <button class="violation-ack-btn"
+                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'add', this)">
+                Acknowledge
+              </button>
+              {% else %}
+              <button class="violation-unack-btn"
+                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'remove', this)">
+                ↩ Un-acknowledge
+              </button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          {% if infos %}
+          <div class="viol-group-hdr" style="margin-top:4px">Notes</div>
+          {% for v in infos %}
+          <div class="violation-item info">
+            <div style="flex:1">
+              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+        {% else %}
+        <div style="padding:16px;text-align:center;font-size:12px;color:var(--status-success)">
+          ✓ No constraint violations
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /page-body -->
+
+<!-- ── Zone / Stack Picker Modal ─────────────────── -->
+<div class="modal-backdrop" id="zone-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Add to which zone?</div>
+    <div class="modal-options" id="modal-options"></div>
+    <div style="margin-top:14px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SESSION_ID  = "{{ session.session_id }}";
+const ZONES       = {{ zones | tojson }};
+const ZONE_LABELS = {{ zone_labels | tojson }};
+
+// State for pending modal action
+let pendingItem   = null;
+let pendingZone   = null;
+let pendingSeq    = null;   // if set: stack on existing column
+let pendingTarget = null;   // position_id to stack on top of
+
+// ── SKU filter ─────────────────────────────────────
+document.getElementById('sku-filter').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.sku-pick-item').forEach(el => {
+    el.style.display = el.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+// ── Open picker modal ──────────────────────────────
+// Called with (zone, seq, targetPositionId, preselectedItem)
+// If zone is provided: skip zone selection, go straight to item selection
+// If item is provided: skip item selection, go to zone selection
+function openPicker(zone, seq, targetPosId, preselectedItem) {
+  pendingZone   = zone;
+  pendingSeq    = seq;
+  pendingTarget = targetPosId;
+  pendingItem   = preselectedItem || null;
+
+  const modal = document.getElementById('zone-modal');
+  const opts  = document.getElementById('modal-options');
+  const title = document.getElementById('modal-title');
+  opts.innerHTML = '';
+
+  if (pendingItem && pendingZone) {
+    // Both known — add directly
+    closeModal();
+    addUnit(pendingItem, pendingZone, pendingTarget);
+    return;
+  }
+
+  if (pendingItem) {
+    // Item known, need zone
+    title.textContent = `Add ${pendingItem} to which zone?`;
+    ZONES.forEach(z => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-secondary';
+      btn.textContent = ZONE_LABELS[z] || z;
+      btn.onclick = () => { closeModal(); addUnit(pendingItem, z, null); };
+      opts.appendChild(btn);
+    });
+  } else if (pendingZone) {
+    // Zone known (stacking on a column or adding to zone), need item
+    title.textContent = `Choose unit to add to ${ZONE_LABELS[pendingZone] || pendingZone}`;
+    // Show compact list inside modal
+    const list = document.createElement('div');
+    list.style = 'max-height:260px;overflow-y:auto;margin-top:4px;border:1px solid var(--border-default);border-radius:var(--radius-md)';
+    document.querySelectorAll('.sku-pick-item').forEach(el => {
+      if (el.style.display === 'none') return;
+      const row = document.createElement('div');
+      row.style = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border-subtle);cursor:pointer;gap:8px';
+      row.innerHTML = `<div><div style="font-family:var(--font-mono);font-size:12px;font-weight:600">${el.dataset.item}</div></div>`;
+      row.onclick = () => {
+        closeModal();
+        addUnit(el.dataset.item, pendingZone, pendingTarget);
+      };
+      row.onmouseover = () => row.style.background = 'var(--bg-secondary)';
+      row.onmouseout  = () => row.style.background = '';
+      list.appendChild(row);
+    });
+    opts.appendChild(list);
+  } else {
+    // Neither known — pick zone first
+    title.textContent = 'Add to which zone?';
+    ZONES.forEach(z => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-secondary';
+      btn.textContent = ZONE_LABELS[z] || z;
+      btn.onclick = () => { pendingZone = z; openPicker(z, null, null, null); };
+      opts.appendChild(btn);
+    });
+  }
+
+  modal.classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('zone-modal').classList.remove('open');
+  pendingItem = pendingZone = pendingSeq = pendingTarget = null;
+}
+
+// ── Add unit ───────────────────────────────────────
+async function addUnit(itemNumber, zone, stackOnPosId) {
+  const body = { item_number: itemNumber, deck_zone: zone };
+  if (stackOnPosId) body.stack_on = stackOnPosId;
+
+  const resp = await fetch('/api/session/' + SESSION_ID + '/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    location.reload();
+  } else {
+    showToast('Failed to add unit: ' + (data.error || '?'), 'error');
+  }
+}
+
+// ── Remove unit ────────────────────────────────────
+async function removeUnit(positionId) {
+  const resp = await fetch('/api/session/' + SESSION_ID + '/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position_id: positionId }),
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    location.reload();
+  } else {
+    showToast('Failed to remove unit', 'error');
+  }
+}
+
+// ── GN axle-drop toggle ────────────────────────────
+async function toggleAxleDrop(positionId, checkbox) {
+  const resp = await fetch('/api/session/' + SESSION_ID + '/toggle_axle_drop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position_id: positionId }),
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    const lbl = checkbox.nextElementSibling;
+    if (data.gn_axle_dropped) {
+      lbl.classList.add('axle-drop-active');
+      lbl.textContent = 'axle drop ✓';
+    } else {
+      lbl.classList.remove('axle-drop-active');
+      lbl.textContent = 'axle drop';
+    }
+    // Re-run check after toggle (soft reload of violation panel)
+    refreshViolations();
+  } else {
+    checkbox.checked = !checkbox.checked;  // revert
+    showToast('Toggle failed', 'error');
+  }
+}
+
+// ── Acknowledge violation ──────────────────────────
+async function acknowledgeViolation(ruleCode, action, btn) {
+  const resp = await fetch('/api/session/' + SESSION_ID + '/acknowledge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rule_code: ruleCode, action }),
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    const item = document.getElementById('viol-' + ruleCode.replace(/_/g, '-'));
+    if (action === 'add') {
+      item.classList.add('acknowledged');
+      btn.className = 'violation-unack-btn';
+      btn.textContent = '↩ Un-acknowledge';
+      btn.onclick = () => acknowledgeViolation(ruleCode, 'remove', btn);
+      showToast('Warning acknowledged', 'success');
+    } else {
+      item.classList.remove('acknowledged');
+      btn.className = 'violation-ack-btn';
+      btn.textContent = 'Acknowledge';
+      btn.onclick = () => acknowledgeViolation(ruleCode, 'add', btn);
+    }
+  } else {
+    showToast('Acknowledge failed', 'error');
+  }
+}
+
+// ── Soft violation refresh (no full reload) ────────
+async function refreshViolations() {
+  const resp = await fetch('/api/session/' + SESSION_ID + '/check');
+  if (!resp.ok) return;
+  // For now just show a toast; full panel update would require DOM diffing
+  // Full reload is triggered after add/remove; toggle just updates count
+  showToast('Constraint check updated', 'success');
+}
+
+// Close modal on backdrop click
+document.getElementById('zone-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+{% endblock %}

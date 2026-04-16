@@ -1,0 +1,70 @@
+{% extends "prograde/base.html" %}
+{% block title %}Select Account - ProGrade{% endblock %}
+
+{% block content %}
+{% set selected_brand = selected_brand | default('bigtex') %}
+{% set selected_account_id = active_profile.id if active_profile else (accounts[0].id if accounts else None) %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Select Account</div>
+    <div class="page-subtitle">Choose a planner account or add a new one before entering sessions. Your selection stays active for this browser session.</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    {% if active_profile %}
+    <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-primary">Continue to Sessions</a>
+    {% endif %}
+    <a href="{{ url_for('prograde.settings', brand=selected_brand) }}" class="btn btn-secondary">Settings</a>
+  </div>
+</div>
+
+<div class="page-body">
+  {% if account_notice %}
+  <div class="settings-alert visible" style="margin-bottom:12px;">
+    {{ account_notice.message }}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Current Account</div>
+        <div class="card-subtitle">
+          {% if active_profile %}
+          Active: <strong>{{ active_profile.name }}</strong>{% if active_profile.is_admin %} (Admin){% endif %}
+          {% else %}
+          No active account selected.
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
+      <form method="POST" action="{{ url_for('prograde.account_select') }}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <input type="hidden" name="brand" value="{{ selected_brand }}" />
+        <input type="hidden" name="next" value="{{ next_url }}" />
+        <div style="flex:1 1 220px;">
+          <label class="form-label">Select Account</label>
+          <select name="profile_id" class="form-control" required>
+            <option value="" {% if not selected_account_id %}selected{% endif %}>Select account...</option>
+            {% for account in accounts %}
+            <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>
+              {{ account.name }}{% if account.is_admin %} (Admin){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Use</button>
+      </form>
+
+      <form method="POST" action="{{ url_for('prograde.account_create') }}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <input type="hidden" name="brand" value="{{ selected_brand }}" />
+        <input type="hidden" name="next" value="{{ next_url }}" />
+        <div style="flex:1 1 220px;">
+          <label class="form-label">Add New Account</label>
+          <input type="text" name="name" class="form-control" maxlength="80" placeholder="Planner name" required />
+        </div>
+        <button type="submit" class="btn btn-secondary">Create</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
