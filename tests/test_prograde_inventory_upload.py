@@ -72,6 +72,23 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
         workbook.save(workbook_path)
         return workbook_path
 
+    def _build_inventory_csv_report(self):
+        csv_path = Path(self._tmpdir.name) / "bt_inventory.csv"
+        csv_path.write_text(
+            "\n".join(
+                [
+                    "conum,itemnum,serid,whse,transtype,cost,physdate,memo,onhand,committed_,wip,intransit,discrepant,lastusedate,TS_LastUpdated,description1,majorcat,majorcatdesc",
+                    "001,70BT14,SER-001,501,4,100,1/1/1900 0:00,,1,0,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,UTILITY",
+                    "001,70BT14,SER-001,501,4,100,1/1/1900 0:00,,1,0,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,UTILITY",
+                    "001,70BT14,SER-002,501,4,100,1/1/1900 0:00,,1,1,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,UTILITY",
+                    "001,22PH20,SER-003,601,4,100,1/1/1900 0:00,,1,0,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,EQUIPMENT",
+                    "001,UNMAPPED01,SER-004,601,4,100,1/1/1900 0:00,,1,0,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,UNKNOWN",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return csv_path
+
     def test_import_orders_workbook_aggregates_inventory_statuses(self):
         workbook_path = self._build_orders_workbook()
 
@@ -112,9 +129,48 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
         self.assertIsNone(item_unmapped["sku_mcat"])
 
         upload_meta = dict(self.db.get_bt_inventory_upload_meta())
+        self.assertEqual(upload_meta["source_format"], "workbook")
         self.assertEqual(upload_meta["sheet_name"], "All.Orders.Quick")
         self.assertEqual(upload_meta["valid_rows"], 5)
         self.assertEqual(upload_meta["distinct_items"], 3)
+
+    def test_import_inventory_csv_dedupes_serial_rows_and_tracks_warehouse(self):
+        csv_path = self._build_inventory_csv_report()
+
+        result = self.db.import_bigtex_inventory_orders_workbook(workbook_path=csv_path)
+
+        self.assertEqual(result["source_format"], "csv_inventory")
+        self.assertEqual(result["processed_rows"], 5)
+        self.assertEqual(result["valid_rows"], 5)
+        self.assertEqual(result["deduped_rows"], 4)
+        self.assertEqual(result["duplicate_rows"], 1)
+        self.assertEqual(result["distinct_items"], 3)
+        self.assertEqual(result["warehouse_count"], 2)
+        self.assertEqual(result["available_total"], 3)
+        self.assertEqual(result["unmatched_item_count"], 1)
+        self.assertIn("UNMAPPED01", result["unmatched_items"])
+
+        snapshot_rows = [dict(r) for r in self.db.get_bt_inventory_snapshot_rows(limit=20)]
+        by_item = {row["item_number"]: row for row in snapshot_rows}
+        self.assertEqual(by_item["70BT14"]["total_count"], 2)
+        self.assertEqual(by_item["70BT14"]["assigned_count"], 1)
+        self.assertEqual(by_item["70BT14"]["available_count"], 1)
+        self.assertEqual(by_item["22PH20"]["available_count"], 1)
+        self.assertEqual(by_item["UNMAPPED01"]["available_count"], 1)
+
+        whse_codes = self.db.get_bt_inventory_whse_codes()
+        self.assertEqual(whse_codes, ["501", "601"])
+
+        snapshot_501 = [dict(r) for r in self.db.get_bt_inventory_snapshot_rows(limit=20, whse_code="501")]
+        self.assertEqual(len(snapshot_501), 1)
+        self.assertEqual(snapshot_501[0]["item_number"], "70BT14")
+        self.assertEqual(snapshot_501[0]["available_count"], 1)
+
+        upload_meta = dict(self.db.get_bt_inventory_upload_meta())
+        self.assertEqual(upload_meta["source_format"], "csv_inventory")
+        self.assertEqual(upload_meta["deduped_rows"], 4)
+        self.assertEqual(upload_meta["duplicate_rows"], 1)
+        self.assertEqual(upload_meta["warehouse_count"], 2)
 
 
 if __name__ == "__main__":

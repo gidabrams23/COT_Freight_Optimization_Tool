@@ -116,6 +116,73 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         )
         self.assertEqual(total_height, 5.0)
 
+    def test_lower_stack_auto_alignment_applies_overlap_then_utility_avoidance(self):
+        col = [
+            {
+                "position_id": "base",
+                "layer": 1,
+                "deck_length_ft": 24.0,
+                "tongue_length": 4.5,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "pj_category": "tilt",
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:gooseneck",
+            },
+            {
+                "position_id": "host",
+                "layer": 2,
+                "deck_length_ft": 17.5,
+                "tongue_length": 6.0,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "pj_category": "dump_lowside",
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:gooseneck",
+            },
+            {
+                "position_id": "top1",
+                "layer": 3,
+                "deck_length_ft": 14.0,
+                "tongue_length": 4.5,
+                "render_tongue_length_ft": 4.5,
+                "render_tongue_profile": "standard",
+                "pj_category": "utility",
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:standard",
+            },
+            {
+                "position_id": "top2",
+                "layer": 4,
+                "deck_length_ft": 14.0,
+                "tongue_length": 4.5,
+                "render_tongue_length_ft": 4.5,
+                "render_tongue_profile": "standard",
+                "pj_category": "utility",
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:standard",
+            },
+        ]
+
+        offsets = prograde_routes._lower_column_layer_start_offsets(col)
+        base_start = float(offsets[0])
+        host_start = float(offsets[1])
+        top1_start = float(offsets[2])
+        top2_start = float(offsets[3])
+        top_tongue_tip = top1_start - 4.5
+
+        # Gooseneck-on-gooseneck stays left-aligned (tongue overlap style).
+        self.assertAlmostEqual(host_start, base_start, places=3)
+        # Utility layers above the gooseneck host keep their tongue tips at the
+        # host wall plane without overlap.
+        self.assertGreater(top1_start, host_start)
+        self.assertAlmostEqual(top2_start, top1_start, places=3)
+        self.assertAlmostEqual(
+            top_tongue_tip,
+            host_start,
+            places=3,
+        )
+
     def test_canvas_uses_utility_stack_heights_and_right_aligns_upper_stack(self):
         session = {"brand": "pj", "carrier_type": "53_step_deck"}
         carrier = {
@@ -1072,13 +1139,18 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             )
 
         lower_col = sorted(canvas["zone_cols"]["lower_deck"][1], key=lambda row: int(row.get("layer") or 0))
+        ts_row = next(row for row in lower_col if row["position_id"] == "l1")
         dl_host = next(row for row in lower_col if row["position_id"] == "l2")
         utility_layers = [row for row in lower_col if row["position_id"] in {"l3", "l4"}]
-        gn_clearance = float(prograde_routes._GOOSENECK_WALL_CLEARANCE_FT)
+        self.assertAlmostEqual(
+            float(dl_host["deck_x_start_ft"]),
+            float(ts_row["deck_x_start_ft"]),
+            places=3,
+        )
         for row in utility_layers:
             self.assertAlmostEqual(
                 float(row["tongue_x_end_ft"]),
-                float(dl_host["deck_x_start_ft"]) + gn_clearance,
+                float(dl_host["deck_x_start_ft"]),
                 places=3,
             )
             self.assertGreater(float(row["deck_x_start_ft"]), float(dl_host["deck_x_start_ft"]))
@@ -1094,7 +1166,6 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             places=3,
         )
 
-        ts_row = next(row for row in lower_col if row["position_id"] == "l1")
         self.assertAlmostEqual(float(ts_row["deck_component_height_ft"]), float(ts_row["true_height_ft"]), places=3)
         self.assertAlmostEqual(float(dl_host["deck_component_height_ft"]), float(dl_host["true_height_ft"]), places=3)
         self.assertAlmostEqual(float(dl_host["stacking_height_ft"]), 6.0, places=3)

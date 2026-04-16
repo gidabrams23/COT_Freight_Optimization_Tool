@@ -115,6 +115,26 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
                 ),
             )
 
+    def _insert_bt_snapshot_whse(self, item_number, *, whse_code, available_count, total_count=None):
+        now = "2026-04-13T00:00:00"
+        total = int(total_count if total_count is not None else available_count)
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bt_inventory_snapshot_whse
+                (item_number, whse_code, total_count, available_count, assigned_count, built_count,
+                 future_build_count, available_built_count, available_future_count, updated_at)
+                VALUES (?, ?, ?, ?, 0, 0, 0, 0, 0, ?)
+                """,
+                (
+                    item_number,
+                    whse_code,
+                    total,
+                    int(available_count),
+                    now,
+                ),
+            )
+
     def _insert_pj_sku(
         self,
         item_number,
@@ -147,13 +167,14 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
                 ),
             )
 
-    def _get_gap_data(self, session_id):
+    def _get_gap_data(self, session_id, *, bt_whse=""):
         session, carrier, canvas = self._build_canvas_and_carrier(session_id)
         return self.gap_finder.build_inventory_gap_data(
             session_id=session_id,
             brand=session["brand"],
             carrier=carrier,
             canvas=canvas,
+            bt_whse=bt_whse,
         )
 
     def test_bt_prefers_stack_top_when_vertical_fit_is_best(self):
@@ -289,6 +310,32 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertFalse(row["fits_gap"])
         self.assertFalse(any(fit.get("fits") for fit in row["stack_fits"]))
 
+    def test_bt_inventory_gap_supports_warehouse_filter(self):
+        session_id = self._create_session("bigtex")
+        self._insert_bigtex_sku("BT-WHSE-1", model="WH1", mcat="utility", total_footprint=12.0, stack_height=1.0)
+        self._insert_bt_snapshot("BT-WHSE-1", available_count=7)
+        self._insert_bt_snapshot_whse("BT-WHSE-1", whse_code="501", available_count=2)
+        self._insert_bt_snapshot_whse("BT-WHSE-1", whse_code="601", available_count=5)
+
+        all_data = self._get_gap_data(session_id)
+        whse_501_data = self._get_gap_data(session_id, bt_whse="501")
+        whse_601_data = self._get_gap_data(session_id, bt_whse="601")
+
+        all_row = {row["item_number"]: row for row in all_data["rows"]}["BT-WHSE-1"]
+        row_501 = {row["item_number"]: row for row in whse_501_data["rows"]}["BT-WHSE-1"]
+        row_601 = {row["item_number"]: row for row in whse_601_data["rows"]}["BT-WHSE-1"]
+
+        self.assertEqual(all_row["available_count"], 7)
+        self.assertEqual(row_501["available_count"], 2)
+        self.assertEqual(row_601["available_count"], 5)
+        self.assertEqual(whse_501_data["selected_warehouse"], "501")
+        self.assertEqual(whse_601_data["selected_warehouse"], "601")
+        self.assertEqual(all_data["selected_warehouse"], "ALL")
+        self.assertEqual(
+            [opt["value"] for opt in all_data["warehouse_options"]],
+            ["ALL", "501", "601"],
+        )
+
     def test_bt_load_page_keeps_upload_controls(self):
         profile_id = self._activate_profile()
         session_id = str(uuid.uuid4())
@@ -317,7 +364,7 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("BT Inventory Gap Finder", html)
-        self.assertIn("Upload Orders", html)
+        self.assertIn("Upload Inventory", html)
         self.assertIn("Stack 1 Fit", html)
         self.assertIn("remaining height", html)
 

@@ -1,8 +1,8 @@
-# ProGrade Inventory Gap Workflow (v0.3)
+# ProGrade Inventory Gap Workflow (v0.4)
 
 ## Purpose
 Defines the current inventory-gap panel behavior on the ProGrade load page for both brands:
-- Big Tex: workbook-backed availability with upload.
+- Big Tex: upload-backed availability (legacy workbook + BT inventory CSV).
 - PJ: catalog-based suggestions from loaded PJ SKUs.
 
 ## Entry Points
@@ -11,12 +11,19 @@ Defines the current inventory-gap panel behavior on the ProGrade load page for b
 
 ## Brand Modes
 ### Big Tex mode (`brand=bigtex`)
-- Upload expected workbook sheet: `All.Orders.Quick` (case-insensitive).
-- Parsed columns:
+- Upload accepted formats:
+  - Workbook (`.xlsx` / `.xlsm`), sheet `All.Orders.Quick` (case-insensitive).
+  - BT inventory CSV (`itemnum`, `whse`, `serid`, `onhand`, `committed_`).
+- Workbook parsing:
   - `C` (`Name`): populated means assigned, blank means available.
   - `M` (`Item #`): SKU key matched to `bigtex_skus`.
   - `R` (`Days Old`): populated means built, blank means future build.
-- Snapshot aggregates persisted per item:
+- CSV parsing:
+  - Item key is `itemnum`, matched to `bigtex_skus.item_number`.
+  - Available units are computed as `onhand - committed_`.
+  - Rows are de-duplicated by `serid` before aggregation.
+  - Warehouse-specific aggregates are stored by `whse`.
+- Snapshot aggregates persisted per item (all warehouses):
   - `total_count`
   - `available_count`
   - `assigned_count`
@@ -24,6 +31,7 @@ Defines the current inventory-gap panel behavior on the ProGrade load page for b
   - `future_build_count`
   - `available_built_count`
   - `available_future_count`
+- Warehouse-level snapshot aggregates persisted per `(item_number, whse_code)`.
 
 ### PJ mode (`brand=pj`)
 - No workbook upload in current process.
@@ -32,6 +40,9 @@ Defines the current inventory-gap panel behavior on the ProGrade load page for b
 
 ## Panel Behavior
 - Panel title: `BT Inventory Gap Finder` or `PJ Inventory Gap Finder`.
+- Big Tex panel includes:
+  - `Upload Inventory` action (workbook or CSV).
+  - `WHSE` dropdown when warehouse-level inventory exists (`ALL`, `501`, `601`, etc.).
 - Summary tiles:
   - Remaining gap feet
   - Available units (BT) or catalog SKU count (PJ)
@@ -55,6 +66,7 @@ Defines the current inventory-gap panel behavior on the ProGrade load page for b
 ## Storage
 In ProGrade SQLite (`PROGRADE_DB_PATH`):
 - `bt_inventory_snapshot`: latest per-SKU BT aggregates.
+- `bt_inventory_snapshot_whse`: latest per-SKU, per-warehouse BT aggregates.
 - `bt_inventory_upload_log`: BT upload metadata history.
 - PJ catalog mode does not write a separate inventory snapshot table.
 

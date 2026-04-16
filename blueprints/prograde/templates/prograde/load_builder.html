@@ -2701,9 +2701,14 @@ function bindSkuAutoCollapseHandlers() {
         return;
       }
 
-      const modelWrap = group.closest(".sku-model-wrap");
-      if (!modelWrap) return;
-      modelWrap.querySelectorAll(":scope > .sku-model-group").forEach((other) => {
+      const modelGroups = SESSION_BRAND === "pj"
+        ? document.querySelectorAll(".sku-model-group")
+        : (() => {
+            const modelWrap = group.closest(".sku-model-wrap");
+            if (!modelWrap) return [];
+            return modelWrap.querySelectorAll(":scope > .sku-model-group");
+          })();
+      modelGroups.forEach((other) => {
         if (other === group || other.style.display === "none") return;
         other.open = false;
       });
@@ -3155,7 +3160,10 @@ function initInventoryUploadControls() {
       uploadBtn.disabled = true;
       const formData = new FormData();
       formData.append("orders_file", file);
-      formData.append("sheet_name", "All.Orders.Quick");
+      const lowerName = String(file.name || "").toLowerCase();
+      if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xlsm")) {
+        formData.append("sheet_name", "All.Orders.Quick");
+      }
 
       const resp = await fetch(INVENTORY_UPLOAD_ENDPOINT, {
         method: "POST",
@@ -3172,8 +3180,11 @@ function initInventoryUploadControls() {
       }
 
       const result = data.import_result || {};
+      const sourceLabel = result.source_format === "csv_inventory" ? "CSV" : "Workbook";
+      const deduped = Number(result.deduped_rows || 0);
+      const whseCount = Number(result.warehouse_count || 0);
       showToast(
-        `Inventory upload complete: ${result.valid_rows || 0} valid rows, ${result.distinct_items || 0} SKUs.`,
+        `Inventory upload complete (${sourceLabel}): ${deduped || result.valid_rows || 0} units, ${result.distinct_items || 0} SKUs${whseCount ? `, ${whseCount} WHSE` : ""}.`,
         "success",
       );
       await refreshBuilderFragments();
@@ -3182,6 +3193,30 @@ function initInventoryUploadControls() {
     } finally {
       uploadBtn.disabled = false;
       uploadInput.value = "";
+    }
+  });
+}
+
+function initInventoryWarehouseFilter() {
+  const whseFilter = document.getElementById("inv-whse-filter");
+  if (!whseFilter) return;
+  if (whseFilter.dataset.bound === "1") return;
+  whseFilter.dataset.bound = "1";
+
+  whseFilter.addEventListener("change", async () => {
+    const selected = String(whseFilter.value || "").trim().toUpperCase();
+    const nextUrl = new URL(window.location.href);
+    if (selected && selected !== "ALL") {
+      nextUrl.searchParams.set("bt_whse", selected);
+    } else {
+      nextUrl.searchParams.delete("bt_whse");
+    }
+    const relativeUrl = `${nextUrl.pathname}${nextUrl.search}`;
+    window.history.replaceState({}, "", relativeUrl);
+    try {
+      await refreshBuilderFragments();
+    } catch (e) {
+      showToast(`Warehouse filter failed: ${e.message}`, "error");
     }
   });
 }
@@ -3291,14 +3326,21 @@ async function postSession(path, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body || {}),
   });
+  const raw = await resp.text();
   let data = {};
   try {
-    data = await resp.json();
+    data = raw ? JSON.parse(raw) : {};
   } catch (e) {
     data = {};
   }
   if (!resp.ok || !data.ok) {
-    throw new Error(data.error || "Request failed");
+    const htmlStripped = raw
+      ? raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+      : "";
+    const detail = data.error
+      || data.message
+      || (htmlStripped ? htmlStripped.slice(0, 160) : "");
+    throw new Error(detail || `Request failed (${resp.status})`);
   }
   return data;
 }
@@ -3369,6 +3411,7 @@ async function refreshBuilderFragments() {
   initSchematicHoverTooltips();
   initSkuDragAndDrop();
   initInventoryUploadControls();
+  initInventoryWarehouseFilter();
   window.requestAnimationFrame(alignManifestAndInventoryTop);
 }
 
@@ -4401,6 +4444,7 @@ initSpatialScale();
 initSchematicHoverTooltips();
 initSkuDragAndDrop();
 initInventoryUploadControls();
+initInventoryWarehouseFilter();
 if (!window.__pgManifestInventoryAlignBound) {
   window.__pgManifestInventoryAlignBound = true;
   window.addEventListener("resize", () => window.requestAnimationFrame(alignManifestAndInventoryTop));

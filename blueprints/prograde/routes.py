@@ -22,7 +22,7 @@ from .services.inventory_gap_finder import build_inventory_gap_data
 prograde_bp = Blueprint("prograde", __name__, url_prefix="/prograde", template_folder="templates", static_folder="static")
 _TRAILER_SHAPE_TEMPLATE_NAME = "prograde/macros/trailer_shapes.html"
 _TRAILER_SHAPE_SOURCE_PATH = Path(__file__).resolve().parents[2] / "trailer_shapes.html"
-_ALLOWED_ORDER_UPLOAD_EXTENSIONS = {".xlsx", ".xlsm"}
+_ALLOWED_ORDER_UPLOAD_EXTENSIONS = {".xlsx", ".xlsm", ".csv"}
 _VALID_BRANDS = {"pj", "bigtex"}
 _PJ_DUMP_CATEGORIES = {
     "dump_lowside",
@@ -59,6 +59,7 @@ _REAR_POCKET_LEN_FT = 5.0
 _REAR_POCKET_HEIGHT_FT = 0.5
 _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT = 1.0
 _GOOSENECK_WALL_CLEARANCE_FT = 0.08
+_GOOSENECK_RENDER_RISE_FT = 6.0
 SESSION_PROFILE_ID_KEY = "prograde_profile_id"
 SESSION_PROFILE_NAME_KEY = "prograde_profile_name"
 SESSION_PROFILE_IS_ADMIN_KEY = "prograde_profile_is_admin"
@@ -101,6 +102,17 @@ def _normalize_optional_bool(raw_value, *, default=False):
     if value in {"0", "false", "no", "off"}:
         return False
     return bool(default)
+
+
+def _normalize_stack_alignment(raw_value, *, default=None):
+    value = str(raw_value or "").strip().lower()
+    if value in {"left", "l"}:
+        return "left"
+    if value in {"center", "c", "middle", "mid"}:
+        return "center"
+    if value in {"right", "r"}:
+        return "right"
+    return default
 
 
 def _row_to_dict(value):
@@ -198,6 +210,30 @@ def _extract_gn_crisscross_override_reason(override_reason):
     return _normalize_optional_bool(
         _get_override_reason_token(override_reason, "gn_crisscross"),
         default=False,
+    )
+
+
+def _build_stack_alignment_override_reason(stack_alignment, base_override_reason=None):
+    normalized = _normalize_stack_alignment(stack_alignment, default=None)
+    return _set_override_reason_token(base_override_reason, "stack_alignment", normalized)
+
+
+def _extract_stack_alignment_override_reason(override_reason):
+    return _normalize_stack_alignment(
+        _get_override_reason_token(override_reason, "stack_alignment"),
+        default=None,
+    )
+
+
+def _build_column_alignment_override_reason(column_alignment, base_override_reason=None):
+    normalized = _normalize_stack_alignment(column_alignment, default=None)
+    return _set_override_reason_token(base_override_reason, "column_alignment", normalized)
+
+
+def _extract_column_alignment_override_reason(override_reason):
+    return _normalize_stack_alignment(
+        _get_override_reason_token(override_reason, "column_alignment"),
+        default=None,
     )
 
 
@@ -472,6 +508,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["render_footprint_ft"] = render_footprint_ft
         p["dump_door_removed"] = _extract_dump_door_removed_reason(p.get("override_reason"))
         p["gn_crisscross"] = _extract_gn_crisscross_override_reason(p.get("override_reason"))
+        p["stack_alignment"] = _extract_stack_alignment_override_reason(p.get("override_reason"))
+        p["column_alignment"] = _extract_column_alignment_override_reason(p.get("override_reason"))
     elif brand == "bigtex":
         p["bed_length"] = round((sku.get("bed_length") or 0), 2)
         p["tongue_length"] = round((sku.get("tongue") or 0), 2)
@@ -487,6 +525,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["render_footprint_ft"] = p["footprint"]
         p["dump_door_removed"] = False
         p["gn_crisscross"] = False
+        p["stack_alignment"] = None
+        p["column_alignment"] = None
     else:
         p["bed_length"] = 0
         p["tongue_length"] = 0
@@ -502,6 +542,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["render_footprint_ft"] = 0
         p["dump_door_removed"] = False
         p["gn_crisscross"] = False
+        p["stack_alignment"] = None
+        p["column_alignment"] = None
 
     # Height for display (top height value; axle drop override for GNs)
     if brand == "pj" and height_ref:
@@ -668,8 +710,11 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
     """
     Return per-layer local deck starts (ft) for lower-deck stacked rendering.
 
-    Utilities stacked above a gooseneck host are shifted so their tongue tip sits
-    on the host deck edge on the tongue side (mirrors with rotation).
+    Auto-placement rules:
+    - Gooseneck on gooseneck keeps tongue-side overlap (stack host-aligned).
+    - Non-gooseneck units above a gooseneck host are shifted away from the host
+      tongue side to avoid tongue overlap with that host.
+    - All placements are clamped to the supporting layer deck geometry.
     """
     offsets = [0.0 for _ in sorted_col]
     if len(sorted_col) <= 1:
@@ -677,35 +722,136 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
 
     for idx, unit in enumerate(sorted_col):
         if idx == 0:
-            continue
-        if str(unit.get("pj_category") or "").strip().lower() != "utility":
-            continue
-        if _is_gooseneck_render_profile(unit):
+            unit["effective_stack_alignment"] = None
             continue
 
-        host_idx = None
-        for j in range(idx - 1, -1, -1):
+        support_idx = idx - 1
+        support = sorted_col[support_idx]
+        support_start_ft = _as_float(offsets[support_idx], 0.0)
+        support_deck_len_ft = max(
+            _as_float(support.get("deck_length_ft"), _as_float(support.get("bed_length"), 0.0)),
+            0.0,
+        )
+        support_left_ft = support_start_ft
+        support_right_ft = support_start_ft + support_deck_len_ft
+        support_is_gooseneck = _is_gooseneck_render_profile(support)
+        support_wall_side = "left" if bool(support.get("is_rotated")) else "right"
+
+        # Nearest gooseneck anchor below this layer. Used to keep non-gooseneck
+        # child tongues clear of the gooseneck tongue zone without creating
+        # per-layer staircase drift.
+        anchor_idx = None
+        for j in range(support_idx, -1, -1):
             if _is_gooseneck_render_profile(sorted_col[j]):
-                host_idx = j
+                anchor_idx = j
                 break
-        if host_idx is None:
-            continue
-
-        host = sorted_col[host_idx]
-        host_start_ft = offsets[host_idx]
-        host_deck_len_ft = _as_float(host.get("deck_length_ft"), _as_float(host.get("bed_length"), 0.0))
-        host_left_ft = host_start_ft
-        host_right_ft = host_start_ft + host_deck_len_ft
+        anchor = sorted_col[anchor_idx] if anchor_idx is not None else None
+        anchor_start_ft = _as_float(offsets[anchor_idx], 0.0) if anchor_idx is not None else 0.0
+        anchor_deck_len_ft = (
+            max(_as_float(anchor.get("deck_length_ft"), _as_float(anchor.get("bed_length"), 0.0)), 0.0)
+            if anchor is not None
+            else 0.0
+        )
+        anchor_left_ft = anchor_start_ft
+        anchor_right_ft = anchor_start_ft + anchor_deck_len_ft
+        anchor_is_gooseneck = bool(anchor is not None and _is_gooseneck_render_profile(anchor))
+        anchor_wall_side = ("left" if bool(anchor.get("is_rotated")) else "right") if anchor is not None else None
 
         unit_tongue_ft = max(_unit_tongue_length_ft(unit, prefer_occupied=prefer_occupied_tongue), 0.0)
         unit_deck_len_ft = max(_as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)), 0.0)
-        # Keep stacked utility tongues entirely on the non-gooseneck side of the
-        # host GN wall plane (mirrors with rotation).
-        wall_clearance_ft = max(_as_float(_GOOSENECK_WALL_CLEARANCE_FT, 0.0), 0.0)
-        if bool(unit.get("is_rotated")):
-            offsets[idx] = host_left_ft + wall_clearance_ft + unit_tongue_ft
+        unit_is_rotated = bool(unit.get("is_rotated"))
+        unit_is_gooseneck = _is_gooseneck_render_profile(unit)
+        # Default support envelope: align deck bodies within the supporting layer
+        # (tongues may overhang).
+        min_start_ft = support_left_ft
+        max_start_ft = support_right_ft - unit_deck_len_ft
+        if (not unit_is_gooseneck) and (not support_is_gooseneck):
+            # Utility-over-utility keeps layers flush to avoid staircase drift.
+            min_start_ft = support_start_ft
+            max_start_ft = support_start_ft
+
+        if support_is_gooseneck and unit_is_gooseneck:
+            # Gooseneck-on-gooseneck uses deck-to-deck alignment and allows
+            # tongues to overlap horizontally.
+            min_start_ft = support_left_ft
+            max_start_ft = support_right_ft - unit_deck_len_ft
+
+        if anchor_is_gooseneck and (not unit_is_gooseneck):
+            # Keep child tongue out of the gooseneck tongue zone.
+            # Child utility tongues should stop at (touch, not cross) the
+            # anchor gooseneck wall plane for this side.
+            req_min_start_ft = min_start_ft
+            req_max_start_ft = max_start_ft
+            if anchor_wall_side == "left" and unit_is_rotated:
+                req_min_start_ft = max(
+                    req_min_start_ft,
+                    anchor_left_ft + unit_tongue_ft,
+                )
+            elif anchor_wall_side == "right" and (not unit_is_rotated):
+                req_max_start_ft = min(
+                    req_max_start_ft,
+                    anchor_right_ft - unit_deck_len_ft - unit_tongue_ft,
+                )
+
+            if (not support_is_gooseneck) and (not unit_is_gooseneck):
+                # Keep utility-over-utility layers flush when possible, but do not
+                # allow the flush point to violate gooseneck tongue clearance.
+                flush_start_ft = _as_float(support_start_ft, 0.0)
+                if flush_start_ft < req_min_start_ft:
+                    min_start_ft = req_min_start_ft
+                    max_start_ft = req_min_start_ft
+                elif flush_start_ft > req_max_start_ft:
+                    min_start_ft = req_max_start_ft
+                    max_start_ft = req_max_start_ft
+                else:
+                    min_start_ft = flush_start_ft
+                    max_start_ft = flush_start_ft
+            else:
+                min_start_ft = req_min_start_ft
+                max_start_ft = req_max_start_ft
+
+        if max_start_ft < min_start_ft:
+            if anchor_is_gooseneck and (not unit_is_gooseneck):
+                # When clearance and support envelope conflict, prioritize
+                # keeping child tongues out of the gooseneck tongue zone.
+                if anchor_wall_side == "left" and unit_is_rotated:
+                    max_start_ft = min_start_ft
+                elif anchor_wall_side == "right" and (not unit_is_rotated):
+                    min_start_ft = max_start_ft
+                else:
+                    anchor_ft = (min_start_ft + max_start_ft) / 2.0
+                    min_start_ft = anchor_ft
+                    max_start_ft = anchor_ft
+            else:
+                anchor_ft = (min_start_ft + max_start_ft) / 2.0
+                min_start_ft = anchor_ft
+                max_start_ft = anchor_ft
+
+        align_mode = "left"
+        if anchor_is_gooseneck:
+            if unit_is_gooseneck:
+                # Keep gooseneck-on-gooseneck overlap on the anchor tongue side.
+                align_mode = anchor_wall_side
+            else:
+                # For non-gooseneck layers above a gooseneck, keep utility
+                # tongue tips at the non-overlap wall plane when possible.
+                if anchor_wall_side == "left" and unit_is_rotated:
+                    align_mode = "left"
+                elif anchor_wall_side == "right" and (not unit_is_rotated):
+                    align_mode = "right"
+                else:
+                    align_mode = "right" if anchor_wall_side == "left" else "left"
+
+        if align_mode == "right":
+            aligned_start_ft = max_start_ft
+        elif align_mode == "center":
+            aligned_start_ft = (min_start_ft + max_start_ft) / 2.0
         else:
-            offsets[idx] = host_right_ft - wall_clearance_ft - (unit_deck_len_ft + unit_tongue_ft)
+            aligned_start_ft = min_start_ft
+
+        aligned_start_ft = max(min_start_ft, min(aligned_start_ft, max_start_ft))
+        offsets[idx] = round(_as_float(aligned_start_ft, 0.0), 3)
+        unit["effective_stack_alignment"] = align_mode
 
     return offsets
 
@@ -2005,6 +2151,14 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 unit["deck_x_end_ft"] = round(unit_deck_start_ft + deck_len_ft, 3)
                 unit["y_surface_ft"] = round(y_cursor_ft, 3)
                 unit["y_body_top_ft"] = round(y_cursor_ft + deck_component_h_ft, 3)
+                unit["y_outline_top_ft"] = unit["y_body_top_ft"]
+                if brand == "pj" and _is_gooseneck_render_profile(unit):
+                    # Keep canvas scaling/gauges aligned with the true rendered GN neck crown.
+                    gn_crown_top_ft = y_cursor_ft + _GOOSENECK_RENDER_RISE_FT
+                    unit["y_outline_top_ft"] = round(
+                        max(_as_float(unit["y_body_top_ft"], 0.0), gn_crown_top_ft),
+                        3,
+                    )
                 unit["zone_surface_ft"] = round(zone_surface, 3)
 
                 if is_unit_rotated:
@@ -2080,6 +2234,21 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 if used > zone_max:
                     zone_max = used
         max_stacked_ft_by_zone[zone] = round(zone_max, 3)
+
+    # Maximum rendered envelope height above each zone surface.
+    # Includes non-body geometry (for example, PJ gooseneck crown) so
+    # canvas zoom + gauges stay consistent with what is actually drawn.
+    max_rendered_outline_ft_by_zone: dict = {}
+    for zone in zones:
+        zs_ft = _as_float(zone_surface_ft.get(zone), 0.0)
+        zone_max = 0.0
+        for seq_col in (zone_cols.get(zone) or {}).values():
+            for unit in seq_col:
+                top = _as_float(unit.get("y_outline_top_ft"), _as_float(unit.get("y_body_top_ft"), 0.0))
+                used = max(top - zs_ft, 0.0)
+                if used > zone_max:
+                    zone_max = used
+        max_rendered_outline_ft_by_zone[zone] = round(zone_max, 3)
 
     # Global horizontal occupancy span from rendered geometry.
     spatial_min_x_ft = 0.0
@@ -2212,6 +2381,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         measure_segments_by_zone=measure_segments_by_zone,
         zone_origin_x_ft=zone_origin_x_ft,
         max_stacked_ft_by_zone=max_stacked_ft_by_zone,
+        max_rendered_outline_ft_by_zone=max_rendered_outline_ft_by_zone,
         trailer_geometry=trailer_geometry,
         rear_clearance_len_ft=_REAR_POCKET_LEN_FT,
         rear_clearance_height_ft=_REAR_POCKET_HEIGHT_FT,
@@ -2398,11 +2568,13 @@ def load_builder(session_id):
 
     raw_positions = db.get_positions(session_id)
     canvas = _build_canvas_data(session_id, session, carrier, zones, raw_positions, brand)
+    bt_whse = (request.args.get("bt_whse") or "").strip().upper() if brand == "bigtex" else ""
     inventory_gap = build_inventory_gap_data(
         session_id=session_id,
         brand=brand,
         carrier=carrier,
         canvas=canvas,
+        bt_whse=bt_whse,
     )
 
     # SKU list for picker

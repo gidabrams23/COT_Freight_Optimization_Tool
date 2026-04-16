@@ -26,8 +26,10 @@
 {% set rear_clear_h_ft = (rear_clearance_height_ft or 0.5) | float %}
 {# Use Python-computed y_body_top_ft heights for accurate canvas scale and gauge.
    A 10% headroom factor ensures the tallest stack never kisses the top edge. #}
-{% set lower_used_ft = (max_stacked_ft_by_zone.get('lower_deck', 0.0) if max_stacked_ft_by_zone else 0.0) | float %}
-{% set upper_used_ft = (max_stacked_ft_by_zone.get('upper_deck', 0.0) if max_stacked_ft_by_zone else 0.0) | float %}
+{% set lower_used_base_ft = (max_stacked_ft_by_zone.get('lower_deck', 0.0) if max_stacked_ft_by_zone else 0.0) | float %}
+{% set upper_used_base_ft = (max_stacked_ft_by_zone.get('upper_deck', 0.0) if max_stacked_ft_by_zone else 0.0) | float %}
+{% set lower_used_ft = (max_rendered_outline_ft_by_zone.get('lower_deck', lower_used_base_ft) if max_rendered_outline_ft_by_zone else lower_used_base_ft) | float %}
+{% set upper_used_ft = (max_rendered_outline_ft_by_zone.get('upper_deck', upper_used_base_ft) if max_rendered_outline_ft_by_zone else upper_used_base_ft) | float %}
 {% set required_span_ft = [lower_cap_ft, upper_cap_ft + step_height_ft, lower_used_ft * 1.10, (upper_used_ft + step_height_ft) * 1.10] | max %}
 {% set py_per_ft = ((ground_y - guide_line_y) / required_span_ft) if required_span_ft > 0 else 1 %}
 {% set px_per_ft = (plot_w / total_len_ft) if total_len_ft > 0 else 1 %}
@@ -299,7 +301,7 @@
              <rect x="0" y="0" width="{{ trailer_end_x_px }}" height="{{ svg_h }}"/>
            </clipPath>
            <clipPath id="pg-clip-plot">
-             <rect x="0" y="{{ margin_t }}" width="{{ trailer_end_x_px }}" height="{{ svg_h - margin_t }}"/>
+             <rect x="0" y="{{ stack_plot_y }}" width="{{ trailer_end_x_px }}" height="{{ svg_h - stack_plot_y }}"/>
            </clipPath>
          </defs>
 
@@ -685,19 +687,18 @@
 
                 {% if tongue_profile == 'gooseneck' %}
                   {% set gn_dir = -1 if pos.is_rotated else 1 %}
-                  {% set gn_top_run_ft = 2.30 %}
-                  {% set gn_diag_run_ft = ((gn_total_ft - gn_top_run_ft) * 0.60) %}
-                  {% set gn_render_rise_ft = 5.9 %}
+                  {% set gn_top_run_ft = 4.0 %}
+                  {% set gn_render_rise_ft = 6.0 %}
                   {% set gn_tip_render_surface_ft = y_surface_ft + 3.0 %}
                   {% set p0x = tongue_attach_ft %}
                   {% set p1x = p0x %}
                   {% set p2x = tongue_attach_ft + (gn_dir * gn_top_run_ft) %}
-                  {% set p3x = p2x + (gn_dir * gn_diag_run_ft) %}
+                  {% set p3x = p2x %}
                   {% set p0px = margin_l + p0x * px_per_ft %}
                   {% set p1px = margin_l + p1x * px_per_ft %}
                   {% set p2px = margin_l + p2x * px_per_ft %}
                   {% set p3px = margin_l + p3x * px_per_ft %}
-                  {% set p0py = body_bottom_px %}
+                  {% set p0py = y_surface_px %}
                   {% set p1py = ground_y - ((y_surface_ft + gn_render_rise_ft) - display_floor_ft) * py_per_ft %}
                   {% set p2py = p1py %}
                   {% set p3py = ground_y - (gn_tip_render_surface_ft - display_floor_ft) * py_per_ft %}
@@ -773,7 +774,6 @@
                   </text>
                 </g>
                 {% endif %}
-
                 {% if pos.neck_overhangs_step %}
                   <text class="pg-unit-annotation" x="{{ step_x_px + 4 }}" y="{{ [body_top_px - 4, 11] | max }}" font-size="8.4" fill="#f59e0b">&#8599; OVERHANG</text>
                 {% endif %}

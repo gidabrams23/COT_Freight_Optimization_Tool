@@ -25,7 +25,7 @@ _PJ_GOOSENECK_CATEGORIES = {
 _PJ_GOOSENECK_MODEL_PREFIXES = {"LD", "LQ", "LS", "LX", "LY", "PL"}
 
 
-def build_inventory_gap_data(*, session_id, brand, carrier, canvas):
+def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse=""):
     brand_key = str(brand or "").strip().lower()
     if brand_key not in {"bigtex", "pj"}:
         return {
@@ -36,6 +36,8 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas):
             "total_available_units": 0,
             "upload_meta": None,
             "mode": "unsupported",
+            "warehouse_options": [],
+            "selected_warehouse": "ALL",
         }
 
     positions = _normalized_positions(db.get_positions(session_id), brand_key)
@@ -60,11 +62,21 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas):
 
     if brand_key == "bigtex":
         upload_meta = db.get_bt_inventory_upload_meta()
-        candidates = _build_bt_candidates(bt_sku_map)
+        whse_codes = db.get_bt_inventory_whse_codes()
+        selected_whse = str(bt_whse or "").strip().upper()
+        if selected_whse == "ALL":
+            selected_whse = ""
+        if selected_whse and selected_whse not in whse_codes:
+            selected_whse = ""
+        candidates = _build_bt_candidates(bt_sku_map, whse_code=selected_whse)
+        warehouse_options = [{"value": "ALL", "label": "All Warehouses"}]
+        warehouse_options.extend({"value": code, "label": code} for code in whse_codes)
         mode = "bt_upload"
     else:
         upload_meta = None
         candidates = _build_pj_candidates(pj_sku_map)
+        selected_whse = "ALL"
+        warehouse_options = []
         mode = "pj_catalog"
 
     rows = []
@@ -105,6 +117,8 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas):
         "total_available_units": total_available_units,
         "upload_meta": dict(upload_meta) if upload_meta else None,
         "mode": mode,
+        "warehouse_options": warehouse_options,
+        "selected_warehouse": selected_whse or "ALL",
     }
 
 
@@ -759,9 +773,9 @@ def _zone_horizontal_gaps(*, zone, cols, x_by_seq, zone_cap_ft):
     return gaps
 
 
-def _build_bt_candidates(bt_sku_map):
+def _build_bt_candidates(bt_sku_map, whse_code=""):
     candidates = []
-    for row in db.get_bt_inventory_snapshot_rows(limit=500):
+    for row in db.get_bt_inventory_snapshot_rows(limit=500, whse_code=whse_code):
         available = int(row["available_count"] or 0)
         if available <= 0:
             continue

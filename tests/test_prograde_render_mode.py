@@ -121,6 +121,28 @@ class ProgradeRenderModeTests(unittest.TestCase):
         self.assertIn("unit-tongue-pill gn", html)
         self.assertIn("Tongue (render): 9.0 ft", html)
 
+    def test_pj_load_builder_does_not_render_manual_alignment_controls(self):
+        profile_id = self._create_active_profile("Auto Alignment Tester")
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "Auto Alignment Tester",
+            "auto-alignment-only",
+            created_by_profile_id=profile_id,
+            created_by_name="Auto Alignment Tester",
+        )
+        html = self.client.get(f"/prograde/session/{session_id}/load").get_data(as_text=True)
+        self.assertNotIn("setStackAlignment", html)
+        self.assertNotIn("pg-unit-control-align", html)
+
+        missing = self.client.post(
+            f"/prograde/api/session/{session_id}/stack_alignment",
+            json={"position_id": "missing", "stack_alignment": "right"},
+        )
+        self.assertEqual(missing.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()
