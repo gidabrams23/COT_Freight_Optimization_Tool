@@ -133,6 +133,9 @@ body {
   min-width: 0;
   max-width: 100%;
 }
+.pg-canvas-column > .trailer-schematic {
+  flex: 0 0 auto;
+}
 .pg-sidebar {
   flex: 0 0 clamp(316px, 24vw, 372px);
   width: clamp(316px, 24vw, 372px);
@@ -933,6 +936,17 @@ body {
   stroke: rgba(125, 211, 252, 0.6);
   stroke-width: 1.2;
 }
+.prograde-schematic .pg-unit-insert-line {
+  display: none;
+  pointer-events: none;
+  stroke: rgba(125, 211, 252, 0.92);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.prograde-schematic .unit-card.drop-before .pg-unit-insert-line.before,
+.prograde-schematic .unit-card.drop-after .pg-unit-insert-line.after {
+  display: block;
+}
 .pg-drag-hint-row {
   flex: 1 1 100%;
   display: flex;
@@ -1651,6 +1665,31 @@ body {
   background: color-mix(in srgb, var(--accent, #137fec) 20%, transparent);
   box-shadow: inset 0 0 10px color-mix(in srgb, var(--accent, #137fec) 30%, transparent);
 }
+.pg-source-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 0 8px 8px;
+  border-top: 1px solid rgba(51, 65, 85, 0.46);
+}
+.pg-source-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.pg-source-swatch {
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+.pg-source-swatch.inventory-gap {
+  border-style: dashed;
+  border-width: 1.2px;
+}
 
 .pg-hover-tooltip {
   position: fixed;
@@ -1682,7 +1721,7 @@ body {
   grid-template-columns: minmax(0, 0.66fr) minmax(0, 1.34fr);
   gap: 8px;
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: clamp(260px, 38vh, 560px);
   align-items: stretch;
 }
 .pg-data-grid > .card {
@@ -1988,6 +2027,7 @@ body {
   }
   .pg-data-grid {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
   .inventory-header-row,
   .inventory-header-stats {
@@ -2118,6 +2158,16 @@ body {
         </div>
         {% endfor %}
       </div>
+      <div class="pg-source-legend" aria-label="Unit add source markers">
+        <span class="pg-source-legend-item">
+          <span class="pg-source-swatch add-skus"></span>
+          <span>Add SKUs source</span>
+        </span>
+        <span class="pg-source-legend-item">
+          <span class="pg-source-swatch inventory-gap"></span>
+          <span>Inventory Gap source</span>
+        </span>
+      </div>
     </div>
 
     <!-- Violation Panel -->
@@ -2244,10 +2294,13 @@ const PJ_CRISSCROSS_ASSUMPTIONS = {{ pj_crisscross_assumptions | default({}) | t
 const PJ_GN_CRISSCROSS_LENGTH_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.length_save_ft ?? 2.0);
 const PJ_GN_CRISSCROSS_HEIGHT_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.height_save_ft ?? 1.0);
 const PJ_GN_CRISSCROSS_WIDTH_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.width_save_ft ?? 0.6);
+const ADD_SOURCE_SKU_PICKER = "sku_picker";
+const ADD_SOURCE_INVENTORY_GAP = "inventory_gap";
 
 let pendingItem = null;
 let pendingTongueMode = null;
 let pendingDumpHeightFt = null;
+let pendingAddSource = null;
 let pendingZone = null;
 let pendingSeq = null;
 let pendingTarget = null;
@@ -2498,6 +2551,17 @@ function _skuModelLabel(sku) {
 
 function _pjTongueMode(rawMode) {
   return String(rawMode || "").toLowerCase() === "gooseneck" ? "gooseneck" : "standard";
+}
+
+function _normalizeAddSource(rawSource, fallback = "") {
+  const source = String(rawSource || "").trim().toLowerCase();
+  if (source === ADD_SOURCE_INVENTORY_GAP || source === "inventory" || source === "gap") {
+    return ADD_SOURCE_INVENTORY_GAP;
+  }
+  if (source === ADD_SOURCE_SKU_PICKER || source === "sku" || source === "picker") {
+    return ADD_SOURCE_SKU_PICKER;
+  }
+  return String(fallback || "").trim().toLowerCase();
 }
 
 function _positionUsesGooseneckById(positionId) {
@@ -3221,13 +3285,14 @@ function initInventoryWarehouseFilter() {
   });
 }
 
-function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMode, preselectedDumpHeightFt) {
+function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMode, preselectedDumpHeightFt, preselectedAddSource) {
   pendingZone = zone;
   pendingSeq = seq;
   pendingTarget = targetPosId;
   pendingItem = preselectedItem || null;
   pendingTongueMode = preselectedTongueMode || null;
   pendingDumpHeightFt = _normalizePjDumpHeightFt(preselectedDumpHeightFt, null);
+  pendingAddSource = _normalizeAddSource(preselectedAddSource, ADD_SOURCE_SKU_PICKER);
 
   const modal = document.getElementById("zone-modal");
   const opts = document.getElementById("modal-options");
@@ -3241,8 +3306,9 @@ function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMo
     const insertIndex = pendingSeq;
     const selectedTongueMode = pendingTongueMode;
     const selectedDumpHeightFt = pendingDumpHeightFt;
+    const selectedAddSource = pendingAddSource;
     closeModal();
-    addUnit(item, zoneSelected, target, insertIndex, selectedTongueMode, selectedDumpHeightFt);
+    addUnit(item, zoneSelected, target, insertIndex, selectedTongueMode, selectedDumpHeightFt, false, selectedAddSource);
     return;
   }
 
@@ -3255,7 +3321,7 @@ function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMo
       btn.textContent = ZONE_LABELS[z] || z;
       btn.onclick = () => {
         closeModal();
-        addUnit(item, z, null, null, pendingTongueMode, pendingDumpHeightFt);
+        addUnit(item, z, null, null, pendingTongueMode, pendingDumpHeightFt, false, pendingAddSource);
       };
       opts.appendChild(btn);
     });
@@ -3282,7 +3348,16 @@ function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMo
         const selectedTongueMode = _pjTongueMode(el.dataset.selectedTongue || el.dataset.defaultTongue || "standard");
         const selectedDumpHeightFt = _normalizePjDumpHeightFt(el.dataset.selectedDumpHeightFt || el.dataset.defaultDumpHeightFt, null);
         closeModal();
-        addUnit(el.dataset.item, zoneSelected, target, insertIndex, selectedTongueMode, selectedDumpHeightFt);
+        addUnit(
+          el.dataset.item,
+          zoneSelected,
+          target,
+          insertIndex,
+          selectedTongueMode,
+          selectedDumpHeightFt,
+          false,
+          ADD_SOURCE_SKU_PICKER
+        );
       };
       row.onmouseover = () => {
         row.style.background = "var(--bg-secondary)";
@@ -3301,7 +3376,7 @@ function openPicker(zone, seq, targetPosId, preselectedItem, preselectedTongueMo
       btn.textContent = ZONE_LABELS[z] || z;
       btn.onclick = () => {
         pendingZone = z;
-        openPicker(z, null, null, null);
+        openPicker(z, null, null, null, null, null, ADD_SOURCE_SKU_PICKER);
       };
       opts.appendChild(btn);
     });
@@ -3315,6 +3390,7 @@ function closeModal() {
   pendingItem = null;
   pendingTongueMode = null;
   pendingDumpHeightFt = null;
+  pendingAddSource = null;
   pendingZone = null;
   pendingSeq = null;
   pendingTarget = null;
@@ -3415,7 +3491,7 @@ async function refreshBuilderFragments() {
   window.requestAnimationFrame(alignManifestAndInventoryTop);
 }
 
-async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt, enableGnCrisscross = false) {
+async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt, enableGnCrisscross = false, addSource = ADD_SOURCE_SKU_PICKER) {
   try {
     const body = { item_number: itemNumber, deck_zone: zone };
     if (stackOnPosId) body.stack_on = stackOnPosId;
@@ -3432,6 +3508,10 @@ async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, 
         body.pj_enable_gn_crisscross = true;
       }
     }
+    const normalizedSource = _normalizeAddSource(addSource, "");
+    if (normalizedSource) {
+      body.add_source = normalizedSource;
+    }
     await postSession("/add", body);
     await refreshBuilderFragments();
   } catch (e) {
@@ -3439,7 +3519,7 @@ async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, 
   }
 }
 
-async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCrisscross = false) {
+async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCrisscross = false, toLayerIndex = null) {
   try {
     const body = { position_id: positionId, to_zone: toZone };
     if (toSequence !== undefined && toSequence !== null && toSequence !== "") {
@@ -3450,6 +3530,9 @@ async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCri
     }
     if (SESSION_BRAND === "pj" && enableGnCrisscross) {
       body.pj_enable_gn_crisscross = true;
+    }
+    if (toLayerIndex !== undefined && toLayerIndex !== null && toLayerIndex !== "") {
+      body.to_layer_index = Number(toLayerIndex);
     }
     await postSession("/position/move", body);
     await refreshBuilderFragments();
@@ -3693,6 +3776,7 @@ function initSkuDragAndDrop() {
     const skuRaw = transfer ? transfer.getData("application/x-prograde-sku") : "";
     const skuModeRaw = transfer ? transfer.getData("application/x-prograde-sku-mode") : "";
     const skuDumpHeightRaw = transfer ? transfer.getData("application/x-prograde-sku-dump-height") : "";
+    const skuSourceRaw = transfer ? transfer.getData("application/x-prograde-sku-source") : "";
     const plainRaw = transfer ? transfer.getData("text/plain") : "";
 
     if (stackRaw) {
@@ -3715,6 +3799,7 @@ function initSkuDragAndDrop() {
         itemNumber: skuItem,
         tongueMode: _pjTongueMode(skuModeRaw || "standard"),
         dumpHeightFt: _normalizePjDumpHeightFt(skuDumpHeightRaw, null),
+        addSource: _normalizeAddSource(skuSourceRaw || (activeDrag && activeDrag.addSource), ADD_SOURCE_SKU_PICKER),
       };
     }
     return null;
@@ -3726,13 +3811,16 @@ function initSkuDragAndDrop() {
       draggedSkuItem = item.dataset.item || null;
       const tongueMode = _pjTongueMode(item.dataset.selectedTongue || item.dataset.defaultTongue || "standard");
       const dumpHeightFt = _normalizePjDumpHeightFt(item.dataset.selectedDumpHeightFt || item.dataset.defaultDumpHeightFt, null);
-      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt } : null;
+      activeDrag = draggedSkuItem
+        ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt, addSource: ADD_SOURCE_SKU_PICKER }
+        : null;
       item.classList.add("dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "copy";
         evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
         evt.dataTransfer.setData("application/x-prograde-sku-mode", tongueMode);
         evt.dataTransfer.setData("application/x-prograde-sku-dump-height", dumpHeightFt == null ? "" : String(dumpHeightFt));
+        evt.dataTransfer.setData("application/x-prograde-sku-source", ADD_SOURCE_SKU_PICKER);
         evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
       }
     });
@@ -3757,10 +3845,10 @@ function initSkuDragAndDrop() {
       const stackTarget = String(item.dataset.stackTarget || "").trim();
       const stackZone = String(item.dataset.stackZone || "").trim();
       if (stackTarget && stackZone) {
-        await addUnit(itemNumber, stackZone, stackTarget, null, inventoryTongueMode, null);
+        await addUnit(itemNumber, stackZone, stackTarget, null, inventoryTongueMode, null, false, ADD_SOURCE_INVENTORY_GAP);
         return;
       }
-      openPicker(null, null, null, itemNumber, inventoryTongueMode, null);
+      openPicker(null, null, null, itemNumber, inventoryTongueMode, null, ADD_SOURCE_INVENTORY_GAP);
     });
   });
 
@@ -3773,13 +3861,22 @@ function initSkuDragAndDrop() {
       }
       draggedSkuItem = item.dataset.item || null;
       const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
-      activeDrag = draggedSkuItem ? { type: "sku", itemNumber: draggedSkuItem, tongueMode: inventoryTongueMode, dumpHeightFt: null } : null;
+      activeDrag = draggedSkuItem
+        ? {
+            type: "sku",
+            itemNumber: draggedSkuItem,
+            tongueMode: inventoryTongueMode,
+            dumpHeightFt: null,
+            addSource: ADD_SOURCE_INVENTORY_GAP,
+          }
+        : null;
       item.classList.add("dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "copy";
         evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
         evt.dataTransfer.setData("application/x-prograde-sku-mode", inventoryTongueMode);
         evt.dataTransfer.setData("application/x-prograde-sku-dump-height", "");
+        evt.dataTransfer.setData("application/x-prograde-sku-source", ADD_SOURCE_INVENTORY_GAP);
         evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
       }
     });
@@ -4149,10 +4246,43 @@ function initSkuDragAndDrop() {
     showDropMarker(markerX, top, bottom - top, false);
   };
 
+  const getUnitDropPlacement = (target, evt) => {
+    if (!target || !target.matches || !target.matches(".unit-card[data-pos-id]")) {
+      return { placeAfter: true, toLayerIndex: null };
+    }
+    const rect = target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.height) || rect.height <= 0) {
+      const fallbackLayer = Number(target.dataset.layer || 0);
+      return {
+        placeAfter: true,
+        toLayerIndex: Number.isInteger(fallbackLayer) && fallbackLayer > 0 ? fallbackLayer + 1 : null,
+      };
+    }
+    const placeAfter = Number(evt && evt.clientY || 0) >= (rect.top + (rect.height / 2));
+    const targetLayer = Number(target.dataset.layer || 0);
+    if (!Number.isInteger(targetLayer) || targetLayer <= 0) {
+      return { placeAfter, toLayerIndex: null };
+    }
+    return {
+      placeAfter,
+      toLayerIndex: placeAfter ? (targetLayer + 1) : targetLayer,
+    };
+  };
+
   const setDropPlacementHint = (target, payload, evt) => {
     if (!target || !payload || !evt) return;
     if (payload.type === "unit") {
-      if (target.matches(".unit-card[data-pos-id]") || target.matches("[data-stack-drop]")) {
+      if (target.matches(".unit-card[data-pos-id]")) {
+        const zone = String(target.dataset.zone || "").trim();
+        const placement = getUnitDropPlacement(target, evt);
+        target.classList.toggle("drop-before", !placement.placeAfter);
+        target.classList.toggle("drop-after", placement.placeAfter);
+        setDragLiveText(
+          `Moving unit. Drop to place ${placement.placeAfter ? "after" : "before"} selected unit on ${zoneLabel(zone)}.`
+        );
+        return;
+      }
+      if (target.matches("[data-stack-drop]")) {
         const zone = String(target.dataset.zone || "").trim();
         setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
         return;
@@ -4208,7 +4338,7 @@ function initSkuDragAndDrop() {
       const insertIndex = Number(target.dataset.insertIndex || 0);
       if (!zone) return;
       if (payload.type === "sku") {
-        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt);
+        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource);
       } else if (payload.type === "unit") {
         await moveUnit(payload.positionId, zone, null, insertIndex);
       } else if (payload.type === "stack") {
@@ -4231,15 +4361,18 @@ function initSkuDragAndDrop() {
           null,
           payload.tongueMode,
           payload.dumpHeightFt,
-          enableGnCrisscross
+          enableGnCrisscross,
+          payload.addSource
         );
       } else if (payload.type === "unit") {
+        const placement = evt ? getUnitDropPlacement(target, evt) : { toLayerIndex: null };
         await moveUnit(
           payload.positionId,
           zone,
           targetSeq > 0 ? targetSeq : null,
           null,
-          enableGnCrisscross
+          enableGnCrisscross,
+          placement.toLayerIndex
         );
       } else if (payload.type === "stack") {
         const insertIndex = getInsertIndexFromDropSide(target, zone, targetSeq, evt);
@@ -4262,15 +4395,21 @@ function initSkuDragAndDrop() {
           null,
           payload.tongueMode,
           payload.dumpHeightFt,
-          enableGnCrisscross
+          enableGnCrisscross,
+          payload.addSource
         );
       } else if (payload.type === "unit") {
+        if (String(payload.positionId || "") === String(posId || "")) {
+          return;
+        }
+        const placement = evt ? getUnitDropPlacement(target, evt) : { toLayerIndex: null };
         await moveUnit(
           payload.positionId,
           zone,
           targetSeq > 0 ? targetSeq : null,
           null,
-          enableGnCrisscross
+          enableGnCrisscross,
+          placement.toLayerIndex
         );
       } else if (payload.type === "stack") {
         const insertIndex = getInsertIndexFromDropSide(target, zone, targetSeq, evt);
@@ -4284,7 +4423,7 @@ function initSkuDragAndDrop() {
       if (!zone) return;
       const insertIndex = getInsertIndexFromDeckPointer(zone, evt);
       if (payload.type === "sku") {
-        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt);
+        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource);
       } else if (payload.type === "unit") {
         await moveUnit(payload.positionId, zone, null, insertIndex);
       } else if (payload.type === "stack") {

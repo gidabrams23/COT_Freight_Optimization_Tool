@@ -66,16 +66,47 @@ def compute_bt_length_metrics(
 
     grouped = _group_columns_by_zone(normalized_positions)
     base_units_by_zone = {"lower_deck": {}, "upper_deck": {}}
+    base_tongue_by_zone = {"lower_deck": {}, "upper_deck": {}}
+    base_footprint_by_zone = {"lower_deck": {}, "upper_deck": {}}
     base_length_by_zone = {"lower_deck": 0.0, "upper_deck": 0.0}
 
     for zone in ("lower_deck", "upper_deck"):
-        for seq, col in grouped.get(zone, {}).items():
+        base_rows = []
+        for seq in sorted((grouped.get(zone) or {}).keys()):
+            col = (grouped.get(zone) or {}).get(seq) or []
             if not col:
                 continue
             bottom = min(col, key=lambda p: int(p["layer"] or 0))
+            base_rows.append((int(seq), bottom))
             base_units_by_zone[zone][seq] = bottom
+
+        occupied_tongue_by_seq = {}
+        deck_len_by_seq = {}
+        for seq, bottom in base_rows:
             sku = sku_map.get(bottom["item_number"]) or {}
-            base_length_by_zone[zone] += float(sku.get("total_footprint") or 0.0)
+            deck_len_ft = float(sku.get("bed_length") or 0.0)
+            tongue_ft = float(sku.get("tongue") or 0.0)
+            total_fp_ft = float(sku.get("total_footprint") or 0.0)
+            if deck_len_ft <= 0.0 and total_fp_ft > 0.0:
+                deck_len_ft = max(total_fp_ft - tongue_ft, 0.0)
+            occupied_tongue_by_seq[seq] = max(tongue_ft, 0.0)
+            deck_len_by_seq[seq] = max(deck_len_ft, 0.0)
+
+        for idx in range(len(base_rows) - 1):
+            seq_cur, cur_bottom = base_rows[idx]
+            seq_next, next_bottom = base_rows[idx + 1]
+            if bool(cur_bottom.get("is_rotated")) != bool(next_bottom.get("is_rotated")):
+                continue
+            # Same-direction BT progression: tongue-side stack uses half tongue.
+            target_seq = seq_next if bool(cur_bottom.get("is_rotated")) else seq_cur
+            occupied_tongue_by_seq[target_seq] = max(occupied_tongue_by_seq.get(target_seq, 0.0) * 0.5, 0.0)
+
+        for seq, _bottom in base_rows:
+            occupied_tongue_ft = float(occupied_tongue_by_seq.get(seq) or 0.0)
+            occupied_footprint_ft = max(float(deck_len_by_seq.get(seq) or 0.0) + occupied_tongue_ft, 0.0)
+            base_tongue_by_zone[zone][seq] = occupied_tongue_ft
+            base_footprint_by_zone[zone][seq] = occupied_footprint_ft
+            base_length_by_zone[zone] += occupied_footprint_ft
 
     lower_cols = base_units_by_zone.get("lower_deck", {})
     upper_cols = base_units_by_zone.get("upper_deck", {})
@@ -86,18 +117,16 @@ def compute_bt_length_metrics(
     upper_toward_ft = 0.0
 
     if lower_interface:
-        lower_sku = sku_map.get(lower_interface["item_number"]) or {}
-        lower_tongue = float(lower_sku.get("tongue") or 0.0)
         # Lower deck seam is to the right; rotated units point tongue right.
         if bool(lower_interface.get("is_rotated")):
-            lower_toward_ft = lower_tongue
+            lower_seq = int(lower_interface.get("sequence") or 0)
+            lower_toward_ft = float((base_tongue_by_zone.get("lower_deck") or {}).get(lower_seq) or 0.0)
 
     if upper_interface:
-        upper_sku = sku_map.get(upper_interface["item_number"]) or {}
-        upper_tongue = float(upper_sku.get("tongue") or 0.0)
         # Upper deck seam is to the left; non-rotated units point tongue left.
         if not bool(upper_interface.get("is_rotated")):
-            upper_toward_ft = upper_tongue
+            upper_seq = int(upper_interface.get("sequence") or 0)
+            upper_toward_ft = float((base_tongue_by_zone.get("upper_deck") or {}).get(upper_seq) or 0.0)
 
     overlap_credit_ft = min(lower_toward_ft, upper_toward_ft)
     upper_seam_span_ft = max(float(base_length_by_zone.get("upper_deck", 0.0)) - float(upper_cap_ft or 0.0), 0.0)
@@ -112,8 +141,8 @@ def compute_bt_length_metrics(
         if total_h <= 0 or total_h > float(step_gap_ft or 0.0):
             break
         bottom = min(col, key=lambda p: int(p["layer"] or 0))
-        sku = sku_map.get(bottom["item_number"]) or {}
-        low_profile_seam_span_ft += float(sku.get("total_footprint") or 0.0)
+        bottom_seq = int(bottom.get("sequence") or seq or 0)
+        low_profile_seam_span_ft += float((base_footprint_by_zone.get("lower_deck") or {}).get(bottom_seq) or 0.0)
 
     seam_clearance_credit_ft = min(
         max(upper_seam_span_ft - overlap_credit_ft, 0.0),

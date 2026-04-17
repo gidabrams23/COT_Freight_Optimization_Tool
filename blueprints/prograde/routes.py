@@ -237,6 +237,37 @@ def _extract_column_alignment_override_reason(override_reason):
     )
 
 
+def _normalize_add_source(raw_value, *, default=None):
+    value = str(raw_value or "").strip().lower()
+    if value in {"sku", "picker", "sku_picker", "sku-table", "sku_table"}:
+        return "sku_picker"
+    if value in {"inventory", "inventory_gap", "gap", "inventory-gap"}:
+        return "inventory_gap"
+    return default
+
+
+def _build_add_source_override_reason(add_source, base_override_reason=None):
+    normalized = _normalize_add_source(add_source, default=None)
+    if not normalized:
+        return base_override_reason
+    return _set_override_reason_token(base_override_reason, "add_source", normalized)
+
+
+def _extract_add_source_override_reason(override_reason):
+    return _normalize_add_source(
+        _get_override_reason_token(override_reason, "add_source"),
+        default=None,
+    )
+
+
+def _add_source_label(add_source):
+    if add_source == "inventory_gap":
+        return "Inventory Gap"
+    if add_source == "sku_picker":
+        return "Add SKUs"
+    return "Unspecified"
+
+
 def _ensure_trailer_shape_template_alias():
     """Expose the root trailer macro file at the import path required by the canvas template.
 
@@ -445,6 +476,11 @@ def _build_bt_sku_map():
     return {r["item_number"]: dict(r) for r in db.get_bigtex_skus()}
 
 
+def _bt_sku_is_gooseneck_profile(sku_row):
+    tongue_ft = _as_float((sku_row or {}).get("tongue"), 0.0)
+    return abs(tongue_ft - 9.0) <= 0.05
+
+
 def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
     """Enrich a position row with display fields: footprint, height, sku metadata."""
     p = dict(pos)
@@ -464,6 +500,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
     p["pj_category"] = sku.get("pj_category", "")
     p["mcat"] = sku.get("mcat", "")
     p["tier"] = sku.get("tier")
+    p["add_source"] = _extract_add_source_override_reason(p.get("override_reason"))
+    p["add_source_label"] = _add_source_label(p.get("add_source"))
     p["item_code"] = (
         _pj_picker_short_item_code(sku)
         if brand == "pj"
@@ -511,13 +549,14 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["stack_alignment"] = _extract_stack_alignment_override_reason(p.get("override_reason"))
         p["column_alignment"] = _extract_column_alignment_override_reason(p.get("override_reason"))
     elif brand == "bigtex":
+        bt_gooseneck_profile = _bt_sku_is_gooseneck_profile(sku)
         p["bed_length"] = round((sku.get("bed_length") or 0), 2)
         p["tongue_length"] = round((sku.get("tongue") or 0), 2)
         p["bed_length_measured"] = p["bed_length"]
         p["tongue_feet"] = p["tongue_length"]
         p["dump_side_height_ft"] = None
         p["selected_dump_height_ft"] = None
-        p["render_tongue_profile"] = "standard"
+        p["render_tongue_profile"] = "gooseneck" if bt_gooseneck_profile else "standard"
         p["render_tongue_length_ft"] = p["tongue_length"]
         p["tongue_length_actual"] = p["tongue_length"]
         p["deck_profile"] = "flat"
@@ -629,9 +668,13 @@ def compute_column_x_positions(zone_columns, zone_caps=None, right_anchor_zones=
             col_footprint = 0.0
             for unit in col:
                 footprint = _as_float(
+                    unit.get("occupied_footprint_ft")
+                    if unit.get("occupied_footprint_ft") is not None
+                    else (
                     unit.get("render_footprint_ft")
                     if unit.get("render_footprint_ft") is not None
                     else unit.get("footprint"),
+                    ),
                     0.0,
                 )
                 if footprint > col_footprint:
@@ -1112,6 +1155,71 @@ def _cross_deck_dump_door_allowance_intervals(
     return [(projected_left, allowance_right)]
 
 
+def _apply_bt_same_direction_tongue_stuffing(zone_cols):
+    """
+    BT rule-of-thumb for same-direction stacks:
+    when consecutive base units both point tongue-forward (rotated),
+    count only half of the current unit's tongue for occupied length.
+    """
+    applied = False
+    for zone in ("lower_deck", "upper_deck"):
+        cols = (zone_cols or {}).get(zone) or {}
+        bases = []
+        for seq in sorted(cols.keys()):
+            col = cols.get(seq) or []
+            if not col:
+                continue
+            base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
+            bases.append((int(seq), base))
+
+        occupied_tongue_by_seq = {}
+        for seq, base in bases:
+            occupied_tongue_by_seq[seq] = max(
+                _as_float(
+                    base.get("render_tongue_length_ft"),
+                    _as_float(base.get("tongue_length"), 0.0),
+                ),
+                0.0,
+            )
+
+        for idx in range(len(bases) - 1):
+            seq_cur, cur_base = bases[idx]
+            seq_next, next_base = bases[idx + 1]
+            if bool(cur_base.get("is_rotated")) != bool(next_base.get("is_rotated")):
+                continue
+            if bool(cur_base.get("is_rotated")):
+                target_seq = seq_next
+            else:
+                target_seq = seq_cur
+            occupied_tongue_by_seq[target_seq] = occupied_tongue_by_seq.get(target_seq, 0.0) * 0.5
+
+        for seq, base in bases:
+            render_tongue_ft = max(
+                _as_float(
+                    base.get("render_tongue_length_ft"),
+                    _as_float(base.get("tongue_length"), 0.0),
+                ),
+                0.0,
+            )
+            deck_len_ft = max(
+                _as_float(base.get("deck_length_ft"), _as_float(base.get("bed_length"), 0.0)),
+                0.0,
+            )
+            occupied_tongue_ft = max(_as_float(occupied_tongue_by_seq.get(seq), render_tongue_ft), 0.0)
+            stuffed_half = occupied_tongue_ft + 1e-9 < render_tongue_ft
+            prev_occupied_tongue = _as_float(base.get("occupied_tongue_length_ft"), render_tongue_ft)
+            prev_occupied_footprint = _as_float(base.get("occupied_footprint_ft"), deck_len_ft + render_tongue_ft)
+            base["occupied_tongue_length_ft"] = round(occupied_tongue_ft, 3)
+            base["occupied_footprint_ft"] = round(deck_len_ft + occupied_tongue_ft, 3)
+            base["bt_half_tongue_stuffed"] = stuffed_half
+            if (
+                abs(prev_occupied_tongue - occupied_tongue_ft) > 1e-9
+                or abs(prev_occupied_footprint - (deck_len_ft + occupied_tongue_ft)) > 1e-9
+            ):
+                applied = True
+    return applied
+
+
 def _apply_dump_door_tongue_stuffing(
     zone_cols,
     lower_zone="lower_deck",
@@ -1168,7 +1276,7 @@ def _category_key_for_position(pos):
     raw = (pos.get("pj_category") or pos.get("mcat") or "unknown")
     if pos.get("mcat"):
         raw = db.normalize_bigtex_mcat(raw)
-    key = str(raw).strip().lower().replace(" ", "_").replace("-", "_")
+    key = re.sub(r"[^a-z0-9]+", "_", str(raw).strip().lower()).strip("_")
     return key or "unknown"
 
 
@@ -1179,19 +1287,32 @@ def _category_label_for_key(key):
 
 
 def _build_category_visuals(enriched_positions):
-    color_cycle = [
-        "#22c55e",
-        "#3b82f6",
-        "#06b6d4",
-        "#a78bfa",
+    preset_palette = {
+        "car_hauler": "#60a5fa",
+        "dump": "#f59e0b",
+        "equipment_hauler": "#34d399",
+        "flatbed_gooseneck": "#a78bfa",
+        "single_axle": "#22d3ee",
+        "tandem_axle": "#818cf8",
+        "tilt_deck": "#f472b6",
+        "vanguard_landscape": "#94a3b8",
+        "deck_over_tag_along": "#fb7185",
+        "gooseneck": "#a78bfa",
+        "deck_over": "#818cf8",
+        "utility": "#22d3ee",
+        "pintle": "#f472b6",
+        "uncategorized": "#64748b",
+        "unknown": "#64748b",
+    }
+    fallback_cycle = [
+        "#60a5fa",
+        "#34d399",
         "#f59e0b",
-        "#ef4444",
-        "#f43f5e",
-        "#14b8a6",
-        "#38bdf8",
-        "#f97316",
-        "#84cc16",
-        "#eab308",
+        "#a78bfa",
+        "#22d3ee",
+        "#f472b6",
+        "#94a3b8",
+        "#fb7185",
     ]
     seen = set()
     ordered_keys = []
@@ -1207,7 +1328,7 @@ def _build_category_visuals(enriched_positions):
 
     palette = {}
     for idx, key in enumerate(ordered_keys):
-        palette[key] = color_cycle[idx % len(color_cycle)]
+        palette[key] = preset_palette.get(key, fallback_cycle[idx % len(fallback_cycle)])
     palette.setdefault("unknown", "#64748b")
 
     legend = [(key, _category_label_for_key(key)) for key in ordered_keys]
@@ -1595,6 +1716,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 for p in col_rows:
                     p["is_top_layer"] = int(p["layer"]) == top_layer
                     p["gn_crisscross"] = False
+                    gooseneck_flags.append(_is_gooseneck_render_profile(p))
                     if brand != "pj":
                         continue
                     p["true_height_ft"] = round(
@@ -1607,7 +1729,6 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                         ),
                         2,
                     )
-                    gooseneck_flags.append(_is_gooseneck_render_profile(p))
 
                 if brand == "pj":
                     for idx, p in enumerate(col_rows):
@@ -1660,7 +1781,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                         else:
                             p["deck_component_height_ft"] = stacked_height_ft
                             p["deck_height_ft"] = stacked_height_ft
-            if brand == "pj" and zone_cols[z][seq]:
+            if brand in {"pj", "bigtex"} and zone_cols[z][seq]:
                 col_rows = zone_cols[z][seq]
                 for idx in range(1, len(col_rows)):
                     lower = col_rows[idx - 1]
@@ -1675,6 +1796,8 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                     upper["gn_crisscross"] = True
     if brand == "pj":
         _apply_dump_door_tongue_stuffing(zone_cols, lower_zone="lower_deck", upper_zone="upper_deck")
+    elif brand == "bigtex":
+        _apply_bt_same_direction_tongue_stuffing(zone_cols)
 
     lower_left_overhang_ft = 0.0
 
@@ -1689,7 +1812,10 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
                 if base.get("is_nested"):
                     total += 0  # nested unit's footprint not counted
                 else:
-                    total += _as_float(base.get("render_footprint_ft"), _as_float(base.get("footprint"), 0.0))
+                    total += _as_float(
+                        base.get("occupied_footprint_ft"),
+                        _as_float(base.get("render_footprint_ft"), _as_float(base.get("footprint"), 0.0)),
+                    )
         zone_lengths[z] = round(total, 2)
 
     # Per-zone, per-column heights (PJ only)
@@ -2210,14 +2336,18 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
             )
             zone_used += col_footprint_ft
 
-        gap_ft = max(zone_cap - zone_used, 0.0)
+        gap_start_local_ft = max(
+            _as_float(zone_prev_right_edge, 0.0) if zone_prev_right_edge is not None else 0.0,
+            0.0,
+        )
+        gap_ft = max(zone_cap - gap_start_local_ft, 0.0)
         if gap_ft > 0:
             measure_segments_by_zone[zone].append(
                 {
                     "kind": "gap",
                     "sequence": None,
                     "length_ft": round(gap_ft, 3),
-                    "x_local_ft": round(max(zone_used, 0.0), 3),
+                    "x_local_ft": round(gap_start_local_ft, 3),
                 }
             )
 
@@ -2355,6 +2485,13 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
     manifest_rows = _build_manifest_rows(enriched)
     manifest_total_units = len(manifest_rows)
     category_palette, category_legend = _build_category_visuals(enriched)
+    for p in enriched:
+        cat_key = _category_key_for_position(p)
+        p["category_key"] = cat_key
+        p["category_label"] = _category_label_for_key(cat_key)
+        p["category_accent"] = category_palette.get(cat_key, category_palette.get("unknown", "#64748b"))
+        p["add_source"] = _normalize_add_source(p.get("add_source"), default=None)
+        p["add_source_label"] = _add_source_label(p.get("add_source"))
 
     return dict(
         enriched_positions=enriched,
@@ -2964,6 +3101,7 @@ def api_add_unit(session_id):
     insert_index = data.get("insert_index")
     requested_tongue_profile = _normalize_pj_tongue_profile(data.get("pj_tongue_profile"), default=None)
     requested_dump_height_ft = _normalize_pj_dump_height_ft(data.get("pj_dump_height_ft"), default=None)
+    add_source = _normalize_add_source(data.get("add_source"), default=None)
 
     if data.get("pj_dump_height_ft") not in (None, "") and requested_dump_height_ft is None:
         return _json_error("pj_dump_height_ft must be 3 or 4")
@@ -3034,6 +3172,8 @@ def api_add_unit(session_id):
                     else default_dump_height_ft
                 )
                 override_reason = _build_dump_height_override_reason(selected_dump_height_ft, override_reason)
+        if add_source:
+            override_reason = _build_add_source_override_reason(add_source, override_reason)
 
         # Big Tex rule-of-thumb: add new units with tongues facing left by default.
         default_is_rotated = 1 if brand == "bigtex" else 0
@@ -3270,6 +3410,7 @@ def api_move_position(session_id):
     to_zone = _normalize_zone_for_brand(session["brand"], data.get("to_zone"))
     to_sequence = data.get("to_sequence")
     insert_index = data.get("insert_index")
+    to_layer_index = data.get("to_layer_index")
 
     if not position_id or not to_zone:
         return _json_error("position_id and to_zone required")
@@ -3291,6 +3432,12 @@ def api_move_position(session_id):
         except (TypeError, ValueError):
             return _json_error("insert_index must be an integer")
 
+    if to_layer_index is not None:
+        try:
+            to_layer_index = int(to_layer_index)
+        except (TypeError, ValueError):
+            return _json_error("to_layer_index must be an integer")
+
     try:
         result = db.move_position(
             session_id,
@@ -3298,6 +3445,7 @@ def api_move_position(session_id):
             to_zone=to_zone,
             to_sequence=to_sequence,
             insert_index=insert_index,
+            to_layer_index=to_layer_index,
         )
         if not result:
             return _json_error("Position not found", 404)

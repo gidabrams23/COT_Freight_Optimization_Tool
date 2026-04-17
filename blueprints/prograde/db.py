@@ -2341,11 +2341,11 @@ def move_column(session_id, from_zone, sequence, to_zone, insert_index=None):
         }
 
 
-def move_position(session_id, position_id, to_zone, to_sequence=None, insert_index=None):
+def move_position(session_id, position_id, to_zone, to_sequence=None, insert_index=None, to_layer_index=None):
     with get_db() as conn:
         row = conn.execute(
             """
-            SELECT position_id, deck_zone, sequence
+            SELECT position_id, deck_zone, sequence, layer
             FROM load_positions
             WHERE session_id=? AND position_id=?
             """,
@@ -2356,6 +2356,7 @@ def move_position(session_id, position_id, to_zone, to_sequence=None, insert_ind
 
         from_zone = row["deck_zone"]
         from_sequence = int(row["sequence"])
+        from_layer = int(row["layer"] or 0)
         from_columns = _load_zone_columns(conn, session_id, from_zone)
         src_idx = _find_column_index(from_columns, from_sequence)
         if src_idx < 0:
@@ -2377,9 +2378,22 @@ def move_position(session_id, position_id, to_zone, to_sequence=None, insert_ind
             target_idx = _find_column_index(target_columns, int(to_sequence))
             if target_idx < 0:
                 return None
-            target_columns[target_idx]["ids"].append(position_id)
+            target_ids = target_columns[target_idx]["ids"]
+            if to_layer_index is not None:
+                normalized_layer_index = int(to_layer_index)
+                if (
+                    to_zone == from_zone
+                    and int(to_sequence) == from_sequence
+                    and normalized_layer_index > from_layer
+                ):
+                    normalized_layer_index -= 1
+                insert_at = max(0, min(normalized_layer_index - 1, len(target_ids)))
+                target_ids.insert(insert_at, position_id)
+                final_layer = insert_at + 1
+            else:
+                target_ids.append(position_id)
+                final_layer = len(target_ids)
             final_sequence = target_idx + 1
-            final_layer = len(target_columns[target_idx]["ids"])
         else:
             target_idx = len(target_columns) if insert_index is None else int(insert_index)
             target_idx = max(0, min(target_idx, len(target_columns)))
