@@ -134,7 +134,8 @@ body {
   max-width: 100%;
 }
 .pg-canvas-column > .trailer-schematic {
-  flex: 0 0 auto;
+  flex: 0 0 60%;
+  min-height: 320px;
 }
 .pg-sidebar {
   flex: 0 0 clamp(316px, 24vw, 372px);
@@ -1720,8 +1721,8 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 0.66fr) minmax(0, 1.34fr);
   gap: 8px;
-  flex: 1 1 auto;
-  min-height: clamp(260px, 38vh, 560px);
+  flex: 0 0 40%;
+  min-height: 0;
   align-items: stretch;
 }
 .pg-data-grid > .card {
@@ -2025,9 +2026,14 @@ body {
     overflow: visible;
     flex-direction: column;
   }
+  .pg-canvas-column > .trailer-schematic {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
   .pg-data-grid {
     grid-template-columns: 1fr;
     min-height: 0;
+    flex: 1 1 auto;
   }
   .inventory-header-row,
   .inventory-header-stats {

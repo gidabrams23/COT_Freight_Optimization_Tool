@@ -60,10 +60,17 @@
 <style>
 .pg-spatial-wrap.prograde-schematic {
   padding: 8px;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .pg-spatial-wrap .trailer-body {
   position: relative;
   padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
 }
 .pg-spatial-frame {
   position: relative;
@@ -72,17 +79,22 @@
   background: rgba(2, 6, 23, 0.55);
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08), 0 20px 55px rgba(2, 6, 23, 0.55);
   padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
 }
 .pg-canvas-center {
   border: 0;
   border-radius: 9px;
   background: rgba(2, 6, 23, 0.52);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
 }
 #pg-canvas-svg {
   width: 100%;
-  height: clamp(280px, 33vh, 390px);
-  min-height: 260px;
-  max-height: 420px;
+  height: 100%;
+  min-height: 300px;
   display: block;
 }
 .pg-zone-chip {
@@ -327,19 +339,19 @@
               stroke="rgba(125, 211, 252, 0.30)" stroke-width="1"/>
         {# Height meters rendered in the SAME SVG coordinate system as the deck/units. #}
         <g class="pg-height-meter-svg">
-          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(lower_cap_ft) }} ft</text>
+          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(lower_cap_ft) }} ft</text>
           <rect x="{{ left_meter_x }}" y="{{ lower_bar_top_px }}" width="{{ meter_w }}" height="{{ lower_bar_h_px }}" rx="{{ meter_rx }}" fill="rgba(15, 23, 42, 0.28)" stroke="rgba(125, 211, 252, 0.72)" stroke-width="1"/>
           {% if lower_fill_h_px > 0 %}
             <rect x="{{ left_meter_x + 1 }}" y="{{ lower_fill_y }}" width="{{ meter_w - 2 }}" height="{{ lower_fill_h_px }}" rx="{{ meter_rx - 1 }}" fill="{{ lower_fill_color }}" fill-opacity="0.92"/>
           {% endif %}
-          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(lower_used_ft) }}</text>
+          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(lower_used_ft) }}</text>
 
-          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(upper_cap_ft) }} ft</text>
+          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(upper_cap_ft) }} ft</text>
           <rect x="{{ right_meter_x }}" y="{{ upper_bar_top_px }}" width="{{ meter_w }}" height="{{ upper_bar_h_px }}" rx="{{ meter_rx }}" fill="rgba(15, 23, 42, 0.28)" stroke="rgba(125, 211, 252, 0.72)" stroke-width="1"/>
           {% if upper_fill_h_px > 0 %}
             <rect x="{{ right_meter_x + 1 }}" y="{{ upper_fill_y }}" width="{{ meter_w - 2 }}" height="{{ upper_fill_h_px }}" rx="{{ meter_rx - 1 }}" fill="{{ upper_fill_color }}" fill-opacity="0.92"/>
           {% endif %}
-          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(upper_used_ft) }}</text>
+          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(upper_used_ft) }}</text>
         </g>
         {# Stepdeck profile line on true deck surfaces (where units sit) #}
         <path d="M {{ margin_l }},{{ lower_y_px }} L {{ step_x_px }},{{ lower_y_px }} L {{ step_x_px }},{{ upper_y_px }} L {{ trailer_end_x_px }},{{ upper_y_px }}"

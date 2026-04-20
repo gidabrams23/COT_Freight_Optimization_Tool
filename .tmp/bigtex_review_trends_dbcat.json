@@ -1,0 +1,376 @@
+{
+  "mcat_pairs": [
+    {
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE",
+      "count": 8
+    },
+    {
+      "from": "OL TILT",
+      "to": "TILT DECK",
+      "count": 4
+    },
+    {
+      "from": "OL CAR HAULER",
+      "to": "CAR HAULER",
+      "count": 3
+    },
+    {
+      "from": "OL EQUIPMENT",
+      "to": "EQUIPMENT HAULER",
+      "count": 2
+    },
+    {
+      "from": "OL SINGLE AXLE",
+      "to": "SINGLE AXLE",
+      "count": 2
+    },
+    {
+      "from": "OL DUMP",
+      "to": "DUMP",
+      "count": 1
+    }
+  ],
+  "mcat_examples": [
+    {
+      "item_number": "EQ14-17+3",
+      "from": "OL EQUIPMENT",
+      "to": "EQUIPMENT HAULER"
+    },
+    {
+      "item_number": "EQ16-17+3",
+      "from": "OL EQUIPMENT",
+      "to": "EQUIPMENT HAULER"
+    },
+    {
+      "item_number": "SU35-12BK4RG",
+      "from": "OL SINGLE AXLE",
+      "to": "SINGLE AXLE"
+    },
+    {
+      "item_number": "SU35-14BK4RG",
+      "from": "OL SINGLE AXLE",
+      "to": "SINGLE AXLE"
+    },
+    {
+      "item_number": "TC14-14BK",
+      "from": "OL DUMP",
+      "to": "DUMP"
+    },
+    {
+      "item_number": "TH10-20BK4CR",
+      "from": "OL CAR HAULER",
+      "to": "CAR HAULER"
+    },
+    {
+      "item_number": "TH70-18BK4AR2B",
+      "from": "OL CAR HAULER",
+      "to": "CAR HAULER"
+    },
+    {
+      "item_number": "TH70-20BK4AR2B",
+      "from": "OL CAR HAULER",
+      "to": "CAR HAULER"
+    },
+    {
+      "item_number": "TT14-20BK",
+      "from": "OL TILT",
+      "to": "TILT DECK"
+    },
+    {
+      "item_number": "TT14-22BK",
+      "from": "OL TILT",
+      "to": "TILT DECK"
+    },
+    {
+      "item_number": "TT16-20BK",
+      "from": "OL TILT",
+      "to": "TILT DECK"
+    },
+    {
+      "item_number": "TT16-22BK",
+      "from": "OL TILT",
+      "to": "TILT DECK"
+    },
+    {
+      "item_number": "TU10-20BK4CR",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    },
+    {
+      "item_number": "TU14-20BK4CR",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    },
+    {
+      "item_number": "TU60-16BK4AR2B",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    },
+    {
+      "item_number": "TU60-16BK4RG2B",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    },
+    {
+      "item_number": "TU70-18BK4AR2B",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    },
+    {
+      "item_number": "TU70-18BK4RG2B",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    },
+    {
+      "item_number": "TU70-20BK4AR2B",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    },
+    {
+      "item_number": "TU70-20BK4RG2B",
+      "from": "OL TANDEM AXLE",
+      "to": "TANDEM AXLE"
+    }
+  ],
+  "stack": {
+    "overall": {
+      "up": 713
+    },
+    "top_deltas": [
+      {
+        "delta": 1.25,
+        "count": 416
+      },
+      {
+        "delta": 0.75,
+        "count": 79
+      },
+      {
+        "delta": 1.5,
+        "count": 61
+      },
+      {
+        "delta": 1.0,
+        "count": 61
+      },
+      {
+        "delta": 2.5,
+        "count": 47
+      },
+      {
+        "delta": 1.75,
+        "count": 16
+      },
+      {
+        "delta": 3.0,
+        "count": 8
+      },
+      {
+        "delta": 2.0,
+        "count": 7
+      },
+      {
+        "delta": 0.5,
+        "count": 5
+      },
+      {
+        "delta": 2.25,
+        "count": 4
+      },
+      {
+        "delta": 3.75,
+        "count": 3
+      },
+      {
+        "delta": 4.25,
+        "count": 2
+      },
+      {
+        "delta": 4.0,
+        "count": 2
+      },
+      {
+        "delta": 3.5,
+        "count": 2
+      }
+    ],
+    "by_category": [
+      {
+        "category": "FLATBED GOOSENECK",
+        "changed": 195,
+        "up": 195,
+        "down": 0,
+        "avg_abs_delta": 1.25
+      },
+      {
+        "category": "DUMP",
+        "changed": 119,
+        "up": 119,
+        "down": 0,
+        "avg_abs_delta": 1.93
+      },
+      {
+        "category": "EQUIPMENT HAULER",
+        "changed": 100,
+        "up": 100,
+        "down": 0,
+        "avg_abs_delta": 1.18
+      },
+      {
+        "category": "TANDEM AXLE",
+        "changed": 86,
+        "up": 86,
+        "down": 0,
+        "avg_abs_delta": 1.25
+      },
+      {
+        "category": "CAR HAULER",
+        "changed": 58,
+        "up": 58,
+        "down": 0,
+        "avg_abs_delta": 0.75
+      },
+      {
+        "category": "VANGUARD/LANDSCAPE",
+        "changed": 54,
+        "up": 54,
+        "down": 0,
+        "avg_abs_delta": 1.66
+      },
+      {
+        "category": "SINGLE AXLE",
+        "changed": 38,
+        "up": 38,
+        "down": 0,
+        "avg_abs_delta": 1.13
+      },
+      {
+        "category": "TILT DECK",
+        "changed": 35,
+        "up": 35,
+        "down": 0,
+        "avg_abs_delta": 1.45
+      },
+      {
+        "category": "DECK-OVER, TAG-ALONG",
+        "changed": 28,
+        "up": 28,
+        "down": 0,
+        "avg_abs_delta": 1.25
+      }
+    ]
+  },
+  "tongue": {
+    "overall": {
+      "down": 173,
+      "up": 21
+    },
+    "top_deltas": [
+      {
+        "delta": -1.0,
+        "count": 171
+      },
+      {
+        "delta": 3.0,
+        "count": 7
+      },
+      {
+        "delta": 4.0,
+        "count": 7
+      },
+      {
+        "delta": 1.0,
+        "count": 7
+      },
+      {
+        "delta": -4.0,
+        "count": 1
+      },
+      {
+        "delta": -2.0,
+        "count": 1
+      }
+    ],
+    "by_category": [
+      {
+        "category": "DUMP",
+        "changed": 78,
+        "up": 12,
+        "down": 66
+      },
+      {
+        "category": "CAR HAULER",
+        "changed": 58,
+        "up": 0,
+        "down": 58
+      },
+      {
+        "category": "EQUIPMENT HAULER",
+        "changed": 29,
+        "up": 2,
+        "down": 27
+      },
+      {
+        "category": "TILT DECK",
+        "changed": 29,
+        "up": 7,
+        "down": 22
+      }
+    ]
+  },
+  "footprint": {
+    "overall": {
+      "down": 164,
+      "up": 21
+    },
+    "top_deltas": [
+      {
+        "delta": -1.0,
+        "count": 163
+      },
+      {
+        "delta": 3.0,
+        "count": 7
+      },
+      {
+        "delta": 4.0,
+        "count": 7
+      },
+      {
+        "delta": 1.0,
+        "count": 7
+      },
+      {
+        "delta": -2.0,
+        "count": 1
+      }
+    ],
+    "by_category": [
+      {
+        "category": "DUMP",
+        "changed": 78,
+        "up": 12,
+        "down": 66
+      },
+      {
+        "category": "CAR HAULER",
+        "changed": 49,
+        "up": 0,
+        "down": 49
+      },
+      {
+        "category": "EQUIPMENT HAULER",
+        "changed": 29,
+        "up": 2,
+        "down": 27
+      },
+      {
+        "category": "TILT DECK",
+        "changed": 29,
+        "up": 7,
+        "down": 22
+      }
+    ]
+  }
+}

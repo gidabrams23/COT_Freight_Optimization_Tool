@@ -1,0 +1,416 @@
+{
+  "db_path": "c:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\data\\db\\prograde.db",
+  "workbook_path": "c:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Bain Capital - ATW - ATW Operations Value Creation\\03 - Phase 2\\04 - Carry On MFO\\PG Freight Tool\\BT - Load Sheets\\ProGrade_BigTex_CheatSheet_Review (002).xlsx",
+  "sheet": "Big Tex Cheat Sheet Review",
+  "header_row": 5,
+  "db_row_count": 716,
+  "revised_row_count": 716,
+  "shared_item_count": 716,
+  "changed_item_count": 713,
+  "new_item_count": 0,
+  "missing_item_count": 0,
+  "field_change_counts": {
+    "tongue": 194,
+    "stack_height": 713,
+    "total_footprint": 185,
+    "mcat": 20
+  },
+  "formula_mismatch_count": 9,
+  "duplicate_item_count": 0,
+  "parse_issue_count": 0,
+  "new_items_sample": [],
+  "missing_items_sample": [],
+  "changed_items_sample": [
+    {
+      "item_number": "10CH-16",
+      "row": 8,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-16BKDT",
+      "row": 9,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-18",
+      "row": 10,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-18BK",
+      "row": 11,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-18BKDT",
+      "row": 12,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-20",
+      "row": 13,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-20BK",
+      "row": 14,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-20BKDT",
+      "row": 15,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10CH-20BKDT5FUR",
+      "row": 16,
+      "fields": [
+        "stack_height",
+        "tongue"
+      ]
+    },
+    {
+      "item_number": "10DM-18",
+      "row": 18,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10DM-18BK",
+      "row": 19,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10DM-20",
+      "row": 20,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10DM-20BK",
+      "row": 21,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10DM-22",
+      "row": 22,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10DM-22BK",
+      "row": 23,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10LR-18",
+      "row": 754,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10LR-18BK",
+      "row": 755,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10LR-18BK-P4",
+      "row": 756,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10LR-20",
+      "row": 757,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10LR-20BK",
+      "row": 758,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10LR-20BK-P4",
+      "row": 759,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10LX-10",
+      "row": 110,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10LX-12",
+      "row": 111,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10LX-12BK6SIR",
+      "row": 112,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    },
+    {
+      "item_number": "10PI-12",
+      "row": 612,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-14",
+      "row": 613,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-16",
+      "row": 614,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-16BK",
+      "row": 615,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-16BK4HDIR",
+      "row": 616,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-16BK5FUR",
+      "row": 617,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-18",
+      "row": 618,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-18BK",
+      "row": 619,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-18BK4HDIR",
+      "row": 620,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-18BK5FUR",
+      "row": 621,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-20",
+      "row": 622,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-20BK",
+      "row": 623,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-20BK4HDIR",
+      "row": 624,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-20BK5FUR",
+      "row": 625,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10PI-24",
+      "row": 626,
+      "fields": [
+        "stack_height"
+      ]
+    },
+    {
+      "item_number": "10SR-12XL",
+      "row": 114,
+      "fields": [
+        "stack_height",
+        "tongue",
+        "total_footprint"
+      ]
+    }
+  ],
+  "formula_mismatch_sample": [
+    {
+      "item_number": "10CH-16",
+      "row": 8,
+      "bed_length": 16.0,
+      "tongue": 3.0,
+      "recorded_total": 23.0,
+      "calculated_total": 19.0
+    },
+    {
+      "item_number": "10CH-16BKDT",
+      "row": 9,
+      "bed_length": 16.0,
+      "tongue": 3.0,
+      "recorded_total": 20.0,
+      "calculated_total": 19.0
+    },
+    {
+      "item_number": "10CH-18",
+      "row": 10,
+      "bed_length": 18.0,
+      "tongue": 3.0,
+      "recorded_total": 22.0,
+      "calculated_total": 21.0
+    },
+    {
+      "item_number": "10CH-18BK",
+      "row": 11,
+      "bed_length": 18.0,
+      "tongue": 3.0,
+      "recorded_total": 22.0,
+      "calculated_total": 21.0
+    },
+    {
+      "item_number": "10CH-18BKDT",
+      "row": 12,
+      "bed_length": 18.0,
+      "tongue": 3.0,
+      "recorded_total": 22.0,
+      "calculated_total": 21.0
+    },
+    {
+      "item_number": "10CH-20",
+      "row": 13,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    },
+    {
+      "item_number": "10CH-20BK",
+      "row": 14,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    },
+    {
+      "item_number": "10CH-20BKDT",
+      "row": 15,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    },
+    {
+      "item_number": "10CH-20BKDT5FUR",
+      "row": 16,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    }
+  ],
+  "missing_nonrequired_columns_in_review_sheet": [
+    "tier",
+    "gvwr",
+    "floor_type",
+    "width"
+  ],
+  "db_updated_at_min": "2026-04-01T14:56:01.539670",
+  "db_updated_at_max": "2026-04-06T19:23:12.739149"
+}

@@ -1,0 +1,8808 @@
+{
+  "changes": [
+    {
+      "item_number": "10CH-16",
+      "row": 8,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-16BKDT",
+      "row": 9,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-18",
+      "row": 10,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-18BK",
+      "row": 11,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-18BKDT",
+      "row": 12,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-20",
+      "row": 13,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-20BK",
+      "row": 14,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-20BKDT",
+      "row": 15,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10CH-20BKDT5FUR",
+      "row": 16,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10DM-18",
+      "row": 18,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10DM-18BK",
+      "row": 19,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10DM-20",
+      "row": 20,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10DM-20BK",
+      "row": 21,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10DM-22",
+      "row": 22,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10DM-22BK",
+      "row": 23,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "10LR-18",
+      "row": 754,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10LR-18BK",
+      "row": 755,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10LR-18BK-P4",
+      "row": 756,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "10LR-20",
+      "row": 757,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10LR-20BK",
+      "row": 758,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10LR-20BK-P4",
+      "row": 759,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "10LX-10",
+      "row": 110,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 15.0,
+          "revised": 14.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "10LX-12",
+      "row": 111,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "10LX-12BK6SIR",
+      "row": 112,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "10PI-12",
+      "row": 612,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-14",
+      "row": 613,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-16",
+      "row": 614,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-16BK",
+      "row": 615,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-16BK4HDIR",
+      "row": 616,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-16BK5FUR",
+      "row": 617,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-18",
+      "row": 618,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-18BK",
+      "row": 619,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-18BK4HDIR",
+      "row": 620,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-18BK5FUR",
+      "row": 621,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-20",
+      "row": 622,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-20BK",
+      "row": 623,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-20BK4HDIR",
+      "row": 624,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-20BK5FUR",
+      "row": 625,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10PI-24",
+      "row": 626,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "10SR-12XL",
+      "row": 114,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "10SR-12XLBK6SIR",
+      "row": 115,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "10TV-16",
+      "row": 761,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10TV-16BK",
+      "row": 762,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10TV-18",
+      "row": 763,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10TV-18BK",
+      "row": 764,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10TV-20",
+      "row": 765,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "10TV-20BK",
+      "row": 766,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.5
+        }
+      }
+    },
+    {
+      "item_number": "12SR-12XL",
+      "row": 117,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "12SR-12XLBK6SIR",
+      "row": 118,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "13BN",
+      "row": 120,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 3.0
+        }
+      }
+    },
+    {
+      "item_number": "14EB-18D2A-KRBK",
+      "row": 253,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EB-20D2A-KRBK",
+      "row": 254,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EB-22D2A-KRBK",
+      "row": 255,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-16D3A",
+      "row": 257,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-16D3A-KRBK",
+      "row": 258,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-16D3A-MRBK",
+      "row": 259,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-18D3A",
+      "row": 260,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-18D3A-KRBK",
+      "row": 261,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-18D3A-MRBK",
+      "row": 262,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-20D3A",
+      "row": 263,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-20D3A-KRBK",
+      "row": 264,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-20D3A-MRBK",
+      "row": 265,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-22D3A",
+      "row": 266,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 29.0,
+          "revised": 28.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-22D3A-KRBK",
+      "row": 267,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 29.0,
+          "revised": 28.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-22D3A-MRBK",
+      "row": 268,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 29.0,
+          "revised": 28.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-24D3A",
+      "row": 269,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 31.0,
+          "revised": 30.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-24D3A-KRBK",
+      "row": 270,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 31.0,
+          "revised": 30.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EH-24D3A-MRBK",
+      "row": 271,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 31.0,
+          "revised": 30.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14EHG-20D3A",
+      "row": 273,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14EHG-22D3A",
+      "row": 274,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14EHG-24D3A",
+      "row": 275,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14ET-16",
+      "row": 277,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-16BK",
+      "row": 278,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-16BK-KR",
+      "row": 279,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-16BK-MR",
+      "row": 280,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-16KR",
+      "row": 281,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-18",
+      "row": 282,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-18BK",
+      "row": 283,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-18BK-KR",
+      "row": 284,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-18BK-MR",
+      "row": 285,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-18BK5RSR",
+      "row": 286,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-20",
+      "row": 287,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-20BK",
+      "row": 288,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-20BK-KR",
+      "row": 289,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-20BK-MR",
+      "row": 290,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-20BK5RSR",
+      "row": 291,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-20MR",
+      "row": 292,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-22",
+      "row": 293,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-22BK",
+      "row": 294,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-22BK-KR",
+      "row": 295,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-22BK-MR",
+      "row": 296,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-22KR",
+      "row": 297,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-22MR",
+      "row": 298,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-24",
+      "row": 299,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-24BK-KR",
+      "row": 300,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-24BK-MR",
+      "row": 301,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14ET-24MR",
+      "row": 302,
+      "diff": {
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "14FT-16",
+      "row": 707,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14FT-16BK",
+      "row": 708,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14FT-18",
+      "row": 709,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14FT-18BK",
+      "row": 710,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14FT-20",
+      "row": 711,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14FT-20BK",
+      "row": 712,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-20",
+      "row": 365,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-20+5",
+      "row": 366,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-20+5CO",
+      "row": 367,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-20BK+5",
+      "row": 368,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-20BK+5MR",
+      "row": 369,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-20STA",
+      "row": 370,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-22+5",
+      "row": 371,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-22STA",
+      "row": 372,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25",
+      "row": 373,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25+5",
+      "row": 374,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25BK+5",
+      "row": 375,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25BK+5MR",
+      "row": 376,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25D5A",
+      "row": 377,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25D5A-FRBK",
+      "row": 378,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25D5A-MRBK",
+      "row": 379,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-25STA",
+      "row": 380,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-27D5A",
+      "row": 381,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-27D5A-FRBK",
+      "row": 382,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-27D5A-MRBK",
+      "row": 383,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-28+5",
+      "row": 384,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-28BK+5",
+      "row": 385,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-28BK+5MR",
+      "row": 386,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-28STA",
+      "row": 387,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-30",
+      "row": 388,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-30+5",
+      "row": 389,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-30BK+5MR",
+      "row": 390,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-30D5A",
+      "row": 391,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-30D5A-FRBK",
+      "row": 392,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-30D5A-MRBK",
+      "row": 393,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-30STA",
+      "row": 394,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-33D5A",
+      "row": 395,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-33D5A-FRBK",
+      "row": 396,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-33D5A-MRBK",
+      "row": 397,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-35+5",
+      "row": 398,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-35BK+5MR",
+      "row": 399,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-35D5A",
+      "row": 400,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-35D5A-MRBK",
+      "row": 401,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-35STA",
+      "row": 402,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-36",
+      "row": 403,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-40",
+      "row": 404,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-40BK8SIR",
+      "row": 405,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-40D5A",
+      "row": 406,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-40D5A-MRBK",
+      "row": 407,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-40STA",
+      "row": 408,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GN-40STA-S8BK",
+      "row": 409,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14GT-14",
+      "row": 122,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GT-14BK6-P4",
+      "row": 123,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GT-14BK6SIR",
+      "row": 124,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GT-16",
+      "row": 125,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GT-16BK6-P4",
+      "row": 126,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GT-16BK6SIR",
+      "row": 127,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-14",
+      "row": 129,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-14BK6-P3",
+      "row": 130,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-14BK6-P4",
+      "row": 131,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-14BK6SIRPD",
+      "row": 132,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-16",
+      "row": 133,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-16BK6-P3",
+      "row": 134,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-16BK6-P4",
+      "row": 135,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14GX-16BK6SIRPD",
+      "row": 136,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-12",
+      "row": 138,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-12BK6-P3",
+      "row": 139,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.5
+        }
+      }
+    },
+    {
+      "item_number": "14LP-12BK6-P4",
+      "row": 140,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-12BK6SIRPD",
+      "row": 141,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 17.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14",
+      "row": 142,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14BK6-12KHJ",
+      "row": 143,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14BK6-12KHJ-P4",
+      "row": 144,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14BK6-P3",
+      "row": 145,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.5
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14BK6-P4",
+      "row": 146,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14BK6SIRPD",
+      "row": 147,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14BL6-P4",
+      "row": 148,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14BL6SIRPD",
+      "row": 149,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14DT6-P4",
+      "row": 150,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14DT6SIRPD",
+      "row": 151,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14GY6-P4",
+      "row": 152,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14GY6SIRPD",
+      "row": 153,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14SG6-P4",
+      "row": 154,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14SG6SIRPD",
+      "row": 155,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14WH6-P4",
+      "row": 156,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-14WH6SIRPD",
+      "row": 157,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16",
+      "row": 158,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16BK6-12KHJ",
+      "row": 159,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16BK6-12KHJ-P4",
+      "row": 160,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16BK6-P3",
+      "row": 161,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.5
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16BK6-P4",
+      "row": 162,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16BK6SIRPD",
+      "row": 163,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16BL6SIRPD",
+      "row": 164,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16DT6SIRPD",
+      "row": 165,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16GY6SIRPD",
+      "row": 166,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16SG6SIRPD",
+      "row": 167,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LP-16WH6SIRPD",
+      "row": 168,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LX-14",
+      "row": 170,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LX-14BK7SIRPD",
+      "row": 171,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LX-14C2A-BK",
+      "row": 172,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14LX-14C4A-BK",
+      "row": 173,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14LX-16BK-P4",
+      "row": 174,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14OA-16",
+      "row": 304,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-16BK-8SIR",
+      "row": 305,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-16STA",
+      "row": 306,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-16STA-S8BK",
+      "row": 307,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-17+3",
+      "row": 308,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-17BK+3",
+      "row": 309,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-18BK-8SIR",
+      "row": 310,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-18STA-S8BK",
+      "row": 311,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-19+3",
+      "row": 312,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-19BK+3",
+      "row": 313,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-20",
+      "row": 314,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-20BK-8SIR",
+      "row": 315,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-20D3A-FRBK",
+      "row": 316,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-20STA",
+      "row": 317,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-20STA-S8BK",
+      "row": 318,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-21+3",
+      "row": 319,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-21BK+3",
+      "row": 320,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-22",
+      "row": 321,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-22BK-8SIR",
+      "row": 322,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-22D3A-FRBK",
+      "row": 323,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-22STA",
+      "row": 324,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-22STA-S8BK",
+      "row": 325,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-24",
+      "row": 326,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-24BK-8SIR",
+      "row": 327,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-24D3A",
+      "row": 328,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-24D3A-FRBK",
+      "row": 329,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OA-24STA-S8BK",
+      "row": 330,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OE-18STA-S8BK",
+      "row": 332,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OE-20STA-S8BK",
+      "row": 333,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OE-22STA-S8BK",
+      "row": 334,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OT-22",
+      "row": 714,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OT-22BK",
+      "row": 715,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OT-22GN",
+      "row": 716,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 31.0
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14OT-24",
+      "row": 717,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OT-24BK",
+      "row": 718,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OT-24GN",
+      "row": 719,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 30.0,
+          "revised": 33.0
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14OT-26",
+      "row": 720,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OT-26BK",
+      "row": 721,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 32.0,
+          "revised": 35.0
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14OT-26GN",
+      "row": 722,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14PH-20",
+      "row": 74,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PH-20+5",
+      "row": 75,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PH-20BK+5",
+      "row": 76,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PH-20BK+5MR",
+      "row": 77,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PH-25",
+      "row": 78,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PH-25+5",
+      "row": 79,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PH-25BK+5MR",
+      "row": 80,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PH-30",
+      "row": 81,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-16",
+      "row": 628,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-16BK",
+      "row": 629,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-16BK5FUR",
+      "row": 630,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-18",
+      "row": 631,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-18BK",
+      "row": 632,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-18BK5FUR",
+      "row": 633,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-20",
+      "row": 634,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-20BK",
+      "row": 635,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-20BK4HDIR",
+      "row": 636,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-20BK5FUR",
+      "row": 637,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14PI-24",
+      "row": 638,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14RB-14",
+      "row": 176,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14RB-14BK",
+      "row": 177,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "14RD-14",
+      "row": 179,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 3.0
+        }
+      }
+    },
+    {
+      "item_number": "14RD-14BK",
+      "row": 180,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 3.0
+        }
+      }
+    },
+    {
+      "item_number": "14TD-14",
+      "row": 182,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14TD-14BK6-P3",
+      "row": 183,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.5
+        }
+      }
+    },
+    {
+      "item_number": "14TD-14BK6-P4",
+      "row": 184,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14TD-14BK6SIR",
+      "row": 185,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14TD-16",
+      "row": 186,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14TD-16BK6-P3",
+      "row": 187,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.5
+        }
+      }
+    },
+    {
+      "item_number": "14TD-16BK6-P4",
+      "row": 188,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14TD-16BK6SIR",
+      "row": 189,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14TL-20",
+      "row": 724,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14TL-20BK",
+      "row": 725,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14TL-20GN",
+      "row": 726,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 29.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14TL-22",
+      "row": 727,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 27.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14TL-22BK",
+      "row": 728,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 27.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "14TL-22GN",
+      "row": 729,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 31.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-14C2A",
+      "row": 191,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-14C2A-BK",
+      "row": 192,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-14C2A-BK-12KHJ",
+      "row": 193,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-14C4A",
+      "row": 194,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-14C4A-BK",
+      "row": 195,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-16C2A",
+      "row": 196,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-16C2A-BK",
+      "row": 197,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-16C4A",
+      "row": 198,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "14XD-16C4A-BK",
+      "row": 199,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-18D3A",
+      "row": 336,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-18D3A-KRBK",
+      "row": 337,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-18D3A-MRBK",
+      "row": 338,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-20D3A",
+      "row": 339,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-20D3A-KRBK",
+      "row": 340,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-20D3A-MRBK",
+      "row": 341,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 27.0,
+          "revised": 26.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-22D3A",
+      "row": 342,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 29.0,
+          "revised": 28.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-22D3A-KRBK",
+      "row": 343,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 29.0,
+          "revised": 28.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-22D3A-MRBK",
+      "row": 344,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 29.0,
+          "revised": 28.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-24D3A",
+      "row": 345,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 31.0,
+          "revised": 30.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-24D3A-KRBK",
+      "row": 346,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 31.0,
+          "revised": 30.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EH-24D3A-MRBK",
+      "row": 347,
+      "diff": {
+        "tongue": {
+          "current": 7.0,
+          "revised": 6.0
+        },
+        "total_footprint": {
+          "current": 31.0,
+          "revised": 30.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "16EHG-20D3A",
+      "row": 349,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16EHG-22D3A",
+      "row": 350,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16EHG-24D3A",
+      "row": 351,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-20",
+      "row": 411,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-20+5",
+      "row": 412,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-20BK+5MR",
+      "row": 413,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-20STA",
+      "row": 414,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-22",
+      "row": 415,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-22+5",
+      "row": 416,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-22STA",
+      "row": 417,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-25",
+      "row": 418,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-25+5",
+      "row": 419,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-25BK+5MR",
+      "row": 420,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-25D5A",
+      "row": 421,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-25D5A-FRBK",
+      "row": 422,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-25D5A-MRBK",
+      "row": 423,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-25STA",
+      "row": 424,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-27D5A",
+      "row": 425,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-28+5",
+      "row": 426,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-28BK+5MR",
+      "row": 427,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-28STA",
+      "row": 428,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-30",
+      "row": 429,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-30+5",
+      "row": 430,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-30BK+5MR",
+      "row": 431,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-30D5A",
+      "row": 432,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-30D5A-FRBK",
+      "row": 433,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-30D5A-MRBK",
+      "row": 434,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-30STA",
+      "row": 435,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-33D5A",
+      "row": 436,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-33D5A-FRBK",
+      "row": 437,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-33D5A-MRBK",
+      "row": 438,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35",
+      "row": 439,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35+5",
+      "row": 440,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35BK+5",
+      "row": 441,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35BK+5MR",
+      "row": 442,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35D5A",
+      "row": 443,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35D5A-FRBK",
+      "row": 444,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35D5A-MRBK",
+      "row": 445,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-35STA",
+      "row": 446,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-36",
+      "row": 447,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-40",
+      "row": 448,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-40BK8SIR",
+      "row": 449,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-40D5A",
+      "row": 450,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-40D5A-FRBK",
+      "row": 451,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-40D5A-MRBK",
+      "row": 452,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-40STA",
+      "row": 453,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GN-40STA-S8BK",
+      "row": 454,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16GX-14",
+      "row": 201,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16GX-14BK6-P4",
+      "row": 202,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16GX-14BK6SIRPD",
+      "row": 203,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16GX-16",
+      "row": 204,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16GX-16BK6-P3",
+      "row": 205,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16GX-16BK6-P4",
+      "row": 206,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16GX-16BK6SIRPD",
+      "row": 207,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-14",
+      "row": 209,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-14BK6-12KHJ",
+      "row": 210,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-14BK6-12KHJ-P4",
+      "row": 211,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-14BK6-P3",
+      "row": 212,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.5
+        }
+      }
+    },
+    {
+      "item_number": "16LP-14BK6-P4",
+      "row": 213,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-14BK6SIRPD",
+      "row": 214,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 19.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-16",
+      "row": 215,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-16BK6-12KHJ",
+      "row": 216,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-16BK6-12KHJ-P4",
+      "row": 217,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-16BK6-P3",
+      "row": 218,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.5
+        }
+      }
+    },
+    {
+      "item_number": "16LP-16BK6-P4",
+      "row": 219,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16LP-16BK6SIRPD",
+      "row": 220,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "16OA-16STA-S8BK",
+      "row": 353,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16OA-20STA",
+      "row": 354,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16OA-20STA-S8BK",
+      "row": 355,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16OA-22STA-S8BK",
+      "row": 356,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16OA-24D3A-FRBK",
+      "row": 357,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16OA-24STA-S8BK",
+      "row": 358,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16PH-20+5",
+      "row": 83,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16RB-14BK",
+      "row": 222,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "16RD-14",
+      "row": 224,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 3.0
+        }
+      }
+    },
+    {
+      "item_number": "16RD-14BK",
+      "row": 225,
+      "diff": {
+        "stack_height": {
+          "current": 1.75,
+          "revised": 3.0
+        }
+      }
+    },
+    {
+      "item_number": "16TD-16BK6SIR",
+      "row": 227,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "16TL-20",
+      "row": 735,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "16TL-20BK",
+      "row": 736,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "16TL-20GN",
+      "row": 737,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 29.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "16TL-22",
+      "row": 738,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 27.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "16TL-22BK",
+      "row": 739,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 27.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "16TL-22GN",
+      "row": 740,
+      "diff": {
+        "tongue": {
+          "current": 6.0,
+          "revised": 9.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 31.0
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "20GN-20+5CO",
+      "row": 456,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "20GN-20BK+5",
+      "row": 457,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "20GX-16",
+      "row": 229,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "20GX-16BK6-P4",
+      "row": 230,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "20GX-16BK6SIRPD",
+      "row": 231,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "20LP-16",
+      "row": 233,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "20LP-16BK6-P4",
+      "row": 234,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "20LP-16BK6SIRPD",
+      "row": 235,
+      "diff": {
+        "stack_height": {
+          "current": 2.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "22GN-20",
+      "row": 459,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-20BK+5",
+      "row": 460,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-20BK+5MR",
+      "row": 461,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-20STA",
+      "row": 462,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-25+5",
+      "row": 463,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-25BK+5",
+      "row": 464,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-25BK+5MR",
+      "row": 465,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-25D5A",
+      "row": 466,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-25D5A-FRBK",
+      "row": 467,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-25D5A-MRBK",
+      "row": 468,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-25STA",
+      "row": 469,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-28+5",
+      "row": 470,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-28BK+5",
+      "row": 471,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-28BK+5MR",
+      "row": 472,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-28STA",
+      "row": 473,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-30+5",
+      "row": 474,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-30BK+5",
+      "row": 475,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-30BK+5MR",
+      "row": 476,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-30D5A",
+      "row": 477,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-30D5A-FRBK",
+      "row": 478,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-30D5A-MRBK",
+      "row": 479,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-30STA",
+      "row": 480,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-33D5A",
+      "row": 481,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-33D5A-FRBK",
+      "row": 482,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-33D5A-MRBK",
+      "row": 483,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-33STA",
+      "row": 484,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35+5",
+      "row": 485,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35-HDTS",
+      "row": 486,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35BK+5MR",
+      "row": 487,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35BK-HDTS",
+      "row": 488,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35D5A",
+      "row": 489,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35D5A-FRBK",
+      "row": 490,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35D5A-MRBK",
+      "row": 491,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-35STA",
+      "row": 492,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-36",
+      "row": 493,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-36STA",
+      "row": 494,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40-HDTS",
+      "row": 495,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40BK-HDTS",
+      "row": 496,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40BK8SIR",
+      "row": 497,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40D5A",
+      "row": 498,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40D5A-FRBK",
+      "row": 499,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40D5A-MRBK",
+      "row": 500,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40STA",
+      "row": 501,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40STA-S8BK",
+      "row": 502,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22GN-40STA-XRBK",
+      "row": 503,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22PH-20+5",
+      "row": 85,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22PH-20BK+5",
+      "row": 86,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22PH-20BK+5MR",
+      "row": 87,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22PH-25",
+      "row": 88,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22PH-25+5",
+      "row": 89,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "22PH-25BK+5MR",
+      "row": 90,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25DU-18",
+      "row": 237,
+      "diff": {
+        "stack_height": {
+          "current": 4.0,
+          "revised": 7.0
+        }
+      }
+    },
+    {
+      "item_number": "25DU-20",
+      "row": 238,
+      "diff": {
+        "stack_height": {
+          "current": 4.0,
+          "revised": 7.0
+        }
+      }
+    },
+    {
+      "item_number": "25DU-20BK8SIR",
+      "row": 239,
+      "diff": {
+        "stack_height": {
+          "current": 4.0,
+          "revised": 7.0
+        }
+      }
+    },
+    {
+      "item_number": "25DU-20P",
+      "row": 240,
+      "diff": {
+        "stack_height": {
+          "current": 4.0,
+          "revised": 7.0
+        }
+      }
+    },
+    {
+      "item_number": "25GN-20+5",
+      "row": 505,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-20BK+5",
+      "row": 506,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-20BK+5MR",
+      "row": 507,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-20STA",
+      "row": 508,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-25+5",
+      "row": 509,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-25BK+5MR",
+      "row": 510,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-25D5A",
+      "row": 511,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-25D5A-FRBK",
+      "row": 512,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-25D5A-MRBK",
+      "row": 513,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-25STA",
+      "row": 514,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-28+5",
+      "row": 515,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-28BK+5MR",
+      "row": 516,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-28STA",
+      "row": 517,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-30",
+      "row": 518,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-30+5",
+      "row": 519,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-30BK+5MR",
+      "row": 520,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-30D5A",
+      "row": 521,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-30D5A-FRBK",
+      "row": 522,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-30D5A-MRBK",
+      "row": 523,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-30STA",
+      "row": 524,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-33D5A",
+      "row": 525,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-33D5A-FRBK",
+      "row": 526,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-33D5A-MRBK",
+      "row": 527,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-33STA",
+      "row": 528,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35+5",
+      "row": 529,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35-HDTS",
+      "row": 530,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35BK+5MR",
+      "row": 531,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35BK+5MR-EHD",
+      "row": 532,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35BK-HDTS",
+      "row": 533,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35D5A",
+      "row": 534,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35D5A-FRBK",
+      "row": 535,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35D5A-MRBK",
+      "row": 536,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-35STA",
+      "row": 537,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-36",
+      "row": 538,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-36BK",
+      "row": 539,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-36STA",
+      "row": 540,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40",
+      "row": 541,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40-HDTS",
+      "row": 542,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40BK",
+      "row": 543,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40BK-HDTS",
+      "row": 544,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40BK8SIR",
+      "row": 545,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40D5A",
+      "row": 546,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40D5A-FRBK",
+      "row": 547,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40D5A-MRBK",
+      "row": 548,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40D5A-MRBKEHD",
+      "row": 549,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40STA",
+      "row": 550,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40STA-S8BK",
+      "row": 551,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25GN-40STA-XRBK",
+      "row": 552,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25PH-20+5",
+      "row": 92,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25PH-20BK+5",
+      "row": 93,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25PH-20BK+5MR",
+      "row": 94,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25PH-25",
+      "row": 95,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25PH-25+5",
+      "row": 96,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25PH-25BK+5",
+      "row": 97,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "25PH-25BK+5MR",
+      "row": 98,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "30SA-08",
+      "row": 568,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SA-08BK4RG",
+      "row": 569,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SA-08BKEX2",
+      "row": 570,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "30SA-08R1A-4PBK",
+      "row": 571,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SA-10",
+      "row": 572,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SA-10BK4RG",
+      "row": 573,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SA-10BKEX2",
+      "row": 574,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "30SA-10R1A-4PBK",
+      "row": 575,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SA-12BK4RG",
+      "row": 576,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SA-14BK4RG",
+      "row": 577,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "30SV-08",
+      "row": 768,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "30SV-08BK",
+      "row": 769,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "30SV-10",
+      "row": 770,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "30SV-10BK",
+      "row": 771,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "30SV-12",
+      "row": 772,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "30SV-12BK",
+      "row": 773,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35LS-12",
+      "row": 775,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35LS-12BK",
+      "row": 776,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35LS-12BK-P4",
+      "row": 777,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "35LS-14",
+      "row": 778,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35LS-14BK",
+      "row": 779,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35LS-14BK-P4",
+      "row": 780,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-10",
+      "row": 579,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-10BK4RG",
+      "row": 580,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-10BKEX2",
+      "row": 581,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SA-10R1A-4PBK",
+      "row": 582,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-10XBK4RG",
+      "row": 583,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12",
+      "row": 584,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12BK4RG",
+      "row": 585,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12BKEX2",
+      "row": 586,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12BKRSX",
+      "row": 587,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12R1A-4PBK",
+      "row": 588,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12RSX",
+      "row": 589,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12X",
+      "row": 590,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-12XBK4RG",
+      "row": 591,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-14",
+      "row": 592,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-14BK4RG",
+      "row": 593,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-14BKRSX",
+      "row": 594,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-14R1A-4PBK",
+      "row": 595,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-14RSX",
+      "row": 596,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-14X",
+      "row": 597,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SA-14XBK4RG",
+      "row": 598,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SV-10",
+      "row": 782,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SV-10BK",
+      "row": 783,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SV-12",
+      "row": 784,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SV-12BK",
+      "row": 785,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SV-14",
+      "row": 786,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SV-14BK",
+      "row": 787,
+      "diff": {
+        "stack_height": {
+          "current": 1.5,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "35SX-12",
+      "row": 600,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SX-12R1A-4PBK",
+      "row": 601,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SX-14",
+      "row": 602,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35SX-14R1A-4PBK",
+      "row": 603,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35UT-14",
+      "row": 605,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "35UT-14BK",
+      "row": 606,
+      "diff": {
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-20",
+      "row": 554,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-20+5",
+      "row": 555,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-25",
+      "row": 556,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-25+5",
+      "row": 557,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-25BK+5-MR",
+      "row": 558,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-28+5",
+      "row": 559,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-30+5",
+      "row": 560,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-35+5",
+      "row": 561,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-36",
+      "row": 562,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XGN-40",
+      "row": 563,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XPH-20+5",
+      "row": 100,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "3XPH-25+5",
+      "row": 101,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "4XPH-20",
+      "row": 103,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "4XPH-20+5",
+      "row": 104,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "4XPH-24+5",
+      "row": 105,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "5XPH-24+5",
+      "row": 565,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "5XPH-28+5",
+      "row": 107,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-14",
+      "row": 25,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-14BK",
+      "row": 26,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-14BK2B",
+      "row": 27,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-16",
+      "row": 28,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-16BK",
+      "row": 29,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-16BK2B",
+      "row": 30,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-18BK",
+      "row": 31,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60EC-18BK2B",
+      "row": 32,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-12",
+      "row": 640,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-12BK4RG",
+      "row": 641,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-12BK4RG2B",
+      "row": 642,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-14",
+      "row": 643,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-14BK4RG",
+      "row": 644,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-14BK4RG2B",
+      "row": 645,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-14BKEX2",
+      "row": 646,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-16",
+      "row": 647,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-16BK4AR",
+      "row": 648,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-16BK4AR2B",
+      "row": 649,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-16BK4RG",
+      "row": 650,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-16BK4RG2B",
+      "row": 651,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "60PI-16BKEX2",
+      "row": 652,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-14",
+      "row": 34,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-14BK",
+      "row": 35,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-14BK-GA",
+      "row": 36,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-14BK2B",
+      "row": 37,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-16",
+      "row": 38,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-16BK",
+      "row": 39,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-16BK2B",
+      "row": 40,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-16BKDT",
+      "row": 41,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-16BKDT-GA",
+      "row": 42,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-16BKDT2B",
+      "row": 43,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 19.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-18",
+      "row": 44,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-18BK",
+      "row": 45,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-18BK-GA",
+      "row": 46,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-18BK2B",
+      "row": 47,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-18BKDT",
+      "row": 48,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-18BKDT-GA",
+      "row": 49,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-18BKDT2B",
+      "row": 50,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-20",
+      "row": 51,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-20BK",
+      "row": 52,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-20BK-GA",
+      "row": 53,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-20BK2B",
+      "row": 54,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-20BKDT",
+      "row": 55,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-20BKDT-GA",
+      "row": 56,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70CH-20BKDT2B",
+      "row": 57,
+      "diff": {
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-18",
+      "row": 59,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-18BK",
+      "row": 60,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-18BK-GA",
+      "row": 61,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-18BK2B",
+      "row": 62,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 23.0,
+          "revised": 22.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-20",
+      "row": 63,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-20BK",
+      "row": 64,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-20BK-GA",
+      "row": 65,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70DM-20BK2B",
+      "row": 66,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 25.0,
+          "revised": 24.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70LR-14",
+      "row": 789,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70LR-14BK",
+      "row": 790,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70LR-14BK-P4",
+      "row": 791,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "70LR-14BK2B",
+      "row": 792,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70LR-16",
+      "row": 793,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70LR-16BK",
+      "row": 794,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70LR-16BK-GA",
+      "row": 795,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70LR-16BK-P4",
+      "row": 796,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 5.0
+        }
+      }
+    },
+    {
+      "item_number": "70LR-16BK2B",
+      "row": 797,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14",
+      "row": 654,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14R1A-4PBK",
+      "row": 655,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14R1A-4PBK-BRK2",
+      "row": 656,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14X",
+      "row": 657,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14XBK",
+      "row": 658,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14XBK-GA",
+      "row": 659,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14XBK4RG",
+      "row": 660,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14XBK4RG-GA",
+      "row": 661,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-14XBK4RG2B",
+      "row": 662,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16",
+      "row": 663,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16R1A-4PBK",
+      "row": 664,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16R1A-4PBK-BRK2",
+      "row": 665,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16X",
+      "row": 666,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16XBK",
+      "row": 667,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16XBK-GA",
+      "row": 668,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16XBK2B",
+      "row": 669,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16XBK4RG",
+      "row": 670,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16XBK4RG-GA",
+      "row": 671,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-16XBK4RG2B",
+      "row": 672,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18",
+      "row": 673,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18R1A-4PBK",
+      "row": 674,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18R1A-4PBK-BRK2",
+      "row": 675,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18X",
+      "row": 676,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18XBK",
+      "row": 677,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18XBK-GA",
+      "row": 678,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18XBK2B",
+      "row": 679,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18XBK4RG",
+      "row": 680,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18XBK4RG-GA",
+      "row": 681,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-18XBK4RG2B",
+      "row": 682,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20",
+      "row": 683,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20R1A-4PBK",
+      "row": 684,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20R1A-4PBK-BRK2",
+      "row": 685,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20X",
+      "row": 686,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20XBK",
+      "row": 687,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20XBK-GA",
+      "row": 688,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20XBK2B",
+      "row": 689,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20XBK4RG",
+      "row": 690,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20XBK4RG-GA",
+      "row": 691,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70PI-20XBK4RG2B",
+      "row": 692,
+      "diff": {
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "70SR-10-5WDD",
+      "row": 242,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 15.0,
+          "revised": 14.0
+        },
+        "stack_height": {
+          "current": 1.75,
+          "revised": 3.0
+        }
+      }
+    },
+    {
+      "item_number": "70ST-13",
+      "row": 742,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70ST-13BK",
+      "row": 743,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 18.0,
+          "revised": 17.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70ST-16",
+      "row": 744,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70ST-16BK",
+      "row": 745,
+      "diff": {
+        "tongue": {
+          "current": 5.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 21.0,
+          "revised": 20.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "70TV-12",
+      "row": 799,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-12BK",
+      "row": 800,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-12BK-GA",
+      "row": 801,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-12BK2B",
+      "row": 802,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-14",
+      "row": 803,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-14BK",
+      "row": 804,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-14BK-GA",
+      "row": 805,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-14BK2B",
+      "row": 806,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-16",
+      "row": 807,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-16BK",
+      "row": 808,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-16BK-GA",
+      "row": 809,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-16BK2B",
+      "row": 810,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-18",
+      "row": 811,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-18BK",
+      "row": 812,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "70TV-18BK2B",
+      "row": 813,
+      "diff": {
+        "stack_height": {
+          "current": 2.0,
+          "revised": 3.25
+        }
+      }
+    },
+    {
+      "item_number": "90SR-10",
+      "row": 244,
+      "diff": {
+        "tongue": {
+          "current": 3.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 13.0,
+          "revised": 14.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "90SR-10BK6SIR",
+      "row": 245,
+      "diff": {
+        "tongue": {
+          "current": 3.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 13.0,
+          "revised": 14.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "90SR-10BK7SIR",
+      "row": 246,
+      "diff": {
+        "tongue": {
+          "current": 3.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 13.0,
+          "revised": 14.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "90SR-12",
+      "row": 247,
+      "diff": {
+        "tongue": {
+          "current": 3.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 15.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "90SR-12BK6SIR",
+      "row": 248,
+      "diff": {
+        "tongue": {
+          "current": 3.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 15.0,
+          "revised": 16.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 4.0
+        }
+      }
+    },
+    {
+      "item_number": "EQ14-17+3",
+      "row": 360,
+      "diff": {
+        "mcat": {
+          "current": "OL EQUIPMENT",
+          "revised": "EQUIPMENT HAULER"
+        },
+        "tongue": {
+          "current": 4.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "EQ16-17+3",
+      "row": 362,
+      "diff": {
+        "mcat": {
+          "current": "OL EQUIPMENT",
+          "revised": "EQUIPMENT HAULER"
+        },
+        "tongue": {
+          "current": 4.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "SU35-12BK4RG",
+      "row": 608,
+      "diff": {
+        "mcat": {
+          "current": "OL SINGLE AXLE",
+          "revised": "SINGLE AXLE"
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "SU35-14BK4RG",
+      "row": 609,
+      "diff": {
+        "mcat": {
+          "current": "OL SINGLE AXLE",
+          "revised": "SINGLE AXLE"
+        },
+        "stack_height": {
+          "current": 1.0,
+          "revised": 2.0
+        }
+      }
+    },
+    {
+      "item_number": "TC14-14BK",
+      "row": 250,
+      "diff": {
+        "mcat": {
+          "current": "OL DUMP",
+          "revised": "DUMP"
+        },
+        "tongue": {
+          "current": 6.0,
+          "revised": 4.0
+        },
+        "total_footprint": {
+          "current": 20.0,
+          "revised": 18.0
+        },
+        "stack_height": {
+          "current": 2.5,
+          "revised": 3.0
+        }
+      }
+    },
+    {
+      "item_number": "TH10-20BK4CR",
+      "row": 68,
+      "diff": {
+        "mcat": {
+          "current": "OL CAR HAULER",
+          "revised": "CAR HAULER"
+        },
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "TH70-18BK4AR2B",
+      "row": 70,
+      "diff": {
+        "mcat": {
+          "current": "OL CAR HAULER",
+          "revised": "CAR HAULER"
+        },
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 22.0,
+          "revised": 21.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "TH70-20BK4AR2B",
+      "row": 71,
+      "diff": {
+        "mcat": {
+          "current": "OL CAR HAULER",
+          "revised": "CAR HAULER"
+        },
+        "tongue": {
+          "current": 4.0,
+          "revised": 3.0
+        },
+        "total_footprint": {
+          "current": 24.0,
+          "revised": 23.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "TT14-20BK",
+      "row": 747,
+      "diff": {
+        "mcat": {
+          "current": "OL TILT",
+          "revised": "TILT DECK"
+        },
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "TT14-22BK",
+      "row": 748,
+      "diff": {
+        "mcat": {
+          "current": "OL TILT",
+          "revised": "TILT DECK"
+        },
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 27.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "TT16-20BK",
+      "row": 750,
+      "diff": {
+        "mcat": {
+          "current": "OL TILT",
+          "revised": "TILT DECK"
+        },
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 26.0,
+          "revised": 25.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "TT16-22BK",
+      "row": 751,
+      "diff": {
+        "mcat": {
+          "current": "OL TILT",
+          "revised": "TILT DECK"
+        },
+        "tongue": {
+          "current": 6.0,
+          "revised": 5.0
+        },
+        "total_footprint": {
+          "current": 28.0,
+          "revised": 27.0
+        },
+        "stack_height": {
+          "current": 0.75,
+          "revised": 1.5
+        }
+      }
+    },
+    {
+      "item_number": "TU10-20BK4CR",
+      "row": 694,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "TU14-20BK4CR",
+      "row": 696,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "TU60-16BK4AR2B",
+      "row": 698,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "TU60-16BK4RG2B",
+      "row": 699,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "TU70-18BK4AR2B",
+      "row": 701,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "TU70-18BK4RG2B",
+      "row": 702,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "TU70-20BK4AR2B",
+      "row": 703,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    },
+    {
+      "item_number": "TU70-20BK4RG2B",
+      "row": 704,
+      "diff": {
+        "mcat": {
+          "current": "OL TANDEM AXLE",
+          "revised": "TANDEM AXLE"
+        },
+        "stack_height": {
+          "current": 1.25,
+          "revised": 2.5
+        }
+      }
+    }
+  ],
+  "new_items": [],
+  "missing_items": [],
+  "formula_mismatch": [
+    {
+      "item_number": "10CH-16",
+      "row": 8,
+      "bed_length": 16.0,
+      "tongue": 3.0,
+      "recorded_total": 23.0,
+      "calculated_total": 19.0
+    },
+    {
+      "item_number": "10CH-16BKDT",
+      "row": 9,
+      "bed_length": 16.0,
+      "tongue": 3.0,
+      "recorded_total": 20.0,
+      "calculated_total": 19.0
+    },
+    {
+      "item_number": "10CH-18",
+      "row": 10,
+      "bed_length": 18.0,
+      "tongue": 3.0,
+      "recorded_total": 22.0,
+      "calculated_total": 21.0
+    },
+    {
+      "item_number": "10CH-18BK",
+      "row": 11,
+      "bed_length": 18.0,
+      "tongue": 3.0,
+      "recorded_total": 22.0,
+      "calculated_total": 21.0
+    },
+    {
+      "item_number": "10CH-18BKDT",
+      "row": 12,
+      "bed_length": 18.0,
+      "tongue": 3.0,
+      "recorded_total": 22.0,
+      "calculated_total": 21.0
+    },
+    {
+      "item_number": "10CH-20",
+      "row": 13,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    },
+    {
+      "item_number": "10CH-20BK",
+      "row": 14,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    },
+    {
+      "item_number": "10CH-20BKDT",
+      "row": 15,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    },
+    {
+      "item_number": "10CH-20BKDT5FUR",
+      "row": 16,
+      "bed_length": 20.0,
+      "tongue": 3.0,
+      "recorded_total": 24.0,
+      "calculated_total": 23.0
+    }
+  ],
+  "parse_issues": [],
+  "duplicate_items": []
+}
