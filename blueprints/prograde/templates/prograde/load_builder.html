@@ -13,17 +13,18 @@ body {
   overflow: hidden;
 }
 .canvas-top-bar {
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-default);
-  padding: 10px var(--space-xl);
+  background: linear-gradient(120deg, rgba(12, 22, 38, 0.96), rgba(12, 27, 46, 0.94));
+  border-bottom: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.08);
+  padding: 10px var(--space-xl) 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .pg-top-left {
-  flex: 1 1 320px;
+  flex: 1 1 360px;
   min-width: 280px;
   display: flex;
   align-items: center;
@@ -36,8 +37,8 @@ body {
   width: 100%;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  background: linear-gradient(120deg, rgba(11, 20, 37, 0.95), rgba(11, 34, 55, 0.82));
-  padding: 8px 12px;
+  background: linear-gradient(120deg, rgba(6, 17, 34, 0.95), rgba(13, 37, 60, 0.84));
+  padding: 9px 12px;
 }
 .pg-session-id-row {
   display: flex;
@@ -80,22 +81,28 @@ body {
   color: var(--text-tertiary);
 }
 .pg-top-middle {
-  flex: 1 1 420px;
+  flex: 1 1 460px;
   min-width: 360px;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
+.pg-top-meta-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .pg-top-actions {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 4px;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-default);
-  background: rgba(15, 23, 42, 0.66);
+  border: 1px solid rgba(71, 85, 105, 0.72);
+  background: rgba(2, 6, 23, 0.55);
 }
 .pg-action-btn {
   min-height: 30px;
@@ -112,6 +119,39 @@ body {
 .pg-action-save:hover {
   background: linear-gradient(135deg, #1d4ed8, #0284c7);
   border-color: rgba(147, 197, 253, 0.72);
+}
+.pg-carrier-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: rgba(15, 23, 42, 0.55);
+}
+.pg-carrier-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.pg-carrier-select {
+  min-width: 146px;
+  height: 30px;
+  padding: 4px 28px 4px 9px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: rgba(2, 6, 23, 0.7);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.pg-carrier-select:focus {
+  border-color: rgba(59, 130, 246, 0.75);
+  outline: none;
 }
 .pg-layout {
   display: flex;
@@ -900,10 +940,10 @@ body {
   fill: rgba(59, 130, 246, 0.008);
 }
 .prograde-schematic [data-drop-zone][data-drop-side] {
-  fill: rgba(56, 189, 248, 0.09);
-  stroke: rgba(125, 211, 252, 0.34);
-  stroke-width: 1.1;
-  stroke-dasharray: 5 4;
+  fill: rgba(30, 64, 175, 0.12);
+  stroke: rgba(125, 211, 252, 0.42);
+  stroke-width: 1.15;
+  stroke-dasharray: 4 4;
 }
 .prograde-schematic [data-stack-drop].drop-target-active {
   fill: rgba(125, 211, 252, 0.16) !important;
@@ -919,10 +959,11 @@ body {
   fill: rgba(125, 211, 252, 0.1) !important;
 }
 .prograde-schematic [data-drop-zone][data-drop-side].drop-target-active {
-  fill: rgba(56, 189, 248, 0.34) !important;
+  fill: rgba(56, 189, 248, 0.46) !important;
   stroke: rgba(186, 230, 253, 0.95);
-  stroke-width: 2.2;
+  stroke-width: 2.4;
   stroke-dasharray: none;
+  filter: drop-shadow(0 0 7px rgba(56, 189, 248, 0.55));
 }
 .prograde-schematic .pg-spatial-unit.stack-dragging .pg-unit-body {
   stroke: rgba(125, 211, 252, 0.72) !important;
@@ -1707,12 +1748,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.9);
   background: rgba(15, 23, 42, 0.95);
-  font-size: 10px;
+  font-size: 12px;
   font-family: var(--font-mono);
   font-weight: 800;
   color: #f8fafc;
@@ -2114,10 +2155,23 @@ body {
   </div>
 
   <div class="pg-top-middle">
-    <div class="brand-path-group" aria-label="Create load">
-      <span class="brand-path-label">Brand</span>
-      <span class="brand-path-btn active">{{ "Big Tex" if selected_brand == "bigtex" else "PJ" }}</span>
-      <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}">Create Load</a>
+    <div class="pg-top-meta-group">
+      <div class="brand-path-group" aria-label="Create load">
+        <span class="brand-path-label">Brand</span>
+        <span class="brand-path-btn active">{{ "Big Tex" if selected_brand == "bigtex" else "PJ" }}</span>
+        <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}">Create Load</a>
+      </div>
+      <div class="pg-carrier-group" aria-label="Truck type">
+        <span class="pg-carrier-label">Truck</span>
+        <select id="pg-carrier-select"
+                class="pg-carrier-select"
+                data-current-value="{{ session.carrier_type }}"
+                onchange="updateCarrierType(this)">
+          {% for option in carrier_options or [] %}
+          <option value="{{ option.carrier_type }}" {% if option.carrier_type == session.carrier_type %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
     <div id="violation-summary">
       {% if violations_error > 0 %}
@@ -2136,11 +2190,11 @@ body {
     <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
     <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
     <a href="{{ url_for('prograde.export_load_pdf', session_id=session.session_id, brand=selected_brand) }}"
-       class="btn btn-secondary btn-sm pg-action-btn" target="_blank">Download PDF</a>
+       class="btn btn-secondary btn-sm pg-action-btn">Download PDF</a>
     <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
   </div>
   <div class="pg-drag-hint-row">
-    <span>Drag unit body to move entire stack. Drag unit number badge to move only that unit.</span>
+    <span>Drag unit body to move entire stack. Drag unit number badge to move only that unit. On lower deck, hover left/right zones to choose the exact stack side.</span>
     <span id="stack-drag-live-indicator" class="stack-drag-live-indicator hidden" aria-live="polite"></span>
   </div>
 </div>
@@ -3619,6 +3673,49 @@ async function toggleDumpDoor(positionId) {
   }
 }
 
+async function nestUnit(positionId, nestedInsideId) {
+  if (!positionId || !nestedInsideId) return;
+  try {
+    await postSession("/nest", { position_id: positionId, nested_inside: nestedInsideId });
+    await refreshBuilderFragments();
+    showToast("Unit nested inside dump.", "success");
+  } catch (e) {
+    showToast(`Nest failed: ${e.message}`, "error");
+  }
+}
+
+async function unnestUnit(positionId) {
+  if (!positionId) return;
+  try {
+    await postSession("/nest", { position_id: positionId, action: "clear" });
+    await refreshBuilderFragments();
+    showToast("Unit returned to stacked position.", "success");
+  } catch (e) {
+    showToast(`Unnest failed: ${e.message}`, "error");
+  }
+}
+
+async function updateCarrierType(selectEl) {
+  const select = selectEl && selectEl.tagName ? selectEl : document.getElementById("pg-carrier-select");
+  if (!select) return;
+  const nextCarrier = String(select.value || "").trim();
+  const currentCarrier = String(select.dataset.currentValue || select.getAttribute("data-current-value") || "").trim();
+  if (!nextCarrier || nextCarrier === currentCarrier) return;
+  const originalValue = currentCarrier || nextCarrier;
+  try {
+    select.disabled = true;
+    await postSession("/carrier", { carrier_type: nextCarrier });
+    select.dataset.currentValue = nextCarrier;
+    await refreshBuilderFragments();
+    showToast(`Truck type updated: ${select.options[select.selectedIndex]?.text || nextCarrier}`, "success");
+  } catch (e) {
+    select.value = originalValue;
+    showToast(`Truck switch failed: ${e.message}`, "error");
+  } finally {
+    select.disabled = false;
+  }
+}
+
 async function toggleAxleDrop(positionId, checkbox) {
   try {
     await postSession("/toggle_axle_drop", { position_id: positionId });
@@ -4239,6 +4336,10 @@ function initSkuDragAndDrop() {
     const { left, right } = getLowerDeckSideDropTargets();
     if (left) left.classList.remove("drop-target-active");
     if (right) right.classList.remove("drop-target-active");
+    const leftLabel = document.getElementById("pg-lower-side-label-left");
+    const rightLabel = document.getElementById("pg-lower-side-label-right");
+    if (leftLabel) leftLabel.classList.remove("active");
+    if (rightLabel) rightLabel.classList.remove("active");
   };
 
   const setLowerDeckSideHighlight = (side) => {
@@ -4247,8 +4348,14 @@ function initSkuDragAndDrop() {
     if (!normalizedSide) return null;
     const { left, right } = getLowerDeckSideDropTargets();
     const target = normalizedSide === "right" ? right : left;
+    const targetLabel = document.getElementById(
+      normalizedSide === "right" ? "pg-lower-side-label-right" : "pg-lower-side-label-left"
+    );
     if (target) {
       target.classList.add("drop-target-active");
+    }
+    if (targetLabel) {
+      targetLabel.classList.add("active");
     }
     return target || null;
   };
@@ -4495,8 +4602,10 @@ function initSkuDragAndDrop() {
         const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
         if (lowerDeckPlan && lowerDeckPlan.side) {
           const sideLabel = lowerDeckPlan.side === "right" ? "right stack" : "left stack";
+          setLowerDeckSideHighlight(lowerDeckPlan.side);
           setDragLiveText(`Moving unit. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
         } else {
+          clearLowerDeckSideHighlights();
           setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
         }
       }
@@ -4532,9 +4641,11 @@ function initSkuDragAndDrop() {
       const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "right side" : "left side";
+        setLowerDeckSideHighlight(lowerDeckPlan.side);
         setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
         return;
       }
+      clearLowerDeckSideHighlights();
       const insertIndex = getInsertIndexFromDeckPointer(zone, evt);
       showDeckInsertMarker(zone, insertIndex, target);
       setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);

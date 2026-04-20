@@ -2067,6 +2067,22 @@ def get_access_profile(profile_id):
         ).fetchone()
 
 
+def get_access_profile_by_name(name):
+    normalized = _normalize_profile_name(name)
+    if not normalized:
+        return None
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT id, name, is_admin, created_at, updated_at
+            FROM prograde_access_profiles
+            WHERE lower(name)=lower(?)
+            LIMIT 1
+            """,
+            (normalized,),
+        ).fetchone()
+
+
 def create_access_profile(name, is_admin=False):
     normalized = _normalize_profile_name(name)
     if not normalized:
@@ -2206,6 +2222,19 @@ def save_session(session_id):
         )
         return conn.execute(
             "SELECT session_id, status, is_saved, updated_at FROM load_sessions WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+
+
+def update_session_carrier_type(session_id, carrier_type):
+    ts = datetime.utcnow().isoformat()
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE load_sessions SET carrier_type=?, updated_at=? WHERE session_id=?",
+            (carrier_type, ts, session_id),
+        )
+        return conn.execute(
+            "SELECT session_id, carrier_type, updated_at FROM load_sessions WHERE session_id=?",
             (session_id,),
         ).fetchone()
 

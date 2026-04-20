@@ -35,11 +35,13 @@ Try 2 at building a web optimization app.
 - Landing page for ProGrade account access is `/prograde` (also available at `/prograde/account`) with:
   - account dropdown selection
   - quick add account by name
+- When a user is already signed into COT, ProGrade now attempts to auto-select (or auto-create) a matching ProGrade account from the active COT profile name.
 - Once selected, the active account persists in the current user session and is used for new load creation.
 - New loads inherit the currently selected ProGrade account as the builder and display that user in the All Sessions table.
 - `All Sessions` (`/prograde/sessions`) is owner-scoped by default:
   - admin accounts can view all saved sessions
   - planner accounts only see sessions they built
+- Load Builder includes a `Truck` dropdown in the top header so planners can switch session carrier type between configured trailer profiles (for example `53_step_deck` and `53_flatbed`).
 - Default admin account name is seeded from `PROGRADE_DEFAULT_ADMIN_NAME`; fallback is OS `USERNAME` (or `Admin`).
 
 ## Setup

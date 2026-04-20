@@ -44,6 +44,11 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
     def _create_planner_profile(self, name):
         return int(self.db.create_access_profile(name=name, is_admin=False))
 
+    def _set_cot_profile(self, name, role="planner"):
+        with self.client.session_transaction() as sess:
+            sess["profile_name"] = str(name)
+            sess["role"] = str(role)
+
     def test_session_hidden_from_all_sessions_until_saved(self):
         profile_id = self._create_planner_profile("Workflow Tester")
         self._set_active_profile(profile_id)
@@ -193,6 +198,12 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertIn("Select Account", html)
         self.assertIn('name="brand" value="pj"', html)
 
+    def test_root_route_redirects_to_sessions_when_cot_profile_present(self):
+        self._set_cot_profile("COT Auto Planner", role="planner")
+        resp = self.client.get("/prograde/?brand=bigtex", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/prograde/sessions?brand=bigtex", resp.headers.get("Location", ""))
+
     def test_account_landing_shows_account_selection(self):
         resp = self.client.get("/prograde/account?brand=bigtex")
         self.assertEqual(resp.status_code, 200)
@@ -242,6 +253,123 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/prograde/account?", resp.headers.get("Location", ""))
 
+    def test_sessions_auto_activates_profile_from_cot_session(self):
+        self._set_cot_profile("COT Planner", role="planner")
+        resp = self.client.get("/prograde/sessions?brand=bigtex", follow_redirects=False)
+        self.assertEqual(resp.status_code, 200)
+        with self.client.session_transaction() as sess:
+            self.assertIsNotNone(sess.get("prograde_profile_id"))
+            self.assertEqual(sess.get("prograde_profile_name"), "COT Planner")
+            self.assertEqual(int(sess.get("prograde_profile_is_admin") or 0), 0)
+
+    def test_session_carrier_can_be_switched_via_api(self):
+        profile_id = self._create_planner_profile("Carrier API Tester")
+        self._set_active_profile(profile_id)
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_flatbed", "bigtex", 53.0, 13.5, 53.0, 0.0, 4.0, 0.0, 0.0, "test flatbed"),
+            )
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "Carrier API Tester",
+            "Carrier Switch Session",
+            created_by_profile_id=profile_id,
+            created_by_name="Carrier API Tester",
+        )
+        resp = self.client.post(
+            f"/prograde/api/session/{session_id}/carrier",
+            json={"carrier_type": "53_flatbed"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["carrier_type"], "53_flatbed")
+        updated = self.db.get_session(session_id)
+        self.assertEqual(updated["carrier_type"], "53_flatbed")
+
+    def test_nest_api_can_nest_and_clear_nested_state(self):
+        profile_id = self._create_planner_profile("Nest API Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "Nest API Tester",
+            "Nest Session",
+            created_by_profile_id=profile_id,
+            created_by_name="Nest API Tester",
+        )
+        host_id = str(uuid.uuid4())
+        guest_id = str(uuid.uuid4())
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, can_nest_inside_dump, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-DUMP-HOST", "DV", "dump_lowside", 16.0, 16.0, 3.0, 19.0, 0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, can_nest_inside_dump, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-NEST-GUEST", "D5", "dump_small", 6.0, 6.0, 1.0, 7.0, 1),
+            )
+
+        self.db.add_position(
+            position_id=host_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-DUMP-HOST",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=guest_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-NEST-GUEST",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+        )
+
+        nest_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/nest",
+            json={"position_id": guest_id, "nested_inside": host_id},
+        )
+        self.assertEqual(nest_resp.status_code, 200)
+        nested_row = self.db.get_position(guest_id)
+        self.assertEqual(int(nested_row["is_nested"] or 0), 1)
+        self.assertEqual(nested_row["nested_inside"], host_id)
+
+        clear_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/nest",
+            json={"position_id": guest_id, "action": "clear"},
+        )
+        self.assertEqual(clear_resp.status_code, 200)
+        cleared_row = self.db.get_position(guest_id)
+        self.assertEqual(int(cleared_row["is_nested"] or 0), 0)
+        self.assertIsNone(cleared_row["nested_inside"])
+
     def test_sessions_scope_planner_vs_admin(self):
         planner_one_id = self._create_planner_profile("Planner One")
         planner_two_id = self._create_planner_profile("Planner Two")
@@ -287,6 +415,28 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
     def test_session_new_stamps_builder_from_selected_account(self):
         profile_id = self.db.create_access_profile("Builder User")
         self._set_active_profile(profile_id)
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-SEED-001", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
 
         create_resp = self.client.get("/prograde/session/new?brand=bigtex", follow_redirects=False)
         self.assertEqual(create_resp.status_code, 302)
@@ -300,6 +450,88 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(row["created_by_profile_id"], profile_id)
         self.assertEqual(row["created_by_name"], "Builder User")
         self.assertEqual(row["planner_name"], "Builder User")
+
+    def test_bigtex_same_direction_stack_uses_half_tongue_occupancy_in_canvas(self):
+        profile_id = self.db.create_access_profile("BT Tongue Half Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Tongue Half Tester",
+            "BT Half Tongue Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Tongue Half Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-HALF-001", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        left_position_id = str(uuid.uuid4())
+        right_position_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=left_position_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-001",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=right_position_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-001",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+            is_rotated=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+        units_by_id = {str(row.get("position_id")): row for row in canvas.get("enriched_positions") or []}
+        left_unit = units_by_id[left_position_id]
+        right_unit = units_by_id[right_position_id]
+
+        self.assertAlmostEqual(float(left_unit.get("render_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertAlmostEqual(float(left_unit.get("occupied_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertFalse(bool(left_unit.get("bt_half_tongue_stuffed")))
+        self.assertAlmostEqual(float(right_unit.get("render_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertAlmostEqual(float(right_unit.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
+        self.assertTrue(bool(right_unit.get("bt_half_tongue_stuffed")))
 
     def test_pj_add_stack_can_enable_gooseneck_crisscross(self):
         profile_id = self.db.create_access_profile("PJ Crisscross Planner")

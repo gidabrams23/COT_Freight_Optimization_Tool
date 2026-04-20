@@ -114,6 +114,18 @@
 }
 .pg-zone-chip.lower { left: 24px; }
 .pg-zone-chip.upper { right: 24px; }
+.pg-lower-side-label {
+  pointer-events: none;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  fill: rgba(148, 163, 184, 0.68);
+}
+.pg-lower-side-label.active {
+  fill: rgba(224, 242, 254, 0.98);
+}
 .pg-side-gauge {
   position: absolute;
   width: 56px;
@@ -382,6 +394,8 @@
           {% set lower_half_w = lower_drop_w / 2 %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="left"/>
           <rect x="{{ margin_l + lower_half_w }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="right"/>
+          <text id="pg-lower-side-label-left" class="pg-lower-side-label" x="{{ margin_l + (lower_half_w / 2) }}" y="{{ stack_plot_y + 14 }}" text-anchor="middle">Left Stack</text>
+          <text id="pg-lower-side-label-right" class="pg-lower-side-label" x="{{ margin_l + lower_half_w + (lower_half_w / 2) }}" y="{{ stack_plot_y + 14 }}" text-anchor="middle">Right Stack</text>
         {% else %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_drop_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck"/>
         {% endif %}
@@ -460,10 +474,10 @@
               {% if pos.is_nested and pos.nested_inside %}
                 {% set nested_host = (enriched_positions | selectattr('position_id', 'equalto', pos.nested_inside) | list | first) %}
               {% endif %}
-              {% if nested_host and (pos.model or '') == 'D5' %}
+              {% if nested_host %}
                 {% set host_deck_len = (nested_host.deck_length_ft or nested_host.bed_length or 0) | float %}
                 {% set host_x_start = (nested_host.deck_x_start_ft if nested_host.deck_x_start_ft is defined else nested_host.x_ft) | float %}
-                {% set x_start_ft = host_x_start + ((host_deck_len - deck_len) / 2) %}
+                {% set x_start_ft = host_x_start + ([((host_deck_len - deck_len) / 2), 0] | max) %}
                 {% set x_end_ft = x_start_ft + deck_len %}
               {% endif %}
               {% set gn_pair = namespace(backshift_steps=0) %}
@@ -483,7 +497,13 @@
               {% endif %}
               {% set x_end_ft = x_start_ft + deck_len %}
               {% set y_surface_ft = (pos.y_surface_ft if pos.y_surface_ft is defined else (lower_surface_ft if zone == 'lower_deck' else upper_surface_ft)) | float %}
-              {% set y_top_ft = (pos.y_body_top_ft if pos.y_body_top_ft is defined else (y_surface_ft + deck_h)) | float %}
+              {% if nested_host %}
+                {% set host_surface_ft = (nested_host.y_surface_ft if nested_host.y_surface_ft is defined else y_surface_ft) | float %}
+                {% set host_body_h_ft = (nested_host.deck_component_height_ft or nested_host.height or 0) | float %}
+                {% set nested_raise_ft = [[host_body_h_ft * 0.26, 1.1] | min, 0.35] | max %}
+                {% set y_surface_ft = host_surface_ft + nested_raise_ft %}
+              {% endif %}
+              {% set y_top_ft = (pos.y_body_top_ft if (pos.y_body_top_ft is defined and not nested_host) else (y_surface_ft + deck_h)) | float %}
               {% set x_start_px = margin_l + x_start_ft * px_per_ft %}
               {% set x_end_px = margin_l + x_end_ft * px_per_ft %}
               {% set body_top_px = (ground_y - (y_top_ft - display_floor_ft) * py_per_ft) %}
@@ -615,6 +635,17 @@
                 {% set door_y = door_max_y %}
               {% endif %}
               {% set door_y = [door_y, render_top_y + 0.2] | max %}
+              {% set show_nest_control = (session.brand == 'pj' and ((pos.can_nest_now and pos.nest_host_position_id) or pos.is_nested)) %}
+              {% set nest_h = [door_h, 8] | max %}
+              {% set nest_w = [door_w, 22] | max %}
+              {% set nest_x = door_x %}
+              {% set nest_y_base = (door_y + door_h + 1.2) if (session.brand == 'pj' and is_dump_profile) else (btn_y + btn_size + 1.2) %}
+              {% set nest_y = nest_y_base %}
+              {% set nest_max_y = render_bottom_y - nest_h - 0.8 %}
+              {% if nest_y > nest_max_y %}
+                {% set nest_y = nest_max_y %}
+              {% endif %}
+              {% set nest_y = [nest_y, render_top_y + 0.2] | max %}
               {% set control_strip_pad = 4.0 %}
               {% set control_strip_x0 = [rotate_x - control_strip_pad, render_x0 - 2.0] | max %}
               {% set control_strip_x1 = [delete_x + btn_size + control_strip_pad, render_x1 + 2.0] | min %}
@@ -622,6 +653,9 @@
               {% set control_strip_y1 = btn_y + btn_size + control_strip_pad %}
               {% if is_dump_profile %}
                 {% set control_strip_y1 = [control_strip_y1, door_y + door_h + control_strip_pad] | max %}
+              {% endif %}
+              {% if show_nest_control %}
+                {% set control_strip_y1 = [control_strip_y1, nest_y + nest_h + control_strip_pad] | max %}
               {% endif %}
               {% set control_strip_y1 = [control_strip_y1, render_bottom_y + 1.0] | min %}
               {% set control_strip_w = [control_strip_x1 - control_strip_x0, 10] | max %}
@@ -638,9 +672,9 @@
                 {% set unit_badge_cy = unit_badge_max_y %}
               {% endif %}
               {% set source_marker = '+' if add_source == 'inventory_gap' else '' %}
-              {% set source_marker_r = [unit_badge_r * 0.82, 6.0] | max %}
-              {% set source_marker_r = [source_marker_r, 8.2] | min %}
-              {% set source_marker_cx = unit_badge_cx + unit_badge_r + source_marker_r + 1.0 %}
+              {% set source_marker_r = [unit_badge_r * 0.92, 7.2] | max %}
+              {% set source_marker_r = [source_marker_r, 9.6] | min %}
+              {% set source_marker_cx = unit_badge_cx + unit_badge_r + source_marker_r + 2.0 %}
               {% set source_marker_cy = unit_badge_cy %}
               {% set rear_notch_w_px = [[rear_clear_len_ft * px_per_ft, body_w_px - 4] | min, 0] | max %}
               {% set rear_notch_h_px = [[rear_clear_h_ft * py_per_ft, body_h_px - 3] | min, 0] | max %}
@@ -861,6 +895,23 @@
                   <rect x="{{ door_x }}" y="{{ door_y }}" width="{{ door_w }}" height="{{ door_h }}" rx="2" fill="rgba(15,23,42,0.90)" stroke="#f59e0b" stroke-width="1"/>
                   <text x="{{ door_x + (door_w / 2) }}" y="{{ door_y + (door_h * 0.73) }}" text-anchor="middle" font-size="{{ [door_h * 0.72, 7.8] | min }}" font-weight="700" fill="#f59e0b">
                     {% if pos.dump_door_removed %}Door Off{% else %}Door On{% endif %}
+                  </text>
+                </g>
+                {% endif %}
+                {% if show_nest_control %}
+                <g class="pg-unit-control pg-unit-control-nest"
+                   style="cursor:pointer"
+                   onmousedown="event.stopPropagation();"
+                   onclick="event.stopPropagation(); {% if pos.is_nested %}unnestUnit('{{ pos.position_id }}'){% else %}nestUnit('{{ pos.position_id }}','{{ pos.nest_host_position_id }}'){% endif %};">
+                  <rect x="{{ nest_x - 3 }}" y="{{ nest_y - 3 }}" width="{{ nest_w + 6 }}" height="{{ nest_h + 6 }}" rx="4" fill="transparent" stroke="none"/>
+                  <rect x="{{ nest_x }}" y="{{ nest_y }}" width="{{ nest_w }}" height="{{ nest_h }}" rx="2"
+                        fill="{% if pos.is_nested %}rgba(14, 116, 144, 0.58){% else %}rgba(13, 148, 136, 0.46){% endif %}"
+                        stroke="{% if pos.is_nested %}#67e8f9{% else %}#5eead4{% endif %}"
+                        stroke-width="1"/>
+                  <text x="{{ nest_x + (nest_w / 2) }}" y="{{ nest_y + (nest_h * 0.73) }}" text-anchor="middle"
+                        font-size="{{ [nest_h * 0.72, 7.8] | min }}" font-weight="700"
+                        fill="{% if pos.is_nested %}#cffafe{% else %}#ccfbf1{% endif %}">
+                    {% if pos.is_nested %}Unnest{% else %}Nest{% endif %}
                   </text>
                 </g>
                 {% endif %}

@@ -100,6 +100,8 @@ This is the fastest path for ProGrade edits. It maps common requests to the exac
   - `POST /prograde/api/session/<session_id>/rotate`
   - `POST /prograde/api/session/<session_id>/toggle_axle_drop`
   - `POST /prograde/api/session/<session_id>/toggle_dump_door`
+  - `POST /prograde/api/session/<session_id>/nest`
+  - `POST /prograde/api/session/<session_id>/carrier`
 - Drag/drop:
   - `POST /prograde/api/session/<session_id>/position/move`
   - `POST /prograde/api/session/<session_id>/column/move`

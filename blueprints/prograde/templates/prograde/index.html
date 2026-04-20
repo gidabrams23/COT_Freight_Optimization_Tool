@@ -81,7 +81,7 @@
               <td>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                   <a href="{{ url_for('prograde.load_builder', session_id=s.session_id, brand=selected_brand) }}" class="btn btn-secondary btn-sm">Open</a>
-                  <a href="{{ url_for('prograde.export_load', session_id=s.session_id, brand=selected_brand) }}" class="btn btn-ghost btn-sm" target="_blank">Export</a>
+                  <a href="{{ url_for('prograde.export_load_pdf', session_id=s.session_id, brand=selected_brand) }}" class="btn btn-ghost btn-sm">PDF</a>
                   <form method="POST" action="{{ url_for('prograde.session_delete', session_id=s.session_id) }}" onsubmit="return confirm('Delete this session?');">
                     <button type="submit" class="btn btn-ghost btn-sm">Delete</button>
                   </form>

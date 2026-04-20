@@ -65,6 +65,8 @@ SESSION_PROFILE_ID_KEY = "prograde_profile_id"
 SESSION_PROFILE_NAME_KEY = "prograde_profile_name"
 SESSION_PROFILE_IS_ADMIN_KEY = "prograde_profile_is_admin"
 SESSION_ACCOUNT_NOTICE_KEY = "prograde_account_notice"
+COT_SESSION_PROFILE_NAME_KEY = "profile_name"
+COT_SESSION_ROLE_KEY = "role"
 Image = None
 ImageDraw = None
 ImageFont = None
@@ -319,7 +321,7 @@ def _session_or_404(session_id):
     row = db.get_session(session_id)
     if not row:
         return None, _json_error("Session not found", 404)
-    active_profile = _get_active_profile()
+    active_profile = _get_or_auto_active_profile()
     if not active_profile:
         return None, _json_error("Select a ProGrade account to continue.", 401)
     if not _can_access_session(row, active_profile):
@@ -400,6 +402,37 @@ def _set_active_profile(profile):
     return view
 
 
+def _cot_profile_hint():
+    name = str(session.get(COT_SESSION_PROFILE_NAME_KEY) or "").strip()
+    if not name:
+        return None
+    role = str(session.get(COT_SESSION_ROLE_KEY) or "").strip().lower()
+    is_admin = role in {"admin", "administrator"}
+    return {"name": name, "is_admin": is_admin}
+
+
+def _auto_activate_profile_from_cot_session():
+    hint = _cot_profile_hint()
+    if not hint:
+        return None
+    profile = db.get_access_profile_by_name(hint["name"])
+    if not profile:
+        try:
+            profile_id = db.create_access_profile(name=hint["name"], is_admin=hint["is_admin"])
+            profile = db.get_access_profile(profile_id)
+        except Exception:
+            current_app.logger.exception("Failed to auto-create ProGrade account from active COT session")
+            return None
+    return _set_active_profile(profile) if profile else None
+
+
+def _get_or_auto_active_profile():
+    active = _get_active_profile()
+    if active:
+        return active
+    return _auto_activate_profile_from_cot_session()
+
+
 def _resolve_session_builder_name(session_row):
     payload = dict(session_row or {})
     created_by_name = (payload.get("created_by_name") or "").strip()
@@ -431,7 +464,7 @@ def _session_page_or_redirect(session_id):
     if not row:
         return None, ("Session not found", 404)
     brand = (dict(row).get("brand") or "bigtex").strip().lower() or "bigtex"
-    active_profile = _get_active_profile()
+    active_profile = _get_or_auto_active_profile()
     if not active_profile:
         _set_account_notice("Select an account to continue.", level="warning")
         next_url = request.full_path if request.query_string else request.path
@@ -440,6 +473,54 @@ def _session_page_or_redirect(session_id):
         _set_account_notice("Planner accounts can only open their own sessions.", level="error")
         return None, redirect(url_for("prograde.sessions", brand=brand))
     return row, None
+
+
+def _carrier_type_label(carrier_type):
+    key = str(carrier_type or "").strip().lower()
+    if key == "53_step_deck":
+        return "53' Step Deck"
+    if key == "53_flatbed":
+        return "53' Flatbed"
+    raw = str(carrier_type or "").strip()
+    if not raw:
+        return "Carrier"
+    return raw.replace("_", " ").title()
+
+
+def _carrier_type_options_for_brand(brand):
+    rows = [dict(row) for row in db.get_carrier_configs() or []]
+    by_type = {str(row.get("carrier_type") or "").strip(): row for row in rows if row.get("carrier_type")}
+    preferred = ["53_step_deck", "53_flatbed"]
+    ordered = [ctype for ctype in preferred if ctype in by_type]
+    for ctype in sorted(by_type.keys()):
+        if ctype not in ordered:
+            ordered.append(ctype)
+    options = []
+    brand_key = (brand or "").strip().lower()
+    for ctype in ordered:
+        row = by_type.get(ctype) or {}
+        row_brand = str(row.get("brand") or "").strip().lower()
+        if row_brand and row_brand != brand_key and ctype not in {"53_step_deck", "53_flatbed"}:
+            continue
+        options.append(
+            {
+                "carrier_type": ctype,
+                "label": _carrier_type_label(ctype),
+            }
+        )
+    return options
+
+
+def _resolve_requested_carrier_type(brand, requested_value=None):
+    requested = str(requested_value or "").strip()
+    options = _carrier_type_options_for_brand(brand)
+    allowed = {opt["carrier_type"] for opt in options}
+    if requested and requested in allowed:
+        return requested
+    default_type = _default_carrier_type_for_brand(brand)
+    if default_type in allowed:
+        return default_type
+    return options[0]["carrier_type"] if options else default_type
 
 
 def _default_carrier_type_for_brand(_brand: str) -> str:
@@ -506,6 +587,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
     p = dict(pos)
     p["gn_axle_dropped"] = bool(p.get("gn_axle_dropped"))
     p["is_rotated"] = bool(p.get("is_rotated"))
+    p["is_nested"] = bool(p.get("is_nested"))
+    p["nested_inside"] = p.get("nested_inside")
     p["violation"] = False
     p["is_top_layer"] = False
     if brand == "pj":
@@ -1226,6 +1309,8 @@ def _apply_bt_same_direction_tongue_stuffing(zone_cols):
                 0.0,
             )
             occupied_tongue_ft = max(_as_float(occupied_tongue_by_seq.get(seq), render_tongue_ft), 0.0)
+            if render_tongue_ft > 0.0:
+                occupied_tongue_ft = min(occupied_tongue_ft, render_tongue_ft)
             stuffed_half = occupied_tongue_ft + 1e-9 < render_tongue_ft
             prev_occupied_tongue = _as_float(base.get("occupied_tongue_length_ft"), render_tongue_ft)
             prev_occupied_footprint = _as_float(base.get("occupied_footprint_ft"), deck_len_ft + render_tongue_ft)
@@ -1406,6 +1491,42 @@ def _assign_unit_sequence_numbers(enriched_positions):
         pos["unit_sequence_num"] = int(sequence_by_position.get(pid, 0))
 
 
+def _annotate_dump_nesting_candidates(zone_cols, *, brand):
+    if brand != "pj":
+        return
+    for cols in (zone_cols or {}).values():
+        for col in (cols or {}).values():
+            ordered = sorted((col or []), key=lambda p: int(_as_float(p.get("layer"), 0)))
+            for pos in ordered:
+                pos["is_nested"] = bool(pos.get("is_nested"))
+                pos["nested_inside"] = pos.get("nested_inside")
+                pos["nest_host_position_id"] = None
+                pos["can_nest_now"] = False
+            for idx in range(1, len(ordered)):
+                unit = ordered[idx]
+                if bool(unit.get("is_nested")):
+                    continue
+                if not bool(unit.get("can_nest_inside_dump")):
+                    continue
+                host = ordered[idx - 1]
+                if str(host.get("deck_profile") or "").strip().lower() != "dump":
+                    continue
+                host_deck_len = _as_float(
+                    host.get("deck_length_ft"),
+                    _as_float(host.get("bed_length"), 0.0),
+                )
+                guest_footprint = _as_float(
+                    unit.get("render_footprint_ft"),
+                    _as_float(unit.get("footprint"), 0.0),
+                )
+                if host_deck_len <= 0 or guest_footprint <= 0:
+                    continue
+                if guest_footprint > host_deck_len + 1e-9:
+                    continue
+                unit["nest_host_position_id"] = host.get("position_id")
+                unit["can_nest_now"] = True
+
+
 def _format_session_display_id(session):
     session_dict = dict(session or {})
     brand_key = (session_dict.get("brand") or "").strip().lower()
@@ -1482,7 +1603,7 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
         raise RuntimeError("PDF export requires Pillow. Install dependencies from requirements.txt.")
     page_w = 1650
     page_h = 1275
-    img = Image.new("RGB", (page_w, page_h), (243, 247, 252))
+    img = Image.new("RGB", (page_w, page_h), (248, 250, 252))
     draw = ImageDraw.Draw(img)
 
     f_title = _pdf_font(34, bold=True)
@@ -1513,6 +1634,25 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
     subtitle = f"{brand.upper() if brand else 'PROGRADE'} | {session_dict.get('carrier_type') or ''} | Planner: {planner_name}"
     draw.text((margin, margin), title, font=f_title, fill=(15, 23, 42))
     draw.text((margin, margin + 38), subtitle, font=f_sub, fill=(71, 85, 105))
+    summary_cards = [
+        ("Units", str(len(canvas.get("manifest_rows") or []))),
+        ("Errors", str(int(_as_float(canvas.get("violations_error"), 0)))),
+        ("Warnings", str(int(_as_float(canvas.get("violations_warning"), 0)))),
+    ]
+    card_w = 96
+    card_h = 44
+    card_gap = 8
+    cards_total_w = (len(summary_cards) * card_w) + ((len(summary_cards) - 1) * card_gap)
+    card_x = page_w - margin - cards_total_w
+    for label, value in summary_cards:
+        x0 = card_x
+        y0 = margin + 6
+        x1 = x0 + card_w
+        y1 = y0 + card_h
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=9, fill=(255, 255, 255), outline=(148, 163, 184), width=1)
+        draw.text((x0 + 10, y0 + 7), label, font=f_tiny, fill=(100, 116, 139))
+        draw.text((x0 + 10, y0 + 21), value, font=f_label, fill=(15, 23, 42))
+        card_x += card_w + card_gap
 
     draw.rounded_rectangle(
         (margin, schematic_top, page_w - margin, schematic_bottom),
@@ -1692,6 +1832,7 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
         width=2,
     )
     draw.text((margin + 14, manifest_top + 10), "Manifest", font=f_label, fill=(15, 23, 42))
+    draw.text((margin + 118, manifest_top + 12), "Inventory Gap unit indicator: +", font=f_small, fill=(71, 85, 105))
 
     manifest_rows = list(canvas.get("manifest_rows") or [])
     table_left = margin + 12
@@ -2841,6 +2982,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         p["violation"] = str(p.get("position_id") or "") in violated_position_ids
 
     _assign_unit_sequence_numbers(enriched)
+    _annotate_dump_nesting_candidates(zone_cols, brand=brand)
 
     # After running check, mark stale session as active
     db.mark_session_active(session_id)
@@ -2906,13 +3048,17 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
 
 @prograde_bp.route("/")
 def index():
+    selected_brand = _selected_brand(default="bigtex")
+    active_profile = _get_or_auto_active_profile()
+    if active_profile:
+        return redirect(url_for("prograde.sessions", brand=selected_brand))
     return account_landing()
 
 
 @prograde_bp.route("/account")
 def account_landing():
     selected_brand = _selected_brand(default="bigtex")
-    active_profile = _get_active_profile()
+    active_profile = _get_or_auto_active_profile()
     account_notice = _consume_account_notice()
     accounts = [_profile_to_view(row) for row in db.list_access_profiles()]
     next_url = _safe_next_url(request.args.get("next")) or url_for("prograde.sessions", brand=selected_brand)
@@ -2929,7 +3075,7 @@ def account_landing():
 @prograde_bp.route("/sessions")
 def sessions():
     selected_brand = _selected_brand(default="bigtex")
-    active_profile = _get_active_profile()
+    active_profile = _get_or_auto_active_profile()
     if not active_profile:
         _set_account_notice("Select or create an account to continue.", level="warning")
         next_url = request.full_path if request.query_string else request.path
@@ -2997,7 +3143,7 @@ def account_create():
 @prograde_bp.route("/session/new", methods=["GET", "POST"])
 def session_new():
     brand = _selected_brand(default="bigtex")
-    active_profile = _get_active_profile()
+    active_profile = _get_or_auto_active_profile()
     if not active_profile:
         _set_account_notice("Select an account before creating a load.", level="warning")
         next_url = request.full_path if request.query_string else request.path
@@ -3009,7 +3155,10 @@ def session_new():
         session_id = str(uuid.uuid4())
         session_label = (request.args.get("label") or "").strip()
         planner_name = active_profile["name"]
-        carrier_type = _default_carrier_type_for_brand(brand)
+        carrier_type = _resolve_requested_carrier_type(
+            brand,
+            request.args.get("carrier_type"),
+        )
         db.create_session(
             session_id,
             brand,
@@ -3025,14 +3174,12 @@ def session_new():
         brand = (request.form.get("brand") or "").strip().lower()
         if brand not in _VALID_BRANDS:
             brand = _selected_brand(default="bigtex")
-        carrier_type = _default_carrier_type_for_brand(brand)
+        carrier_type = _resolve_requested_carrier_type(
+            brand,
+            request.form.get("carrier_type"),
+        )
         planner_name = active_profile["name"]
         session_label = request.form.get("session_label", "").strip()
-
-        # Enforce 53' step deck for both brands.
-        step_deck = db.get_carrier_config("53_step_deck")
-        if step_deck:
-            carrier_type = "53_step_deck"
 
         carrier = db.get_carrier_config(carrier_type)
         if not carrier:
@@ -3093,7 +3240,8 @@ def load_builder(session_id):
     }
     session_display_id = _format_session_display_id(session_row)
     selected_brand = _selected_brand(default=brand)
-    active_profile = _get_active_profile()
+    active_profile = _get_or_auto_active_profile()
+    carrier_options = _carrier_type_options_for_brand(brand)
 
     return render_template(
         "prograde/load_builder.html",
@@ -3286,6 +3434,34 @@ def api_save_session(session_id):
         status=saved_row["status"],
         is_saved=bool(saved_row["is_saved"]),
         updated_at=saved_row["updated_at"],
+    )
+
+
+@prograde_bp.route("/api/session/<session_id>/carrier", methods=["POST"])
+def api_update_session_carrier(session_id):
+    session_row, err = _session_or_404(session_id)
+    if err:
+        return err
+    session_map = dict(session_row or {})
+    brand = (session_map.get("brand") or "bigtex").strip().lower() or "bigtex"
+    payload = request.get_json(silent=True) or {}
+    requested = str(payload.get("carrier_type") or "").strip()
+    if not requested:
+        return _json_error("carrier_type required")
+    allowed = {opt["carrier_type"] for opt in _carrier_type_options_for_brand(brand)}
+    if requested not in allowed:
+        return _json_error("Unsupported carrier_type")
+    carrier = db.get_carrier_config(requested)
+    if not carrier:
+        return _json_error("Carrier type not found", 404)
+    updated = db.update_session_carrier_type(session_id, requested)
+    if not updated:
+        return _json_error("Session not found", 404)
+    return jsonify(
+        ok=True,
+        session_id=updated["session_id"],
+        carrier_type=updated["carrier_type"],
+        updated_at=updated["updated_at"],
     )
 
 
@@ -3722,20 +3898,67 @@ def api_toggle_dump_door(session_id):
 
 @prograde_bp.route("/api/session/<session_id>/nest", methods=["POST"])
 def api_nest_unit(session_id):
-    _session, err = _session_or_404(session_id)
+    session_row, err = _session_or_404(session_id)
     if err:
         return err
 
+    session_map = dict(session_row or {})
+    if (session_map.get("brand") or "").strip().lower() != "pj":
+        return _json_error("Nesting is currently available for PJ sessions only.", 400)
+
     data = request.get_json(silent=True) or {}
     position_id = data.get("position_id")
+    action = str(data.get("action") or "").strip().lower()
     nested_inside_id = data.get("nested_inside")
-    if not position_id or not nested_inside_id:
-        return _json_error("position_id and nested_inside required")
+    if not position_id:
+        return _json_error("position_id required")
 
     pos = db.get_position(position_id)
+    if not pos or pos["session_id"] != session_id:
+        return _json_error("Position not found", 404)
+
+    if action in {"clear", "unnest"} or not nested_inside_id:
+        try:
+            db.update_position_field(position_id, "is_nested", 0)
+            db.update_position_field(position_id, "nested_inside", None)
+            return jsonify(ok=True, state=_build_session_api_state(session_id))
+        except Exception:
+            current_app.logger.exception("Failed to clear nested state for ProGrade session %s", session_id)
+            return _json_error("Failed to clear nested state", 500)
+
     host = db.get_position(nested_inside_id)
     if not pos or not host or pos["session_id"] != session_id or host["session_id"] != session_id:
         return _json_error("Position not found", 404)
+
+    pos_map = dict(pos)
+    host_map = dict(host)
+    if str(pos_map.get("deck_zone") or "") != str(host_map.get("deck_zone") or ""):
+        return _json_error("Nesting requires both units to be on the same deck.", 400)
+    if int(_as_float(pos_map.get("sequence"), 0)) != int(_as_float(host_map.get("sequence"), 0)):
+        return _json_error("Nesting requires both units to be in the same stack.", 400)
+    if int(_as_float(pos_map.get("layer"), 0)) <= int(_as_float(host_map.get("layer"), 0)):
+        return _json_error("Only units stacked above a dump can be nested.", 400)
+
+    host_sku = dict(db.get_pj_sku(host_map.get("item_number")) or {})
+    if _pj_render_deck_profile(host_sku) != "dump":
+        return _json_error("Selected host is not a dump profile.", 400)
+
+    guest_sku = dict(db.get_pj_sku(pos_map.get("item_number")) or {})
+    if not bool(guest_sku.get("can_nest_inside_dump")):
+        return _json_error("Selected unit is not configured as nestable.", 400)
+
+    host_deck_len = _as_float(
+        host_sku.get("bed_length_measured") or host_sku.get("bed_length_stated"),
+        _as_float(host_map.get("deck_length_ft"), _as_float(host_map.get("bed_length"), 0.0)),
+    )
+    guest_footprint = _as_float(
+        guest_sku.get("total_footprint"),
+        _as_float(pos_map.get("render_footprint_ft"), _as_float(pos_map.get("footprint"), 0.0)),
+    )
+    if host_deck_len <= 0 or guest_footprint <= 0:
+        return _json_error("Unable to evaluate nesting dimensions for selected units.", 400)
+    if guest_footprint > host_deck_len + 1e-9:
+        return _json_error("Unit footprint exceeds dump deck length; cannot nest.", 400)
 
     try:
         db.update_position_field(position_id, "is_nested", 1)
