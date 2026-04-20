@@ -3,7 +3,8 @@ from datetime import datetime
 from pathlib import Path
 import tempfile
 import re
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, current_app, session
+from io import BytesIO
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, current_app, session, send_file
 from jinja2 import ChoiceLoader, DictLoader
 
 from . import db
@@ -64,6 +65,25 @@ SESSION_PROFILE_ID_KEY = "prograde_profile_id"
 SESSION_PROFILE_NAME_KEY = "prograde_profile_name"
 SESSION_PROFILE_IS_ADMIN_KEY = "prograde_profile_is_admin"
 SESSION_ACCOUNT_NOTICE_KEY = "prograde_account_notice"
+Image = None
+ImageDraw = None
+ImageFont = None
+
+
+def _ensure_pillow_available():
+    global Image, ImageDraw, ImageFont
+    if Image is not None and ImageDraw is not None and ImageFont is not None:
+        return True
+    try:
+        from PIL import Image as _Image
+        from PIL import ImageDraw as _ImageDraw
+        from PIL import ImageFont as _ImageFont
+    except Exception:
+        return False
+    Image = _Image
+    ImageDraw = _ImageDraw
+    ImageFont = _ImageFont
+    return True
 
 
 def _json_error(message, status=400):
@@ -1404,6 +1424,352 @@ def _format_session_display_id(session):
         created_at_raw,
     )
     return f"{prefix} {date_label} #{sequence}"
+
+
+def _pdf_safe_filename(value, fallback="prograde_load_summary"):
+    raw = str(value or "").strip()
+    if not raw:
+        raw = fallback
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", raw).strip("._-")
+    return cleaned or fallback
+
+
+def _pdf_font(size, *, bold=False):
+    if not _ensure_pillow_available():
+        raise RuntimeError("Pillow is not installed.")
+    candidates = [
+        "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf",
+        "Arial Bold.ttf" if bold else "Arial.ttf",
+        "arialbd.ttf" if bold else "arial.ttf",
+    ]
+    for name in candidates:
+        try:
+            return ImageFont.truetype(name, size=size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _pdf_hex_rgb(value, fallback=(100, 116, 139)):
+    raw = str(value or "").strip()
+    if not raw:
+        return fallback
+    if raw.startswith("#"):
+        raw = raw[1:]
+    if len(raw) == 3:
+        raw = "".join(ch * 2 for ch in raw)
+    if len(raw) != 6:
+        return fallback
+    try:
+        return tuple(int(raw[idx:idx + 2], 16) for idx in (0, 2, 4))
+    except ValueError:
+        return fallback
+
+
+def _draw_dashed_hline(draw, x0, x1, y, *, dash=10, gap=7, fill=(239, 68, 68), width=2):
+    left = int(round(min(x0, x1)))
+    right = int(round(max(x0, x1)))
+    top = int(round(y))
+    x = left
+    while x < right:
+        seg_right = min(x + dash, right)
+        draw.line([(x, top), (seg_right, top)], fill=fill, width=width)
+        x = seg_right + gap
+
+
+def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id):
+    if not _ensure_pillow_available():
+        raise RuntimeError("PDF export requires Pillow. Install dependencies from requirements.txt.")
+    page_w = 1650
+    page_h = 1275
+    img = Image.new("RGB", (page_w, page_h), (243, 247, 252))
+    draw = ImageDraw.Draw(img)
+
+    f_title = _pdf_font(34, bold=True)
+    f_sub = _pdf_font(18)
+    f_label = _pdf_font(15, bold=True)
+    f_body = _pdf_font(14)
+    f_small = _pdf_font(12)
+    f_tiny = _pdf_font(10)
+    f_manifest = _pdf_font(11)
+    f_manifest_bold = _pdf_font(11, bold=True)
+
+    margin = 36
+    header_h = 60
+    schematic_top = margin + header_h + 8
+    schematic_bottom = 780
+    manifest_top = schematic_bottom + 10
+    manifest_bottom = page_h - margin
+
+    session_dict = dict(session_row or {})
+    brand = str(session_dict.get("brand") or "").strip().lower()
+    planner_name = str(
+        session_dict.get("builder_name")
+        or session_dict.get("planner_name")
+        or "Unassigned"
+    ).strip()
+
+    title = f"Load Summary {session_display_id or str(session_dict.get('session_id') or '')[:8]}"
+    subtitle = f"{brand.upper() if brand else 'PROGRADE'} | {session_dict.get('carrier_type') or ''} | Planner: {planner_name}"
+    draw.text((margin, margin), title, font=f_title, fill=(15, 23, 42))
+    draw.text((margin, margin + 38), subtitle, font=f_sub, fill=(71, 85, 105))
+
+    draw.rounded_rectangle(
+        (margin, schematic_top, page_w - margin, schematic_bottom),
+        radius=12,
+        fill=(255, 255, 255),
+        outline=(148, 163, 184),
+        width=2,
+    )
+    draw.text((margin + 14, schematic_top + 10), "Load Schematic", font=f_label, fill=(15, 23, 42))
+
+    carrier_map = _row_to_dict(carrier)
+    total_len_ft = max(_as_float(carrier_map.get("total_length_ft"), 53.0), 1.0)
+    step_x_ft = _as_float(carrier_map.get("lower_deck_length_ft"), 41.5)
+    lower_surface_ft = _as_float(carrier_map.get("lower_deck_ground_height_ft"), 3.5)
+    upper_surface_ft = _as_float(carrier_map.get("upper_deck_ground_height_ft"), 5.0)
+    max_height_ft = _as_float(carrier_map.get("max_height_ft"), 13.5)
+
+    clearances = _row_to_dict(canvas.get("clearances") or {})
+    lower_cap = max(_as_float(clearances.get("lower_deck"), 10.0), 0.1)
+    upper_cap = max(_as_float(clearances.get("upper_deck"), 8.5), 0.1)
+    outline_max = _row_to_dict(canvas.get("max_rendered_outline_ft_by_zone") or {})
+    stacked_max = _row_to_dict(canvas.get("max_stacked_ft_by_zone") or {})
+    lower_used = _as_float(outline_max.get("lower_deck"), _as_float(stacked_max.get("lower_deck"), 0.0))
+    upper_used = _as_float(outline_max.get("upper_deck"), _as_float(stacked_max.get("upper_deck"), 0.0))
+    step_height_ft = max(upper_surface_ft - lower_surface_ft, 0.0)
+
+    plot_left = margin + 110
+    plot_right = page_w - margin - 110
+    plot_top = schematic_top + 50
+    plot_bottom = schematic_top + 470
+    ground_y = plot_bottom - 18
+    guide_y = plot_top + 14
+
+    required_span = max(
+        lower_cap,
+        upper_cap + step_height_ft,
+        lower_used * 1.10,
+        (upper_used + step_height_ft) * 1.10,
+        max_height_ft - lower_surface_ft,
+        8.0,
+    )
+    py_per_ft = (ground_y - guide_y) / required_span
+    px_per_ft = (plot_right - plot_left) / total_len_ft
+
+    lower_y = ground_y
+    upper_y = ground_y - (upper_surface_ft - lower_surface_ft) * py_per_ft
+    max_h_y = ground_y - (max_height_ft - lower_surface_ft) * py_per_ft
+    step_x = plot_left + step_x_ft * px_per_ft
+    trailer_end_x = plot_left + total_len_ft * px_per_ft
+
+    draw.rectangle((plot_left, plot_top, trailer_end_x, plot_bottom), fill=(248, 251, 255), outline=(203, 213, 225), width=1)
+    _draw_dashed_hline(draw, plot_left, trailer_end_x, max_h_y, fill=(239, 68, 68), width=2)
+    draw.text((plot_left + 4, max_h_y - 18), f"Max Height {max_height_ft:.1f} ft", font=f_tiny, fill=(185, 28, 28))
+    draw.line((plot_left, lower_y, step_x, lower_y), fill=(71, 85, 105), width=4)
+    draw.line((step_x, lower_y, step_x, upper_y), fill=(71, 85, 105), width=4)
+    draw.line((step_x, upper_y, trailer_end_x, upper_y), fill=(71, 85, 105), width=4)
+    draw.line((step_x, guide_y, step_x, ground_y), fill=(148, 163, 184), width=1)
+
+    draw.text((plot_left + 8, plot_top + 4), "LOWER DECK", font=f_small, fill=(30, 64, 175))
+    draw.text((step_x + 8, plot_top + 4), "UPPER DECK", font=f_small, fill=(30, 64, 175))
+
+    gauge_w = 36
+    left_gx = plot_left - 56
+    right_gx = trailer_end_x + 20
+    draw.rounded_rectangle((left_gx, guide_y, left_gx + gauge_w, lower_y), radius=10, outline=(125, 211, 252), fill=(241, 245, 249), width=2)
+    draw.rounded_rectangle((right_gx, guide_y, right_gx + gauge_w, upper_y), radius=10, outline=(125, 211, 252), fill=(241, 245, 249), width=2)
+
+    lower_fill_h = min(lower_used * py_per_ft, max(lower_y - guide_y - 2, 0))
+    upper_fill_h = min(upper_used * py_per_ft, max(upper_y - guide_y - 2, 0))
+    if lower_fill_h > 1:
+        draw.rounded_rectangle((left_gx + 2, lower_y - lower_fill_h, left_gx + gauge_w - 2, lower_y - 2), radius=8, fill=(34, 197, 94))
+    if upper_fill_h > 1:
+        draw.rounded_rectangle((right_gx + 2, upper_y - upper_fill_h, right_gx + gauge_w - 2, upper_y - 2), radius=8, fill=(59, 130, 246))
+    draw.text((left_gx - 3, guide_y - 18), f"{lower_cap:.1f}ft", font=f_tiny, fill=(30, 41, 59))
+    draw.text((right_gx - 3, guide_y - 18), f"{upper_cap:.1f}ft", font=f_tiny, fill=(30, 41, 59))
+    draw.text((left_gx - 2, lower_y + 4), f"{lower_used:.1f}", font=f_tiny, fill=(30, 41, 59))
+    draw.text((right_gx - 2, upper_y + 4), f"{upper_used:.1f}", font=f_tiny, fill=(30, 41, 59))
+
+    total_footprint = _as_float(canvas.get("total_footprint"), 0.0)
+    zone_lengths = _row_to_dict(canvas.get("zone_lengths") or {})
+    draw.text((trailer_end_x - 280, schematic_top + 10), f"Total: {total_footprint:.1f} / {total_len_ft:.1f} ft", font=f_small, fill=(15, 23, 42))
+    draw.text((trailer_end_x - 280, schematic_top + 30), f"Lower: {_as_float(zone_lengths.get('lower_deck'), 0.0):.1f} ft", font=f_tiny, fill=(51, 65, 85))
+    draw.text((trailer_end_x - 280, schematic_top + 46), f"Upper: {_as_float(zone_lengths.get('upper_deck'), 0.0):.1f} ft", font=f_tiny, fill=(51, 65, 85))
+
+    positions = list(canvas.get("enriched_positions") or [])
+    positions.sort(key=lambda pos: (int(_as_float(pos.get("layer"), 0)), _as_float(pos.get("deck_x_start_ft"), _as_float(pos.get("x_ft"), 0.0))))
+    for pos in positions:
+        zone = str(pos.get("deck_zone") or "").strip().lower()
+        x0_ft = _as_float(pos.get("deck_x_start_ft"), _as_float(pos.get("x_ft"), 0.0))
+        x1_ft = _as_float(pos.get("deck_x_end_ft"), x0_ft)
+        if x1_ft <= x0_ft:
+            fallback_len = max(_as_float(pos.get("render_footprint_ft"), _as_float(pos.get("footprint"), 1.0)), 1.0)
+            x1_ft = x0_ft + fallback_len
+
+        y_surface_ft = _as_float(pos.get("y_surface_ft"), upper_surface_ft if zone == "upper_deck" else lower_surface_ft)
+        y_top_ft = _as_float(pos.get("y_body_top_ft"), y_surface_ft + max(_as_float(pos.get("stacking_height_ft"), _as_float(pos.get("height"), 1.0)), 1.0))
+
+        x0 = plot_left + (x0_ft * px_per_ft)
+        x1 = plot_left + (x1_ft * px_per_ft)
+        y1 = ground_y - ((y_surface_ft - lower_surface_ft) * py_per_ft)
+        y0 = ground_y - ((y_top_ft - lower_surface_ft) * py_per_ft)
+
+        if y1 - y0 < 14:
+            y0 = y1 - 14
+        if x1 - x0 < 18:
+            x1 = x0 + 18
+
+        accent = _pdf_hex_rgb(pos.get("category_accent"), fallback=(100, 116, 139))
+        fill = tuple(min(255, int(ch + (255 - ch) * 0.70)) for ch in accent)
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=4, fill=fill, outline=accent, width=2)
+
+        unit_badge_r = 9
+        badge_cx = x0 + unit_badge_r + 3
+        badge_cy = y0 + unit_badge_r + 3
+        draw.ellipse((badge_cx - unit_badge_r, badge_cy - unit_badge_r, badge_cx + unit_badge_r, badge_cy + unit_badge_r), fill=(15, 23, 42), outline=accent, width=1)
+        unit_seq = str(int(_as_float(pos.get("unit_sequence_num"), 0)) or "")
+        draw.text((badge_cx - 5, badge_cy - 6), unit_seq, font=f_tiny, fill=(241, 245, 249))
+
+        if str(pos.get("add_source") or "").strip().lower() == "inventory_gap":
+            plus_r = 8
+            plus_cx = badge_cx + unit_badge_r + plus_r + 2
+            plus_cy = badge_cy
+            draw.ellipse((plus_cx - plus_r, plus_cy - plus_r, plus_cx + plus_r, plus_cy + plus_r), fill=(245, 158, 11), outline=(180, 83, 9), width=1)
+            draw.text((plus_cx - 4, plus_cy - 7), "+", font=f_manifest_bold, fill=(255, 255, 255))
+
+        if brand == "bigtex":
+            sku_label = str(pos.get("item_number") or pos.get("item_code") or "").strip().upper()
+        else:
+            sku_label = str(pos.get("item_code") or pos.get("item_number") or "").strip().upper()
+        if not sku_label:
+            sku_label = "----"
+        font_size = 14
+        text_font = _pdf_font(font_size, bold=True)
+        text_box_w = max((x1 - x0) - 8, 20)
+        while font_size > 7 and draw.textlength(sku_label, font=text_font) > text_box_w:
+            font_size -= 1
+            text_font = _pdf_font(font_size, bold=True)
+        text_x = x0 + ((x1 - x0) - draw.textlength(sku_label, font=text_font)) / 2
+        text_y = y0 + ((y1 - y0) / 2) - 7
+        draw.text((text_x, text_y), sku_label, font=text_font, fill=(15, 23, 42))
+
+    measure_segments = _row_to_dict(canvas.get("measure_segments_by_zone") or {})
+    zone_origin = _row_to_dict(canvas.get("zone_origin_x_ft") or {})
+    bar_top = plot_bottom + 12
+    row_h = 28
+    for idx, zone in enumerate(("upper_deck", "lower_deck")):
+        y0 = bar_top + (idx * (row_h + 8))
+        y1 = y0 + row_h
+        draw.rounded_rectangle((plot_left, y0, trailer_end_x, y1), radius=6, fill=(241, 245, 249), outline=(203, 213, 225), width=1)
+        draw.text((plot_left - 62, y0 + 8), "Upper" if zone == "upper_deck" else "Lower", font=f_tiny, fill=(71, 85, 105))
+        for seg in list(measure_segments.get(zone) or []):
+            start_ft = _as_float(zone_origin.get(zone), 0.0) + _as_float(seg.get("x_local_ft"), 0.0)
+            length_ft = max(_as_float(seg.get("length_ft"), 0.0), 0.0)
+            if length_ft <= 0:
+                continue
+            seg_x0_ft = max(0.0, min(total_len_ft, start_ft))
+            seg_x1_ft = max(0.0, min(total_len_ft, start_ft + length_ft))
+            if seg_x1_ft <= seg_x0_ft:
+                continue
+            sx0 = plot_left + seg_x0_ft * px_per_ft
+            sx1 = plot_left + seg_x1_ft * px_per_ft
+            kind = str(seg.get("kind") or "").strip().lower()
+            if kind == "stack":
+                color = (56, 189, 248)
+            else:
+                color = (34, 197, 94)
+            draw.rounded_rectangle((sx0, y0 + 3, sx1, y1 - 3), radius=4, fill=color, outline=(255, 255, 255), width=1)
+            if (sx1 - sx0) > 46:
+                seg_label = f"{_as_float(seg.get('length_ft'), 0.0):.1f}ft"
+                draw.text((sx0 + 4, y0 + 8), seg_label, font=f_tiny, fill=(255, 255, 255))
+
+    draw.rounded_rectangle(
+        (margin, manifest_top, page_w - margin, manifest_bottom),
+        radius=12,
+        fill=(255, 255, 255),
+        outline=(148, 163, 184),
+        width=2,
+    )
+    draw.text((margin + 14, manifest_top + 10), "Manifest", font=f_label, fill=(15, 23, 42))
+
+    manifest_rows = list(canvas.get("manifest_rows") or [])
+    table_left = margin + 12
+    table_right = page_w - margin - 12
+    table_top = manifest_top + 36
+    table_bottom = manifest_bottom - 10
+    table_h = max(table_bottom - table_top, 20)
+
+    if not manifest_rows:
+        draw.text((table_left, table_top + 8), "No units on this load.", font=f_body, fill=(100, 116, 139))
+    else:
+        row_h = 16
+        max_cols = 4
+        rows_per_col = max(1, int((table_h - row_h) // row_h))
+        columns = max(1, min(max_cols, (len(manifest_rows) + rows_per_col - 1) // rows_per_col))
+        capacity = rows_per_col * columns
+        truncated = len(manifest_rows) > capacity
+        render_rows = manifest_rows[:capacity]
+
+        col_gap = 10
+        col_w = (table_right - table_left - (col_gap * (columns - 1))) / columns
+        compact = columns > 1
+        for col_idx in range(columns):
+            col_x0 = table_left + col_idx * (col_w + col_gap)
+            col_x1 = col_x0 + col_w
+            draw.rectangle((col_x0, table_top, col_x1, table_top + row_h), fill=(226, 232, 240), outline=(203, 213, 225))
+            if compact:
+                draw.text((col_x0 + 4, table_top + 3), "#", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 30, table_top + 3), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 72, table_top + 3), "FP", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 40, table_top + 3), "H", font=f_manifest_bold, fill=(15, 23, 42))
+            else:
+                draw.text((col_x0 + 4, table_top + 3), "#", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 28, table_top + 3), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 210, table_top + 3), "Bed", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 165, table_top + 3), "Tongue", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 98, table_top + 3), "FP", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 48, table_top + 3), "H", font=f_manifest_bold, fill=(15, 23, 42))
+
+            start = col_idx * rows_per_col
+            end = min(start + rows_per_col, len(render_rows))
+            for row_idx, row in enumerate(render_rows[start:end], start=1):
+                y0 = table_top + row_h + (row_idx - 1) * row_h
+                y1 = y0 + row_h
+                if row_idx % 2 == 0:
+                    draw.rectangle((col_x0, y0, col_x1, y1), fill=(248, 250, 252))
+                draw.rectangle((col_x0, y0, col_x1, y1), outline=(226, 232, 240))
+                unit_num = str(int(_as_float(row.get("unit_number"), 0)) or "")
+                sku = str(row.get("item_number") or row.get("item_code") or "").strip().upper()
+                fp = f"{_as_float(row.get('total_footprint'), 0.0):.1f}"
+                ht = f"{_as_float(row.get('height_each'), 0.0):.1f}"
+                draw.text((col_x0 + 4, y0 + 3), unit_num, font=f_manifest, fill=(15, 23, 42))
+                if compact:
+                    sku_clip = sku
+                    while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 124):
+                        sku_clip = sku_clip[:-1]
+                    draw.text((col_x0 + 30, y0 + 3), sku_clip, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 72, y0 + 3), fp, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 40, y0 + 3), ht, font=f_manifest, fill=(15, 23, 42))
+                else:
+                    bed = f"{_as_float(row.get('bed_length'), 0.0):.1f}"
+                    tongue = f"{_as_float(row.get('tongue_length'), 0.0):.1f}"
+                    sku_clip = sku
+                    while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 260):
+                        sku_clip = sku_clip[:-1]
+                    draw.text((col_x0 + 28, y0 + 3), sku_clip, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 210, y0 + 3), bed, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 165, y0 + 3), tongue, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 98, y0 + 3), fp, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 48, y0 + 3), ht, font=f_manifest, fill=(15, 23, 42))
+
+        if truncated:
+            hidden = len(manifest_rows) - len(render_rows)
+            draw.text((table_left, table_bottom - 12), f"+ {hidden} additional units not shown.", font=f_tiny, fill=(185, 28, 28))
+
+    out = BytesIO()
+    img.save(out, format="PDF", resolution=150.0)
+    return out.getvalue()
 
 
 def _normalize_pj_picker_category(raw_category):
@@ -2765,22 +3131,59 @@ def export_load(session_id):
     canvas = _build_canvas_data(session_id, session, carrier, zones, raw_positions, brand)
     selected_brand = _selected_brand(default=brand)
     active_profile = _get_active_profile()
+    session_display_id = _format_session_display_id(session_row)
+    auto_print = str(request.args.get("autoprint") or "").strip().lower() in {"1", "true", "yes", "y"}
 
     return render_template(
         "prograde/export.html",
         session=session,
+        session_display_id=session_display_id,
+        auto_print=auto_print,
         active_profile=active_profile,
         selected_brand=selected_brand,
         carrier=carrier,
         zones=zones,
         zone_labels=zone_labels,
-        positions=canvas["enriched_positions"],
-        zone_lengths=canvas["zone_lengths"],
-        zone_caps=canvas["z_caps"],
-        total_footprint=canvas["total_footprint"],
-        violations=canvas["violations"],
-        violations_error=canvas["violations_error"],
-        violations_warning=canvas["violations_warning"],
+        **canvas,
+    )
+
+
+@prograde_bp.route("/session/<session_id>/export.pdf")
+def export_load_pdf(session_id):
+    session_row, err = _session_page_or_redirect(session_id)
+    if err:
+        return err
+    session_dict = dict(session_row)
+    session_dict["builder_name"] = _resolve_session_builder_name(session_row)
+
+    brand = session_dict["brand"]
+    carrier_type = session_dict["carrier_type"]
+    carrier = db.get_carrier_config(carrier_type)
+    if not carrier:
+        return "Carrier configuration not found", 400
+    zones = brand_config.DECK_ZONES[brand]
+
+    raw_positions = db.get_positions(session_id)
+    canvas = _build_canvas_data(session_id, session_dict, carrier, zones, raw_positions, brand)
+    session_display_id = _format_session_display_id(session_row)
+    try:
+        pdf_bytes = _render_export_pdf_bytes(
+            session_row=session_dict,
+            carrier=carrier,
+            canvas=canvas,
+            session_display_id=session_display_id,
+        )
+    except RuntimeError as exc:
+        return str(exc), 500
+    except Exception:
+        current_app.logger.exception("Failed to generate PDF export for ProGrade session %s", session_id)
+        return "Failed to generate PDF export", 500
+    filename = _pdf_safe_filename(f"{session_display_id}_load_summary") + ".pdf"
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
     )
 
 

@@ -1,0 +1,251 @@
+2026-04-20 11:47:29,823 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-20 11:47:32,761 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-20 11:47:32,896 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-20 11:47:32,900 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-20 11:47:32,903 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-20 11:47:32,906 [WARNING] blueprints.cot.routes: ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); Microsoft SSO is disabled.
+2026-04-20 11:47:32,930 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-20 11:47:33,000 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-20 11:47:33,001 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-20 11:47:33,003 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-20 11:47:33,004 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-20 11:47:33,012 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-20 11:47:33,012 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+ * Serving Flask app 'blueprints.cot.routes'
+ * Debug mode: on
+2026-04-20 11:47:33,219 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-04-20 11:47:33,220 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-04-20 11:47:33,223 [INFO] werkzeug:  * Restarting with stat
+2026-04-20 11:47:33,431 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-20 11:47:34,841 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-20 11:47:34,986 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-20 11:47:34,987 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-20 11:47:34,988 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-20 11:47:34,988 [WARNING] blueprints.cot.routes: ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); Microsoft SSO is disabled.
+2026-04-20 11:47:34,995 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-20 11:47:35,015 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-20 11:47:35,015 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-20 11:47:35,018 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-20 11:47:35,018 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-20 11:47:35,022 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-20 11:47:35,023 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-20 11:47:35,193 [WARNING] werkzeug:  * Debugger is active!
+2026-04-20 11:47:35,204 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-04-20 11:47:36,540 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-04-20 11:47:36,541 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-04-20 11:47:36,544 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:47:36] "GET /healthz HTTP/1.1" 200 -
+2026-04-20 11:47:57,264 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-04-20 11:47:57,266 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-04-20 11:47:57,267 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:47:57] "GET /healthz HTTP/1.1" 200 -
+2026-04-20 11:48:46,579 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-04-20 11:48:46,629 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:46] "GET /login?next=/upload? HTTP/1.1" 200 -
+2026-04-20 11:48:46,691 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-04-20 11:48:46,695 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:46] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:48:46,921 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/favicon.ico
+2026-04-20 11:48:46,921 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:46] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-04-20 11:48:51,580 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/
+2026-04-20 11:48:51,608 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:51] "GET /prograde/ HTTP/1.1" 200 -
+2026-04-20 11:48:51,648 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-20 11:48:51,650 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:51] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:48:51,705 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-20 11:48:51,707 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-20 11:48:51,708 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:51] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-20 11:48:51,710 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:51] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-20 11:48:57,466 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-20 11:48:57,468 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:57] "[32mGET /prograde/sessions?brand=bigtex HTTP/1.1[0m" 302 -
+2026-04-20 11:48:57,480 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/account
+2026-04-20 11:48:57,489 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:57] "GET /prograde/account?brand=bigtex&next=/prograde/sessions?brand%3Dbigtex HTTP/1.1" 200 -
+2026-04-20 11:48:57,546 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-20 11:48:57,548 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:57] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:48:57,552 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-20 11:48:57,554 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-20 11:48:57,556 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:57] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-20 11:48:57,557 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:57] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-20 11:48:59,047 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/account/select
+2026-04-20 11:48:59,053 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:59] "[32mPOST /prograde/account/select HTTP/1.1[0m" 302 -
+2026-04-20 11:48:59,061 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-20 11:48:59,369 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:59] "GET /prograde/sessions?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:48:59,414 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-20 11:48:59,416 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:59] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:48:59,428 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-20 11:48:59,429 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-20 11:48:59,430 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:59] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-20 11:48:59,431 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:48:59] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-20 11:49:00,973 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load
+2026-04-20 11:49:01,480 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:01] "GET /prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:01,528 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-20 11:49:01,529 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:01] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:49:01,532 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-20 11:49:01,535 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-20 11:49:01,536 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:01] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-20 11:49:01,537 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:01] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-20 11:49:05,559 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/column/move
+2026-04-20 11:49:05,624 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:05] "POST /prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/column/move HTTP/1.1" 200 -
+2026-04-20 11:49:05,630 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load
+2026-04-20 11:49:05,708 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:05] "GET /prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:13,660 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/rotate
+2026-04-20 11:49:13,719 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:13] "POST /prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/rotate HTTP/1.1" 200 -
+2026-04-20 11:49:13,724 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load
+2026-04-20 11:49:13,853 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:13] "GET /prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:18,913 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/remove
+2026-04-20 11:49:18,961 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:18] "POST /prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/remove HTTP/1.1" 200 -
+2026-04-20 11:49:18,966 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load
+2026-04-20 11:49:19,050 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:19] "GET /prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:21,311 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/rotate
+2026-04-20 11:49:21,377 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:21] "POST /prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/rotate HTTP/1.1" 200 -
+2026-04-20 11:49:21,382 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load
+2026-04-20 11:49:21,458 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:21] "GET /prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:30,568 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/save
+2026-04-20 11:49:30,577 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:30] "POST /prograde/api/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/save HTTP/1.1" 200 -
+2026-04-20 11:49:30,582 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load
+2026-04-20 11:49:30,661 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:30] "GET /prograde/session/6ebef5f6-60c9-4494-bd5c-c8c0a9820a92/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:40,335 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/new
+2026-04-20 11:49:40,348 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:40] "[32mGET /prograde/session/new?brand=bigtex HTTP/1.1[0m" 302 -
+2026-04-20 11:49:40,354 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:49:40,398 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:40] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:40,433 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-20 11:49:40,434 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:40] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:49:40,436 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-20 11:49:40,437 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-20 11:49:40,439 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:40] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-20 11:49:40,440 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:40] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-20 11:49:43,174 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:49:43,220 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:43] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:49:43,230 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:49:43,302 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:43] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:45,323 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:49:45,385 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:45] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:49:45,391 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:49:45,466 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:45] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:48,381 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:49:48,430 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:48] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:49:48,437 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:49:48,516 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:48] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:50,785 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:49:50,832 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:50] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:49:50,838 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:49:50,928 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:50] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:53,937 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:49:53,992 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:53] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:49:53,997 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:49:54,088 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:54] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:49:56,744 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:49:56,796 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:56] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:49:56,802 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:49:56,888 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:49:56] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:02,317 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:50:02,363 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:02] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:50:02,370 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:02,455 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:02] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:06,330 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:50:06,382 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:06] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:50:06,388 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:06,482 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:06] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:08,095 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:50:08,130 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:08] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:50:08,136 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:08,194 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:08] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:08,861 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:50:08,913 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:08] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:50:08,919 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:09,006 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:09] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:09,783 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:50:09,825 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:09] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:50:09,831 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:09,922 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:09] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:22,895 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/rotate
+2026-04-20 11:50:22,992 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:22] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/rotate HTTP/1.1" 200 -
+2026-04-20 11:50:23,103 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:23,314 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:23] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:26,268 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:50:26,336 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:26] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:50:26,342 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:26,418 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:26] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:27,615 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:50:27,646 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:27] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:50:27,651 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:27,721 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:27] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:28,728 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:50:28,758 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:28] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:50:28,764 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:28,835 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:28] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:30,634 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:50:30,711 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:30] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:50:30,718 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:30,832 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:30] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:32,420 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:50:32,452 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:32] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:50:32,458 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:32,514 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:32] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:50:34,789 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:50:34,834 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:34] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:50:34,840 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:50:34,921 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:50:34] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:51:14,876 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:51:14,924 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:51:14] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:51:14,930 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:51:14,997 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:51:14] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:51:15,820 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:51:15,859 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:51:15] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:51:15,865 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:51:15,928 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:51:15] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:52:03,563 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/export
+2026-04-20 11:52:03,638 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:03] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/export?brand=bigtex&autoprint=1 HTTP/1.1" 200 -
+2026-04-20 11:52:03,673 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-20 11:52:03,674 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:03] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:52:03,787 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-20 11:52:03,788 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-20 11:52:03,789 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:03] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-20 11:52:03,790 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:03] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-20 11:52:22,936 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/export
+2026-04-20 11:52:22,988 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:22] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/export?brand=bigtex&autoprint=1 HTTP/1.1" 200 -
+2026-04-20 11:52:23,019 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-20 11:52:23,021 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:23] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-20 11:52:23,107 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-20 11:52:23,108 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-20 11:52:23,109 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:23] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-20 11:52:23,110 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:52:23] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-20 11:54:16,630 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/reset
+2026-04-20 11:54:16,684 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:16] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/reset HTTP/1.1" 200 -
+2026-04-20 11:54:16,701 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:54:16,921 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:16] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:54:19,781 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:54:19,837 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:19] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:54:19,843 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:54:19,911 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:19] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:54:22,023 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:54:22,079 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:22] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:54:22,086 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:54:22,180 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:22] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:54:25,020 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:54:25,066 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:25] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:54:25,072 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:54:25,153 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:25] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:54:28,085 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:54:28,151 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:28] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:54:28,157 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:54:28,252 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:54:28] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:55:00,915 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:55:00,960 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:00] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:55:00,965 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:55:01,040 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:01] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:55:02,540 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:55:02,592 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:02] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:55:02,598 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:55:02,715 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:02] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:55:08,885 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove
+2026-04-20 11:55:08,936 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:08] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/remove HTTP/1.1" 200 -
+2026-04-20 11:55:08,942 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:55:09,041 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:09] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:55:49,906 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:55:49,947 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:49] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:55:49,952 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:55:50,021 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:50] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:55:56,712 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add
+2026-04-20 11:55:56,781 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:56] "POST /prograde/api/session/f2fb48ee-3820-480b-8259-c2be45e22083/add HTTP/1.1" 200 -
+2026-04-20 11:55:56,786 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load
+2026-04-20 11:55:56,876 [INFO] werkzeug: 127.0.0.1 - - [20/Apr/2026 11:55:56] "GET /prograde/session/f2fb48ee-3820-480b-8259-c2be45e22083/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-20 11:56:35,921 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-20 11:56:36,104 [INFO] werkzeug:  * Restarting with stat
+2026-04-20 11:56:36,300 [INFO] blueprints.cot.routes: Verbose startup logging enabled.

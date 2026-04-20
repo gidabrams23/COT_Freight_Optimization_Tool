@@ -161,9 +161,16 @@ flowchart LR
 ### SQLite Location and Persistence
 - Runtime DB path resolution in `db.py`:
   - `APP_DB_PATH` if set.
+  - Else Azure App Service auto-default `/home/site/app.db` when App Service env variables exist.
   - Else Render-specific fallback `/var/data/app.db` when Render env variables exist.
   - Else local fallback `data/db/app.db`.
-- For Azure production, set explicit `APP_DB_PATH` (commonly `/home/site/app.db`) and ensure persistent storage is enabled.
+- Runtime ProGrade DB path resolution in `blueprints/prograde/db.py`:
+  - `PROGRADE_DB_PATH` if set.
+  - Else sibling `prograde.db` next to `APP_DB_PATH` when `APP_DB_PATH` is set.
+  - Else Azure App Service auto-default `/home/site/prograde.db` when App Service env variables exist.
+  - Else Render-specific fallback `/var/data/prograde.db` when Render env variables exist.
+  - Else local fallback `data/db/prograde.db`.
+- Azure defaults are now safe without explicit DB path env vars, but persistent App Service storage must still be enabled for restart durability.
 
 ### Core Entities (Operationally Important)
 - Order intake and planning:
@@ -229,7 +236,8 @@ flowchart LR
 #### Database / Seed Paths
 | Variable | Default in Code | Current Value in This Environment | Notes |
 |---|---|---|---|
-| `APP_DB_PATH` | env or derived fallback | (empty) | Set explicit persistent path in Azure (for example `/home/site/app.db`). |
+| `APP_DB_PATH` | env or derived fallback | (empty) | Optional override; when empty, Azure defaults to `/home/site/app.db`. |
+| `PROGRADE_DB_PATH` | env or derived fallback | (empty) | Optional override; when empty, defaults to `APP_DB_PATH` sibling or Azure `/home/site/prograde.db`. |
 | `APP_SEED_DIR` | `data/seed` | (empty) | Override only if seed location changes. |
 | `SQLITE_BUSY_TIMEOUT_SEC` | `30` | (empty) | DB lock wait timeout (seconds). |
 | `ACCESS_PROFILES_SEED_PATH` | `data/seed/access_profiles.csv` | (empty) | Optional override. |

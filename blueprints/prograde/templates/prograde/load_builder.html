@@ -899,6 +899,12 @@ body {
 .prograde-schematic [data-drop-zone] {
   fill: rgba(59, 130, 246, 0.008);
 }
+.prograde-schematic [data-drop-zone][data-drop-side] {
+  fill: rgba(56, 189, 248, 0.09);
+  stroke: rgba(125, 211, 252, 0.34);
+  stroke-width: 1.1;
+  stroke-dasharray: 5 4;
+}
 .prograde-schematic [data-stack-drop].drop-target-active {
   fill: rgba(125, 211, 252, 0.16) !important;
   stroke: rgba(125, 211, 252, 0.58);
@@ -911,6 +917,12 @@ body {
 }
 .prograde-schematic [data-drop-zone].drop-target-active {
   fill: rgba(125, 211, 252, 0.1) !important;
+}
+.prograde-schematic [data-drop-zone][data-drop-side].drop-target-active {
+  fill: rgba(56, 189, 248, 0.34) !important;
+  stroke: rgba(186, 230, 253, 0.95);
+  stroke-width: 2.2;
+  stroke-dasharray: none;
 }
 .prograde-schematic .pg-spatial-unit.stack-dragging .pg-unit-body {
   stroke: rgba(125, 211, 252, 0.72) !important;
@@ -1691,6 +1703,23 @@ body {
   border-style: dashed;
   border-width: 1.2px;
 }
+.pg-source-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.9);
+  background: rgba(15, 23, 42, 0.95);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: #f8fafc;
+}
+.pg-source-marker.inventory-gap {
+  border-color: rgba(251, 191, 36, 0.95);
+}
 
 .pg-hover-tooltip {
   position: fixed;
@@ -2106,8 +2135,8 @@ body {
   <div class="pg-top-actions">
     <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
     <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
-    <a href="{{ url_for('prograde.export_load', session_id=session.session_id, brand=selected_brand) }}"
-       class="btn btn-secondary btn-sm pg-action-btn" target="_blank">Export / Print</a>
+    <a href="{{ url_for('prograde.export_load_pdf', session_id=session.session_id, brand=selected_brand) }}"
+       class="btn btn-secondary btn-sm pg-action-btn" target="_blank">Download PDF</a>
     <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
   </div>
   <div class="pg-drag-hint-row">
@@ -2166,12 +2195,9 @@ body {
       </div>
       <div class="pg-source-legend" aria-label="Unit add source markers">
         <span class="pg-source-legend-item">
-          <span class="pg-source-swatch add-skus"></span>
-          <span>Add SKUs source</span>
-        </span>
-        <span class="pg-source-legend-item">
           <span class="pg-source-swatch inventory-gap"></span>
-          <span>Inventory Gap source</span>
+          <span class="pg-source-marker inventory-gap">+</span>
+          <span>Inventory Gap source (+)</span>
         </span>
       </div>
     </div>
@@ -2302,6 +2328,7 @@ const PJ_GN_CRISSCROSS_HEIGHT_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.height_
 const PJ_GN_CRISSCROSS_WIDTH_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.width_save_ft ?? 0.6);
 const ADD_SOURCE_SKU_PICKER = "sku_picker";
 const ADD_SOURCE_INVENTORY_GAP = "inventory_gap";
+const LOWER_DECK_ZONE = "lower_deck";
 
 let pendingItem = null;
 let pendingTongueMode = null;
@@ -3729,6 +3756,7 @@ function initSkuDragAndDrop() {
       el.classList.remove("drop-before", "drop-after");
     });
     hideDropMarker();
+    clearLowerDeckSideHighlights();
   };
 
   const clearHighlights = () => {
@@ -4190,12 +4218,83 @@ function initSkuDragAndDrop() {
     return placeAfter ? baseIndex + 1 : baseIndex;
   };
 
+  const _normalizeDropSide = (rawValue) => {
+    const value = String(rawValue || "").trim().toLowerCase();
+    if (value === "left" || value === "right") return value;
+    return "";
+  };
+
+  const getDropTargetZone = (target) => {
+    if (!target || !target.dataset) return "";
+    return String(target.dataset.dropZone || target.dataset.zone || "").trim();
+  };
+
+  const getLowerDeckSideDropTargets = () => {
+    const left = document.querySelector(`[data-drop-zone="${LOWER_DECK_ZONE}"][data-drop-side="left"]`);
+    const right = document.querySelector(`[data-drop-zone="${LOWER_DECK_ZONE}"][data-drop-side="right"]`);
+    return { left, right };
+  };
+
+  const clearLowerDeckSideHighlights = () => {
+    const { left, right } = getLowerDeckSideDropTargets();
+    if (left) left.classList.remove("drop-target-active");
+    if (right) right.classList.remove("drop-target-active");
+  };
+
+  const setLowerDeckSideHighlight = (side) => {
+    clearLowerDeckSideHighlights();
+    const normalizedSide = _normalizeDropSide(side);
+    if (!normalizedSide) return null;
+    const { left, right } = getLowerDeckSideDropTargets();
+    const target = normalizedSide === "right" ? right : left;
+    if (target) {
+      target.classList.add("drop-target-active");
+    }
+    return target || null;
+  };
+
+  const _deckDropSideFromPointer = (target, evt) => {
+    if (!target || !evt) return "";
+    const rect = target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
+      return "";
+    }
+    return Number(evt.clientX || 0) >= (rect.left + (rect.width / 2)) ? "right" : "left";
+  };
+
+  const getDeckDropSide = (target, evt = null) => {
+    if (!target) return "";
+    const explicit = _normalizeDropSide(target.dataset && target.dataset.dropSide);
+    if (explicit) return explicit;
+    return _deckDropSideFromPointer(target, evt);
+  };
+
+  const getLowerDeckSideFromPointer = (evt) => {
+    if (!evt) return "";
+    const { left, right } = getLowerDeckSideDropTargets();
+    const leftRect = left && left.getBoundingClientRect ? left.getBoundingClientRect() : null;
+    const rightRect = right && right.getBoundingClientRect ? right.getBoundingClientRect() : null;
+    const x = Number(evt.clientX || 0);
+    if (leftRect && rightRect && Number.isFinite(leftRect.left) && Number.isFinite(rightRect.right)) {
+      const midpoint = leftRect.right + ((rightRect.left - leftRect.right) / 2);
+      return x >= midpoint ? "right" : "left";
+    }
+    if (leftRect && Number.isFinite(leftRect.left) && Number.isFinite(leftRect.width) && leftRect.width > 0) {
+      return x >= (leftRect.left + (leftRect.width / 2)) ? "right" : "left";
+    }
+    if (rightRect && Number.isFinite(rightRect.left) && Number.isFinite(rightRect.width) && rightRect.width > 0) {
+      return x >= (rightRect.left + (rightRect.width / 2)) ? "right" : "left";
+    }
+    return "";
+  };
+
   const getVisualStackTargetsForZone = (zone) => {
     if (!zone) return [];
     return Array.from(document.querySelectorAll(`[data-stack-drop][data-zone="${zone}"]`))
       .map((el) => ({
         el,
         seq: Number(el.dataset.targetSeq || 0),
+        target: String(el.dataset.target || "").trim(),
         rect: el.getBoundingClientRect ? el.getBoundingClientRect() : null,
       }))
       .filter((entry) => Number.isInteger(entry.seq) && entry.seq > 0 && entry.rect && Number.isFinite(entry.rect.left))
@@ -4207,6 +4306,84 @@ function initSkuDragAndDrop() {
         }
         return a.seq - b.seq;
       });
+  };
+
+  const resolveLowerDeckDropPlan = (target, evt) => {
+    if (SESSION_BRAND !== "bigtex" || !target) {
+      return null;
+    }
+    const zone = getDropTargetZone(target);
+    if (zone !== LOWER_DECK_ZONE) return null;
+    const side = _normalizeDropSide(
+      (target.matches && target.matches("[data-drop-zone]"))
+        ? getDeckDropSide(target, evt)
+        : getLowerDeckSideFromPointer(evt)
+    );
+    if (!side) return null;
+
+    const stacks = getVisualStackTargetsForZone(zone);
+    const stackWithSide = (() => {
+      if (!stacks.length) return [];
+      const { left, right } = getLowerDeckSideDropTargets();
+      const leftRect = left && left.getBoundingClientRect ? left.getBoundingClientRect() : null;
+      const rightRect = right && right.getBoundingClientRect ? right.getBoundingClientRect() : null;
+      let deckMidX = null;
+      if (
+        leftRect
+        && rightRect
+        && Number.isFinite(leftRect.left)
+        && Number.isFinite(rightRect.right)
+      ) {
+        deckMidX = leftRect.left + ((rightRect.right - leftRect.left) / 2);
+      }
+      if (!Number.isFinite(deckMidX)) {
+        const leftMost = stacks[0];
+        const rightMost = stacks[stacks.length - 1];
+        if (
+          leftMost
+          && rightMost
+          && leftMost.rect
+          && rightMost.rect
+          && Number.isFinite(leftMost.rect.left)
+          && Number.isFinite(leftMost.rect.width)
+          && Number.isFinite(rightMost.rect.left)
+          && Number.isFinite(rightMost.rect.width)
+        ) {
+          const xLeft = leftMost.rect.left + (leftMost.rect.width / 2);
+          const xRight = rightMost.rect.left + (rightMost.rect.width / 2);
+          deckMidX = xLeft + ((xRight - xLeft) / 2);
+        }
+      }
+      return stacks.map((entry) => {
+        const centerX = entry.rect && Number.isFinite(entry.rect.left) && Number.isFinite(entry.rect.width)
+          ? entry.rect.left + (entry.rect.width / 2)
+          : null;
+        const stackSide = Number.isFinite(centerX) && Number.isFinite(deckMidX)
+          ? (centerX >= deckMidX ? "right" : "left")
+          : "";
+        return { ...entry, side: stackSide };
+      });
+    })();
+
+    if (!stacks.length) {
+      return { side, stackTarget: null, targetSeq: null, insertIndex: 0, edgeInsertIndex: 0 };
+    }
+    const sideCandidates = stackWithSide.filter((entry) => entry.side === side);
+    if (sideCandidates.length) {
+      const chosen = side === "right"
+        ? sideCandidates[sideCandidates.length - 1]
+        : sideCandidates[0];
+      return {
+        side,
+        stackTarget: chosen.target || null,
+        targetSeq: Number.isInteger(chosen.seq) ? chosen.seq : null,
+        insertIndex: side === "right" ? stacks.length - 1 : 0,
+        edgeInsertIndex: side === "right" ? stacks.length : 0,
+      };
+    }
+    return side === "right"
+      ? { side, stackTarget: null, targetSeq: null, insertIndex: stacks.length, edgeInsertIndex: stacks.length }
+      : { side, stackTarget: null, targetSeq: null, insertIndex: 0, edgeInsertIndex: 0 };
   };
 
   const getInsertIndexFromDeckPointer = (zone, evt) => {
@@ -4277,6 +4454,21 @@ function initSkuDragAndDrop() {
 
   const setDropPlacementHint = (target, payload, evt) => {
     if (!target || !payload || !evt) return;
+    if (payload.type === "sku") {
+      const zone = getDropTargetZone(target);
+      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+      if (lowerDeckPlan && lowerDeckPlan.side) {
+        const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
+        setLowerDeckSideHighlight(lowerDeckPlan.side);
+        setDragLiveText(`Adding unit. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+        return;
+      }
+      clearLowerDeckSideHighlights();
+      if (zone) {
+        setDragLiveText(`Adding unit. Drop to place on ${zoneLabel(zone)}.`);
+      }
+      return;
+    }
     if (payload.type === "unit") {
       if (target.matches(".unit-card[data-pos-id]")) {
         const zone = String(target.dataset.zone || "").trim();
@@ -4300,7 +4492,13 @@ function initSkuDragAndDrop() {
       }
       if (target.matches("[data-drop-zone]")) {
         const zone = String(target.dataset.dropZone || "").trim();
-        setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
+        const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+        if (lowerDeckPlan && lowerDeckPlan.side) {
+          const sideLabel = lowerDeckPlan.side === "right" ? "right stack" : "left stack";
+          setDragLiveText(`Moving unit. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+        } else {
+          setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
+        }
       }
       return;
     }
@@ -4331,6 +4529,12 @@ function initSkuDragAndDrop() {
     }
     if (target.matches("[data-drop-zone]")) {
       const zone = String(target.dataset.dropZone || "").trim();
+      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+      if (lowerDeckPlan && lowerDeckPlan.side) {
+        const sideLabel = lowerDeckPlan.side === "right" ? "right side" : "left side";
+        setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+        return;
+      }
       const insertIndex = getInsertIndexFromDeckPointer(zone, evt);
       showDeckInsertMarker(zone, insertIndex, target);
       setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
@@ -4339,6 +4543,35 @@ function initSkuDragAndDrop() {
 
   const dispatchDrop = async (target, payload, evt = null) => {
     if (!payload) return;
+    const lowerDeckSkuPlan = (payload.type === "sku")
+      ? resolveLowerDeckDropPlan(target, evt)
+      : null;
+    if (lowerDeckSkuPlan) {
+      if (lowerDeckSkuPlan.stackTarget) {
+        await addUnit(
+          payload.itemNumber,
+          LOWER_DECK_ZONE,
+          lowerDeckSkuPlan.stackTarget,
+          null,
+          payload.tongueMode,
+          payload.dumpHeightFt,
+          false,
+          payload.addSource
+        );
+      } else {
+        await addUnit(
+          payload.itemNumber,
+          LOWER_DECK_ZONE,
+          null,
+          lowerDeckSkuPlan.insertIndex,
+          payload.tongueMode,
+          payload.dumpHeightFt,
+          false,
+          payload.addSource
+        );
+      }
+      return;
+    }
     if (target.matches("[data-column-slot]")) {
       const zone = target.dataset.zone;
       const insertIndex = Number(target.dataset.insertIndex || 0);
@@ -4427,13 +4660,23 @@ function initSkuDragAndDrop() {
     if (target.matches("[data-drop-zone]")) {
       const zone = target.dataset.dropZone;
       if (!zone) return;
-      const insertIndex = getInsertIndexFromDeckPointer(zone, evt);
+      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+      const insertIndex = lowerDeckPlan ? lowerDeckPlan.insertIndex : getInsertIndexFromDeckPointer(zone, evt);
       if (payload.type === "sku") {
-        await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource);
+        if (lowerDeckPlan && lowerDeckPlan.stackTarget) {
+          await addUnit(payload.itemNumber, zone, lowerDeckPlan.stackTarget, null, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource);
+        } else {
+          await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource);
+        }
       } else if (payload.type === "unit") {
-        await moveUnit(payload.positionId, zone, null, insertIndex);
+        if (lowerDeckPlan && lowerDeckPlan.targetSeq) {
+          await moveUnit(payload.positionId, zone, lowerDeckPlan.targetSeq, null);
+        } else {
+          await moveUnit(payload.positionId, zone, null, insertIndex);
+        }
       } else if (payload.type === "stack") {
-        await moveStack(payload.zone, payload.sequence, zone, insertIndex);
+        const edgeInsertIndex = lowerDeckPlan ? lowerDeckPlan.edgeInsertIndex : insertIndex;
+        await moveStack(payload.zone, payload.sequence, zone, edgeInsertIndex);
       }
     }
   };

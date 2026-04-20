@@ -7,11 +7,30 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_DB_PATH = (
-    "/var/data/app.db"
-    if (os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
-    else str(ROOT / "data" / "db" / "app.db")
-)
+
+
+def _is_azure_app_service():
+    return any(
+        os.environ.get(key)
+        for key in (
+            "WEBSITE_SITE_NAME",
+            "WEBSITE_INSTANCE_ID",
+            "WEBSITE_HOSTNAME",
+            "WEBSITE_OWNER_NAME",
+            "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
+        )
+    )
+
+
+def _default_db_path():
+    if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
+        return Path("/var/data/app.db")
+    if _is_azure_app_service():
+        return Path("/home/site/app.db")
+    return ROOT / "data" / "db" / "app.db"
+
+
+DEFAULT_DB_PATH = str(_default_db_path())
 DB_PATH = Path(os.environ.get("APP_DB_PATH", DEFAULT_DB_PATH))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 SEED_DIR = Path(os.environ.get("APP_SEED_DIR", str(ROOT / "data" / "seed")))

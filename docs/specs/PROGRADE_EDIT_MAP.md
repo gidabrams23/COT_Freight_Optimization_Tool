@@ -77,10 +77,23 @@ This is the fastest path for ProGrade edits. It maps common requests to the exac
   - `tests/test_prograde_inventory_gap_finder.py`
   - `tests/test_prograde_inventory_upload.py`
 
+### 7) Export / print summary output
+- `blueprints/prograde/routes.py`
+  - `export_load` route payload and print-mode flags.
+- `blueprints/prograde/templates/prograde/export.html`
+  - Print-to-PDF summary layout (schematic + manifest).
+- `blueprints/prograde/templates/prograde/_spatial_canvas.html`
+  - Shared schematic drawing used by load builder and export output.
+- Tests:
+  - `tests/test_prograde_export_summary.py`
+
 ## API Surface
 - Load state + validation:
   - `GET /prograde/api/session/<session_id>/state`
   - `GET /prograde/api/session/<session_id>/check`
+- Export:
+  - `GET /prograde/session/<session_id>/export`
+  - `GET /prograde/session/<session_id>/export.pdf`
 - Unit actions:
   - `POST /prograde/api/session/<session_id>/add`
   - `POST /prograde/api/session/<session_id>/remove`

@@ -10,12 +10,41 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-DB_PATH = Path(
-    os.environ.get(
-        "PROGRADE_DB_PATH",
-        str(ROOT_DIR / "data" / "db" / "prograde.db"),
+
+
+def _is_truthy(value):
+    text = str(value or "").strip().lower()
+    return text in {"1", "true", "yes", "on"}
+
+
+def _is_azure_app_service():
+    return any(
+        os.environ.get(key)
+        for key in (
+            "WEBSITE_SITE_NAME",
+            "WEBSITE_INSTANCE_ID",
+            "WEBSITE_HOSTNAME",
+            "WEBSITE_OWNER_NAME",
+            "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
+        )
     )
-)
+
+
+def _default_prograde_db_path():
+    app_db_path_raw = os.environ.get("APP_DB_PATH")
+    if app_db_path_raw:
+        app_db_path = Path(str(app_db_path_raw))
+        if app_db_path.suffix:
+            return app_db_path.with_name("prograde.db")
+        return app_db_path / "prograde.db"
+    if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
+        return Path("/var/data/prograde.db")
+    if _is_azure_app_service():
+        return Path("/home/site/prograde.db")
+    return ROOT_DIR / "data" / "db" / "prograde.db"
+
+
+DB_PATH = Path(os.environ.get("PROGRADE_DB_PATH", str(_default_prograde_db_path())))
 FALLBACK_SEED_DB_PATH = ROOT_DIR / "archive" / "prograde_source_drop_v03" / "prograde.db"
 DEFAULT_BT_DATA_WORKBOOK_PATH = Path(
     os.environ.get(
@@ -147,8 +176,11 @@ def _ensure_db_file():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     if DB_PATH.exists():
         return
-    if FALLBACK_SEED_DB_PATH.exists():
+    # Use archive bootstrap only when explicitly requested.
+    if _is_truthy(os.environ.get("PROGRADE_BOOTSTRAP_FROM_ARCHIVE_DB")) and FALLBACK_SEED_DB_PATH.exists():
         shutil.copyfile(FALLBACK_SEED_DB_PATH, DB_PATH)
+        return
+    DB_PATH.touch()
 
 
 def _normalize_profile_name(value):

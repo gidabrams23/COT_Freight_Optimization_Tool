@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\app.py", line 3, in <module>
+    from blueprints.cot import routes as _cot_routes
+  File "C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\blueprints\cot\__init__.py", line 1, in <module>
+    from .routes import app, cot_bp
+  File "C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\blueprints\cot\routes.py", line 81, in <module>
+    from blueprints.prograde import prograde_bp
+  File "C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\blueprints\prograde\__init__.py", line 1, in <module>
+    from .routes import prograde_bp
+  File "C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\blueprints\prograde\routes.py", line 9, in <module>
+    from PIL import Image, ImageDraw, ImageFont
+ModuleNotFoundError: No module named 'PIL'

@@ -26,6 +26,12 @@ Try 2 at building a web optimization app.
 ## ProGrade account workflow
 
 - ProGrade account profiles are stored in the ProGrade database (`prograde_access_profiles`) and do not reuse COT `access_profiles`.
+- ProGrade database path resolution:
+  - `PROGRADE_DB_PATH` when set
+  - else sibling `prograde.db` next to `APP_DB_PATH` when `APP_DB_PATH` is set
+  - else Azure auto-default `/home/site/prograde.db` when App Service env vars are present
+  - else Render auto-default `/var/data/prograde.db` when Render env vars are present
+  - else local fallback `data/db/prograde.db`
 - Landing page for ProGrade account access is `/prograde` (also available at `/prograde/account`) with:
   - account dropdown selection
   - quick add account by name
@@ -150,6 +156,7 @@ ROUTING_ENABLED=false
    - `FLASK_SECRET_KEY`: a long random string.
    - `ADMIN_PASSWORD`: required for admin login in non-development environments.
    - `APP_DB_PATH`: set to `/var/data/app.db` if you attach a Render disk.
+   - `PROGRADE_DB_PATH`: optional explicit override (otherwise ProGrade auto-resolves from `APP_DB_PATH` sibling path).
    - Optional: `ACCESS_PROFILES_SEED_PATH` (defaults to `data/seed/access_profiles.csv`).
    - Optional: `ACCESS_PROFILE_IDENTITIES_SEED_PATH` (defaults to `data/seed/access_profile_identities.csv`).
    - Optional Gunicorn tuning:
@@ -168,6 +175,8 @@ Access profiles and Microsoft email mappings are seeded from:
 
 Profile persistence notes:
 - On Render, account changes persist across deploys when `APP_DB_PATH` points to a mounted disk (`/var/data/app.db`).
+- ProGrade account/session changes persist across deploys when `PROGRADE_DB_PATH` points to a mounted disk (`/var/data/prograde.db`), or when `APP_DB_PATH` is set and ProGrade uses its sibling path.
+- On Azure App Service, if no DB env vars are set, the app now defaults to `/home/site/app.db` and `/home/site/prograde.db` automatically.
 - The app snapshots access state on profile create/update/delete to:
   - `data/seed/access_profiles.csv`
   - `data/seed/access_profile_identities.csv`

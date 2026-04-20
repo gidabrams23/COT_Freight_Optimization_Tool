@@ -1,126 +1,271 @@
 {% extends "prograde/base.html" %}
-{% block title %}Export — {{ session.session_label or session.session_id[:8] }}{% endblock %}
+{% block title %}Load Summary - {{ session_display_id or session.session_id[:8] }}{% endblock %}
 
 {% block head %}
 <style>
+  .export-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .export-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .export-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 2px;
+  }
+  .export-subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  .export-actions {
+    display: inline-flex;
+    gap: 8px;
+  }
+  .export-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .export-kpi {
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.45);
+    padding: 8px;
+  }
+  .export-kpi-label {
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+  .export-kpi-value {
+    font-size: 17px;
+    font-family: var(--font-mono);
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+  .export-card {
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.58);
+    overflow: hidden;
+  }
+  .export-card-head {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .export-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .export-card-subtitle {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .export-canvas-wrap {
+    padding: 8px;
+    min-height: 360px;
+  }
+  .export-manifest-wrap {
+    padding: 0;
+  }
+  .export-manifest-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .export-manifest-table th,
+  .export-manifest-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-default);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .export-manifest-table th {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+  }
+  .export-manifest-table td.mono {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+  .export-empty {
+    padding: 12px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .export-sheet .pg-unit-control,
+  .export-sheet .pg-unit-control-strip,
+  .export-sheet .pg-unit-drag-hitbox,
+  .export-sheet [data-stack-drop],
+  .export-sheet [data-column-slot],
+  .export-sheet [data-drop-zone] {
+    display: none !important;
+  }
+
+  @media (max-width: 1080px) {
+    .export-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   @media print {
-    .sidebar, .page-header .btn, .no-print { display: none !important; }
-    .main-content { margin-left: 0 !important; }
-    body { background: white; color: black; }
-    .card { border: 1px solid #ccc; }
+    @page {
+      size: landscape;
+      margin: 0.4in;
+    }
+    html, body {
+      background: #ffffff !important;
+      color: #0f172a !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sidebar,
+    .export-actions,
+    .no-print {
+      display: none !important;
+    }
+    .main-content {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+    .export-sheet {
+      gap: 8px;
+    }
+    .export-card {
+      background: #ffffff !important;
+      border-color: #cbd5e1 !important;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .export-kpi {
+      background: #ffffff !important;
+      border-color: #cbd5e1 !important;
+    }
+    .export-title,
+    .export-card-title,
+    .export-kpi-value,
+    .export-manifest-table td.mono {
+      color: #0f172a !important;
+    }
+    .export-subtitle,
+    .export-card-subtitle,
+    .export-kpi-label,
+    .export-manifest-table th,
+    .export-empty {
+      color: #475569 !important;
+    }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div>
-    <div class="page-title">Load Schematic — {{ session.session_label or session.session_id[:8] }}</div>
-    <div class="page-subtitle">{{ session.brand | upper }} · {{ session.carrier_type }} · Planner: {{ session.builder_name or session.planner_name or '—' }}</div>
-  </div>
-  <div style="display:flex;gap:8px" class="no-print">
-    <button onclick="window.print()" class="btn btn-primary">Print</button>
-    <a href="{{ url_for('prograde.load_builder', session_id=session.session_id, brand=selected_brand) }}" class="btn btn-ghost">← Back</a>
-  </div>
-</div>
-
-<div class="page-body">
-
-  <!-- Summary -->
-  <div class="card" style="margin-bottom:12px">
-    <div style="display:flex;gap:32px;flex-wrap:wrap">
-      <div>
-        <div class="td-label">Total Footprint</div>
-        <div style="font-size:20px;font-weight:700;font-family:var(--font-mono)">
-          {{ "%.1f"|format(total_footprint) }}' / {{ carrier.total_length_ft }}'
-        </div>
-      </div>
-      <div>
-        <div class="td-label">Unit Count</div>
-        <div style="font-size:20px;font-weight:700">{{ positions|length }}</div>
-      </div>
-      <div>
-        <div class="td-label">Status</div>
-        <div style="margin-top:4px">
-          {% if violations_error > 0 %}
-            <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
-          {% elif violations_warning > 0 %}
-            <span class="badge badge-warning">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
-          {% else %}
-            <span class="badge badge-success">✓ Clear</span>
-          {% endif %}
-        </div>
-      </div>
+<div class="export-sheet">
+  <div class="export-header">
+    <div>
+      <p class="export-title">Load Summary {{ session_display_id or session.session_id[:8] }}</p>
+      <p class="export-subtitle">
+        {{ session.brand | upper }} | {{ session.carrier_type }} | Planner: {{ session.builder_name or session.planner_name or "Unassigned" }}
+      </p>
+    </div>
+    <div class="export-actions no-print">
+      <button type="button" class="btn btn-primary" onclick="window.print()">Export PDF / Print</button>
+      <a href="{{ url_for('prograde.load_builder', session_id=session.session_id, brand=selected_brand) }}" class="btn btn-ghost">Back</a>
     </div>
   </div>
 
-  <!-- Zone tables -->
-  {% for zone in zones %}
-  <div class="card" style="margin-bottom:12px">
-    <div class="card-header">
-      <div class="card-title">{{ zone_labels[zone] }}</div>
-      <div class="card-subtitle">
-        Length: {{ "%.1f"|format(zone_lengths[zone]) }}'
-        {% if zone_caps[zone] %} / {{ zone_caps[zone] }}'{% endif %}
-      </div>
+  <div class="export-kpis">
+    <div class="export-kpi">
+      <div class="export-kpi-label">Load Footprint</div>
+      <div class="export-kpi-value">{{ "%.1f"|format(total_footprint) }} ft / {{ carrier.total_length_ft }} ft</div>
     </div>
+    <div class="export-kpi">
+      <div class="export-kpi-label">Units</div>
+      <div class="export-kpi-value">{{ manifest_total_units }}</div>
+    </div>
+    <div class="export-kpi">
+      <div class="export-kpi-label">Errors</div>
+      <div class="export-kpi-value">{{ violations_error }}</div>
+    </div>
+    <div class="export-kpi">
+      <div class="export-kpi-label">Warnings</div>
+      <div class="export-kpi-value">{{ violations_warning }}</div>
+    </div>
+  </div>
 
-    {% set zone_pos = positions | selectattr('deck_zone', 'equalto', zone) | list %}
-    {% if zone_pos %}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Seq</th>
-            <th>Layer</th>
-            <th>Item #</th>
-            <th>Footprint</th>
-            <th>Height</th>
-            <th>Nested In</th>
-            <th>GN Drop</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for p in zone_pos | sort(attribute='sequence') %}
-          <tr>
-            <td class="td-mono">{{ p.sequence }}</td>
-            <td class="td-mono">{{ p.layer }}</td>
-            <td class="td-mono"><strong>{{ p.item_number }}</strong></td>
-            <td class="td-mono">{{ p.footprint }}'</td>
-            <td class="td-mono">{{ p.height }}'</td>
-            <td class="td-mono">{{ p.nested_inside or '—' }}</td>
-            <td>{% if p.gn_axle_dropped %}Yes{% else %}—{% endif %}</td>
-          </tr>
+  <section class="export-card">
+    <div class="export-card-head">
+      <div class="export-card-title">Load Schematic</div>
+      <div class="export-card-subtitle">Includes deck length, stack length, and height indicators</div>
+    </div>
+    <div class="export-canvas-wrap">
+      {% include "prograde/_spatial_canvas.html" %}
+    </div>
+  </section>
+
+  <section class="export-card export-manifest-wrap">
+    <div class="export-card-head">
+      <div class="export-card-title">Manifest</div>
+      <div class="export-card-subtitle">Full SKU list for load execution</div>
+    </div>
+    {% if manifest_rows %}
+    <table class="export-manifest-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Deck</th>
+          <th>SKU</th>
+          <th>Item Code</th>
+          <th>Bed</th>
+          <th>Tongue</th>
+          <th>Total FP</th>
+          <th>Height</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in manifest_rows %}
+        <tr>
+          <td class="mono">{{ row.unit_number }}</td>
+          <td class="mono">{{ row.zones }}</td>
+          <td class="mono"><strong>{{ row.item_number }}</strong></td>
+          <td class="mono">{{ row.item_code or row.item_number }}</td>
+          <td class="mono">{{ "%.1f"|format(row.bed_length) }}'</td>
+          <td class="mono">{{ "%.1f"|format(row.tongue_length) }}'</td>
+          <td class="mono">{{ "%.1f"|format(row.total_footprint) }}'</td>
+          <td class="mono">{{ "%.1f"|format(row.height_each or 0) }}'</td>
+        </tr>
         {% endfor %}
-        </tbody>
-      </table>
-    </div>
+      </tbody>
+    </table>
     {% else %}
-    <div class="empty-state">Empty zone</div>
+    <div class="export-empty">No units on this load yet.</div>
     {% endif %}
-  </div>
-  {% endfor %}
-
-  <!-- Violations -->
-  {% if violations %}
-  <div class="card">
-    <div class="card-header"><div class="card-title">Constraint Violations</div></div>
-    <div class="violation-panel">
-      {% for v in violations %}
-      <div class="violation-item {{ v.severity }}">
-        <div>
-          <div class="violation-code">{{ v.rule_code }}</div>
-          <div class="violation-msg">{{ v.message }}</div>
-          {% if v.suggested_fix %}
-          <div class="violation-fix">→ {{ v.suggested_fix }}</div>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
+  </section>
 </div>
-{% endblock %}
 
+{% if auto_print %}
+<script>
+  window.addEventListener("load", () => {
+    setTimeout(() => window.print(), 120);
+  });
+</script>
+{% endif %}
+{% endblock %}
