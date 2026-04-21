@@ -3285,6 +3285,7 @@ def session_new():
             carrier_type,
             planner_name,
             session_label,
+            is_saved=True,
             created_by_profile_id=active_profile["id"],
             created_by_name=planner_name,
         )
@@ -3312,6 +3313,7 @@ def session_new():
             carrier_type,
             planner_name,
             session_label,
+            is_saved=True,
             created_by_profile_id=active_profile["id"],
             created_by_name=planner_name,
         )

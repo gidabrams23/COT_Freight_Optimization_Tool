@@ -2,6 +2,7 @@ import importlib
 import os
 import tempfile
 import unittest
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -43,6 +44,41 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         keys = {row["drawing_key"] for row in rows}
         self.assertIn("utility_profile", keys)
         self.assertIn("dump_profile", keys)
+
+    def test_init_db_seeds_reference_defaults_and_marks_seed_ready(self):
+        carriers = [dict(r) for r in self.db.get_carrier_configs()]
+        carrier_types = {row["carrier_type"] for row in carriers}
+        self.assertIn("53_step_deck", carrier_types)
+        self.assertIn("53_flatbed", carrier_types)
+
+        with self.db.get_db() as conn:
+            tongue_count = conn.execute("SELECT COUNT(*) FROM pj_tongue_groups").fetchone()[0]
+            height_count = conn.execute("SELECT COUNT(*) FROM pj_height_reference").fetchone()[0]
+            bt_stack_count = conn.execute("SELECT COUNT(*) FROM bt_stack_configs").fetchone()[0]
+
+        self.assertGreater(tongue_count, 0)
+        self.assertGreater(height_count, 0)
+        self.assertGreater(bt_stack_count, 0)
+        self.assertTrue(self.db.has_seed_data())
+
+    def test_init_db_backfills_unsaved_sessions_when_v2_marker_missing(self):
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "Backfill Tester",
+            "Unsaved session",
+            is_saved=False,
+            created_by_name="Backfill Tester",
+        )
+        with self.db.get_db() as conn:
+            conn.execute("DELETE FROM app_meta WHERE meta_key='is_saved_backfill_v2'")
+
+        self.db.init_db()
+        row = self.db.get_session(session_id)
+        self.assertIsNotNone(row)
+        self.assertEqual(int(row["is_saved"] or 0), 1)
 
     def test_height_top_save_keeps_mid_synced(self):
         now = datetime.utcnow().isoformat()

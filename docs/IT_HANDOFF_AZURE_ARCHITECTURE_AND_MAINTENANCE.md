@@ -170,7 +170,8 @@ flowchart LR
   - Else Azure App Service auto-default `/home/site/prograde.db` when App Service env variables exist.
   - Else Render-specific fallback `/var/data/prograde.db` when Render env variables exist.
   - Else local fallback `data/db/prograde.db`.
-- Azure defaults are now safe without explicit DB path env vars, but persistent App Service storage must still be enabled for restart durability.
+- Azure defaults are now safe without explicit DB path env vars, but persistent App Service storage must still be enabled for restart durability (`WEBSITES_ENABLE_APP_SERVICE_STORAGE=true`).
+- ProGrade sessions are now created as saved sessions by default so they remain visible in `All Sessions` after restarts.
 
 ### Core Entities (Operationally Important)
 - Order intake and planning:
@@ -190,6 +191,8 @@ flowchart LR
 
 ### Seed/Snapshot and Data Dependency Notes
 - On fresh initialization, app seeds core lookup/settings data from `data/seed/`.
+- ProGrade SKU seed behavior defaults to startup upsert from CSV snapshots (`pj_skus`, `bigtex_skus`) so environments stay aligned with `data/seed/`.
+- Optional ProGrade preservation mode: `PROGRADE_PRESERVE_SKU_EDITS_ON_START=true` seeds only empty SKU tables and avoids overwrite on restart.
 - Access profile and identity mappings are represented in seed CSVs and persisted in DB.
 - `export_seed_data.py` + `apply_seed_snapshots.py` form the controlled path for migrating selected configuration state between environments.
 - Daily operational data is primarily in SQLite; treat DB file backup/restore as primary recovery mechanism.
@@ -223,6 +226,7 @@ flowchart LR
 | `APP_UPDATED_ON` | git/source/date fallback | (empty) | Optional release labeling. |
 | `ADMIN_PASSWORD` | none | (empty) | Required for legacy admin login flows. |
 | `SESSION_COOKIE_SECURE` | true outside local dev | not set | Set explicit `true` in prod. |
+| `WEBSITES_ENABLE_APP_SERVICE_STORAGE` | platform-managed | (empty) | Must be `true` in Azure for SQLite restart persistence under `/home/site`. |
 
 #### Concurrency / Gunicorn
 | Variable | Default in Code/Image | Current Value in This Environment | Notes |

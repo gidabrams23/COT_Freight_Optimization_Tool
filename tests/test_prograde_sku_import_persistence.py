@@ -15,7 +15,9 @@ class ProgradeSkuImportPersistenceTests(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self._db_path = Path(self._tmpdir.name) / "prograde_sku_import_persistence.db"
         self._previous_db_path = os.environ.get("PROGRADE_DB_PATH")
+        self._previous_preserve_sku_edits = os.environ.get("PROGRADE_PRESERVE_SKU_EDITS_ON_START")
         os.environ["PROGRADE_DB_PATH"] = str(self._db_path)
+        os.environ.pop("PROGRADE_PRESERVE_SKU_EDITS_ON_START", None)
 
         import blueprints.prograde.db as prograde_db
 
@@ -27,6 +29,10 @@ class ProgradeSkuImportPersistenceTests(unittest.TestCase):
             os.environ.pop("PROGRADE_DB_PATH", None)
         else:
             os.environ["PROGRADE_DB_PATH"] = self._previous_db_path
+        if self._previous_preserve_sku_edits is None:
+            os.environ.pop("PROGRADE_PRESERVE_SKU_EDITS_ON_START", None)
+        else:
+            os.environ["PROGRADE_PRESERVE_SKU_EDITS_ON_START"] = self._previous_preserve_sku_edits
         try:
             self._tmpdir.cleanup()
         except PermissionError:
@@ -239,6 +245,55 @@ class ProgradeSkuImportPersistenceTests(unittest.TestCase):
         self.assertEqual(pj_after, pj_before)
         self.assertEqual(bt_restored, 1)
         self.assertEqual(pj_restored, 1)
+
+    def test_init_db_overwrites_existing_sku_edits_on_restart(self):
+        bt_item = self._first_seed_item("bigtex_skus.csv")
+        pj_item = self._first_seed_item("pj_skus.csv")
+        with self.db.get_db() as conn:
+            bt_original = conn.execute(
+                "SELECT model FROM bigtex_skus WHERE item_number=?",
+                (bt_item,),
+            ).fetchone()
+            pj_original = conn.execute(
+                "SELECT description FROM pj_skus WHERE item_number=?",
+                (pj_item,),
+            ).fetchone()
+            conn.execute("UPDATE bigtex_skus SET model=? WHERE item_number=?", ("CUSTOM-BT-MODEL", bt_item))
+            conn.execute("UPDATE pj_skus SET description=? WHERE item_number=?", ("Custom PJ Description", pj_item))
+
+        self.db.init_db()
+
+        with self.db.get_db() as conn:
+            bt_row = conn.execute("SELECT model FROM bigtex_skus WHERE item_number=?", (bt_item,)).fetchone()
+            pj_row = conn.execute("SELECT description FROM pj_skus WHERE item_number=?", (pj_item,)).fetchone()
+
+        self.assertIsNotNone(bt_original)
+        self.assertIsNotNone(pj_original)
+        self.assertIsNotNone(bt_row)
+        self.assertIsNotNone(pj_row)
+        self.assertEqual(str(bt_row["model"]), str(bt_original["model"]))
+        self.assertEqual(str(pj_row["description"]), str(pj_original["description"]))
+
+    def test_preserve_flag_keeps_existing_sku_edits_on_restart(self):
+        bt_item = self._first_seed_item("bigtex_skus.csv")
+        pj_item = self._first_seed_item("pj_skus.csv")
+        with self.db.get_db() as conn:
+            conn.execute("UPDATE bigtex_skus SET model=? WHERE item_number=?", ("CUSTOM-BT-MODEL", bt_item))
+            conn.execute("UPDATE pj_skus SET description=? WHERE item_number=?", ("Custom PJ Description", pj_item))
+
+        os.environ["PROGRADE_PRESERVE_SKU_EDITS_ON_START"] = "true"
+        import blueprints.prograde.db as prograde_db
+        self.db = importlib.reload(prograde_db)
+        self.db.init_db()
+
+        with self.db.get_db() as conn:
+            bt_row = conn.execute("SELECT model FROM bigtex_skus WHERE item_number=?", (bt_item,)).fetchone()
+            pj_row = conn.execute("SELECT description FROM pj_skus WHERE item_number=?", (pj_item,)).fetchone()
+
+        self.assertIsNotNone(bt_row)
+        self.assertIsNotNone(pj_row)
+        self.assertEqual(str(bt_row["model"]), "CUSTOM-BT-MODEL")
+        self.assertEqual(str(pj_row["description"]), "Custom PJ Description")
 
 
 if __name__ == "__main__":

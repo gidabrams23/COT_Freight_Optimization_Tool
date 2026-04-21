@@ -37,12 +37,14 @@ Try 2 at building a web optimization app.
   - quick add account by name
 - When a user is already signed into COT, ProGrade now attempts to auto-select (or auto-create) a matching ProGrade account from the active COT profile name.
 - Once selected, the active account persists in the current user session and is used for new load creation.
-- New loads inherit the currently selected ProGrade account as the builder and display that user in the All Sessions table.
+- New loads inherit the currently selected ProGrade account as the builder, are created as saved sessions by default, and display that user in the All Sessions table.
 - `All Sessions` (`/prograde/sessions`) is owner-scoped by default:
   - admin accounts can view all saved sessions
   - planner accounts only see sessions they built
 - Load Builder includes a `Truck` dropdown in the top header so planners can switch session carrier type between configured trailer profiles (for example `53_step_deck` and `53_flatbed`).
 - Default admin account name is seeded from `PROGRADE_DEFAULT_ADMIN_NAME`; fallback is OS `USERNAME` (or `Admin`).
+- ProGrade SKU catalogs (`pj_skus`, `bigtex_skus`) are upserted from `data/seed/*.csv` on startup by default.
+- Optional preservation mode (future use): set `PROGRADE_PRESERVE_SKU_EDITS_ON_START=true` to seed only empty tables and avoid overwriting existing SKU edits on restart.
 
 ## Setup
 
@@ -179,6 +181,9 @@ Profile persistence notes:
 - On Render, account changes persist across deploys when `APP_DB_PATH` points to a mounted disk (`/var/data/app.db`).
 - ProGrade account/session changes persist across deploys when `PROGRADE_DB_PATH` points to a mounted disk (`/var/data/prograde.db`), or when `APP_DB_PATH` is set and ProGrade uses its sibling path.
 - On Azure App Service, if no DB env vars are set, the app now defaults to `/home/site/app.db` and `/home/site/prograde.db` automatically.
+- For Azure restart durability, keep `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` and explicitly set:
+  - `APP_DB_PATH=/home/site/app.db`
+  - `PROGRADE_DB_PATH=/home/site/prograde.db`
 - The app snapshots access state on profile create/update/delete to:
   - `data/seed/access_profiles.csv`
   - `data/seed/access_profile_identities.csv`

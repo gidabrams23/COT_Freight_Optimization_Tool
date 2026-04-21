@@ -520,6 +520,7 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(row["created_by_profile_id"], profile_id)
         self.assertEqual(row["created_by_name"], "Builder User")
         self.assertEqual(row["planner_name"], "Builder User")
+        self.assertEqual(int(row["is_saved"] or 0), 1)
 
     def test_bigtex_same_direction_stack_uses_half_tongue_occupancy_in_canvas(self):
         profile_id = self.db.create_access_profile("BT Tongue Half Tester")

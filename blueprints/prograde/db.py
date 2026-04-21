@@ -171,6 +171,107 @@ PJ_MEASUREMENT_OFFSET_DEFAULTS = [
     },
 ]
 
+REFERENCE_CARRIER_DEFAULTS = [
+    {
+        "carrier_type": "53_step_deck",
+        "brand": "pj",
+        "total_length_ft": 53.0,
+        "max_height_ft": 13.5,
+        "lower_deck_length_ft": 41.5,
+        "upper_deck_length_ft": 11.75,
+        "lower_deck_ground_height_ft": 3.5,
+        "upper_deck_ground_height_ft": 5.0,
+        "gn_max_lower_deck_ft": 32.0,
+        "notes": "Default PJ step deck carrier profile",
+    },
+    {
+        "carrier_type": "53_flatbed",
+        "brand": "bigtex",
+        "total_length_ft": 53.0,
+        "max_height_ft": 13.5,
+        "lower_deck_length_ft": 53.0,
+        "upper_deck_length_ft": 0.0,
+        "lower_deck_ground_height_ft": 4.0,
+        "upper_deck_ground_height_ft": 0.0,
+        "gn_max_lower_deck_ft": 0.0,
+        "notes": "Default Big Tex flatbed carrier profile",
+    },
+]
+
+REFERENCE_PJ_TONGUE_GROUP_DEFAULTS = [
+    {
+        "group_id": "c_channel",
+        "group_label": "C-Channel Hitch",
+        "tongue_feet": 4.5,
+        "model_codes": "BH, CC, CH, CS, LP, SA, UT",
+        "notes": "Standard bumper-pull c-channel tongue",
+    },
+    {
+        "group_id": "deck_over",
+        "group_label": "Deck Over",
+        "tongue_feet": 5.0,
+        "model_codes": "DO, LD, LD2, LD3",
+        "notes": "Deck-over bumper-pull tongue",
+    },
+    {
+        "group_id": "dump_small",
+        "group_label": "Dump Small",
+        "tongue_feet": 5.0,
+        "model_codes": "D5, D7",
+        "notes": "Small/compact dump tongue",
+    },
+    {
+        "group_id": "dump_std",
+        "group_label": "Dump Standard",
+        "tongue_feet": 6.0,
+        "model_codes": "DL, DM, DT, DV, DW, DX, DTJ, DT1",
+        "notes": "Standard dump trailer tongue",
+    },
+    {
+        "group_id": "gooseneck",
+        "group_label": "Gooseneck / LDQ",
+        "tongue_feet": 9.0,
+        "model_codes": "GN, LDG, LDW, LDQ",
+        "notes": "Gooseneck draw-bar; tongue hides inside GN neck",
+    },
+    {
+        "group_id": "pintle",
+        "group_label": "Pintle Hook",
+        "tongue_feet": 4.0,
+        "model_codes": "PHT, PT",
+        "notes": "Pintle hook hitch",
+    },
+]
+
+REFERENCE_PJ_HEIGHT_DEFAULTS = [
+    {"category": "car_hauler", "label": "Car Hauler", "height_mid_ft": 1.5, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": "Flat bed with ramps; mid/top refer to position in stack"},
+    {"category": "car_hauler_deckover", "label": "Car Hauler Deck Over", "height_mid_ft": 1.75, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": ""},
+    {"category": "deck_over", "label": "Deck Over", "height_mid_ft": 1.75, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": ""},
+    {"category": "dump_gn", "label": "Dump - Gooseneck", "height_mid_ft": 2.5, "height_top_ft": 3.5, "gn_axle_dropped_ft": None, "notes": "GN dump"},
+    {"category": "dump_highside_3ft", "label": "Dump - High Side 3'", "height_mid_ft": 2.5, "height_top_ft": 3.5, "gn_axle_dropped_ft": None, "notes": "3' high side"},
+    {"category": "dump_highside_4ft", "label": "Dump - High Side 4'", "height_mid_ft": 3.0, "height_top_ft": 4.0, "gn_axle_dropped_ft": None, "notes": "4' high side"},
+    {"category": "dump_lowside", "label": "Dump - Low Side", "height_mid_ft": 2.0, "height_top_ft": 3.0, "gn_axle_dropped_ft": None, "notes": "Low-side dump; team to confirm side height"},
+    {"category": "dump_small", "label": "Dump - Small", "height_mid_ft": 1.75, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "Compact dump (D5/D7 class)"},
+    {"category": "dump_variants", "label": "Dump - Variants", "height_mid_ft": 2.25, "height_top_ft": 3.25, "gn_axle_dropped_ft": None, "notes": "DTJ, DT1 and other variant dumps"},
+    {"category": "gooseneck", "label": "Gooseneck", "height_mid_ft": 2.5, "height_top_ft": 2.5, "gn_axle_dropped_ft": 2.0, "notes": "Axle-drop reduces stacked height"},
+    {"category": "pintle", "label": "Pintle", "height_mid_ft": 1.5, "height_top_ft": 2.0, "gn_axle_dropped_ft": None, "notes": ""},
+    {"category": "tilt", "label": "Tilt", "height_mid_ft": 1.5, "height_top_ft": 2.0, "gn_axle_dropped_ft": None, "notes": ""},
+    {"category": "tilt_deckover", "label": "Tilt Deck Over", "height_mid_ft": 1.75, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": ""},
+    {"category": "utility", "label": "Utility", "height_mid_ft": 1.25, "height_top_ft": 1.75, "gn_axle_dropped_ft": None, "notes": "Small utility trailer"},
+]
+
+REFERENCE_BT_STACK_CONFIG_DEFAULTS = [
+    {"config_id": "dump_3stack_stack_1", "label": "3-Stack Dump - Stack 1", "load_type": "dump_3stack", "stack_position": "stack_1", "max_length_ft": 21.0, "max_height_ft": 5.0, "notes": ""},
+    {"config_id": "dump_3stack_stack_2", "label": "3-Stack Dump - Stack 2", "load_type": "dump_3stack", "stack_position": "stack_2", "max_length_ft": 16.0, "max_height_ft": 5.0, "notes": ""},
+    {"config_id": "dump_3stack_stack_3", "label": "3-Stack Dump - Stack 3", "load_type": "dump_3stack", "stack_position": "stack_3", "max_length_ft": 16.0, "max_height_ft": 5.0, "notes": ""},
+    {"config_id": "gooseneck_stack_1", "label": "Gooseneck - Stack 1", "load_type": "gooseneck", "stack_position": "stack_1", "max_length_ft": 53.0, "max_height_ft": 13.5, "notes": "Full deck length; no fixed stack cap for GN loads"},
+    {"config_id": "utility_2stack_combined_1_2", "label": "2-Stack Utility - S1+S2 Combined", "load_type": "utility_2stack", "stack_position": "combined_1_2", "max_length_ft": 40.5, "max_height_ft": None, "notes": ""},
+    {"config_id": "utility_3stack_combined_1_2", "label": "3-Stack Utility - S1+S2 Combined", "load_type": "utility_3stack", "stack_position": "combined_1_2", "max_length_ft": 40.0, "max_height_ft": None, "notes": "Longest unit in S1 + longest in S2 <= 40'"},
+    {"config_id": "utility_3stack_stack_1", "label": "3-Stack Utility - Stack 1", "load_type": "utility_3stack", "stack_position": "stack_1", "max_length_ft": None, "max_height_ft": 5.25, "notes": "Individual cap; combined with S2 <= 40'"},
+    {"config_id": "utility_3stack_stack_2", "label": "3-Stack Utility - Stack 2", "load_type": "utility_3stack", "stack_position": "stack_2", "max_length_ft": None, "max_height_ft": 5.25, "notes": "Individual cap; combined with S1 <= 40'"},
+    {"config_id": "utility_3stack_stack_3", "label": "3-Stack Utility - Stack 3", "load_type": "utility_3stack", "stack_position": "stack_3", "max_length_ft": 16.0, "max_height_ft": 4.0, "notes": ""},
+]
+
 
 def _ensure_db_file():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -214,6 +315,105 @@ def get_db():
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+def _seed_reference_defaults(cursor):
+    now = datetime.utcnow().isoformat()
+    cursor.executemany(
+        """
+        INSERT OR IGNORE INTO carrier_configs
+        (
+            carrier_type,
+            brand,
+            total_length_ft,
+            max_height_ft,
+            lower_deck_length_ft,
+            upper_deck_length_ft,
+            lower_deck_ground_height_ft,
+            upper_deck_ground_height_ft,
+            gn_max_lower_deck_ft,
+            notes,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                row["carrier_type"],
+                row["brand"],
+                row["total_length_ft"],
+                row["max_height_ft"],
+                row["lower_deck_length_ft"],
+                row["upper_deck_length_ft"],
+                row["lower_deck_ground_height_ft"],
+                row["upper_deck_ground_height_ft"],
+                row["gn_max_lower_deck_ft"],
+                row["notes"],
+                now,
+            )
+            for row in REFERENCE_CARRIER_DEFAULTS
+        ],
+    )
+
+    cursor.executemany(
+        """
+        INSERT OR IGNORE INTO pj_tongue_groups
+        (group_id, group_label, tongue_feet, model_codes, notes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                row["group_id"],
+                row["group_label"],
+                row["tongue_feet"],
+                row["model_codes"],
+                row["notes"],
+                now,
+            )
+            for row in REFERENCE_PJ_TONGUE_GROUP_DEFAULTS
+        ],
+    )
+
+    cursor.executemany(
+        """
+        INSERT OR IGNORE INTO pj_height_reference
+        (category, label, height_mid_ft, height_top_ft, gn_axle_dropped_ft, notes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                row["category"],
+                row["label"],
+                row["height_mid_ft"],
+                row["height_top_ft"],
+                row["gn_axle_dropped_ft"],
+                row["notes"],
+                now,
+            )
+            for row in REFERENCE_PJ_HEIGHT_DEFAULTS
+        ],
+    )
+
+    cursor.executemany(
+        """
+        INSERT OR IGNORE INTO bt_stack_configs
+        (config_id, label, load_type, stack_position, max_length_ft, max_height_ft, notes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                row["config_id"],
+                row["label"],
+                row["load_type"],
+                row["stack_position"],
+                row["max_length_ft"],
+                row["max_height_ft"],
+                row["notes"],
+                now,
+            )
+            for row in REFERENCE_BT_STACK_CONFIG_DEFAULTS
+        ],
+    )
 
 
 def init_db():
@@ -450,6 +650,8 @@ def init_db():
         ON prograde_access_profiles(name COLLATE NOCASE);
     """)
 
+    _seed_reference_defaults(c)
+
     # One-time migration: preserve all pre-existing sessions as saved so history remains visible.
     backfill_marker = c.execute(
         "SELECT meta_value FROM app_meta WHERE meta_key='is_saved_backfill_v1'"
@@ -464,6 +666,23 @@ def init_db():
             """
             INSERT OR REPLACE INTO app_meta(meta_key, meta_value, updated_at)
             VALUES ('is_saved_backfill_v1', '1', ?)
+            """,
+            (now,),
+        )
+
+    backfill_marker_v2 = c.execute(
+        "SELECT meta_value FROM app_meta WHERE meta_key='is_saved_backfill_v2'"
+    ).fetchone()
+    if not backfill_marker_v2:
+        now = datetime.utcnow().isoformat()
+        try:
+            c.execute("UPDATE load_sessions SET is_saved=1 WHERE COALESCE(is_saved, 0)=0")
+        except Exception:
+            pass
+        c.execute(
+            """
+            INSERT OR REPLACE INTO app_meta(meta_key, meta_value, updated_at)
+            VALUES ('is_saved_backfill_v2', '1', ?)
             """,
             (now,),
         )
@@ -541,28 +760,47 @@ def init_db():
 
     conn.commit()
 
-    # Auto-seed SKU catalogs from bundled CSV files.
-    # We upsert on every startup so existing environments are backfilled with
-    # any newly added seed rows without requiring a manual import.
-    _seed_skus_from_csv(conn)
+    # Default behavior: keep SKU catalogs synchronized with seed CSV snapshots on startup.
+    # Optional preservation mode for future use:
+    #   PROGRADE_PRESERVE_SKU_EDITS_ON_START=true
+    # In preservation mode we only seed empty tables and do not upsert over existing edits.
+    preserve_sku_edits = _is_truthy(os.environ.get("PROGRADE_PRESERVE_SKU_EDITS_ON_START"))
+    if preserve_sku_edits:
+        _seed_skus_from_csv(conn, mode="bootstrap_if_empty")
+    else:
+        _seed_skus_from_csv(conn, mode="upsert")
 
     conn.close()
 
 
-def _seed_skus_from_csv(conn):
-    """Upsert pj_skus and bigtex_skus from bundled seed CSVs."""
+def _seed_skus_from_csv(conn, mode="bootstrap_if_empty"):
+    """Load pj_skus and bigtex_skus from bundled seed CSVs."""
     import csv as _csv
 
     seed_dir = ROOT_DIR / "data" / "seed"
     c = conn.cursor()
 
-    def _upsert_seed_csv(table_name, seed_filename, key_column):
+    def _read_seed_rows(seed_filename):
         seed_path = seed_dir / seed_filename
         if not seed_path.exists():
-            return 0
+            return []
 
         with open(seed_path, newline="", encoding="utf-8") as f:
-            rows = list(_csv.DictReader(f))
+            return list(_csv.DictReader(f))
+
+    def _insert_seed_rows(table_name, rows):
+        if not rows:
+            return 0
+        cols = list(rows[0].keys())
+        placeholders = ", ".join("?" * len(cols))
+        col_list = ", ".join(cols)
+        query = f"INSERT OR IGNORE INTO {table_name} ({col_list}) VALUES ({placeholders})"
+        payload = [[row.get(col) or None for col in cols] for row in rows]
+        c.executemany(query, payload)
+        return len(payload)
+
+    def _upsert_seed_csv(table_name, seed_filename, key_column):
+        rows = _read_seed_rows(seed_filename)
         if not rows:
             return 0
 
@@ -579,8 +817,20 @@ def _seed_skus_from_csv(conn):
         c.executemany(query, payload)
         return len(payload)
 
-    _upsert_seed_csv("pj_skus", "pj_skus.csv", "item_number")
-    _upsert_seed_csv("bigtex_skus", "bigtex_skus.csv", "item_number")
+    def _seed_if_table_empty(table_name, seed_filename):
+        existing = c.execute(f"SELECT COUNT(*) AS cnt FROM {table_name}").fetchone()
+        if int(existing["cnt"] or 0) > 0:
+            return 0
+        rows = _read_seed_rows(seed_filename)
+        return _insert_seed_rows(table_name, rows)
+
+    normalized_mode = str(mode or "").strip().lower()
+    if normalized_mode == "upsert":
+        _upsert_seed_csv("pj_skus", "pj_skus.csv", "item_number")
+        _upsert_seed_csv("bigtex_skus", "bigtex_skus.csv", "item_number")
+    else:
+        _seed_if_table_empty("pj_skus", "pj_skus.csv")
+        _seed_if_table_empty("bigtex_skus", "bigtex_skus.csv")
     conn.commit()
 
 
