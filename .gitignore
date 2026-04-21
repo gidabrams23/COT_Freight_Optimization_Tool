@@ -15,6 +15,13 @@ data/db/*.db-*
 data/db/*.db.bak_*
 data/exports/
 logs/
+app_stdout.log
+app_stderr.log
+data/db/write_probe.txt
+
+# Local temp artifacts from test and ad hoc checks
+.tmp/pytest-tmp/
+.tmp/ad_hoc_bt_checks/
 
 # OS/editor noise
 .DS_Store

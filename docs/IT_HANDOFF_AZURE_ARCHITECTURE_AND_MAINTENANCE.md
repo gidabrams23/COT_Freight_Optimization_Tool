@@ -244,6 +244,7 @@ flowchart LR
 | `PROGRADE_DB_PATH` | env or derived fallback | (empty) | Optional override; when empty, defaults to `APP_DB_PATH` sibling or Azure `/home/site/prograde.db`. |
 | `APP_SEED_DIR` | `data/seed` | (empty) | Override only if seed location changes. |
 | `SQLITE_BUSY_TIMEOUT_SEC` | `30` | (empty) | DB lock wait timeout (seconds). |
+| `PROGRADE_SQLITE_BUSY_TIMEOUT_SEC` | falls back to `SQLITE_BUSY_TIMEOUT_SEC` (`30`) | (empty) | ProGrade DB lock wait timeout override (seconds). |
 | `ACCESS_PROFILES_SEED_PATH` | `data/seed/access_profiles.csv` | (empty) | Optional override. |
 | `ACCESS_PROFILE_IDENTITIES_SEED_PATH` | `data/seed/access_profile_identities.csv` | (empty) | Optional override. |
 

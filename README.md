@@ -45,6 +45,7 @@ Try 2 at building a web optimization app.
 - Default admin account name is seeded from `PROGRADE_DEFAULT_ADMIN_NAME`; fallback is OS `USERNAME` (or `Admin`).
 - ProGrade SKU catalogs (`pj_skus`, `bigtex_skus`) are upserted from `data/seed/*.csv` on startup by default.
 - Optional preservation mode (future use): set `PROGRADE_PRESERVE_SKU_EDITS_ON_START=true` to seed only empty tables and avoid overwriting existing SKU edits on restart.
+- Optional SQLite lock tuning for ProGrade writes: `PROGRADE_SQLITE_BUSY_TIMEOUT_SEC` (falls back to `SQLITE_BUSY_TIMEOUT_SEC`, default `30`).
 
 ## Setup
 

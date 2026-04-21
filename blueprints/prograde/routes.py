@@ -3279,16 +3279,29 @@ def session_new():
             brand,
             request.args.get("carrier_type"),
         )
-        db.create_session(
-            session_id,
-            brand,
-            carrier_type,
-            planner_name,
-            session_label,
-            is_saved=True,
-            created_by_profile_id=active_profile["id"],
-            created_by_name=planner_name,
-        )
+        try:
+            db.create_session(
+                session_id,
+                brand,
+                carrier_type,
+                planner_name,
+                session_label,
+                is_saved=True,
+                created_by_profile_id=active_profile["id"],
+                created_by_name=planner_name,
+            )
+        except Exception:
+            current_app.logger.exception(
+                "Failed to create ProGrade session (GET) for profile_id=%s brand=%s carrier=%s",
+                active_profile.get("id"),
+                brand,
+                carrier_type,
+            )
+            return (
+                "Failed to create ProGrade session. "
+                "Please retry. If this continues, check ProGrade DB write access and SQLite lock settings.",
+                500,
+            )
         return redirect(url_for("prograde.load_builder", session_id=session_id, brand=brand))
 
     if request.method == "POST":
@@ -3306,17 +3319,29 @@ def session_new():
         if not carrier:
             return _json_error("Carrier type not found", 400)
 
-        session_id    = str(uuid.uuid4())
-        db.create_session(
-            session_id,
-            brand,
-            carrier_type,
-            planner_name,
-            session_label,
-            is_saved=True,
-            created_by_profile_id=active_profile["id"],
-            created_by_name=planner_name,
-        )
+        session_id = str(uuid.uuid4())
+        try:
+            db.create_session(
+                session_id,
+                brand,
+                carrier_type,
+                planner_name,
+                session_label,
+                is_saved=True,
+                created_by_profile_id=active_profile["id"],
+                created_by_name=planner_name,
+            )
+        except Exception:
+            current_app.logger.exception(
+                "Failed to create ProGrade session (POST) for profile_id=%s brand=%s carrier=%s",
+                active_profile.get("id"),
+                brand,
+                carrier_type,
+            )
+            return _json_error(
+                "Failed to create ProGrade session. Check DB write access and retry.",
+                500,
+            )
         return redirect(url_for("prograde.load_builder", session_id=session_id, brand=brand))
     return redirect(url_for("prograde.sessions", brand=brand))
 

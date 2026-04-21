@@ -308,12 +308,26 @@ def normalize_bigtex_mcat(value):
     return label
 
 
+def _sqlite_busy_timeout_sec():
+    timeout_raw = os.environ.get(
+        "PROGRADE_SQLITE_BUSY_TIMEOUT_SEC",
+        os.environ.get("SQLITE_BUSY_TIMEOUT_SEC", "30"),
+    )
+    try:
+        return max(float(timeout_raw), 1.0)
+    except (TypeError, ValueError):
+        return 30.0
+
+
 def get_db():
     _ensure_db_file()
-    conn = sqlite3.connect(DB_PATH)
+    timeout_sec = _sqlite_busy_timeout_sec()
+    timeout_ms = int(timeout_sec * 1000)
+    conn = sqlite3.connect(DB_PATH, timeout=timeout_sec)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute(f"PRAGMA busy_timeout={timeout_ms}")
     return conn
 
 
