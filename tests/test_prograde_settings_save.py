@@ -61,6 +61,11 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         self.assertGreater(bt_stack_count, 0)
         self.assertTrue(self.db.has_seed_data())
 
+    def test_init_db_includes_acknowledged_violations_column(self):
+        with self.db.get_db() as conn:
+            columns = [dict(r)["name"] for r in conn.execute("PRAGMA table_info(load_sessions)").fetchall()]
+        self.assertIn("acknowledged_violations", columns)
+
     def test_init_db_backfills_unsaved_sessions_when_v2_marker_missing(self):
         session_id = str(uuid.uuid4())
         self.db.create_session(

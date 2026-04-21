@@ -554,6 +554,7 @@ def init_db():
         session_id TEXT PRIMARY KEY,
         brand TEXT,
         carrier_type TEXT,
+        acknowledged_violations TEXT DEFAULT '[]',
         status TEXT DEFAULT 'draft',
         is_saved INTEGER DEFAULT 0,
         planner_name TEXT,
@@ -2518,10 +2519,15 @@ def get_acknowledged_violations(session_id):
     """Return list of acknowledged rule_codes for this session."""
     import json
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT acknowledged_violations FROM load_sessions WHERE session_id=?",
-            (session_id,)
-        ).fetchone()
+        try:
+            row = conn.execute(
+                "SELECT acknowledged_violations FROM load_sessions WHERE session_id=?",
+                (session_id,)
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            if "no such column" in str(exc).lower():
+                return []
+            raise
     if not row or not row["acknowledged_violations"]:
         return []
     try:
@@ -2533,10 +2539,14 @@ def set_acknowledged_violations(session_id, ack_list):
     """Persist updated acknowledgment list (list of rule_code strings)."""
     import json
     with get_db() as conn:
-        conn.execute(
-            "UPDATE load_sessions SET acknowledged_violations=? WHERE session_id=?",
-            (json.dumps(ack_list), session_id)
-        )
+        try:
+            conn.execute(
+                "UPDATE load_sessions SET acknowledged_violations=? WHERE session_id=?",
+                (json.dumps(ack_list), session_id)
+            )
+        except sqlite3.OperationalError as exc:
+            if "no such column" not in str(exc).lower():
+                raise
 
 
 # ── Load positions ────────────────────────────────────────────────────────────
