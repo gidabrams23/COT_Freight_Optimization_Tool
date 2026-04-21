@@ -2255,6 +2255,8 @@ const PJ_GN_CRISSCROSS_WIDTH_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.width_sa
 const ADD_SOURCE_SKU_PICKER = "sku_picker";
 const ADD_SOURCE_INVENTORY_GAP = "inventory_gap";
 const LOWER_DECK_ZONE = "lower_deck";
+let sessionIsSaved = Boolean({{ 1 if session.is_saved else 0 }});
+let leaveAutosaveAttempted = false;
 
 let pendingItem = null;
 let pendingTongueMode = null;
@@ -3521,7 +3523,7 @@ async function refreshBuilderFast() {
     window.clearTimeout(window.__pgDeferredStatusRefreshTimer);
   }
   window.__pgDeferredStatusRefreshTimer = window.setTimeout(() => {
-    refreshBuilderFragments({ refreshInventory: false }).catch(() => {});
+    refreshBuilderFragments({ refreshInventory: true }).catch(() => {});
     window.__pgDeferredStatusRefreshTimer = null;
   }, 320);
 }
@@ -3713,6 +3715,7 @@ async function saveSession(buttonEl) {
       btn.textContent = "Saving...";
     }
     await postSession("/save", {});
+    sessionIsSaved = true;
     await refreshBuilderFragments();
     showToast("Session saved and added to All Sessions", "success");
   } catch (e) {
@@ -3724,6 +3727,38 @@ async function saveSession(buttonEl) {
       btn.textContent = originalLabel;
     }
   }
+}
+
+function _hasPlacedUnits() {
+  return Boolean(document.querySelector(".unit-card[data-pos-id]"));
+}
+
+function _autosaveOnLeave() {
+  if (leaveAutosaveAttempted || sessionIsSaved || !_hasPlacedUnits()) {
+    return;
+  }
+  leaveAutosaveAttempted = true;
+  const autosaveUrl = `${SESSION_API_BASE}/save`;
+  const payload = "{}";
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: "application/json" });
+      if (navigator.sendBeacon(autosaveUrl, blob)) {
+        sessionIsSaved = true;
+        return;
+      }
+    }
+  } catch (err) {
+    // Ignore; fallback fetch below.
+  }
+  fetch(autosaveUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: payload,
+    keepalive: true,
+  }).then(() => {
+    sessionIsSaved = true;
+  }).catch(() => {});
 }
 
 async function resetSession() {
@@ -4952,5 +4987,7 @@ if (!window.__pgManifestInventoryAlignBound) {
   window.addEventListener("resize", () => window.requestAnimationFrame(alignManifestAndInventoryTop));
 }
 window.requestAnimationFrame(alignManifestAndInventoryTop);
+window.addEventListener("pagehide", _autosaveOnLeave);
+window.addEventListener("beforeunload", _autosaveOnLeave);
 </script>
 {% endblock %}
