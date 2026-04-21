@@ -101,6 +101,53 @@ class ProgradeExportSummaryTests(unittest.TestCase):
         self.assertIn("Inventory Gap source (+)", html)
         self.assertNotIn("Add SKUs source", html)
 
+    def test_load_builder_shows_bt_nest_control_for_dump_stack_candidate(self):
+        profile_id = self._create_active_profile("BT Nest Control Tester")
+        session_id = self._create_bigtex_session(profile_id)
+        host_id = str(uuid.uuid4())
+        guest_id = str(uuid.uuid4())
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-DUMP-HOST", "DUMP", 1, "DM", 16.0, 3.0, 2.0, 19.0, "hydraulic"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-DUMP-GUEST", "UTILITY", 1, "UT", 6.0, 2.0, 2.0, 8.0, "flat"),
+            )
+        self.db.add_position(
+            position_id=host_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-DUMP-HOST",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=guest_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-DUMP-GUEST",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+        )
+
+        resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("pg-unit-control-nest", html)
+        self.assertIn(f"nestUnit('{guest_id}','{host_id}')", html)
+
     @unittest.skipUnless(PIL_AVAILABLE, "Pillow not installed in this test runtime")
     def test_export_pdf_downloads_single_page_payload_with_full_bigtex_sku(self):
         profile_id = self._create_active_profile("Export Summary Tester")

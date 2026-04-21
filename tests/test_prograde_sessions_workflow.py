@@ -370,6 +370,76 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(int(cleared_row["is_nested"] or 0), 0)
         self.assertIsNone(cleared_row["nested_inside"])
 
+    def test_bigtex_nest_api_can_nest_and_clear_nested_state(self):
+        profile_id = self._create_planner_profile("BT Nest API Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Nest API Tester",
+            "BT Nest Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Nest API Tester",
+        )
+        host_id = str(uuid.uuid4())
+        guest_id = str(uuid.uuid4())
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-DUMP-HOST", "DUMP", 1, "DM", 16.0, 3.0, 2.0, 19.0, "hydraulic"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-NEST-GUEST", "UTILITY", 1, "UT", 6.0, 2.0, 2.0, 8.0, "flat"),
+            )
+
+        self.db.add_position(
+            position_id=host_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-DUMP-HOST",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=guest_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-NEST-GUEST",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+        )
+
+        nest_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/nest",
+            json={"position_id": guest_id, "nested_inside": host_id},
+        )
+        self.assertEqual(nest_resp.status_code, 200)
+        nested_row = self.db.get_position(guest_id)
+        self.assertEqual(int(nested_row["is_nested"] or 0), 1)
+        self.assertEqual(nested_row["nested_inside"], host_id)
+
+        clear_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/nest",
+            json={"position_id": guest_id, "action": "clear"},
+        )
+        self.assertEqual(clear_resp.status_code, 200)
+        cleared_row = self.db.get_position(guest_id)
+        self.assertEqual(int(cleared_row["is_nested"] or 0), 0)
+        self.assertIsNone(cleared_row["nested_inside"])
+
     def test_sessions_scope_planner_vs_admin(self):
         planner_one_id = self._create_planner_profile("Planner One")
         planner_two_id = self._create_planner_profile("Planner Two")
@@ -532,6 +602,477 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertAlmostEqual(float(right_unit.get("render_tongue_length_ft") or 0.0), 4.0, places=2)
         self.assertAlmostEqual(float(right_unit.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
         self.assertTrue(bool(right_unit.get("bt_half_tongue_stuffed")))
+
+    def test_bigtex_half_tongue_rule_applies_to_consecutive_stacks(self):
+        profile_id = self.db.create_access_profile("BT Tongue Chain Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Tongue Chain Tester",
+            "BT Half Tongue Chain Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Tongue Chain Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-HALF-CHAIN", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        pos_ids = []
+        for seq in (1, 2, 3):
+            pos_id = str(uuid.uuid4())
+            pos_ids.append(pos_id)
+            self.db.add_position(
+                position_id=pos_id,
+                session_id=session_id,
+                brand="bigtex",
+                item_number="BT-HALF-CHAIN",
+                deck_zone="lower_deck",
+                layer=1,
+                sequence=seq,
+                is_rotated=1,
+            )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+        units_by_id = {str(row.get("position_id")): row for row in canvas.get("enriched_positions") or []}
+        first = units_by_id[pos_ids[0]]
+        second = units_by_id[pos_ids[1]]
+        third = units_by_id[pos_ids[2]]
+
+        self.assertAlmostEqual(float(first.get("occupied_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertFalse(bool(first.get("bt_half_tongue_stuffed")))
+        self.assertAlmostEqual(float(second.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
+        self.assertTrue(bool(second.get("bt_half_tongue_stuffed")))
+        self.assertAlmostEqual(float(third.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
+        self.assertTrue(bool(third.get("bt_half_tongue_stuffed")))
+
+    def test_bigtex_add_on_stack_persists_column_alignment_on_base_stack(self):
+        profile_id = self.db.create_access_profile("BT Alignment Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Alignment Tester",
+            "BT Alignment Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Alignment Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-ALIGN-001", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-ALIGN-001", "deck_zone": "lower_deck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        add_base_payload = add_base.get_json()
+        self.assertTrue(add_base_payload["ok"])
+        base_position_id = str(add_base_payload["position_id"])
+
+        add_stacked = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "BT-ALIGN-001",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "column_alignment": "left",
+            },
+        )
+        self.assertEqual(add_stacked.status_code, 200)
+        add_stacked_payload = add_stacked.get_json()
+        self.assertTrue(add_stacked_payload["ok"])
+
+        base_row = dict(self.db.get_position(base_position_id) or {})
+        self.assertIn("column_alignment:left", str(base_row.get("override_reason") or ""))
+
+    def test_bigtex_stack_on_does_not_flip_existing_left_anchor(self):
+        profile_id = self.db.create_access_profile("BT Anchor Persistence Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Anchor Persistence Tester",
+            "BT Anchor Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Anchor Persistence Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-ANCHOR-001", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-ANCHOR-001", "deck_zone": "lower_deck", "column_alignment": "left"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        add_base_payload = add_base.get_json()
+        self.assertTrue(add_base_payload["ok"])
+        base_position_id = str(add_base_payload["position_id"])
+
+        add_stacked = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "BT-ANCHOR-001",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(add_stacked.status_code, 200)
+        add_stacked_payload = add_stacked.get_json()
+        self.assertTrue(add_stacked_payload["ok"])
+
+        base_row = dict(self.db.get_position(base_position_id) or {})
+        override = str(base_row.get("override_reason") or "")
+        self.assertIn("column_alignment:left", override)
+        self.assertNotIn("column_alignment:right", override)
+
+    def test_bigtex_single_lower_stack_auto_stacks_when_no_explicit_placement(self):
+        profile_id = self.db.create_access_profile("BT Auto Stack Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Auto Stack Tester",
+            "BT Auto Stack Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Auto Stack Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-AUTO-STACK", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        add_first = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-AUTO-STACK", "deck_zone": "lower_deck", "column_alignment": "left"},
+        )
+        self.assertEqual(add_first.status_code, 200)
+        add_first_payload = add_first.get_json()
+        self.assertTrue(add_first_payload["ok"])
+
+        add_second = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-AUTO-STACK", "deck_zone": "lower_deck"},
+        )
+        self.assertEqual(add_second.status_code, 200)
+        add_second_payload = add_second.get_json()
+        self.assertTrue(add_second_payload["ok"])
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 2)
+        rows.sort(key=lambda r: int(r["layer"]))
+        self.assertEqual(int(rows[0]["sequence"]), 1)
+        self.assertEqual(int(rows[1]["sequence"]), 1)
+        self.assertEqual(int(rows[1]["layer"]), 2)
+
+    def test_bigtex_single_stack_same_side_insert_index_keeps_existing_stack(self):
+        profile_id = self.db.create_access_profile("BT Lone Stack Insert Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Lone Stack Insert Tester",
+            "BT Lone Stack Insert Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Lone Stack Insert Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-LONE-STACK", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        first_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-LONE-STACK", "deck_zone": "lower_deck", "column_alignment": "left"},
+        )
+        self.assertEqual(first_add.status_code, 200)
+        self.assertTrue((first_add.get_json() or {}).get("ok"))
+
+        second_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "BT-LONE-STACK",
+                "deck_zone": "lower_deck",
+                "insert_index": 1,
+                "column_alignment": "left",
+            },
+        )
+        self.assertEqual(second_add.status_code, 200)
+        self.assertTrue((second_add.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1})
+        self.assertEqual(sorted(int(r["layer"]) for r in rows), [1, 2])
+
+    def test_bigtex_single_stack_opposite_side_insert_creates_second_stack(self):
+        profile_id = self.db.create_access_profile("BT Opposite Side Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Opposite Side Tester",
+            "BT Opposite Side Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Opposite Side Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-OPPOSITE-STACK", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        first_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-OPPOSITE-STACK", "deck_zone": "lower_deck", "column_alignment": "left"},
+        )
+        self.assertEqual(first_add.status_code, 200)
+        self.assertTrue((first_add.get_json() or {}).get("ok"))
+
+        second_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "BT-OPPOSITE-STACK",
+                "deck_zone": "lower_deck",
+                "insert_index": 1,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(second_add.status_code, 200)
+        self.assertTrue((second_add.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2})
+
+    def test_bigtex_first_lower_deck_add_defaults_to_left_alignment(self):
+        profile_id = self.db.create_access_profile("BT Default Left Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Default Left Tester",
+            "BT Default Left Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Default Left Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-DEFAULT-LEFT", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        add_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-DEFAULT-LEFT", "deck_zone": "lower_deck"},
+        )
+        self.assertEqual(add_resp.status_code, 200)
+        add_payload = add_resp.get_json() or {}
+        self.assertTrue(add_payload.get("ok"))
+        position_id = str(add_payload.get("position_id") or "")
+
+        row = dict(self.db.get_position(position_id) or {})
+        self.assertIn("column_alignment:left", str(row.get("override_reason") or ""))
+
+    def test_bigtex_canvas_only_partial_refresh_renders_after_add(self):
+        profile_id = self.db.create_access_profile("BT Canvas Refresh Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Canvas Refresh Tester",
+            "BT Canvas Refresh Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Canvas Refresh Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-CANVAS-REFRESH", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        add_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-CANVAS-REFRESH", "deck_zone": "lower_deck", "include_state": False},
+        )
+        self.assertEqual(add_resp.status_code, 200)
+        self.assertTrue((add_resp.get_json() or {}).get("ok"))
+
+        refresh_resp = self.client.get(
+            f"/prograde/session/{session_id}/load?pg_partial=1&pg_canvas_only=1",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        self.assertEqual(refresh_resp.status_code, 200)
+        body = refresh_resp.get_data(as_text=True)
+        self.assertIn('id="pg-canvas-column"', body)
+
+    def test_bigtex_left_aligned_columns_skip_lower_deck_right_snap(self):
+        profile_id = self.db.create_access_profile("BT Left Snap Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Left Snap Tester",
+            "BT Left Snap Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Left Snap Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-LEFT-SNAP", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        left_position_id = str(uuid.uuid4())
+        right_position_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=left_position_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-LEFT-SNAP",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="column_alignment:left",
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=right_position_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-LEFT-SNAP",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+            is_rotated=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+        lower_positions = canvas.get("x_positions", {}).get("lower_deck", {}) or {}
+        left_start = float(lower_positions.get(1) or 0.0)
+        right_start = float(lower_positions.get(2) or 0.0)
+
+        self.assertLess(left_start, 0.25)
+        self.assertGreater(right_start, left_start)
 
     def test_pj_add_stack_can_enable_gooseneck_crisscross(self):
         profile_id = self.db.create_access_profile("PJ Crisscross Planner")

@@ -1,0 +1,84 @@
+<div class="card" style="padding:0;overflow:hidden" id="violation-panel">
+  <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
+    <div class="card-title">Constraint Check</div>
+    <span id="viol-count-badge">
+      {% if violations_error > 0 %}
+        <span class="badge badge-error">{{ violations_error }}E</span>
+      {% endif %}
+      {% if violations_warning > 0 %}
+        <span class="badge badge-warning" style="margin-left:3px">{{ violations_warning }}W</span>
+      {% endif %}
+      {% if violations_info > 0 %}
+        <span class="badge badge-info" style="margin-left:3px">{{ violations_info }}I</span>
+      {% endif %}
+    </span>
+  </div>
+
+  <div style="max-height:300px;overflow-y:auto;padding:var(--space-sm)">
+    {% if violations %}
+
+      {% set errors   = violations | selectattr('severity','equalto','error')   | list %}
+      {% set warnings = violations | selectattr('severity','equalto','warning') | list %}
+      {% set infos    = violations | selectattr('severity','equalto','info')    | list %}
+
+      {% if errors %}
+      <div class="viol-group-hdr">Errors</div>
+      {% for v in errors %}
+      <div class="violation-item error">
+        <div style="flex:1">
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+          <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+          {% if v.suggested_fix %}
+          <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {% if warnings %}
+      <div class="viol-group-hdr" style="margin-top:4px">Warnings</div>
+      {% for v in warnings %}
+      <div class="violation-item warning {% if v.acknowledged %}acknowledged{% endif %}"
+           id="viol-{{ v.rule_code | replace('_','-') }}">
+        <div style="flex:1">
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+          <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+          {% if v.suggested_fix %}
+          <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
+          {% endif %}
+          {% if not v.acknowledged %}
+          <button class="violation-ack-btn"
+                  onclick="acknowledgeViolation('{{ v.rule_code }}', 'add', this)">
+            Acknowledge
+          </button>
+          {% else %}
+          <button class="violation-unack-btn"
+                  onclick="acknowledgeViolation('{{ v.rule_code }}', 'remove', this)">
+            Un-acknowledge
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {% if infos %}
+      <div class="viol-group-hdr" style="margin-top:4px">Notes</div>
+      {% for v in infos %}
+      <div class="violation-item info">
+        <div style="flex:1">
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
+          <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+    {% else %}
+    <div style="padding:16px;text-align:center;font-size:12px;color:var(--status-success)">
+      No constraint violations
+    </div>
+    {% endif %}
+  </div>
+</div>

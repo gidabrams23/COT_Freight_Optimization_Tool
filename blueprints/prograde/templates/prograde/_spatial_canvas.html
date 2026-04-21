@@ -425,7 +425,8 @@
                     data-stack-drop="1"
                     data-zone="{{ zone }}"
                     data-target="{{ top_pos.position_id }}"
-                    data-target-seq="{{ seq }}"/>
+                    data-target-seq="{{ seq }}"
+                    data-column-alignment="{{ base.column_alignment or '' }}"/>
               <rect x="{{ col_x_px - (slot_w_px / 2) }}" y="{{ stack_plot_y }}" width="{{ slot_w_px }}" height="{{ stack_plot_h }}"
                     fill="rgba(125,211,252,0.01)"
                     data-column-slot="1"
@@ -543,7 +544,7 @@
                 {% set item_code_font = 13.2 %}
               {% endif %}
               {% set item_text_y = body_top_px + ([body_h_px * 0.64, 12] | max) %}
-              {% set is_dump_profile = (session.brand == 'pj' and (pos.deck_profile or 'flat') == 'dump') %}
+              {% set is_dump_profile = ((pos.deck_profile or 'flat') == 'dump') %}
               {% set dump_inset_px = [body_w_px * 0.035, 1.8] | max %}
               {% set dump_x0 = x_start_px + dump_inset_px %}
               {% set dump_x1 = x_end_px - dump_inset_px %}
@@ -635,7 +636,7 @@
                 {% set door_y = door_max_y %}
               {% endif %}
               {% set door_y = [door_y, render_top_y + 0.2] | max %}
-              {% set show_nest_control = (session.brand == 'pj' and ((pos.can_nest_now and pos.nest_host_position_id) or pos.is_nested)) %}
+              {% set show_nest_control = (((pos.can_nest_now and pos.nest_host_position_id) or pos.is_nested) and session.brand in ['pj', 'bigtex']) %}
               {% set nest_h = [door_h, 8] | max %}
               {% set nest_w = [door_w, 22] | max %}
               {% set nest_x = door_x %}

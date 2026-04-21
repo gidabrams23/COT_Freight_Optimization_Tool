@@ -22,6 +22,9 @@ body {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 30;
+  overflow: visible;
 }
 .pg-top-left {
   flex: 1 1 360px;
@@ -87,12 +90,18 @@ body {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 31;
+  overflow: visible;
 }
 .pg-top-meta-group {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 32;
+  overflow: visible;
 }
 .pg-top-actions {
   margin-left: auto;
@@ -128,6 +137,9 @@ body {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-default);
   background: rgba(15, 23, 42, 0.55);
+  position: relative;
+  z-index: 35;
+  overflow: visible;
 }
 .pg-carrier-label {
   font-size: 10px;
@@ -138,9 +150,9 @@ body {
   white-space: nowrap;
 }
 .pg-carrier-select {
-  min-width: 146px;
+  min-width: 180px;
   height: 30px;
-  padding: 4px 28px 4px 9px;
+  padding: 4px 8px 4px 9px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   background: rgba(2, 6, 23, 0.7);
@@ -148,6 +160,13 @@ body {
   font-size: 12px;
   font-weight: 700;
   font-family: var(--font-mono);
+  white-space: nowrap;
+  position: relative;
+  z-index: 36;
+}
+.pg-carrier-select option {
+  background: #f8fafc;
+  color: #0f172a;
 }
 .pg-carrier-select:focus {
   border-color: rgba(59, 130, 246, 0.75);
@@ -2122,83 +2141,7 @@ body {
 {% set category_palette = category_palette | default({'unknown': '#64748b'}) %}
 {% set category_legend = category_legend | default([('unknown', 'Unknown')]) %}
 
-{% if session.status == 'stale' %}
-<div class="stale-banner" id="pg-stale-banner">
-  Warning: settings changed since last validation. Constraint check below uses current assumptions.
-</div>
-{% endif %}
-
-<!-- -- Top Bar ------------------------------------- -->
-<div class="canvas-top-bar" id="pg-top-bar">
-  <div class="pg-top-left">
-    <div class="pg-session-chip">
-      <div class="pg-session-id-row">
-        <span class="pg-session-id-label">Session ID</span>
-        <span class="pg-session-id-value">{{ session_display_id or session.session_id[:8] }}</span>
-        <span class="badge {% if session.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}">
-          {{ session.brand | upper }}
-        </span>
-        {% if session.is_saved %}
-        <span class="badge badge-success">Saved</span>
-        {% else %}
-        <span class="badge badge-warning">Not Saved</span>
-        {% endif %}
-      </div>
-      <div class="pg-session-meta">
-        <span class="pg-session-name">{{ session.session_label or 'Untitled Session' }}</span>
-        <span class="pg-session-sep">&middot;</span>
-        <span>{{ session.carrier_type }}</span>
-        <span class="pg-session-sep">&middot;</span>
-        <span>{{ session.builder_name or session.planner_name or 'Planner Unassigned' }}</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="pg-top-middle">
-    <div class="pg-top-meta-group">
-      <div class="brand-path-group" aria-label="Create load">
-        <span class="brand-path-label">Brand</span>
-        <span class="brand-path-btn active">{{ "Big Tex" if selected_brand == "bigtex" else "PJ" }}</span>
-        <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}">Create Load</a>
-      </div>
-      <div class="pg-carrier-group" aria-label="Truck type">
-        <span class="pg-carrier-label">Truck</span>
-        <select id="pg-carrier-select"
-                class="pg-carrier-select"
-                data-current-value="{{ session.carrier_type }}"
-                onchange="updateCarrierType(this)">
-          {% for option in carrier_options or [] %}
-          <option value="{{ option.carrier_type }}" {% if option.carrier_type == session.carrier_type %}selected{% endif %}>{{ option.label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
-    <div id="violation-summary">
-      {% if violations_error > 0 %}
-        <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
-      {% endif %}
-      {% if violations_warning > 0 %}
-        <span class="badge badge-warning" style="margin-left:4px">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
-      {% endif %}
-      {% if violations_error == 0 and violations_warning == 0 %}
-        <span class="badge badge-success">Clear</span>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="pg-top-actions">
-    <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
-    <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
-    <a href="{{ url_for('prograde.export_load_pdf', session_id=session.session_id, brand=selected_brand) }}"
-       class="btn btn-secondary btn-sm pg-action-btn">Download PDF</a>
-    <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
-  </div>
-  <div class="pg-drag-hint-row">
-    <span>Drag unit body to move entire stack. Drag unit number badge to move only that unit. On lower deck, hover left/right zones to choose the exact stack side.</span>
-    <span id="stack-drag-live-indicator" class="stack-drag-live-indicator hidden" aria-live="polite"></span>
-  </div>
-</div>
-<div id="pg-stack-drop-marker" class="pg-stack-drop-marker" aria-hidden="true"></div>
+{% include "prograde/_load_builder_top_bar.html" %}
 
 <!-- -- Main Canvas + Sidebar ---------------------- -->
 <div class="page-body pg-layout">
@@ -2257,90 +2200,7 @@ body {
     </div>
 
     <!-- Violation Panel -->
-    <div class="card" style="padding:0;overflow:hidden" id="violation-panel">
-      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
-        <div class="card-title">Constraint Check</div>
-        <span id="viol-count-badge">
-          {% if violations_error > 0 %}
-            <span class="badge badge-error">{{ violations_error }}E</span>
-          {% endif %}
-          {% if violations_warning > 0 %}
-            <span class="badge badge-warning" style="margin-left:3px">{{ violations_warning }}W</span>
-          {% endif %}
-          {% if violations_info > 0 %}
-            <span class="badge badge-info" style="margin-left:3px">{{ violations_info }}I</span>
-          {% endif %}
-        </span>
-      </div>
-
-      <div style="max-height:300px;overflow-y:auto;padding:var(--space-sm)">
-        {% if violations %}
-
-          {% set errors   = violations | selectattr('severity','equalto','error')   | list %}
-          {% set warnings = violations | selectattr('severity','equalto','warning') | list %}
-          {% set infos    = violations | selectattr('severity','equalto','info')    | list %}
-
-          {% if errors %}
-          <div class="viol-group-hdr">Errors</div>
-          {% for v in errors %}
-          <div class="violation-item error">
-            <div style="flex:1">
-              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
-              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
-              {% if v.suggested_fix %}
-              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
-              {% endif %}
-            </div>
-          </div>
-          {% endfor %}
-          {% endif %}
-
-          {% if warnings %}
-          <div class="viol-group-hdr" style="margin-top:4px">Warnings</div>
-          {% for v in warnings %}
-          <div class="violation-item warning {% if v.acknowledged %}acknowledged{% endif %}"
-               id="viol-{{ v.rule_code | replace('_','-') }}">
-            <div style="flex:1">
-              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
-              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
-              {% if v.suggested_fix %}
-              <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">Fix: {{ v.suggested_fix }}</div>
-              {% endif %}
-              {% if not v.acknowledged %}
-              <button class="violation-ack-btn"
-                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'add', this)">
-                Acknowledge
-              </button>
-              {% else %}
-              <button class="violation-unack-btn"
-                      onclick="acknowledgeViolation('{{ v.rule_code }}', 'remove', this)">
-                Un-acknowledge
-              </button>
-              {% endif %}
-            </div>
-          </div>
-          {% endfor %}
-          {% endif %}
-
-          {% if infos %}
-          <div class="viol-group-hdr" style="margin-top:4px">Notes</div>
-          {% for v in infos %}
-          <div class="violation-item info">
-            <div style="flex:1">
-              <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{{ v.rule_code }}</div>
-              <div style="color:var(--text-primary);margin-top:2px">{{ v.message }}</div>
-            </div>
-          </div>
-          {% endfor %}
-          {% endif %}
-
-        {% else %}
-        <div style="padding:16px;text-align:center;font-size:12px;color:var(--status-success)">
-          No constraint violations
-        </div>
-        {% endif %}
-      </div>
-    </div>
+    {% include "prograde/_load_builder_violation_panel.html" %}
 
   </div><!-- /sidebar -->
 </div><!-- /page-body -->
@@ -3484,10 +3344,14 @@ function closeModal() {
 }
 
 async function postSession(path, body) {
+  const payload = (body && typeof body === "object") ? { ...body } : {};
+  if (!Object.prototype.hasOwnProperty.call(payload, "include_state")) {
+    payload.include_state = false;
+  }
   const resp = await fetch(SESSION_API_BASE + path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
+    body: JSON.stringify(payload),
   });
   const raw = await resp.text();
   let data = {};
@@ -3536,8 +3400,27 @@ function alignManifestAndInventoryTop() {
   }
 }
 
-async function refreshBuilderFragments() {
-  const resp = await fetch(window.location.pathname + window.location.search, {
+async function refreshBuilderFragments(options = {}) {
+  const refreshInventory = options && Object.prototype.hasOwnProperty.call(options, "refreshInventory")
+    ? Boolean(options.refreshInventory)
+    : true;
+  const canvasOnly = options && Object.prototype.hasOwnProperty.call(options, "canvasOnly")
+    ? Boolean(options.canvasOnly)
+    : false;
+  const refreshUrl = new URL(window.location.href);
+  refreshUrl.searchParams.set("pg_partial", "1");
+  if (canvasOnly) {
+    refreshUrl.searchParams.set("pg_canvas_only", "1");
+  } else {
+    refreshUrl.searchParams.delete("pg_canvas_only");
+  }
+  if (refreshInventory) {
+    refreshUrl.searchParams.set("refresh_inventory", "1");
+  } else {
+    refreshUrl.searchParams.delete("refresh_inventory");
+  }
+  const fetchUrl = `${refreshUrl.pathname}${refreshUrl.search}`;
+  const resp = await fetch(fetchUrl, {
     headers: {
       "X-Requested-With": "XMLHttpRequest",
       "Cache-Control": "no-store",
@@ -3549,6 +3432,33 @@ async function refreshBuilderFragments() {
 
   const html = await resp.text();
   const sourceDoc = new DOMParser().parseFromString(html, "text/html");
+
+  if (canvasOnly) {
+    if (!refreshInventory) {
+      const currentCanvas = document.getElementById("pg-canvas-column");
+      const incomingCanvas = sourceDoc.getElementById("pg-canvas-column");
+      if (currentCanvas && incomingCanvas) {
+        const currentInventoryCard = currentCanvas.querySelector("#pg-inventory-card");
+        const incomingInventoryCard = incomingCanvas.querySelector("#pg-inventory-card");
+        if (currentInventoryCard && incomingInventoryCard) {
+          incomingInventoryCard.replaceWith(currentInventoryCard);
+        }
+      }
+    }
+    replaceNodeByIdFromDoc("pg-canvas-column", sourceDoc);
+    initSpatialScale();
+    initSchematicHoverTooltips();
+    initSkuDragAndDrop({
+      bindSkuItems: false,
+      bindInventoryItems: refreshInventory,
+    });
+    if (refreshInventory) {
+      initInventoryUploadControls();
+      initInventoryWarehouseFilter();
+    }
+    window.requestAnimationFrame(alignManifestAndInventoryTop);
+    return;
+  }
 
   const currentTopBar = document.getElementById("pg-top-bar");
   const incomingStale = sourceDoc.getElementById("pg-stale-banner");
@@ -3563,28 +3473,55 @@ async function refreshBuilderFragments() {
     currentStale.remove();
   }
 
+  if (!refreshInventory) {
+    const currentCanvas = document.getElementById("pg-canvas-column");
+    const incomingCanvas = sourceDoc.getElementById("pg-canvas-column");
+    if (currentCanvas && incomingCanvas) {
+      const currentInventoryCard = currentCanvas.querySelector("#pg-inventory-card");
+      const incomingInventoryCard = incomingCanvas.querySelector("#pg-inventory-card");
+      if (currentInventoryCard && incomingInventoryCard) {
+        incomingInventoryCard.replaceWith(currentInventoryCard);
+      }
+    }
+  }
+
   replaceNodeByIdFromDoc("pg-top-bar", sourceDoc);
   replaceNodeByIdFromDoc("pg-canvas-column", sourceDoc);
   replaceNodeByIdFromDoc("violation-panel", sourceDoc);
-  replaceNodeByIdFromDoc("pg-manifest-card", sourceDoc);
-  replaceNodeByIdFromDoc("pg-inventory-card", sourceDoc);
 
   initRenderModeToggle();
   initSpatialScale();
   initSchematicHoverTooltips();
-  initSkuDragAndDrop();
-  initInventoryUploadControls();
-  initInventoryWarehouseFilter();
+  initSkuDragAndDrop({
+    bindSkuItems: false,
+    bindInventoryItems: refreshInventory,
+  });
+  if (refreshInventory) {
+    initInventoryUploadControls();
+    initInventoryWarehouseFilter();
+  }
   window.requestAnimationFrame(alignManifestAndInventoryTop);
 }
 
-async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt, enableGnCrisscross = false, addSource = ADD_SOURCE_SKU_PICKER) {
+async function refreshBuilderFast() {
+  await refreshBuilderFragments({ refreshInventory: false, canvasOnly: true });
+  if (window.__pgDeferredStatusRefreshTimer) {
+    window.clearTimeout(window.__pgDeferredStatusRefreshTimer);
+  }
+  window.__pgDeferredStatusRefreshTimer = window.setTimeout(() => {
+    refreshBuilderFragments({ refreshInventory: false }).catch(() => {});
+    window.__pgDeferredStatusRefreshTimer = null;
+  }, 320);
+}
+
+async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt, enableGnCrisscross = false, addSource = ADD_SOURCE_SKU_PICKER, columnAlignment = null) {
   try {
     const body = { item_number: itemNumber, deck_zone: zone };
     if (stackOnPosId) body.stack_on = stackOnPosId;
     if (insertIndex !== undefined && insertIndex !== null && insertIndex !== "") {
       body.insert_index = Number(insertIndex);
     }
+    if (columnAlignment) body.column_alignment = columnAlignment;
     if (SESSION_BRAND === "pj") {
       body.pj_tongue_profile = _pjTongueMode(tongueMode || _getSkuTongueSelection(itemNumber, "standard"));
       const normalizedDumpHeight = _normalizePjDumpHeightFt(dumpHeightFt, null);
@@ -3600,7 +3537,7 @@ async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, 
       body.add_source = normalizedSource;
     }
     await postSession("/add", body);
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
   } catch (e) {
     showToast(`Failed to add unit: ${e.message}`, "error");
   }
@@ -3622,7 +3559,7 @@ async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCri
       body.to_layer_index = Number(toLayerIndex);
     }
     await postSession("/position/move", body);
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
   } catch (e) {
     showToast(`Failed to move unit: ${e.message}`, "error");
   }
@@ -3639,7 +3576,7 @@ async function moveStack(fromZone, sequence, toZone, insertIndex) {
       body.insert_index = Number(insertIndex);
     }
     await postSession("/column/move", body);
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
     showToast("Stack moved.", "success");
   } catch (e) {
     showToast(`Failed to move stack: ${e.message}`, "error");
@@ -3649,7 +3586,7 @@ async function moveStack(fromZone, sequence, toZone, insertIndex) {
 async function removeUnit(positionId) {
   try {
     await postSession("/remove", { position_id: positionId });
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
   } catch (e) {
     showToast(`Failed to remove unit: ${e.message}`, "error");
   }
@@ -3658,7 +3595,7 @@ async function removeUnit(positionId) {
 async function rotateUnit(positionId) {
   try {
     await postSession("/rotate", { position_id: positionId });
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
   } catch (e) {
     showToast(`Failed to rotate unit: ${e.message}`, "error");
   }
@@ -3667,7 +3604,7 @@ async function rotateUnit(positionId) {
 async function toggleDumpDoor(positionId) {
   try {
     await postSession("/toggle_dump_door", { position_id: positionId });
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
   } catch (e) {
     showToast(`Failed to toggle dump door: ${e.message}`, "error");
   }
@@ -3677,7 +3614,7 @@ async function nestUnit(positionId, nestedInsideId) {
   if (!positionId || !nestedInsideId) return;
   try {
     await postSession("/nest", { position_id: positionId, nested_inside: nestedInsideId });
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
     showToast("Unit nested inside dump.", "success");
   } catch (e) {
     showToast(`Nest failed: ${e.message}`, "error");
@@ -3688,7 +3625,7 @@ async function unnestUnit(positionId) {
   if (!positionId) return;
   try {
     await postSession("/nest", { position_id: positionId, action: "clear" });
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
     showToast("Unit returned to stacked position.", "success");
   } catch (e) {
     showToast(`Unnest failed: ${e.message}`, "error");
@@ -3719,7 +3656,7 @@ async function updateCarrierType(selectEl) {
 async function toggleAxleDrop(positionId, checkbox) {
   try {
     await postSession("/toggle_axle_drop", { position_id: positionId });
-    await refreshBuilderFragments();
+    await refreshBuilderFast();
   } catch (e) {
     checkbox.checked = !checkbox.checked;
     showToast(`Toggle failed: ${e.message}`, "error");
@@ -3731,7 +3668,7 @@ async function acknowledgeViolation(ruleCode, action, btn) {
     await postSession("/acknowledge", { rule_code: ruleCode, action });
     const item = document.getElementById("viol-" + ruleCode.replace(/_/g, "-"));
     if (!item) {
-      await refreshBuilderFragments();
+      await refreshBuilderFragments({ refreshInventory: true });
       return;
     }
     if (action === "add") {
@@ -3745,7 +3682,7 @@ async function acknowledgeViolation(ruleCode, action, btn) {
       btn.textContent = "Acknowledge";
       btn.onclick = () => acknowledgeViolation(ruleCode, "add", btn);
     }
-    await refreshBuilderFragments();
+    await refreshBuilderFragments({ refreshInventory: true });
   } catch (e) {
     showToast(`Acknowledge failed: ${e.message}`, "error");
   }
@@ -3793,14 +3730,16 @@ async function refreshViolations() {
   await refreshBuilderFragments();
 }
 
-function initSkuDragAndDrop() {
-  const skuItems = document.querySelectorAll(".sku-pick-item");
-  const inventoryPickItems = document.querySelectorAll(".inventory-pick-item");
+function initSkuDragAndDrop(options = {}) {
+  const bindSkuItems = options && Object.prototype.hasOwnProperty.call(options, "bindSkuItems")
+    ? Boolean(options.bindSkuItems)
+    : true;
+  const bindInventoryItems = options && Object.prototype.hasOwnProperty.call(options, "bindInventoryItems")
+    ? Boolean(options.bindInventoryItems)
+    : true;
+  const skuItems = bindSkuItems ? document.querySelectorAll(".sku-pick-item") : [];
+  const inventoryPickItems = bindInventoryItems ? document.querySelectorAll(".inventory-pick-item") : [];
   const unitCards = document.querySelectorAll(".unit-card[data-pos-id]");
-  const deckTargets = document.querySelectorAll("[data-drop-zone]");
-  const stackTargets = document.querySelectorAll("[data-stack-drop]");
-  const columnSlots = document.querySelectorAll("[data-column-slot]");
-  const cardDropTargets = document.querySelectorAll(".unit-card[data-pos-id]");
   let draggedUnitId = null;
   let draggedStack = null;
   const bindOnce = (el, flagName) => {
@@ -3820,8 +3759,14 @@ function initSkuDragAndDrop() {
     if (!dragLiveIndicator) return;
     const normalized = String(text || "").trim();
     if (!normalized) {
+      if (dragLiveIndicator.classList.contains("hidden") && !dragLiveIndicator.textContent) {
+        return;
+      }
       dragLiveIndicator.classList.add("hidden");
       dragLiveIndicator.textContent = "";
+      return;
+    }
+    if (!dragLiveIndicator.classList.contains("hidden") && dragLiveIndicator.textContent === normalized) {
       return;
     }
     dragLiveIndicator.textContent = normalized;
@@ -3848,10 +3793,22 @@ function initSkuDragAndDrop() {
     dropMarker.classList.remove("active", "after");
   };
 
+  let transientPlacementHintTarget = null;
+
   const clearDropPlacementHints = () => {
     document.querySelectorAll(".drop-before, .drop-after").forEach((el) => {
       el.classList.remove("drop-before", "drop-after");
     });
+    transientPlacementHintTarget = null;
+    hideDropMarker();
+    clearLowerDeckSideHighlights();
+  };
+
+  const clearTransientPlacementHints = () => {
+    if (transientPlacementHintTarget) {
+      transientPlacementHintTarget.classList.remove("drop-before", "drop-after");
+      transientPlacementHintTarget = null;
+    }
     hideDropMarker();
     clearLowerDeckSideHighlights();
   };
@@ -4062,7 +4019,7 @@ function initSkuDragAndDrop() {
     const payload = { type: "unit", positionId: mouseUnitDrag.positionId };
     const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
     const target = resolveDropTarget(probeNode);
-    clearDropPlacementHints();
+    clearTransientPlacementHints();
     clearMouseUnitHover();
     if (!target) return;
     target.classList.add("drop-target-active");
@@ -4138,7 +4095,7 @@ function initSkuDragAndDrop() {
     const payload = { type: "stack", zone: mouseStackDrag.zone, sequence: mouseStackDrag.sequence };
     const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
     const target = resolveDropTarget(probeNode);
-    clearDropPlacementHints();
+    clearTransientPlacementHints();
     clearMouseStackHover();
     if (!target) return;
     target.classList.add("drop-target-active");
@@ -4248,51 +4205,27 @@ function initSkuDragAndDrop() {
     });
   });
 
-  const bindDropTarget = (target, onDrop) => {
-    if (!bindOnce(target, "dropBound")) return;
-    target.addEventListener("dragenter", (evt) => {
-      evt.preventDefault();
-      target.classList.add("drop-target-active");
-    });
-    target.addEventListener("dragover", (evt) => {
-      evt.preventDefault();
-      const payload = getPayload(evt);
-      clearDropPlacementHints();
-      setDropPlacementHint(target, payload, evt);
-      if (evt.dataTransfer) {
-        evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
-      }
-    });
-    target.addEventListener("dragleave", (evt) => {
-      if (!target.contains(evt.relatedTarget)) {
-        target.classList.remove("drop-target-active");
-        target.classList.remove("drop-before", "drop-after");
-        hideDropMarker();
-      }
-    });
-    target.addEventListener("drop", async (evt) => {
-      evt.preventDefault();
-      evt.stopPropagation();
-      target.classList.remove("drop-target-active");
-      target.classList.remove("drop-before", "drop-after");
-      const payload = getPayload(evt);
-      clearHighlights();
-      setDragLiveText("");
-      if (!payload) return;
-      try {
-        await onDrop(payload, evt);
-      } catch (e) {
-        showToast(`Drop failed: ${e.message || e}`, "error");
-      }
-    });
-  };
-
   const getSortedStackSequencesForZone = (zone) => {
     if (!zone) return [];
-    return Array.from(document.querySelectorAll(`[data-stack-drop][data-zone="${zone}"]`))
-      .map((el) => Number(el.dataset.targetSeq || 0))
-      .filter((seq) => Number.isInteger(seq) && seq > 0)
-      .sort((a, b) => a - b);
+    return getOrderedStackTargetsForZone(zone).map((entry) => entry.seq);
+  };
+
+  const orderedStackTargetCache = new Map();
+  const getOrderedStackTargetsForZone = (zone) => {
+    if (!zone) return [];
+    if (orderedStackTargetCache.has(zone)) {
+      return orderedStackTargetCache.get(zone);
+    }
+    const ordered = Array.from(document.querySelectorAll(`[data-stack-drop][data-zone="${zone}"]`))
+      .map((el) => ({
+        seq: Number(el.dataset.targetSeq || 0),
+        target: String(el.dataset.target || "").trim(),
+        columnAlignment: _normalizeDropSide(el.dataset.columnAlignment || ""),
+      }))
+      .filter((entry) => Number.isInteger(entry.seq) && entry.seq > 0)
+      .sort((a, b) => a.seq - b.seq);
+    orderedStackTargetCache.set(zone, ordered);
+    return ordered;
   };
 
   const getInsertIndexForTargetSequence = (zone, targetSeq) => {
@@ -4326,37 +4259,75 @@ function initSkuDragAndDrop() {
     return String(target.dataset.dropZone || target.dataset.zone || "").trim();
   };
 
-  const getLowerDeckSideDropTargets = () => {
-    const left = document.querySelector(`[data-drop-zone="${LOWER_DECK_ZONE}"][data-drop-side="left"]`);
-    const right = document.querySelector(`[data-drop-zone="${LOWER_DECK_ZONE}"][data-drop-side="right"]`);
-    return { left, right };
+  const resolveDeckDropTargetForZone = (zone, evt = null) => {
+    const normalizedZone = String(zone || "").trim();
+    if (!normalizedZone) return null;
+    const deckTargets = Array.from(document.querySelectorAll(`[data-drop-zone="${normalizedZone}"]`));
+    if (!deckTargets.length) return null;
+    if (deckTargets.length === 1) return deckTargets[0];
+    const side = _normalizeDropSide(getLowerDeckSideFromPointer(evt));
+    if (side === "right") {
+      return deckTargets.find((el) => _normalizeDropSide(el.dataset && el.dataset.dropSide) === "right")
+        || deckTargets[deckTargets.length - 1];
+    }
+    return deckTargets.find((el) => _normalizeDropSide(el.dataset && el.dataset.dropSide) === "left")
+      || deckTargets[0];
   };
 
+  const normalizeDropTargetForPayload = (target, payload, evt = null) => {
+    if (!target || !payload) return target;
+    if (payload.type !== "sku") return target;
+    if (target.matches && target.matches("[data-drop-zone]")) {
+      return target;
+    }
+    const zone = getDropTargetZone(target);
+    if (!zone) return target;
+    return resolveDeckDropTargetForZone(zone, evt) || target;
+  };
+
+  let lowerDeckSideTargetCache = null;
+  const getLowerDeckSideDropTargets = () => {
+    if (lowerDeckSideTargetCache) {
+      return lowerDeckSideTargetCache;
+    }
+    lowerDeckSideTargetCache = {
+      left: document.querySelector(`[data-drop-zone="${LOWER_DECK_ZONE}"][data-drop-side="left"]`),
+      right: document.querySelector(`[data-drop-zone="${LOWER_DECK_ZONE}"][data-drop-side="right"]`),
+      leftLabel: document.getElementById("pg-lower-side-label-left"),
+      rightLabel: document.getElementById("pg-lower-side-label-right"),
+    };
+    return lowerDeckSideTargetCache;
+  };
+
+  let activeLowerDeckSide = "";
   const clearLowerDeckSideHighlights = () => {
-    const { left, right } = getLowerDeckSideDropTargets();
+    if (!activeLowerDeckSide) return;
+    const { left, right, leftLabel, rightLabel } = getLowerDeckSideDropTargets();
     if (left) left.classList.remove("drop-target-active");
     if (right) right.classList.remove("drop-target-active");
-    const leftLabel = document.getElementById("pg-lower-side-label-left");
-    const rightLabel = document.getElementById("pg-lower-side-label-right");
     if (leftLabel) leftLabel.classList.remove("active");
     if (rightLabel) rightLabel.classList.remove("active");
+    activeLowerDeckSide = "";
   };
 
   const setLowerDeckSideHighlight = (side) => {
-    clearLowerDeckSideHighlights();
     const normalizedSide = _normalizeDropSide(side);
     if (!normalizedSide) return null;
-    const { left, right } = getLowerDeckSideDropTargets();
+    if (activeLowerDeckSide === normalizedSide) {
+      const { left, right } = getLowerDeckSideDropTargets();
+      return normalizedSide === "right" ? (right || null) : (left || null);
+    }
+    clearLowerDeckSideHighlights();
+    const { left, right, leftLabel, rightLabel } = getLowerDeckSideDropTargets();
     const target = normalizedSide === "right" ? right : left;
-    const targetLabel = document.getElementById(
-      normalizedSide === "right" ? "pg-lower-side-label-right" : "pg-lower-side-label-left"
-    );
+    const targetLabel = normalizedSide === "right" ? rightLabel : leftLabel;
     if (target) {
       target.classList.add("drop-target-active");
     }
     if (targetLabel) {
       targetLabel.classList.add("active");
     }
+    activeLowerDeckSide = normalizedSide;
     return target || null;
   };
 
@@ -4415,7 +4386,7 @@ function initSkuDragAndDrop() {
       });
   };
 
-  const resolveLowerDeckDropPlan = (target, evt) => {
+  const resolveLowerDeckDropPlan = (target, evt, payloadType = "") => {
     if (SESSION_BRAND !== "bigtex" || !target) {
       return null;
     }
@@ -4428,69 +4399,41 @@ function initSkuDragAndDrop() {
     );
     if (!side) return null;
 
-    const stacks = getVisualStackTargetsForZone(zone);
-    const stackWithSide = (() => {
-      if (!stacks.length) return [];
-      const { left, right } = getLowerDeckSideDropTargets();
-      const leftRect = left && left.getBoundingClientRect ? left.getBoundingClientRect() : null;
-      const rightRect = right && right.getBoundingClientRect ? right.getBoundingClientRect() : null;
-      let deckMidX = null;
-      if (
-        leftRect
-        && rightRect
-        && Number.isFinite(leftRect.left)
-        && Number.isFinite(rightRect.right)
-      ) {
-        deckMidX = leftRect.left + ((rightRect.right - leftRect.left) / 2);
-      }
-      if (!Number.isFinite(deckMidX)) {
-        const leftMost = stacks[0];
-        const rightMost = stacks[stacks.length - 1];
-        if (
-          leftMost
-          && rightMost
-          && leftMost.rect
-          && rightMost.rect
-          && Number.isFinite(leftMost.rect.left)
-          && Number.isFinite(leftMost.rect.width)
-          && Number.isFinite(rightMost.rect.left)
-          && Number.isFinite(rightMost.rect.width)
-        ) {
-          const xLeft = leftMost.rect.left + (leftMost.rect.width / 2);
-          const xRight = rightMost.rect.left + (rightMost.rect.width / 2);
-          deckMidX = xLeft + ((xRight - xLeft) / 2);
-        }
-      }
-      return stacks.map((entry) => {
-        const centerX = entry.rect && Number.isFinite(entry.rect.left) && Number.isFinite(entry.rect.width)
-          ? entry.rect.left + (entry.rect.width / 2)
-          : null;
-        const stackSide = Number.isFinite(centerX) && Number.isFinite(deckMidX)
-          ? (centerX >= deckMidX ? "right" : "left")
-          : "";
-        return { ...entry, side: stackSide };
-      });
-    })();
+    const stacks = getOrderedStackTargetsForZone(zone);
 
     if (!stacks.length) {
       return { side, stackTarget: null, targetSeq: null, insertIndex: 0, edgeInsertIndex: 0 };
     }
-    const sideCandidates = stackWithSide.filter((entry) => entry.side === side);
-    if (sideCandidates.length) {
-      const chosen = side === "right"
-        ? sideCandidates[sideCandidates.length - 1]
-        : sideCandidates[0];
+    if (stacks.length === 1) {
+      const lone = stacks[0];
+      const loneAlignment = _normalizeDropSide(lone.columnAlignment || "");
+      if (payloadType === "sku" && loneAlignment && side !== loneAlignment) {
+        return {
+          side,
+          stackTarget: null,
+          targetSeq: null,
+          insertIndex: side === "right" ? 1 : 0,
+          edgeInsertIndex: side === "right" ? 1 : 0,
+        };
+      }
       return {
         side,
-        stackTarget: chosen.target || null,
-        targetSeq: Number.isInteger(chosen.seq) ? chosen.seq : null,
-        insertIndex: side === "right" ? stacks.length - 1 : 0,
-        edgeInsertIndex: side === "right" ? stacks.length : 0,
+        stackTarget: lone.target || null,
+        targetSeq: Number.isInteger(lone.seq) ? lone.seq : null,
+        insertIndex: side === "right" ? 1 : 0,
+        edgeInsertIndex: side === "right" ? 1 : 0,
       };
     }
-    return side === "right"
-      ? { side, stackTarget: null, targetSeq: null, insertIndex: stacks.length, edgeInsertIndex: stacks.length }
-      : { side, stackTarget: null, targetSeq: null, insertIndex: 0, edgeInsertIndex: 0 };
+    const chosen = side === "right"
+      ? stacks[stacks.length - 1]
+      : stacks[0];
+    return {
+      side,
+      stackTarget: chosen.target || null,
+      targetSeq: Number.isInteger(chosen.seq) ? chosen.seq : null,
+      insertIndex: side === "right" ? stacks.length - 1 : 0,
+      edgeInsertIndex: side === "right" ? stacks.length : 0,
+    };
   };
 
   const getInsertIndexFromDeckPointer = (zone, evt) => {
@@ -4563,7 +4506,7 @@ function initSkuDragAndDrop() {
     if (!target || !payload || !evt) return;
     if (payload.type === "sku") {
       const zone = getDropTargetZone(target);
-      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "sku");
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
         setLowerDeckSideHighlight(lowerDeckPlan.side);
@@ -4582,6 +4525,7 @@ function initSkuDragAndDrop() {
         const placement = getUnitDropPlacement(target, evt);
         target.classList.toggle("drop-before", !placement.placeAfter);
         target.classList.toggle("drop-after", placement.placeAfter);
+        transientPlacementHintTarget = target;
         setDragLiveText(
           `Moving unit. Drop to place ${placement.placeAfter ? "after" : "before"} selected unit on ${zoneLabel(zone)}.`
         );
@@ -4599,7 +4543,7 @@ function initSkuDragAndDrop() {
       }
       if (target.matches("[data-drop-zone]")) {
         const zone = String(target.dataset.dropZone || "").trim();
-        const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+        const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "unit");
         if (lowerDeckPlan && lowerDeckPlan.side) {
           const sideLabel = lowerDeckPlan.side === "right" ? "right stack" : "left stack";
           setLowerDeckSideHighlight(lowerDeckPlan.side);
@@ -4620,6 +4564,7 @@ function initSkuDragAndDrop() {
       const zone = String(target.dataset.zone || "").trim();
       target.classList.toggle("drop-before", !placeAfter);
       target.classList.toggle("drop-after", placeAfter);
+      transientPlacementHintTarget = target;
       showDropMarker(placeAfter ? rect.right : rect.left, rect.top, rect.height, placeAfter);
       if (Number.isInteger(targetSeq) && targetSeq > 0) {
         setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
@@ -4638,7 +4583,7 @@ function initSkuDragAndDrop() {
     }
     if (target.matches("[data-drop-zone]")) {
       const zone = String(target.dataset.dropZone || "").trim();
-      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "stack");
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "right side" : "left side";
         setLowerDeckSideHighlight(lowerDeckPlan.side);
@@ -4655,9 +4600,10 @@ function initSkuDragAndDrop() {
   const dispatchDrop = async (target, payload, evt = null) => {
     if (!payload) return;
     const lowerDeckSkuPlan = (payload.type === "sku")
-      ? resolveLowerDeckDropPlan(target, evt)
+      ? resolveLowerDeckDropPlan(target, evt, "sku")
       : null;
     if (lowerDeckSkuPlan) {
+      const dropSideAlignment = lowerDeckSkuPlan.side || null;
       if (lowerDeckSkuPlan.stackTarget) {
         await addUnit(
           payload.itemNumber,
@@ -4667,7 +4613,8 @@ function initSkuDragAndDrop() {
           payload.tongueMode,
           payload.dumpHeightFt,
           false,
-          payload.addSource
+          payload.addSource,
+          dropSideAlignment
         );
       } else {
         await addUnit(
@@ -4678,7 +4625,8 @@ function initSkuDragAndDrop() {
           payload.tongueMode,
           payload.dumpHeightFt,
           false,
-          payload.addSource
+          payload.addSource,
+          dropSideAlignment
         );
       }
       return;
@@ -4771,13 +4719,14 @@ function initSkuDragAndDrop() {
     if (target.matches("[data-drop-zone]")) {
       const zone = target.dataset.dropZone;
       if (!zone) return;
-      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt);
+      const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, payload.type);
       const insertIndex = lowerDeckPlan ? lowerDeckPlan.insertIndex : getInsertIndexFromDeckPointer(zone, evt);
+      const dropSideAlignment = (lowerDeckPlan && lowerDeckPlan.side) ? lowerDeckPlan.side : null;
       if (payload.type === "sku") {
         if (lowerDeckPlan && lowerDeckPlan.stackTarget) {
-          await addUnit(payload.itemNumber, zone, lowerDeckPlan.stackTarget, null, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource);
+          await addUnit(payload.itemNumber, zone, lowerDeckPlan.stackTarget, null, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource, dropSideAlignment);
         } else {
-          await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource);
+          await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource, dropSideAlignment);
         }
       } else if (payload.type === "unit") {
         if (lowerDeckPlan && lowerDeckPlan.targetSeq) {
@@ -4792,42 +4741,42 @@ function initSkuDragAndDrop() {
     }
   };
 
-  deckTargets.forEach((deck) => {
-    bindDropTarget(deck, async (payload, evt) => {
-      await dispatchDrop(deck, payload, evt);
-    });
-  });
-
-  stackTargets.forEach((stack) => {
-    bindDropTarget(stack, async (payload, evt) => {
-      await dispatchDrop(stack, payload, evt);
-    });
-  });
-
-  columnSlots.forEach((slot) => {
-    bindDropTarget(slot, async (payload, evt) => {
-      await dispatchDrop(slot, payload, evt);
-    });
-  });
-
-  // Allow dropping directly on an existing unit card to append/move into that stack.
-  cardDropTargets.forEach((card) => {
-    bindDropTarget(card, async (payload, evt) => {
-      await dispatchDrop(card, payload, evt);
-    });
-  });
-
   if (!window.__pgGlobalDropBound) {
     window.__pgGlobalDropBound = true;
+    let globalHoverTarget = null;
+    const setGlobalHoverTarget = (target) => {
+      if (
+        globalHoverTarget === target
+        && globalHoverTarget
+        && globalHoverTarget.classList.contains("drop-target-active")
+      ) {
+        return;
+      }
+      if (globalHoverTarget) {
+        globalHoverTarget.classList.remove("drop-target-active");
+      }
+      globalHoverTarget = target || null;
+      if (globalHoverTarget) {
+        globalHoverTarget.classList.add("drop-target-active");
+      }
+    };
+    const clearGlobalHoverTarget = () => {
+      if (!globalHoverTarget) return;
+      globalHoverTarget.classList.remove("drop-target-active");
+      globalHoverTarget = null;
+    };
     document.addEventListener("dragover", (evt) => {
-      const target = resolveDropTarget(evt.target);
+      const payload = getPayload(evt);
+      const rawTarget = resolveDropTarget(evt.target);
+      const target = normalizeDropTargetForPayload(rawTarget, payload, evt);
       if (!target) {
-        clearDropPlacementHints();
+        clearTransientPlacementHints();
+        clearGlobalHoverTarget();
         return;
       }
       evt.preventDefault();
-      const payload = getPayload(evt);
-      clearDropPlacementHints();
+      clearTransientPlacementHints();
+      setGlobalHoverTarget(target);
       setDropPlacementHint(target, payload, evt);
       if (evt.dataTransfer) {
         evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
@@ -4835,12 +4784,13 @@ function initSkuDragAndDrop() {
     });
 
     document.addEventListener("drop", async (evt) => {
-      if (evt.defaultPrevented) return;
-      const target = resolveDropTarget(evt.target);
+      const payload = getPayload(evt);
+      const rawTarget = resolveDropTarget(evt.target);
+      const target = normalizeDropTargetForPayload(rawTarget, payload, evt);
       if (!target) return;
       evt.preventDefault();
-      const payload = getPayload(evt);
       setDragLiveText("");
+      clearGlobalHoverTarget();
       clearDropPlacementHints();
       if (!payload) return;
       try {
@@ -4951,5 +4901,3 @@ if (!window.__pgManifestInventoryAlignBound) {
 window.requestAnimationFrame(alignManifestAndInventoryTop);
 </script>
 {% endblock %}
-
-

@@ -126,6 +126,12 @@ def _normalize_optional_bool(raw_value, *, default=False):
     return bool(default)
 
 
+def _api_include_state(payload, *, default=True):
+    if not isinstance(payload, dict):
+        return bool(default)
+    return _normalize_optional_bool(payload.get("include_state"), default=default)
+
+
 def _normalize_stack_alignment(raw_value, *, default=None):
     value = str(raw_value or "").strip().lower()
     if value in {"left", "l"}:
@@ -344,6 +350,23 @@ def _safe_next_url(value):
     if text.startswith("/prograde/"):
         return text
     return None
+
+
+def _empty_inventory_gap_data(*, brand, bt_whse=""):
+    selected = str(bt_whse or "").strip().upper() or "ALL"
+    if brand == "bigtex":
+        return {
+            "rows": [],
+            "stack_slots": [],
+            "warehouse_options": [{"value": "ALL", "label": "ALL"}],
+            "selected_warehouse": selected,
+        }
+    return {
+        "rows": [],
+        "stack_slots": [],
+        "warehouse_options": [],
+        "selected_warehouse": "ALL",
+    }
 
 
 def _set_account_notice(message, level="info"):
@@ -573,13 +596,32 @@ def _build_session_api_state(session_id):
 
 # -- Helpers ---------------------------------------------------------------
 
-def _build_bt_sku_map():
+def _build_bt_sku_map(item_numbers=None):
+    if item_numbers:
+        normalized = {
+            str(item).strip()
+            for item in item_numbers
+            if str(item or "").strip()
+        }
+        return {
+            item_number: dict(db.get_bigtex_sku(item_number) or {})
+            for item_number in normalized
+        }
     return {r["item_number"]: dict(r) for r in db.get_bigtex_skus()}
 
 
 def _bt_sku_is_gooseneck_profile(sku_row):
     tongue_ft = _as_float((sku_row or {}).get("tongue"), 0.0)
     return abs(tongue_ft - 9.0) <= 0.05
+
+
+def _bt_render_deck_profile(sku_row):
+    sku = _row_to_dict(sku_row)
+    mcat = db.normalize_bigtex_mcat(str(sku.get("mcat") or "").strip()).lower()
+    floor_type = str(sku.get("floor_type") or "").strip().lower()
+    if "dump" in mcat or floor_type == "hydraulic":
+        return "dump"
+    return "flat"
 
 
 def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
@@ -653,6 +695,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["column_alignment"] = _extract_column_alignment_override_reason(p.get("override_reason"))
     elif brand == "bigtex":
         bt_gooseneck_profile = _bt_sku_is_gooseneck_profile(sku)
+        bt_deck_profile = _bt_render_deck_profile(sku)
         p["bed_length"] = round((sku.get("bed_length") or 0), 2)
         p["tongue_length"] = round((sku.get("tongue") or 0), 2)
         p["bed_length_measured"] = p["bed_length"]
@@ -662,13 +705,15 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["render_tongue_profile"] = "gooseneck" if bt_gooseneck_profile else "standard"
         p["render_tongue_length_ft"] = p["tongue_length"]
         p["tongue_length_actual"] = p["tongue_length"]
-        p["deck_profile"] = "flat"
+        p["deck_profile"] = bt_deck_profile
         p["deck_length_ft"] = p["bed_length"]
         p["render_footprint_ft"] = p["footprint"]
         p["dump_door_removed"] = False
         p["gn_crisscross"] = False
         p["stack_alignment"] = None
-        p["column_alignment"] = None
+        p["column_alignment"] = _extract_column_alignment_override_reason(p.get("override_reason"))
+        # BT nesting rule: any unit can be nested into a dump host when length-fit allows.
+        p["can_nest_inside_dump"] = True
     else:
         p["bed_length"] = 0
         p["tongue_length"] = 0
@@ -1065,6 +1110,14 @@ def _column_render_envelope_dims(col, zone=None):
     }
 
 
+def _col_base_half_tongue_stuffed(col):
+    """Return True when the base unit of a column has bt_half_tongue_stuffed set."""
+    if not col:
+        return False
+    base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
+    return bool(base.get("bt_half_tongue_stuffed"))
+
+
 def _column_has_stuffed_forward_tongue(col):
     """Return True when any non-rotated unit has occupied tongue shorter than rendered tongue."""
     for unit in (col or []):
@@ -1288,13 +1341,17 @@ def _apply_bt_same_direction_tongue_stuffing(zone_cols):
         for idx in range(len(bases) - 1):
             seq_cur, cur_base = bases[idx]
             seq_next, next_base = bases[idx + 1]
-            if bool(cur_base.get("is_rotated")) != bool(next_base.get("is_rotated")):
-                continue
-            if bool(cur_base.get("is_rotated")):
-                target_seq = seq_next
-            else:
-                target_seq = seq_cur
-            occupied_tongue_by_seq[target_seq] = occupied_tongue_by_seq.get(target_seq, 0.0) * 0.5
+            cur_rotated = bool(cur_base.get("is_rotated"))
+            next_rotated = bool(next_base.get("is_rotated"))
+            if cur_rotated == next_rotated:
+                # Same direction: inward-facing tongue unit gets halved.
+                target_seq = seq_next if cur_rotated else seq_cur
+                occupied_tongue_by_seq[target_seq] = occupied_tongue_by_seq.get(target_seq, 0.0) * 0.5
+            elif not cur_rotated and next_rotated:
+                # Face-to-face: both tongues enter each other halfway.
+                occupied_tongue_by_seq[seq_cur] = occupied_tongue_by_seq.get(seq_cur, 0.0) * 0.5
+                occupied_tongue_by_seq[seq_next] = occupied_tongue_by_seq.get(seq_next, 0.0) * 0.5
+            # Rotated cur + non-rotated next: tongues point away - no interaction.
 
         for seq, base in bases:
             render_tongue_ft = max(
@@ -1492,7 +1549,7 @@ def _assign_unit_sequence_numbers(enriched_positions):
 
 
 def _annotate_dump_nesting_candidates(zone_cols, *, brand):
-    if brand != "pj":
+    if brand not in {"pj", "bigtex"}:
         return
     for cols in (zone_cols or {}).values():
         for col in (cols or {}).values():
@@ -1506,7 +1563,7 @@ def _annotate_dump_nesting_candidates(zone_cols, *, brand):
                 unit = ordered[idx]
                 if bool(unit.get("is_nested")):
                     continue
-                if not bool(unit.get("can_nest_inside_dump")):
+                if brand == "pj" and not bool(unit.get("can_nest_inside_dump")):
                     continue
                 host = ordered[idx - 1]
                 if str(host.get("deck_profile") or "").strip().lower() != "dump":
@@ -1612,8 +1669,8 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
     f_body = _pdf_font(14)
     f_small = _pdf_font(12)
     f_tiny = _pdf_font(10)
-    f_manifest = _pdf_font(11)
-    f_manifest_bold = _pdf_font(11, bold=True)
+    f_manifest = _pdf_font(18)
+    f_manifest_bold = _pdf_font(19, bold=True)
 
     margin = 36
     header_h = 60
@@ -1764,6 +1821,21 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
         fill = tuple(min(255, int(ch + (255 - ch) * 0.70)) for ch in accent)
         draw.rounded_rectangle((x0, y0, x1, y1), radius=4, fill=fill, outline=accent, width=2)
 
+        tongue_attach_ft = _as_float(pos.get("tongue_x_start_ft"), x1_ft)
+        tongue_tip_ft = _as_float(pos.get("tongue_x_end_ft"), tongue_attach_ft)
+        if abs(tongue_tip_ft - tongue_attach_ft) > 0.05:
+            tx0 = plot_left + (tongue_attach_ft * px_per_ft)
+            tx1 = plot_left + (tongue_tip_ft * px_per_ft)
+            tongue_y = y1 - min(max((y1 - y0) * 0.28, 3.0), 9.0)
+            draw.line((tx0, tongue_y, tx1, tongue_y), fill=accent, width=3)
+            hitch_r = 3
+            draw.ellipse(
+                (tx1 - hitch_r, tongue_y - hitch_r, tx1 + hitch_r, tongue_y + hitch_r),
+                outline=accent,
+                width=2,
+                fill=(255, 255, 255),
+            )
+
         unit_badge_r = 9
         badge_cx = x0 + unit_badge_r + 3
         badge_cy = y0 + unit_badge_r + 3
@@ -1844,7 +1916,7 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
     if not manifest_rows:
         draw.text((table_left, table_top + 8), "No units on this load.", font=f_body, fill=(100, 116, 139))
     else:
-        row_h = 16
+        row_h = 26
         max_cols = 4
         rows_per_col = max(1, int((table_h - row_h) // row_h))
         columns = max(1, min(max_cols, (len(manifest_rows) + rows_per_col - 1) // rows_per_col))
@@ -1860,17 +1932,17 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
             col_x1 = col_x0 + col_w
             draw.rectangle((col_x0, table_top, col_x1, table_top + row_h), fill=(226, 232, 240), outline=(203, 213, 225))
             if compact:
-                draw.text((col_x0 + 4, table_top + 3), "#", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x0 + 30, table_top + 3), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 72, table_top + 3), "FP", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 40, table_top + 3), "H", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 4, table_top + 4), "#", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 38, table_top + 4), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 90, table_top + 4), "FP", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 48, table_top + 4), "H", font=f_manifest_bold, fill=(15, 23, 42))
             else:
-                draw.text((col_x0 + 4, table_top + 3), "#", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x0 + 28, table_top + 3), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 210, table_top + 3), "Bed", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 165, table_top + 3), "Tongue", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 98, table_top + 3), "FP", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 48, table_top + 3), "H", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 4, table_top + 4), "#", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 34, table_top + 4), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 232, table_top + 4), "Bed", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 178, table_top + 4), "Tongue", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 106, table_top + 4), "FP", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 52, table_top + 4), "H", font=f_manifest_bold, fill=(15, 23, 42))
 
             start = col_idx * rows_per_col
             end = min(start + rows_per_col, len(render_rows))
@@ -1884,25 +1956,25 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
                 sku = str(row.get("item_number") or row.get("item_code") or "").strip().upper()
                 fp = f"{_as_float(row.get('total_footprint'), 0.0):.1f}"
                 ht = f"{_as_float(row.get('height_each'), 0.0):.1f}"
-                draw.text((col_x0 + 4, y0 + 3), unit_num, font=f_manifest, fill=(15, 23, 42))
+                draw.text((col_x0 + 4, y0 + 4), unit_num, font=f_manifest, fill=(15, 23, 42))
                 if compact:
                     sku_clip = sku
-                    while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 124):
+                    while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 144):
                         sku_clip = sku_clip[:-1]
-                    draw.text((col_x0 + 30, y0 + 3), sku_clip, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 72, y0 + 3), fp, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 40, y0 + 3), ht, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x0 + 38, y0 + 4), sku_clip, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 90, y0 + 4), fp, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 48, y0 + 4), ht, font=f_manifest, fill=(15, 23, 42))
                 else:
                     bed = f"{_as_float(row.get('bed_length'), 0.0):.1f}"
                     tongue = f"{_as_float(row.get('tongue_length'), 0.0):.1f}"
                     sku_clip = sku
-                    while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 260):
+                    while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 292):
                         sku_clip = sku_clip[:-1]
-                    draw.text((col_x0 + 28, y0 + 3), sku_clip, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 210, y0 + 3), bed, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 165, y0 + 3), tongue, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 98, y0 + 3), fp, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 48, y0 + 3), ht, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x0 + 34, y0 + 4), sku_clip, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 232, y0 + 4), bed, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 178, y0 + 4), tongue, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 106, y0 + 4), fp, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 52, y0 + 4), ht, font=f_manifest, fill=(15, 23, 42))
 
         if truncated:
             hidden = len(manifest_rows) - len(render_rows)
@@ -2185,11 +2257,17 @@ def _recompute_pj_skus_for_tongue_group(group_id, new_tongue_ft):
     return updated
 
 
-def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
+def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *, include_violations=True):
     """Build all zone/column data needed for the load canvas."""
     carrier_map = dict(carrier) if carrier else {}
     height_ref  = db.get_pj_height_ref_dict() if brand == "pj" else {}
-    bt_sku_map  = _build_bt_sku_map() if brand == "bigtex" else None
+    bt_item_numbers = set()
+    if brand == "bigtex":
+        for p in positions:
+            item_number = str((dict(p) if p is not None else {}).get("item_number") or "").strip()
+            if item_number:
+                bt_item_numbers.add(item_number)
+    bt_sku_map  = _build_bt_sku_map(bt_item_numbers) if brand == "bigtex" else None
     bt_configs  = {r["config_id"]: dict(r) for r in db.get_bt_stack_configs()} if brand == "bigtex" else {}
 
     enriched = []
@@ -2356,7 +2434,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
             height_ref=height_ref,
         )
     elif brand == "bigtex":
-        bt_skus = {p["item_number"]: dict(db.get_bigtex_sku(p["item_number"]) or {}) for p in positions}
+        bt_skus = bt_sku_map or {}
         length_metrics = compute_bt_length_metrics(
             positions,
             sku_map=bt_skus,
@@ -2424,16 +2502,20 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         seqs = sorted((zone_cols.get(lower_zone) or {}).keys())
         prev_dims = None
         prev_right_edge = None
+        prev_stuffed = False
         for idx, seq in enumerate(seqs):
             col = (zone_cols.get(lower_zone) or {}).get(seq) or []
             dims = _column_base_dims(col)
+            cur_stuffed = _col_base_half_tongue_stuffed(col)
             current_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
             if idx > 0 and prev_dims is not None and prev_right_edge is not None:
-                overlap_left_tongue = min(
+                # Skip rear-pocket overlap reduction when half-insertion is active -
+                # the half-tongue already models the physical insertion correctly.
+                overlap_left_tongue = 0.0 if cur_stuffed else min(
                     max(dims.get("left_tongue_ft", 0.0), 0.0),
                     max(prev_dims.get("rear_pocket_right_ft", 0.0), 0.0),
                 )
-                overlap_prev_tongue = min(
+                overlap_prev_tongue = 0.0 if prev_stuffed else min(
                     max(prev_dims.get("right_tongue_ft", 0.0), 0.0),
                     max(dims.get("rear_pocket_left_ft", 0.0), 0.0),
                 )
@@ -2444,6 +2526,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
             render_dims = _column_render_envelope_dims(col, zone=lower_zone)
             prev_right_edge = current_start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
             prev_dims = dims
+            prev_stuffed = cur_stuffed
 
     # Lower deck hard right barrier at the usable seam boundary: no deck or tongue may
     # extend past step_x on the lower deck. Resolve from right->left so
@@ -2492,16 +2575,18 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         seqs = sorted((zone_cols.get(lower_zone) or {}).keys())
         prev_dims = None
         prev_right_edge = None
+        prev_stuffed = False
         for idx, seq in enumerate(seqs):
             col = (zone_cols.get(lower_zone) or {}).get(seq) or []
             dims = _column_base_dims(col)
+            cur_stuffed = _col_base_half_tongue_stuffed(col)
             current_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
             if idx > 0 and prev_dims is not None and prev_right_edge is not None:
-                overlap_left_tongue = min(
+                overlap_left_tongue = 0.0 if cur_stuffed else min(
                     max(dims.get("left_tongue_ft", 0.0), 0.0),
                     max(prev_dims.get("rear_pocket_right_ft", 0.0), 0.0),
                 )
-                overlap_prev_tongue = min(
+                overlap_prev_tongue = 0.0 if prev_stuffed else min(
                     max(prev_dims.get("right_tongue_ft", 0.0), 0.0),
                     max(dims.get("rear_pocket_left_ft", 0.0), 0.0),
                 )
@@ -2517,50 +2602,82 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
             render_dims = _column_render_envelope_dims(col, zone=lower_zone)
             prev_right_edge = current_start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
             prev_dims = dims
+            prev_stuffed = cur_stuffed
 
         # Final lower-deck right snap: shift the whole lower cluster right so
         # the rightmost stack sits at the usable lower boundary.
-        lower_max_right = 0.0
-        for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
-            col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
-            start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
-            right = start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
-            if right > lower_max_right:
-                lower_max_right = right
-        lower_shift_delta = max((lower_cap_local - 0.08) - lower_max_right, 0.0)
-        if lower_shift_delta > 1e-9:
-            for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
-                cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
-                x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
+        # Skip right-snap for a single left-aligned stack so it stays at the
+        # cab end - giving visual clarity when the user drops on the left zone.
+        lower_seqs_sorted = sorted((zone_cols.get(lower_zone) or {}).keys())
+        _skip_right_snap = False
+        if brand == "bigtex" and lower_seqs_sorted:
+            _lower_base_rows = []
+            for _seq in lower_seqs_sorted:
+                _col = (zone_cols.get(lower_zone) or {}).get(_seq) or []
+                _base = next(
+                    (p for p in _col if int(p.get("layer") or 0) == 1),
+                    _col[0] if _col else None,
+                )
+                if _base:
+                    _lower_base_rows.append(_base)
+            _has_left_alignment = any(
+                (row.get("column_alignment") or "") == "left"
+                for row in _lower_base_rows
+            )
+            _has_right_alignment = any(
+                (row.get("column_alignment") or "") == "right"
+                for row in _lower_base_rows
+            )
+            if _has_left_alignment and not _has_right_alignment:
+                _skip_right_snap = True
+        if len(lower_seqs_sorted) == 1:
+            _lone_col = (zone_cols.get(lower_zone) or {}).get(lower_seqs_sorted[0]) or []
+            _lone_base = next((p for p in _lone_col if int(p.get("layer") or 0) == 1), _lone_col[0] if _lone_col else None)
+            if _lone_base and (_lone_base.get("column_alignment") or "") == "left":
+                _skip_right_snap = True
+        if not _skip_right_snap:
+            lower_max_right = 0.0
+            for seq in lower_seqs_sorted:
+                col = (zone_cols.get(lower_zone) or {}).get(seq) or []
+                render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+                start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                right = start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
+                if right > lower_max_right:
+                    lower_max_right = right
+            lower_shift_delta = max((lower_cap_local - 0.08) - lower_max_right, 0.0)
+            if lower_shift_delta > 1e-9:
+                for seq in lower_seqs_sorted:
+                    cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                    x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
 
-        # Minimize lower-deck overhang by pulling each left stack right until it
-        # reaches the adjacent right stack's gooseneck wall plane (when present).
-        # This allows tongue-region contact while still preventing deck overlap.
-        seqs = sorted((zone_cols.get(lower_zone) or {}).keys())
-        for idx in range(len(seqs) - 2, -1, -1):
-            left_seq = int(seqs[idx])
-            right_seq = int(seqs[idx + 1])
-            left_col = (zone_cols.get(lower_zone) or {}).get(left_seq) or []
-            right_col = (zone_cols.get(lower_zone) or {}).get(right_seq) or []
-            if not left_col or not right_col:
-                continue
+        if brand == "pj":
+            # Minimize lower-deck overhang by pulling each left stack right until it
+            # reaches the adjacent right stack's gooseneck wall plane (when present).
+            # This allows tongue-region contact while still preventing deck overlap.
+            seqs = sorted((zone_cols.get(lower_zone) or {}).keys())
+            for idx in range(len(seqs) - 2, -1, -1):
+                left_seq = int(seqs[idx])
+                right_seq = int(seqs[idx + 1])
+                left_col = (zone_cols.get(lower_zone) or {}).get(left_seq) or []
+                right_col = (zone_cols.get(lower_zone) or {}).get(right_seq) or []
+                if not left_col or not right_col:
+                    continue
 
-            right_start = _as_float(x_positions[lower_zone].get(right_seq), 0.0)
-            right_gn_wall_x = _column_gooseneck_wall_x_local(right_col, right_start)
-            if right_gn_wall_x is None:
-                continue
+                right_start = _as_float(x_positions[lower_zone].get(right_seq), 0.0)
+                right_gn_wall_x = _column_gooseneck_wall_x_local(right_col, right_start)
+                if right_gn_wall_x is None:
+                    continue
 
-            left_start = _as_float(x_positions[lower_zone].get(left_seq), 0.0)
-            left_dims = _column_render_envelope_dims(left_col, zone=lower_zone)
-            left_right_reach_ft = max(_as_float(left_dims.get("right_reach_ft"), 0.0), 0.0)
-            left_right_x = left_start + left_right_reach_ft
-            target_left_right_x = right_gn_wall_x - _GOOSENECK_WALL_CLEARANCE_FT
-            if left_right_x + 1e-9 >= target_left_right_x:
-                continue
+                left_start = _as_float(x_positions[lower_zone].get(left_seq), 0.0)
+                left_dims = _column_render_envelope_dims(left_col, zone=lower_zone)
+                left_right_reach_ft = max(_as_float(left_dims.get("right_reach_ft"), 0.0), 0.0)
+                left_right_x = left_start + left_right_reach_ft
+                target_left_right_x = right_gn_wall_x - _GOOSENECK_WALL_CLEARANCE_FT
+                if left_right_x + 1e-9 >= target_left_right_x:
+                    continue
 
-            delta = target_left_right_x - left_right_x
-            x_positions[lower_zone][left_seq] = round(left_start + delta, 3)
+                delta = target_left_right_x - left_right_x
+                x_positions[lower_zone][left_seq] = round(left_start + delta, 3)
 
     # Upper deck explicit right alignment to the usable right boundary.
     upper_zone = "upper_deck"
@@ -2614,19 +2731,20 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
             intrusion_cap_local = min(_as_float(left, step_x_ft) for left, _ in merged_post_upper_intrusion)
             final_cap_local = max(blocked_cap_local, intrusion_cap_local)
 
-            lower_max_right = 0.0
-            for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
-                col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-                dims = _column_render_envelope_dims(col, zone=lower_zone)
-                start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
-                right = start + max(_as_float(dims.get("right_reach_ft"), 0.0), 0.0)
-                if right > lower_max_right:
-                    lower_max_right = right
-            lower_shift_delta = max((final_cap_local - 0.08) - lower_max_right, 0.0)
-            if lower_shift_delta > 1e-9:
+            if not _skip_right_snap:
+                lower_max_right = 0.0
                 for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
-                    cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
-                    x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
+                    col = (zone_cols.get(lower_zone) or {}).get(seq) or []
+                    dims = _column_render_envelope_dims(col, zone=lower_zone)
+                    start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                    right = start + max(_as_float(dims.get("right_reach_ft"), 0.0), 0.0)
+                    if right > lower_max_right:
+                        lower_max_right = right
+                lower_shift_delta = max((final_cap_local - 0.08) - lower_max_right, 0.0)
+                if lower_shift_delta > 1e-9:
+                    for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
+                        cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                        x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
 
     # Cross-deck collision guard:
     # Lower-deck horizontal occupancy cannot intersect upper-deck occupied span
@@ -2959,24 +3077,26 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand):
         total_footprint = sum(zone_lengths.values())
     pct_used = round(total_footprint / (carrier["total_length_ft"] if carrier else 53.0) * 100, 1)
 
-    # Violations (with acknowledgment overlay)
-    violations_raw = check_load(session_id)
-    acked = set(db.get_acknowledged_violations(session_id))
     violations = []
     violated_position_ids = set()
-    for v in violations_raw:
-        vd = {
-            "severity": v.severity,
-            "rule_code": v.rule_code,
-            "message": v.message,
-            "suggested_fix": v.suggested_fix,
-            "position_ids": v.position_ids,
-            "acknowledged": v.rule_code in acked,
-        }
-        violations.append(vd)
-        for pid in (v.position_ids or []):
-            if pid:
-                violated_position_ids.add(str(pid))
+    if include_violations:
+        # Constraint checks are comparatively expensive; fast canvas-only refreshes
+        # can skip them and let the full refresh path update violations.
+        violations_raw = check_load(session_id)
+        acked = set(db.get_acknowledged_violations(session_id))
+        for v in violations_raw:
+            vd = {
+                "severity": v.severity,
+                "rule_code": v.rule_code,
+                "message": v.message,
+                "suggested_fix": v.suggested_fix,
+                "position_ids": v.position_ids,
+                "acknowledged": v.rule_code in acked,
+            }
+            violations.append(vd)
+            for pid in (v.position_ids or []):
+                if pid:
+                    violated_position_ids.add(str(pid))
 
     for p in enriched:
         p["violation"] = str(p.get("position_id") or "") in violated_position_ids
@@ -3216,19 +3336,36 @@ def load_builder(session_id):
     zones        = brand_config.DECK_ZONES[brand]
     zone_labels  = brand_config.ZONE_LABELS
 
+    is_ajax_refresh = str(request.headers.get("X-Requested-With") or "").lower() == "xmlhttprequest"
+    partial_refresh = is_ajax_refresh and str(request.args.get("pg_partial") or "").strip().lower() in {"1", "true", "yes", "y"}
+    canvas_only = partial_refresh and str(request.args.get("pg_canvas_only") or "").strip().lower() in {"1", "true", "yes", "y"}
     raw_positions = db.get_positions(session_id)
-    canvas = _build_canvas_data(session_id, session, carrier, zones, raw_positions, brand)
-    bt_whse = (request.args.get("bt_whse") or "").strip().upper() if brand == "bigtex" else ""
-    inventory_gap = build_inventory_gap_data(
-        session_id=session_id,
-        brand=brand,
-        carrier=carrier,
-        canvas=canvas,
-        bt_whse=bt_whse,
+    canvas = _build_canvas_data(
+        session_id,
+        session,
+        carrier,
+        zones,
+        raw_positions,
+        brand,
+        include_violations=not canvas_only,
     )
+    refresh_inventory = str(request.args.get("refresh_inventory") or "").strip().lower() in {"1", "true", "yes", "y"}
+    bt_whse = (request.args.get("bt_whse") or "").strip().upper() if brand == "bigtex" else ""
+    if partial_refresh and not refresh_inventory:
+        inventory_gap = _empty_inventory_gap_data(brand=brand, bt_whse=bt_whse)
+    else:
+        inventory_gap = build_inventory_gap_data(
+            session_id=session_id,
+            brand=brand,
+            carrier=carrier,
+            canvas=canvas,
+            bt_whse=bt_whse,
+        )
 
     # SKU list for picker
-    if brand == "pj":
+    if partial_refresh:
+        skus = []
+    elif brand == "pj":
         skus = _build_pj_picker_skus()
     else:
         skus = [dict(s) for s in db.get_bigtex_skus()]
@@ -3243,8 +3380,16 @@ def load_builder(session_id):
     active_profile = _get_or_auto_active_profile()
     carrier_options = _carrier_type_options_for_brand(brand)
 
+    if partial_refresh:
+        template_name = (
+            "prograde/_load_builder_canvas_partial.html"
+            if canvas_only
+            else "prograde/_load_builder_partial_refresh.html"
+        )
+    else:
+        template_name = "prograde/load_builder.html"
     return render_template(
-        "prograde/load_builder.html",
+        template_name,
         session=session,
         session_display_id=session_display_id,
         active_profile=active_profile,
@@ -3253,8 +3398,10 @@ def load_builder(session_id):
         zones=zones,
         zone_labels=zone_labels,
         skus=skus,
+        carrier_options=carrier_options,
         inventory_gap=inventory_gap,
         pj_crisscross_assumptions=pj_crisscross_assumptions,
+        partial_refresh=partial_refresh,
         **canvas,
     )
 
@@ -3681,6 +3828,8 @@ def api_add_unit(session_id):
     requested_tongue_profile = _normalize_pj_tongue_profile(data.get("pj_tongue_profile"), default=None)
     requested_dump_height_ft = _normalize_pj_dump_height_ft(data.get("pj_dump_height_ft"), default=None)
     add_source = _normalize_add_source(data.get("add_source"), default=None)
+    column_alignment = _normalize_stack_alignment(data.get("column_alignment"), default=None)
+    include_state = _api_include_state(data, default=True)
 
     if data.get("pj_dump_height_ft") not in (None, "") and requested_dump_height_ft is None:
         return _json_error("pj_dump_height_ft must be 3 or 4")
@@ -3711,6 +3860,7 @@ def api_add_unit(session_id):
             pd = dict(p)
             pd["deck_zone"] = _normalize_zone_for_brand(brand, pd.get("deck_zone"))
             normalized_positions.append(pd)
+        target = None
         if stack_on:
             target = next((p for p in normalized_positions if p["position_id"] == stack_on), None)
             if not target:
@@ -3727,8 +3877,60 @@ def api_add_unit(session_id):
             deck_zone = target["deck_zone"]
         else:
             zone_positions = [p for p in normalized_positions if p["deck_zone"] == deck_zone]
-            seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
-            layer = 1
+            if brand == "bigtex" and deck_zone == "lower_deck":
+                existing_zone_sequences = sorted({int(p["sequence"]) for p in zone_positions})
+                if not existing_zone_sequences:
+                    # For BT lower-deck picker adds with no explicit side, default to
+                    # a left-anchored first stack so it does not snap right.
+                    if column_alignment is None:
+                        column_alignment = "left"
+                    seq = 1
+                    layer = 1
+                elif len(existing_zone_sequences) == 1:
+                    lone_seq = existing_zone_sequences[0]
+                    lone_base = next(
+                        (
+                            p for p in zone_positions
+                            if int(p["sequence"]) == lone_seq and int(p.get("layer") or 0) == 1
+                        ),
+                        None,
+                    )
+                    lone_alignment = _extract_column_alignment_override_reason(
+                        (lone_base or {}).get("override_reason")
+                    )
+                    should_stack_on_lone = (
+                        insert_idx is None
+                        or column_alignment is None
+                        or (lone_alignment and column_alignment == lone_alignment)
+                    )
+                    if should_stack_on_lone:
+                        seq = lone_seq
+                        layer = max(
+                            (
+                                int(p["layer"])
+                                for p in zone_positions
+                                if int(p["sequence"]) == seq
+                            ),
+                            default=0,
+                        ) + 1
+                        # Keep lone-stack behavior stable even if the UI target
+                        # surfaced a trailing insert slot.
+                        insert_idx = None
+                    else:
+                        seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
+                        layer = 1
+                else:
+                    seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
+                    layer = 1
+            else:
+                seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
+                layer = 1
+        if brand == "bigtex" and target is not None:
+            target_alignment = _extract_column_alignment_override_reason(target.get("override_reason"))
+            if target_alignment:
+                # Stacking onto an existing BT column should keep the column's
+                # established left/right anchor.
+                column_alignment = target_alignment
 
         position_id = str(uuid.uuid4())
         override_reason = None
@@ -3753,6 +3955,20 @@ def api_add_unit(session_id):
                 override_reason = _build_dump_height_override_reason(selected_dump_height_ft, override_reason)
         if add_source:
             override_reason = _build_add_source_override_reason(add_source, override_reason)
+        if column_alignment:
+            override_reason = _build_column_alignment_override_reason(column_alignment, override_reason)
+            if target is not None and brand != "bigtex":
+                target_override_reason = target.get("override_reason")
+                updated_target_override_reason = _build_column_alignment_override_reason(
+                    column_alignment,
+                    target_override_reason,
+                )
+                if updated_target_override_reason != target_override_reason:
+                    db.update_position_field(
+                        target["position_id"],
+                        "override_reason",
+                        updated_target_override_reason,
+                    )
 
         # Big Tex rule-of-thumb: add new units with tongues facing left by default.
         default_is_rotated = 1 if brand == "bigtex" else 0
@@ -3777,12 +3993,14 @@ def api_add_unit(session_id):
                 seq,
                 preferred_position_id=position_id,
             )
-        return jsonify(
+        response_payload = dict(
             ok=True,
             position_id=position_id,
             gn_crisscross_applied=bool(gn_crisscross_applied),
-            state=_build_session_api_state(session_id),
         )
+        if include_state:
+            response_payload["state"] = _build_session_api_state(session_id)
+        return jsonify(response_payload)
     except Exception:
         current_app.logger.exception("Failed to add unit for ProGrade session %s", session_id)
         return _json_error("Failed to add unit", 500)
@@ -3795,6 +4013,7 @@ def api_remove_unit(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     position_id = data.get("position_id")
     if not position_id:
         return _json_error("position_id required")
@@ -3805,7 +4024,10 @@ def api_remove_unit(session_id):
 
     try:
         db.remove_position(position_id)
-        return jsonify(ok=True, state=_build_session_api_state(session_id))
+        payload = {"ok": True}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to remove unit for ProGrade session %s", session_id)
         return _json_error("Failed to remove unit", 500)
@@ -3818,6 +4040,7 @@ def api_toggle_axle_drop(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     position_id = data.get("position_id")
     if not position_id:
         return _json_error("position_id required")
@@ -3829,7 +4052,10 @@ def api_toggle_axle_drop(session_id):
     try:
         new_val = 0 if int(pos["gn_axle_dropped"] or 0) else 1
         db.update_position_field(position_id, "gn_axle_dropped", new_val)
-        return jsonify(ok=True, gn_axle_dropped=new_val, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "gn_axle_dropped": new_val}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to toggle axle drop for ProGrade session %s", session_id)
         return _json_error("Failed to toggle axle drop", 500)
@@ -3842,6 +4068,7 @@ def api_rotate_unit(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     position_id = data.get("position_id")
     if not position_id:
         return _json_error("position_id required")
@@ -3853,7 +4080,10 @@ def api_rotate_unit(session_id):
     try:
         new_val = 0 if int(pos["is_rotated"] or 0) else 1
         db.update_position_field(position_id, "is_rotated", new_val)
-        return jsonify(ok=True, is_rotated=new_val, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "is_rotated": new_val}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to rotate unit for ProGrade session %s", session_id)
         return _json_error("Failed to rotate unit", 500)
@@ -3866,6 +4096,7 @@ def api_toggle_dump_door(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     position_id = data.get("position_id")
     if not position_id:
         return _json_error("position_id required")
@@ -3890,7 +4121,10 @@ def api_toggle_dump_door(session_id):
     )
     try:
         db.update_position_field(position_id, "override_reason", new_override)
-        return jsonify(ok=True, dump_door_removed=next_removed, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "dump_door_removed": next_removed}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to toggle dump door for ProGrade session %s", session_id)
         return _json_error("Failed to toggle dump door", 500)
@@ -3903,10 +4137,12 @@ def api_nest_unit(session_id):
         return err
 
     session_map = dict(session_row or {})
-    if (session_map.get("brand") or "").strip().lower() != "pj":
-        return _json_error("Nesting is currently available for PJ sessions only.", 400)
+    brand = (session_map.get("brand") or "").strip().lower()
+    if brand not in {"pj", "bigtex"}:
+        return _json_error("Nesting is not available for this brand.", 400)
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     position_id = data.get("position_id")
     action = str(data.get("action") or "").strip().lower()
     nested_inside_id = data.get("nested_inside")
@@ -3921,7 +4157,10 @@ def api_nest_unit(session_id):
         try:
             db.update_position_field(position_id, "is_nested", 0)
             db.update_position_field(position_id, "nested_inside", None)
-            return jsonify(ok=True, state=_build_session_api_state(session_id))
+            payload = {"ok": True}
+            if include_state:
+                payload["state"] = _build_session_api_state(session_id)
+            return jsonify(payload)
         except Exception:
             current_app.logger.exception("Failed to clear nested state for ProGrade session %s", session_id)
             return _json_error("Failed to clear nested state", 500)
@@ -3939,22 +4178,40 @@ def api_nest_unit(session_id):
     if int(_as_float(pos_map.get("layer"), 0)) <= int(_as_float(host_map.get("layer"), 0)):
         return _json_error("Only units stacked above a dump can be nested.", 400)
 
-    host_sku = dict(db.get_pj_sku(host_map.get("item_number")) or {})
-    if _pj_render_deck_profile(host_sku) != "dump":
+    if brand == "pj":
+        host_sku = dict(db.get_pj_sku(host_map.get("item_number")) or {})
+        host_is_dump = _pj_render_deck_profile(host_sku) == "dump"
+    else:
+        host_sku = dict(db.get_bigtex_sku(host_map.get("item_number")) or {})
+        host_is_dump = _bt_render_deck_profile(host_sku) == "dump"
+    if not host_is_dump:
         return _json_error("Selected host is not a dump profile.", 400)
 
-    guest_sku = dict(db.get_pj_sku(pos_map.get("item_number")) or {})
-    if not bool(guest_sku.get("can_nest_inside_dump")):
-        return _json_error("Selected unit is not configured as nestable.", 400)
+    if brand == "pj":
+        guest_sku = dict(db.get_pj_sku(pos_map.get("item_number")) or {})
+        guest_is_nestable = bool(guest_sku.get("can_nest_inside_dump"))
+        host_deck_len = _as_float(
+            host_sku.get("bed_length_measured") or host_sku.get("bed_length_stated"),
+            _as_float(host_map.get("deck_length_ft"), _as_float(host_map.get("bed_length"), 0.0)),
+        )
+        guest_footprint = _as_float(
+            guest_sku.get("total_footprint"),
+            _as_float(pos_map.get("render_footprint_ft"), _as_float(pos_map.get("footprint"), 0.0)),
+        )
+    else:
+        guest_sku = dict(db.get_bigtex_sku(pos_map.get("item_number")) or {})
+        guest_is_nestable = True
+        host_deck_len = _as_float(
+            host_sku.get("bed_length"),
+            _as_float(host_map.get("deck_length_ft"), _as_float(host_map.get("bed_length"), 0.0)),
+        )
+        guest_footprint = _as_float(
+            guest_sku.get("total_footprint"),
+            _as_float(pos_map.get("render_footprint_ft"), _as_float(pos_map.get("footprint"), 0.0)),
+        )
 
-    host_deck_len = _as_float(
-        host_sku.get("bed_length_measured") or host_sku.get("bed_length_stated"),
-        _as_float(host_map.get("deck_length_ft"), _as_float(host_map.get("bed_length"), 0.0)),
-    )
-    guest_footprint = _as_float(
-        guest_sku.get("total_footprint"),
-        _as_float(pos_map.get("render_footprint_ft"), _as_float(pos_map.get("footprint"), 0.0)),
-    )
+    if not guest_is_nestable:
+        return _json_error("Selected unit is not configured as nestable.", 400)
     if host_deck_len <= 0 or guest_footprint <= 0:
         return _json_error("Unable to evaluate nesting dimensions for selected units.", 400)
     if guest_footprint > host_deck_len + 1e-9:
@@ -3963,7 +4220,10 @@ def api_nest_unit(session_id):
     try:
         db.update_position_field(position_id, "is_nested", 1)
         db.update_position_field(position_id, "nested_inside", nested_inside_id)
-        return jsonify(ok=True, state=_build_session_api_state(session_id))
+        payload = {"ok": True}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to nest unit for ProGrade session %s", session_id)
         return _json_error("Failed to nest unit", 500)
@@ -3976,6 +4236,7 @@ def api_acknowledge(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     rule_code = (data.get("rule_code") or "").strip()
     action = (data.get("action") or "add").strip().lower()
     if not rule_code:
@@ -3990,7 +4251,10 @@ def api_acknowledge(session_id):
         elif action == "remove" and rule_code in acked:
             acked.remove(rule_code)
         db.set_acknowledged_violations(session_id, acked)
-        return jsonify(ok=True, acknowledged=acked, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "acknowledged": acked}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to acknowledge violation for ProGrade session %s", session_id)
         return _json_error("Failed to update acknowledgement", 500)
@@ -4032,6 +4296,7 @@ def api_move_position(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     position_id = (data.get("position_id") or "").strip()
     to_zone = _normalize_zone_for_brand(session["brand"], data.get("to_zone"))
     to_sequence = data.get("to_sequence")
@@ -4087,12 +4352,14 @@ def api_move_position(session_id):
                 result.get("sequence"),
                 preferred_position_id=position_id,
             )
-        return jsonify(
+        payload = dict(
             ok=True,
             result=result,
             gn_crisscross_applied=bool(gn_crisscross_applied),
-            state=_build_session_api_state(session_id),
         )
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to move position for ProGrade session %s", session_id)
         return _json_error("Failed to move unit", 500)
@@ -4105,6 +4372,7 @@ def api_move_column(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     from_zone = _normalize_zone_for_brand(session["brand"], data.get("from_zone"))
     to_zone = _normalize_zone_for_brand(session["brand"], data.get("to_zone"))
     sequence = data.get("sequence")
@@ -4139,7 +4407,10 @@ def api_move_column(session_id):
         )
         if not result:
             return _json_error("Column not found", 404)
-        return jsonify(ok=True, result=result, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "result": result}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to move column for ProGrade session %s", session_id)
         return _json_error("Failed to move column", 500)
@@ -4152,6 +4423,7 @@ def api_duplicate_column(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     brand = session_row["brand"]
     deck_zone = _normalize_zone_for_brand(brand, data.get("deck_zone"))
     sequence = data.get("sequence")
@@ -4167,7 +4439,10 @@ def api_duplicate_column(session_id):
         result = db.duplicate_column(session_id, deck_zone, sequence)
         if not result:
             return _json_error("Column not found", 404)
-        return jsonify(ok=True, result=result, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "result": result}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to duplicate column for ProGrade session %s", session_id)
         return _json_error("Failed to duplicate column", 500)
@@ -4180,6 +4455,7 @@ def api_move_column_zone(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     brand = session_row["brand"]
     from_zone = _normalize_zone_for_brand(brand, data.get("from_zone"))
     to_zone = _normalize_zone_for_brand(brand, data.get("to_zone"))
@@ -4196,7 +4472,10 @@ def api_move_column_zone(session_id):
         result = db.move_column_zone(session_id, from_zone, sequence, to_zone)
         if not result:
             return _json_error("Column not found", 404)
-        return jsonify(ok=True, result=result, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "result": result}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to move column zone for ProGrade session %s", session_id)
         return _json_error("Failed to move column", 500)
@@ -4209,6 +4488,7 @@ def api_resequence_column(session_id):
         return err
 
     data = request.get_json(silent=True) or {}
+    include_state = _api_include_state(data, default=True)
     deck_zone = (data.get("deck_zone") or "").strip()
     direction = (data.get("direction") or "").strip().lower()
     sequence = data.get("sequence")
@@ -4224,7 +4504,10 @@ def api_resequence_column(session_id):
         result = db.resequence_column(session_id, deck_zone, sequence, direction)
         if result is None:
             return _json_error("Column not found", 404)
-        return jsonify(ok=True, result=result, state=_build_session_api_state(session_id))
+        payload = {"ok": True, "result": result}
+        if include_state:
+            payload["state"] = _build_session_api_state(session_id)
+        return jsonify(payload)
     except Exception:
         current_app.logger.exception("Failed to resequence column for ProGrade session %s", session_id)
         return _json_error("Failed to resequence column", 500)
