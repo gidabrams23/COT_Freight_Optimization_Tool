@@ -116,14 +116,32 @@
 .pg-zone-chip.upper { right: 24px; }
 .pg-lower-side-label {
   pointer-events: none;
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--font-mono);
   font-weight: 800;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  fill: rgba(148, 163, 184, 0.68);
+  fill: rgba(191, 219, 254, 0.88);
 }
 .pg-lower-side-label.active {
+  fill: rgba(224, 242, 254, 0.98);
+}
+.pg-lower-side-guide {
+  pointer-events: none;
+  fill: rgba(15, 23, 42, 0.01);
+  stroke: rgba(125, 211, 252, 0.34);
+  stroke-width: 1.1;
+  stroke-dasharray: 6 5;
+  opacity: 0.26;
+}
+body.pg-sku-drag-active .pg-lower-side-guide {
+  fill: rgba(56, 189, 248, 0.08);
+  stroke: rgba(186, 230, 253, 0.92);
+  stroke-width: 1.9;
+  stroke-dasharray: none;
+  opacity: 0.96;
+}
+body.pg-sku-drag-active .pg-lower-side-label {
   fill: rgba(224, 242, 254, 0.98);
 }
 .pg-side-gauge {
@@ -394,6 +412,8 @@
           {% set lower_half_w = lower_drop_w / 2 %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="left"/>
           <rect x="{{ margin_l + lower_half_w }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="right"/>
+          <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" class="pg-lower-side-guide"/>
+          <rect x="{{ margin_l + lower_half_w }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" class="pg-lower-side-guide"/>
           <text id="pg-lower-side-label-left" class="pg-lower-side-label" x="{{ margin_l + (lower_half_w / 2) }}" y="{{ stack_plot_y + 14 }}" text-anchor="middle">Left Stack</text>
           <text id="pg-lower-side-label-right" class="pg-lower-side-label" x="{{ margin_l + lower_half_w + (lower_half_w / 2) }}" y="{{ stack_plot_y + 14 }}" text-anchor="middle">Right Stack</text>
         {% else %}

@@ -964,6 +964,18 @@ body {
   stroke-width: 1.15;
   stroke-dasharray: 4 4;
 }
+body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side] {
+  fill: rgba(56, 189, 248, 0.22);
+  stroke: rgba(186, 230, 253, 0.92);
+  stroke-width: 2;
+  stroke-dasharray: 7 4;
+}
+body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].drop-target-active {
+  fill: rgba(56, 189, 248, 0.46) !important;
+  stroke: rgba(224, 242, 254, 0.98);
+  stroke-width: 2.6;
+  stroke-dasharray: none;
+}
 .prograde-schematic [data-stack-drop].drop-target-active {
   fill: rgba(125, 211, 252, 0.16) !important;
   stroke: rgba(125, 211, 252, 0.58);
@@ -3773,6 +3785,10 @@ function initSkuDragAndDrop(options = {}) {
     dragLiveIndicator.classList.remove("hidden");
   };
 
+  const setSkuDragAffordance = (enabled) => {
+    document.body.classList.toggle("pg-sku-drag-active", Boolean(enabled));
+  };
+
   const showDropMarker = (x, top, height, isAfter = false) => {
     const dropMarker = document.getElementById("pg-stack-drop-marker");
     if (!dropMarker) return;
@@ -3816,6 +3832,7 @@ function initSkuDragAndDrop(options = {}) {
   const clearHighlights = () => {
     document.querySelectorAll(".drop-target-active").forEach((el) => el.classList.remove("drop-target-active"));
     clearDropPlacementHints();
+    setSkuDragAffordance(false);
   };
 
   // Resolve valid schematic drop targets from any nested SVG/HTML node.
@@ -3902,6 +3919,7 @@ function initSkuDragAndDrop(options = {}) {
       activeDrag = draggedSkuItem
         ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt, addSource: ADD_SOURCE_SKU_PICKER }
         : null;
+      setSkuDragAffordance(Boolean(activeDrag && activeDrag.type === "sku"));
       item.classList.add("dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "copy";
@@ -3915,6 +3933,7 @@ function initSkuDragAndDrop(options = {}) {
     item.addEventListener("dragend", () => {
       draggedSkuItem = null;
       activeDrag = null;
+      setSkuDragAffordance(false);
       item.classList.remove("dragging");
       clearHighlights();
       setDragLiveText("");
@@ -3958,6 +3977,7 @@ function initSkuDragAndDrop(options = {}) {
             addSource: ADD_SOURCE_INVENTORY_GAP,
           }
         : null;
+      setSkuDragAffordance(Boolean(activeDrag && activeDrag.type === "sku"));
       item.classList.add("dragging");
       if (evt.dataTransfer) {
         evt.dataTransfer.effectAllowed = "copy";
@@ -3971,6 +3991,7 @@ function initSkuDragAndDrop(options = {}) {
     item.addEventListener("dragend", () => {
       draggedSkuItem = null;
       activeDrag = null;
+      setSkuDragAffordance(false);
       item.classList.remove("dragging");
       clearHighlights();
       setDragLiveText("");
@@ -4277,7 +4298,17 @@ function initSkuDragAndDrop(options = {}) {
   const normalizeDropTargetForPayload = (target, payload, evt = null) => {
     if (!target || !payload) return target;
     if (payload.type !== "sku") return target;
-    if (target.matches && target.matches("[data-drop-zone]")) {
+    if (
+      target.matches
+      && (
+        target.matches("[data-drop-zone]")
+        || target.matches("[data-stack-drop]")
+        || target.matches(".unit-card[data-pos-id]")
+      )
+    ) {
+      return target;
+    }
+    if (!(target.matches && target.matches("[data-column-slot]"))) {
       return target;
     }
     const zone = getDropTargetZone(target);
@@ -4387,16 +4418,16 @@ function initSkuDragAndDrop(options = {}) {
   };
 
   const resolveLowerDeckDropPlan = (target, evt, payloadType = "") => {
-    if (SESSION_BRAND !== "bigtex" || !target) {
+    if (
+      SESSION_BRAND !== "bigtex"
+      || !target
+      || !(target.matches && target.matches("[data-drop-zone]"))
+    ) {
       return null;
     }
     const zone = getDropTargetZone(target);
     if (zone !== LOWER_DECK_ZONE) return null;
-    const side = _normalizeDropSide(
-      (target.matches && target.matches("[data-drop-zone]"))
-        ? getDeckDropSide(target, evt)
-        : getLowerDeckSideFromPointer(evt)
-    );
+    const side = _normalizeDropSide(getDeckDropSide(target, evt));
     if (!side) return null;
 
     const stacks = getOrderedStackTargetsForZone(zone);
@@ -4505,17 +4536,37 @@ function initSkuDragAndDrop(options = {}) {
   const setDropPlacementHint = (target, payload, evt) => {
     if (!target || !payload || !evt) return;
     if (payload.type === "sku") {
+      if (target.matches(".unit-card[data-pos-id]")) {
+        const zone = String(target.dataset.zone || "").trim();
+        const stackNumber = Number(target.dataset.seq || 0);
+        setDragLiveText(
+          Number.isInteger(stackNumber) && stackNumber > 0
+            ? `Adding unit. Drop to stack on top of stack ${stackNumber} on ${zoneLabel(zone)}.`
+            : `Adding unit. Drop to stack on this stack on ${zoneLabel(zone)}.`
+        );
+        return;
+      }
+      if (target.matches("[data-stack-drop]")) {
+        const zone = String(target.dataset.zone || "").trim();
+        const stackNumber = Number(target.dataset.targetSeq || 0);
+        setDragLiveText(
+          Number.isInteger(stackNumber) && stackNumber > 0
+            ? `Adding unit. Drop to stack on top of stack ${stackNumber} on ${zoneLabel(zone)}.`
+            : `Adding unit. Drop to stack on this stack on ${zoneLabel(zone)}.`
+        );
+        return;
+      }
       const zone = getDropTargetZone(target);
       const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "sku");
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
         setLowerDeckSideHighlight(lowerDeckPlan.side);
-        setDragLiveText(`Adding unit. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+        setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(zone)}.`);
         return;
       }
       clearLowerDeckSideHighlights();
       if (zone) {
-        setDragLiveText(`Adding unit. Drop to place on ${zoneLabel(zone)}.`);
+        setDragLiveText(`Adding unit. Drop directly on a stack to add on top, or drop in deck box to start a new stack.`);
       }
       return;
     }
@@ -4767,6 +4818,7 @@ function initSkuDragAndDrop(options = {}) {
     };
     document.addEventListener("dragover", (evt) => {
       const payload = getPayload(evt);
+      setSkuDragAffordance(Boolean(payload && payload.type === "sku"));
       const rawTarget = resolveDropTarget(evt.target);
       const target = normalizeDropTargetForPayload(rawTarget, payload, evt);
       if (!target) {
@@ -4790,6 +4842,7 @@ function initSkuDragAndDrop(options = {}) {
       if (!target) return;
       evt.preventDefault();
       setDragLiveText("");
+      setSkuDragAffordance(false);
       clearGlobalHoverTarget();
       clearDropPlacementHints();
       if (!payload) return;
