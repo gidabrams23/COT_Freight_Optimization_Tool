@@ -26,7 +26,7 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         self.assertEqual(pj_rules.pj_dump_stacked_height_ft(4), 6.0)
         self.assertIsNone(pj_rules.pj_dump_stacked_height_ft(5))
 
-    def test_non_dump_stacking_height_override_uses_mid_then_top_by_stack_depth(self):
+    def test_non_dump_stacking_height_override_uses_top_height_only_when_stack_has_multiple_layers(self):
         utility_sku = {"pj_category": "utility", "model": "UL"}
         gn_sku = {"pj_category": "gooseneck", "model": "LS"}
         dump_sku = {"pj_category": "dump_lowside", "model": "DL"}
@@ -64,6 +64,39 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             ),
             2.0,
         )
+        self.assertEqual(
+            pj_rules.pj_non_dump_stacking_height_ft(
+                {"layer": 1},
+                utility_sku,
+                is_top=True,
+                layer_index=1,
+                total_layers=1,
+                height_ref=height_ref,
+            ),
+            1.3,
+        )
+        self.assertEqual(
+            pj_rules.pj_non_dump_stacking_height_ft(
+                {"layer": 3},
+                utility_sku,
+                is_top=False,
+                layer_index=3,
+                total_layers=4,
+                height_ref=height_ref,
+            ),
+            1.3,
+        )
+        self.assertEqual(
+            pj_rules.pj_non_dump_stacking_height_ft(
+                {"layer": 4},
+                utility_sku,
+                is_top=True,
+                layer_index=4,
+                total_layers=4,
+                height_ref=height_ref,
+            ),
+            2.0,
+        )
         self.assertIsNone(
             pj_rules.pj_non_dump_stacking_height_ft(
                 {"override_reason": "tongue_profile:gooseneck"},
@@ -72,6 +105,53 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             )
         )
         self.assertIsNone(pj_rules.pj_non_dump_stacking_height_ft({"layer": 1}, dump_sku, is_top=True))
+
+    def test_lower_stack_rotated_utility_layers_flush_tongue_left_to_support_deck(self):
+        col = [
+            {
+                "position_id": "base",
+                "layer": 1,
+                "deck_length_ft": 20.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "pj_category": "utility",
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+            },
+            {
+                "position_id": "top1",
+                "layer": 2,
+                "deck_length_ft": 20.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "pj_category": "utility",
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:standard",
+            },
+            {
+                "position_id": "top2",
+                "layer": 3,
+                "deck_length_ft": 20.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "pj_category": "utility",
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:standard",
+            },
+        ]
+
+        offsets = prograde_routes._lower_column_layer_start_offsets(col)
+        base_start = float(offsets[0])
+        top1_start = float(offsets[1])
+        top2_start = float(offsets[2])
+
+        self.assertAlmostEqual(top1_start, base_start + 4.0, places=3)
+        self.assertAlmostEqual(top2_start, top1_start, places=3)
+        self.assertAlmostEqual(top1_start - 4.0, base_start, places=3)
+        self.assertAlmostEqual(top2_start - 4.0, base_start, places=3)
 
     def test_gooseneck_height_rule_uses_6ft_except_when_gooseneck_above(self):
         one_gn = [
@@ -359,6 +439,72 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
 
         manifest_heights = sorted(float(row["height_each"]) for row in canvas["manifest_rows"])
         self.assertEqual(manifest_heights, [2.6, 2.9])
+
+    def test_canvas_single_unit_utility_stack_uses_mid_height(self):
+        session = {"brand": "pj", "carrier_type": "53_step_deck"}
+        carrier = {
+            "total_length_ft": 53.0,
+            "lower_deck_length_ft": 41.5,
+            "upper_deck_length_ft": 11.5,
+            "lower_deck_ground_height_ft": 3.5,
+            "upper_deck_ground_height_ft": 5.0,
+            "max_height_ft": 13.5,
+            "gn_max_lower_deck_ft": 32.0,
+        }
+        positions = [
+            {
+                "position_id": "u1",
+                "item_number": "UL20",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+            }
+        ]
+        sku_map = {
+            "UL20": {
+                "item_number": "UL20",
+                "model": "UL",
+                "description": "Utility 20",
+                "pj_category": "utility",
+                "bed_length_measured": 20.0,
+                "bed_length_stated": 20.0,
+                "tongue_feet": 4.0,
+                "total_footprint": 24.0,
+            },
+        }
+        height_ref = {
+            "utility": {
+                "height_mid_ft": 2.6,
+                "height_top_ft": 2.9,
+                "gn_axle_dropped_ft": None,
+            }
+        }
+
+        with (
+            patch.object(prograde_routes.db, "get_pj_height_ref_dict", return_value=height_ref),
+            patch.object(prograde_routes.db, "get_pj_sku", side_effect=lambda item_number: sku_map[item_number]),
+            patch.object(prograde_routes.db, "get_pj_offsets_dict", return_value={"gn_in_dump_hidden_ft": 7.0}),
+            patch.object(prograde_routes.db, "mark_session_active", return_value=None),
+            patch.object(prograde_routes.db, "get_acknowledged_violations", return_value=[]),
+            patch.object(prograde_routes, "check_load", return_value=[]),
+        ):
+            canvas = prograde_routes._build_canvas_data(
+                "session-single-utility",
+                session,
+                carrier,
+                ["lower_deck", "upper_deck"],
+                positions,
+                "pj",
+            )
+
+        unit_row = canvas["zone_cols"]["lower_deck"][1][0]
+        self.assertAlmostEqual(float(unit_row["deck_component_height_ft"]), 2.6, places=2)
+        self.assertAlmostEqual(float(unit_row["stacking_height_ft"]), 2.6, places=2)
 
     def test_canvas_cross_deck_guard_resolves_upper_lower_overlap(self):
         session = {"brand": "pj", "carrier_type": "53_step_deck"}
@@ -733,6 +879,259 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
                 elif overlaps:
                     low_profile_overlap_found = True
         self.assertTrue(low_profile_overlap_found)
+
+    def test_upper_top_rotation_does_not_reanchor_lower_cluster(self):
+        session = {"brand": "pj", "carrier_type": "53_step_deck"}
+        carrier = {
+            "total_length_ft": 53.0,
+            "lower_deck_length_ft": 41.5,
+            "upper_deck_length_ft": 11.5,
+            "lower_deck_ground_height_ft": 3.5,
+            "upper_deck_ground_height_ft": 5.0,
+            "max_height_ft": 13.5,
+            "gn_max_lower_deck_ft": 32.0,
+        }
+        base_positions = [
+            {
+                "position_id": "l1",
+                "item_number": "D1",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:00",
+            },
+            {
+                "position_id": "l2",
+                "item_number": "D2",
+                "deck_zone": "lower_deck",
+                "sequence": 2,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:01",
+            },
+            {
+                "position_id": "u1",
+                "item_number": "U1",
+                "deck_zone": "upper_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:02",
+            },
+            {
+                "position_id": "u2",
+                "item_number": "U1",
+                "deck_zone": "upper_deck",
+                "sequence": 1,
+                "layer": 2,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:03",
+            },
+        ]
+        sku_map = {
+            "D1": {
+                "item_number": "D1",
+                "model": "DM",
+                "description": "Dump 1",
+                "pj_category": "dump_lowside",
+                "bed_length_measured": 17.5,
+                "bed_length_stated": 17.5,
+                "tongue_feet": 6.0,
+                "total_footprint": 23.5,
+                "dump_side_height_ft": 3.0,
+            },
+            "D2": {
+                "item_number": "D2",
+                "model": "DM",
+                "description": "Dump 2",
+                "pj_category": "dump_lowside",
+                "bed_length_measured": 17.5,
+                "bed_length_stated": 17.5,
+                "tongue_feet": 6.0,
+                "total_footprint": 23.5,
+                "dump_side_height_ft": 3.0,
+            },
+            "U1": {
+                "item_number": "U1",
+                "model": "UL",
+                "description": "Upper Utility",
+                "pj_category": "utility",
+                "bed_length_measured": 20.0,
+                "bed_length_stated": 20.0,
+                "tongue_feet": 4.0,
+                "total_footprint": 24.0,
+            },
+        }
+        height_ref = {
+            "dump_lowside": {
+                "height_mid_ft": 3.0,
+                "height_top_ft": 3.0,
+                "gn_axle_dropped_ft": None,
+            },
+            "utility": {
+                "height_mid_ft": 2.6,
+                "height_top_ft": 2.9,
+                "gn_axle_dropped_ft": None,
+            },
+        }
+
+        def _build_canvas(upper_top_rotated):
+            positions = [dict(row) for row in base_positions]
+            positions[3]["is_rotated"] = 1 if upper_top_rotated else 0
+            with (
+                patch.object(prograde_routes.db, "get_pj_height_ref_dict", return_value=height_ref),
+                patch.object(prograde_routes.db, "get_pj_sku", side_effect=lambda item_number: sku_map[item_number]),
+                patch.object(prograde_routes.db, "get_pj_offsets_dict", return_value={"gn_in_dump_hidden_ft": 7.0}),
+                patch.object(prograde_routes.db, "mark_session_active", return_value=None),
+                patch.object(prograde_routes.db, "get_acknowledged_violations", return_value=[]),
+                patch.object(prograde_routes, "check_load", return_value=[]),
+            ):
+                return prograde_routes._build_canvas_data(
+                    "session-upper-top-rotate-stability",
+                    session,
+                    carrier,
+                    ["lower_deck", "upper_deck"],
+                    positions,
+                    "pj",
+                )
+
+        canvas_unrotated = _build_canvas(False)
+        canvas_rotated = _build_canvas(True)
+
+        lower_unrotated = canvas_unrotated.get("x_positions", {}).get("lower_deck", {}) or {}
+        lower_rotated = canvas_rotated.get("x_positions", {}).get("lower_deck", {}) or {}
+        self.assertAlmostEqual(float(lower_unrotated.get(1) or 0.0), float(lower_rotated.get(1) or 0.0), places=3)
+        self.assertAlmostEqual(float(lower_unrotated.get(2) or 0.0), float(lower_rotated.get(2) or 0.0), places=3)
+
+    def test_left_aligned_lower_stack_top_flip_keeps_stack_anchor_under_upper_overhang(self):
+        session = {"brand": "pj", "carrier_type": "53_step_deck"}
+        carrier = {
+            "total_length_ft": 53.0,
+            "lower_deck_length_ft": 41.5,
+            "upper_deck_length_ft": 11.5,
+            "lower_deck_ground_height_ft": 3.5,
+            "upper_deck_ground_height_ft": 5.0,
+            "max_height_ft": 13.5,
+            "gn_max_lower_deck_ft": 32.0,
+        }
+        base_positions = [
+            {
+                "position_id": "l1",
+                "item_number": "GN14",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 1,
+                "override_reason": "column_alignment:left;tongue_profile:gooseneck",
+                "added_at": "2026-01-01T00:00:00",
+            },
+            {
+                "position_id": "l2",
+                "item_number": "U22",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 2,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:01",
+            },
+            {
+                "position_id": "u1",
+                "item_number": "U22",
+                "deck_zone": "upper_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:02",
+            },
+        ]
+        sku_map = {
+            "GN14": {
+                "item_number": "GN14",
+                "model": "GN",
+                "description": "Gooseneck",
+                "pj_category": "gooseneck",
+                "bed_length_measured": 14.0,
+                "bed_length_stated": 14.0,
+                "tongue_feet": 9.0,
+                "total_footprint": 23.0,
+            },
+            "U22": {
+                "item_number": "U22",
+                "model": "UL",
+                "description": "Utility",
+                "pj_category": "utility",
+                "bed_length_measured": 22.0,
+                "bed_length_stated": 22.0,
+                "tongue_feet": 5.0,
+                "total_footprint": 27.0,
+            },
+        }
+        height_ref = {
+            "gooseneck": {
+                "height_mid_ft": 2.4,
+                "height_top_ft": 2.8,
+                "gn_axle_dropped_ft": None,
+            },
+            "utility": {
+                "height_mid_ft": 2.6,
+                "height_top_ft": 2.9,
+                "gn_axle_dropped_ft": None,
+            },
+        }
+
+        def _build_canvas(top_rotated):
+            positions = [dict(row) for row in base_positions]
+            positions[1]["is_rotated"] = 1 if top_rotated else 0
+            with (
+                patch.object(prograde_routes.db, "get_pj_height_ref_dict", return_value=height_ref),
+                patch.object(prograde_routes.db, "get_pj_sku", side_effect=lambda item_number: sku_map[item_number]),
+                patch.object(prograde_routes.db, "get_pj_offsets_dict", return_value={"gn_in_dump_hidden_ft": 7.0}),
+                patch.object(prograde_routes.db, "mark_session_active", return_value=None),
+                patch.object(prograde_routes.db, "get_acknowledged_violations", return_value=[]),
+                patch.object(prograde_routes, "check_load", return_value=[]),
+            ):
+                return prograde_routes._build_canvas_data(
+                    "session-left-anchor-stability",
+                    session,
+                    carrier,
+                    ["lower_deck", "upper_deck"],
+                    positions,
+                    "pj",
+                )
+
+        canvas_unrotated = _build_canvas(False)
+        canvas_rotated = _build_canvas(True)
+        lower_unrot = canvas_unrotated.get("x_positions", {}).get("lower_deck", {}) or {}
+        lower_rot = canvas_rotated.get("x_positions", {}).get("lower_deck", {}) or {}
+        self.assertAlmostEqual(float(lower_unrot.get(1) or 0.0), float(lower_rot.get(1) or 0.0), places=3)
 
     def test_canvas_dump_door_overlap_window_shifts_lower_stack_right(self):
         session = {"brand": "pj", "carrier_type": "53_step_deck"}

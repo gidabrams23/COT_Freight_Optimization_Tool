@@ -225,21 +225,21 @@ def _normalize_layer_value(value, fallback):
 
 def _non_dump_stack_uses_top_height(layer_index, total_layers, is_top):
     """
-    Decide when a stack should transition from mid/bottom height to top height.
+    Decide when a non-dump stack layer should use top height.
 
-    Framework assumption:
-    - Lower half (rounded up) of layers use mid/bottom height.
-    - Remaining upper layers use top height.
+    Rule:
+    - Only the true top layer in a stack uses top height.
+    - Any layer with a unit above it uses mid/bottom height.
+    - A single-unit stack is treated as a base layer (mid/bottom height).
     """
     layers = _normalize_layer_value(total_layers, 1)
     layer = _normalize_layer_value(layer_index, 1)
     if layers <= 1:
         return False
-    mid_cutoff = (layers + 1) // 2
-    if layer > mid_cutoff:
+    if layer >= layers:
         return True
-    # Backward-compatible fallback for callers that only know top/non-top.
-    return bool(is_top and layer >= layers and layers > 2)
+    # Fallback for call paths that only provide top/non-top context.
+    return bool(is_top)
 
 
 def _resolve_non_dump_layer_height_ft(sku, height_ref, *, use_top_height):

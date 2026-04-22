@@ -1157,6 +1157,184 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         row = dict(self.db.get_position(position_id) or {})
         self.assertIn("column_alignment:left", str(row.get("override_reason") or ""))
 
+    def test_pj_single_stack_same_side_insert_index_keeps_existing_stack(self):
+        profile_id = self.db.create_access_profile("PJ Lone Stack Insert Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Lone Stack Insert Tester",
+            "PJ Lone Stack Insert Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Lone Stack Insert Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-LONE-STACK", "UT", "utility", 16.0, 16.0, 4.0, 20.0),
+            )
+
+        first_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-LONE-STACK", "deck_zone": "lower_deck", "column_alignment": "left"},
+        )
+        self.assertEqual(first_add.status_code, 200)
+        self.assertTrue((first_add.get_json() or {}).get("ok"))
+
+        second_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-LONE-STACK",
+                "deck_zone": "lower_deck",
+                "insert_index": 1,
+                "column_alignment": "left",
+            },
+        )
+        self.assertEqual(second_add.status_code, 200)
+        self.assertTrue((second_add.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1})
+        self.assertEqual(sorted(int(r["layer"]) for r in rows), [1, 2])
+
+    def test_pj_single_stack_opposite_side_insert_creates_second_stack(self):
+        profile_id = self.db.create_access_profile("PJ Opposite Side Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Opposite Side Tester",
+            "PJ Opposite Side Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Opposite Side Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-OPPOSITE-STACK", "UT", "utility", 16.0, 16.0, 4.0, 20.0),
+            )
+
+        first_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-OPPOSITE-STACK", "deck_zone": "lower_deck", "column_alignment": "left"},
+        )
+        self.assertEqual(first_add.status_code, 200)
+        self.assertTrue((first_add.get_json() or {}).get("ok"))
+
+        second_add = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-OPPOSITE-STACK",
+                "deck_zone": "lower_deck",
+                "insert_index": 1,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(second_add.status_code, 200)
+        self.assertTrue((second_add.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2})
+
+    def test_pj_left_aligned_lower_stack_with_upper_overhang_snaps_right(self):
+        profile_id = self.db.create_access_profile("PJ Overhang Snap Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Overhang Snap Tester",
+            "PJ Overhang Snap Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Overhang Snap Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-LOWER-SNAP", "LS", "gooseneck", 20.0, 20.0, 9.0, 29.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-UPPER-OVERHANG", "LS", "gooseneck", 24.0, 24.0, 9.0, 33.0),
+            )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-LOWER-SNAP",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="column_alignment:left",
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-UPPER-OVERHANG",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+
+        lower_positions = canvas.get("x_positions", {}).get("lower_deck", {}) or {}
+        lower_start = float(lower_positions.get(1) or 0.0)
+        self.assertGreater(lower_start, 1.0)
+
     def test_bigtex_canvas_only_partial_refresh_renders_after_add(self):
         profile_id = self.db.create_access_profile("BT Canvas Refresh Tester")
         self._set_active_profile(profile_id)

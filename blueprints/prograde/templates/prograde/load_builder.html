@@ -4527,7 +4527,7 @@ function initSkuDragAndDrop(options = {}) {
 
   const resolveLowerDeckDropPlan = (target, evt, payloadType = "") => {
     if (
-      SESSION_BRAND !== "bigtex"
+      !["bigtex", "pj"].includes(SESSION_BRAND)
       || !target
       || !(target.matches && target.matches("[data-drop-zone]"))
     ) {

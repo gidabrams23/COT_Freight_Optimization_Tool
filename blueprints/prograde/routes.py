@@ -1006,9 +1006,18 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
         min_start_ft = support_left_ft
         max_start_ft = support_right_ft - unit_deck_len_ft
         if (not unit_is_gooseneck) and (not support_is_gooseneck):
-            # Utility-over-utility keeps layers flush to avoid staircase drift.
-            min_start_ft = support_start_ft
-            max_start_ft = support_start_ft
+            # Utility-over-utility: keep the layer's leftmost occupied edge flush
+            # to the stack wall plane derived from the support layer. This keeps
+            # stack reach stable when upper utility layers are flipped.
+            support_is_rotated = bool(support.get("is_rotated"))
+            support_tongue_ft = max(
+                _unit_tongue_length_ft(support, prefer_occupied=prefer_occupied_tongue),
+                0.0,
+            )
+            wall_plane_ft = support_start_ft - (support_tongue_ft if support_is_rotated else 0.0)
+            flush_start_ft = wall_plane_ft + (unit_tongue_ft if unit_is_rotated else 0.0)
+            min_start_ft = flush_start_ft
+            max_start_ft = flush_start_ft
 
         if support_is_gooseneck and unit_is_gooseneck:
             # Gooseneck-on-gooseneck uses deck-to-deck alignment and allows
@@ -1053,10 +1062,10 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
         if max_start_ft < min_start_ft:
             if anchor_is_gooseneck and (not unit_is_gooseneck):
                 # When clearance and support envelope conflict, prioritize
-                # keeping child tongues out of the gooseneck tongue zone.
-                if anchor_wall_side == "left" and unit_is_rotated:
+                # stable wall-side anchoring for utility layers above gooseneck.
+                if anchor_wall_side == "left":
                     max_start_ft = min_start_ft
-                elif anchor_wall_side == "right" and (not unit_is_rotated):
+                elif anchor_wall_side == "right":
                     min_start_ft = max_start_ft
                 else:
                     anchor_ft = (min_start_ft + max_start_ft) / 2.0
@@ -1073,14 +1082,10 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
                 # Keep gooseneck-on-gooseneck overlap on the anchor tongue side.
                 align_mode = anchor_wall_side
             else:
-                # For non-gooseneck layers above a gooseneck, keep utility
-                # tongue tips at the non-overlap wall plane when possible.
-                if anchor_wall_side == "left" and unit_is_rotated:
-                    align_mode = "left"
-                elif anchor_wall_side == "right" and (not unit_is_rotated):
-                    align_mode = "right"
-                else:
-                    align_mode = "right" if anchor_wall_side == "left" else "left"
+                # For non-gooseneck layers above a gooseneck, keep wall-side
+                # anchoring stable across flip direction to avoid re-seating the
+                # whole lower stack during right-pack.
+                align_mode = anchor_wall_side
 
         if align_mode == "right":
             aligned_start_ft = max_start_ft
@@ -1189,20 +1194,23 @@ def _upper_column_intrusion_interval_on_lower(col, upper_start_local_ft, zone_or
     """
     Project one upper-deck column into lower-deck x-space as a blocked interval.
 
-    For seam-facing gooseneck columns (rotated upper units), use the gooseneck
-    wall plane (deck start) as the left blocked edge instead of the tongue tip.
+    Use the upper base-unit footprint for seam projection so rotating upper
+    stacked layers does not re-anchor lower-deck columns unexpectedly.
+    For seam-facing gooseneck columns (rotated upper base units), use the
+    gooseneck wall plane (deck start) as the left blocked edge instead of the
+    tongue tip.
     """
     if not col:
         return None
     base_dims = _column_base_dims(col)
-    render_dims = _column_render_envelope_dims(col, zone="upper_deck")
+    base_span_ft = max(_as_float(base_dims.get("full_span_ft"), 0.0), 0.0)
     col_right_global = (
         _as_float(zone_origin_upper_ft, 0.0)
         + _as_float(upper_start_local_ft, 0.0)
         + max(_as_float(base_dims.get("deck_len_ft"), 0.0), 0.0)
         + max(_as_float(base_dims.get("right_tongue_ft"), 0.0), 0.0)
     )
-    upper_left_global = col_right_global - max(_as_float(render_dims.get("full_span_ft"), 0.0), 0.0)
+    upper_left_global = col_right_global - base_span_ft
     upper_right_global = col_right_global
 
     projected_left = max(min(upper_left_global, upper_right_global), 0.0)
@@ -2843,13 +2851,31 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
             intrusion_cap_local = min(_as_float(left, step_x_ft) for left, _ in merged_post_upper_intrusion)
             final_cap_local = max(blocked_cap_local, intrusion_cap_local)
 
-            if not _skip_right_snap:
+            allow_post_upper_right_snap = not _skip_right_snap
+            if brand == "pj" and _skip_right_snap:
+                # For PJ, upper-overhang projection is the hard boundary for lower
+                # stack travel. Keep left-anchor intent for ordering, but still
+                # pack right up to the overhang limit when that geometry exists.
+                allow_post_upper_right_snap = True
+            if allow_post_upper_right_snap:
                 lower_max_right = 0.0
                 for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
                     col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-                    dims = _column_render_envelope_dims(col, zone=lower_zone)
                     start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
-                    right = start + max(_as_float(dims.get("right_reach_ft"), 0.0), 0.0)
+                    if brand == "pj" and _skip_right_snap:
+                        # Keep left-aligned PJ stack anchors stable when users
+                        # flip upper layers. Use base-unit right reach for this
+                        # right-pack pass; cross-deck collision guard below
+                        # still enforces true rendered-envelope clearance.
+                        base_dims = _column_base_dims(col)
+                        right = (
+                            start
+                            + max(_as_float(base_dims.get("deck_len_ft"), 0.0), 0.0)
+                            + max(_as_float(base_dims.get("right_tongue_ft"), 0.0), 0.0)
+                        )
+                    else:
+                        dims = _column_render_envelope_dims(col, zone=lower_zone)
+                        right = start + max(_as_float(dims.get("right_reach_ft"), 0.0), 0.0)
                     if right > lower_max_right:
                         lower_max_right = right
                 lower_shift_delta = max((final_cap_local - 0.08) - lower_max_right, 0.0)
@@ -4054,12 +4080,12 @@ def api_add_unit(session_id):
             deck_zone = target["deck_zone"]
         else:
             zone_positions = [p for p in normalized_positions if p["deck_zone"] == deck_zone]
-            if brand == "bigtex" and deck_zone == "lower_deck":
+            if brand in {"bigtex", "pj"} and deck_zone == "lower_deck":
                 existing_zone_sequences = sorted({int(p["sequence"]) for p in zone_positions})
                 if not existing_zone_sequences:
                     # For BT lower-deck picker adds with no explicit side, default to
                     # a left-anchored first stack so it does not snap right.
-                    if column_alignment is None:
+                    if brand == "bigtex" and column_alignment is None:
                         column_alignment = "left"
                     seq = 1
                     layer = 1
@@ -4102,10 +4128,10 @@ def api_add_unit(session_id):
             else:
                 seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
                 layer = 1
-        if brand == "bigtex" and target is not None:
+        if target is not None:
             target_alignment = _extract_column_alignment_override_reason(target.get("override_reason"))
             if target_alignment:
-                # Stacking onto an existing BT column should keep the column's
+                # Stacking onto an existing column should keep the column's
                 # established left/right anchor.
                 column_alignment = target_alignment
 

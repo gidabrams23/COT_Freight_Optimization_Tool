@@ -1892,3 +1892,698 @@
 2026-04-22 11:28:04,534 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:28:04] "GET /prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/load?brand=bigtex&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
 2026-04-22 11:28:04,907 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/load
 2026-04-22 11:28:05,045 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:28:05] "GET /prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/load?brand=bigtex&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 11:29:26,330 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-22 11:29:26,610 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:26] "GET /prograde/sessions?brand=pj HTTP/1.1" 200 -
+2026-04-22 11:29:26,667 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 11:29:26,669 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 11:29:26,670 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:26] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 11:29:26,670 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 11:29:26,671 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:26] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 11:29:26,672 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:26] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 11:29:28,567 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/new
+2026-04-22 11:29:28,582 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:28] "[32mGET /prograde/session/new?brand=pj HTTP/1.1[0m" 302 -
+2026-04-22 11:29:28,587 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load
+2026-04-22 11:29:28,677 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:28] "GET /prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load?brand=pj HTTP/1.1" 200 -
+2026-04-22 11:29:28,726 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 11:29:28,729 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:28] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 11:29:28,730 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 11:29:28,731 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 11:29:28,732 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:28] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 11:29:28,735 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:28] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 11:29:32,156 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/4d20c03e-440a-4ca8-8649-66505488b882/add
+2026-04-22 11:29:32,180 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:32] "POST /prograde/api/session/4d20c03e-440a-4ca8-8649-66505488b882/add HTTP/1.1" 200 -
+2026-04-22 11:29:32,189 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load
+2026-04-22 11:29:32,261 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:32] "GET /prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 11:29:32,613 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load
+2026-04-22 11:29:32,793 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:32] "GET /prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 11:29:34,605 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/4d20c03e-440a-4ca8-8649-66505488b882/add
+2026-04-22 11:29:34,629 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:34] "POST /prograde/api/session/4d20c03e-440a-4ca8-8649-66505488b882/add HTTP/1.1" 200 -
+2026-04-22 11:29:34,636 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load
+2026-04-22 11:29:34,727 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:34] "GET /prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 11:29:35,096 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load
+2026-04-22 11:29:35,277 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:35] "GET /prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 11:29:36,364 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/4d20c03e-440a-4ca8-8649-66505488b882/add
+2026-04-22 11:29:36,399 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:36] "POST /prograde/api/session/4d20c03e-440a-4ca8-8649-66505488b882/add HTTP/1.1" 200 -
+2026-04-22 11:29:36,408 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load
+2026-04-22 11:29:36,502 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:36] "GET /prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 11:29:36,863 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load
+2026-04-22 11:29:37,136 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:37] "GET /prograde/session/4d20c03e-440a-4ca8-8649-66505488b882/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 11:29:44,138 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/settings
+2026-04-22 11:29:44,459 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:44] "GET /prograde/settings HTTP/1.1" 200 -
+2026-04-22 11:29:44,515 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 11:29:44,516 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 11:29:44,518 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 11:29:44,519 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:44] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 11:29:44,520 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:44] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 11:29:44,521 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:29:44] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 11:39:42,524 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-22 11:39:43,145 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:39:43] "GET /prograde/sessions?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 11:39:43,188 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 11:39:43,190 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:39:43] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 11:39:43,280 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 11:39:43,282 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 11:39:43,283 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:39:43] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 11:39:43,285 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:39:43] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 11:39:46,671 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/export.pdf
+2026-04-22 11:39:46,999 [DEBUG] PIL.Image: Importing AvifImagePlugin
+2026-04-22 11:39:47,072 [DEBUG] PIL.Image: Importing BlpImagePlugin
+2026-04-22 11:39:47,079 [DEBUG] PIL.Image: Importing BmpImagePlugin
+2026-04-22 11:39:47,079 [DEBUG] PIL.Image: Importing BufrStubImagePlugin
+2026-04-22 11:39:47,085 [DEBUG] PIL.Image: Importing CurImagePlugin
+2026-04-22 11:39:47,090 [DEBUG] PIL.Image: Importing DcxImagePlugin
+2026-04-22 11:39:47,098 [DEBUG] PIL.Image: Importing DdsImagePlugin
+2026-04-22 11:39:47,114 [DEBUG] PIL.Image: Importing EpsImagePlugin
+2026-04-22 11:39:47,119 [DEBUG] PIL.Image: Importing FitsImagePlugin
+2026-04-22 11:39:47,124 [DEBUG] PIL.Image: Importing FliImagePlugin
+2026-04-22 11:39:47,128 [DEBUG] PIL.Image: Importing FpxImagePlugin
+2026-04-22 11:39:47,135 [DEBUG] PIL.Image: Image: failed to import FpxImagePlugin: No module named 'olefile'
+2026-04-22 11:39:47,135 [DEBUG] PIL.Image: Importing FtexImagePlugin
+2026-04-22 11:39:47,139 [DEBUG] PIL.Image: Importing GbrImagePlugin
+2026-04-22 11:39:47,144 [DEBUG] PIL.Image: Importing GifImagePlugin
+2026-04-22 11:39:47,144 [DEBUG] PIL.Image: Importing GribStubImagePlugin
+2026-04-22 11:39:47,148 [DEBUG] PIL.Image: Importing Hdf5StubImagePlugin
+2026-04-22 11:39:47,153 [DEBUG] PIL.Image: Importing IcnsImagePlugin
+2026-04-22 11:39:47,166 [DEBUG] PIL.Image: Importing IcoImagePlugin
+2026-04-22 11:39:47,173 [DEBUG] PIL.Image: Importing ImImagePlugin
+2026-04-22 11:39:47,179 [DEBUG] PIL.Image: Importing ImtImagePlugin
+2026-04-22 11:39:47,190 [DEBUG] PIL.Image: Importing IptcImagePlugin
+2026-04-22 11:39:47,197 [DEBUG] PIL.Image: Importing JpegImagePlugin
+2026-04-22 11:39:47,198 [DEBUG] PIL.Image: Importing Jpeg2KImagePlugin
+2026-04-22 11:39:47,198 [DEBUG] PIL.Image: Importing McIdasImagePlugin
+2026-04-22 11:39:47,201 [DEBUG] PIL.Image: Importing MicImagePlugin
+2026-04-22 11:39:47,206 [DEBUG] PIL.Image: Image: failed to import MicImagePlugin: No module named 'olefile'
+2026-04-22 11:39:47,206 [DEBUG] PIL.Image: Importing MpegImagePlugin
+2026-04-22 11:39:47,210 [DEBUG] PIL.Image: Importing MpoImagePlugin
+2026-04-22 11:39:47,226 [DEBUG] PIL.Image: Importing MspImagePlugin
+2026-04-22 11:39:47,230 [DEBUG] PIL.Image: Importing PalmImagePlugin
+2026-04-22 11:39:47,235 [DEBUG] PIL.Image: Importing PcdImagePlugin
+2026-04-22 11:39:47,238 [DEBUG] PIL.Image: Importing PcxImagePlugin
+2026-04-22 11:39:47,239 [DEBUG] PIL.Image: Importing PdfImagePlugin
+2026-04-22 11:39:47,256 [DEBUG] PIL.Image: Importing PixarImagePlugin
+2026-04-22 11:39:47,261 [DEBUG] PIL.Image: Importing PngImagePlugin
+2026-04-22 11:39:47,262 [DEBUG] PIL.Image: Importing PpmImagePlugin
+2026-04-22 11:39:47,262 [DEBUG] PIL.Image: Importing PsdImagePlugin
+2026-04-22 11:39:47,266 [DEBUG] PIL.Image: Importing QoiImagePlugin
+2026-04-22 11:39:47,271 [DEBUG] PIL.Image: Importing SgiImagePlugin
+2026-04-22 11:39:47,277 [DEBUG] PIL.Image: Importing SpiderImagePlugin
+2026-04-22 11:39:47,284 [DEBUG] PIL.Image: Importing SunImagePlugin
+2026-04-22 11:39:47,290 [DEBUG] PIL.Image: Importing TgaImagePlugin
+2026-04-22 11:39:47,297 [DEBUG] PIL.Image: Importing TiffImagePlugin
+2026-04-22 11:39:47,297 [DEBUG] PIL.Image: Importing WebPImagePlugin
+2026-04-22 11:39:47,314 [DEBUG] PIL.Image: Importing WmfImagePlugin
+2026-04-22 11:39:47,319 [DEBUG] PIL.Image: Importing XbmImagePlugin
+2026-04-22 11:39:47,325 [DEBUG] PIL.Image: Importing XpmImagePlugin
+2026-04-22 11:39:47,330 [DEBUG] PIL.Image: Importing XVThumbImagePlugin
+2026-04-22 11:39:47,354 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:39:47] "GET /prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/export.pdf?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 11:39:54,647 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/export.pdf
+2026-04-22 11:39:54,838 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 11:39:54] "GET /prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/export.pdf?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 13:20:55,431 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-22 13:20:56,084 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 13:20:56] "GET /prograde/sessions?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 13:21:14,666 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/new
+2026-04-22 13:21:14,697 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 13:21:14] "[32mGET /prograde/session/new?brand=bigtex HTTP/1.1[0m" 302 -
+2026-04-22 13:21:14,705 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/653bc893-9d1c-42d7-98d1-cb59b013e544/load
+2026-04-22 13:21:14,916 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 13:21:14] "GET /prograde/session/653bc893-9d1c-42d7-98d1-cb59b013e544/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 13:21:14,958 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 13:21:14,961 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 13:21:14] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 13:21:14,967 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 13:21:14,969 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 13:21:14,972 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 13:21:14] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 13:21:14,973 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 13:21:14] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:15:48,236 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-22 17:15:48,752 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:15:48] "GET /prograde/sessions?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 17:15:48,819 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 17:15:48,828 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:15:48] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 17:15:48,955 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 17:15:48,958 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 17:15:48,960 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:15:48] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 17:15:48,962 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:15:48] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:17:16,256 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/load
+2026-04-22 17:17:16,860 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:17:16] "GET /prograde/session/21b85579-3b5d-4b3b-8cdf-abcdcf2107ec/load?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 17:17:16,915 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 17:17:16,916 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:17:16] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 17:17:16,923 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 17:17:16,924 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 17:17:16,925 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:17:16] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 17:17:16,926 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:17:16] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:26:34,118 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 17:26:34,699 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:26:34,978 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:26:38,441 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:26:38,557 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:26:38,559 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:26:38,559 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:26:38,580 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:26:38,658 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:26:38,658 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:26:38,663 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:26:38,664 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:26:38,674 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:26:38,676 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:26:38,848 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:26:38,857 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:27:32,830 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_prograde_sessions_workflow.py', reloading
+2026-04-22 17:27:32,999 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:27:33,202 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:27:34,793 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:27:34,895 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:27:34,896 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:27:34,896 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:27:34,902 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:27:34,924 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:27:34,924 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:27:34,929 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:27:34,929 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:27:34,935 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:27:34,935 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:27:35,043 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:27:35,048 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:30:49,440 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\services\\pj_rules.py', reloading
+2026-04-22 17:30:49,563 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:30:49,823 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:30:51,366 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:30:51,485 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:30:51,487 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:30:51,487 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:30:51,493 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:30:51,519 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:30:51,519 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:30:51,525 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:30:51,525 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:30:51,534 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:30:51,534 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:30:51,633 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:30:51,639 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:30:58,858 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_prograde_pj_stacking_rules.py', reloading
+2026-04-22 17:30:59,026 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:30:59,343 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:31:01,064 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:31:01,202 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:31:01,204 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:31:01,204 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:31:01,211 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:31:01,234 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:31:01,235 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:31:01,237 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:31:01,238 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:31:01,242 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:31:01,243 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:31:01,350 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:31:01,356 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:32:04,158 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-22 17:32:05,147 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:05] "GET /prograde/sessions?brand=bigtex HTTP/1.1" 200 -
+2026-04-22 17:32:05,223 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 17:32:05,232 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:05] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 17:32:05,339 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 17:32:05,341 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 17:32:05,343 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:05] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:32:05,346 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:05] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 17:32:06,000 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/sessions
+2026-04-22 17:32:06,738 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:06] "GET /prograde/sessions?brand=pj HTTP/1.1" 200 -
+2026-04-22 17:32:06,811 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 17:32:06,815 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:06] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 17:32:06,816 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 17:32:06,819 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 17:32:06,821 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:06] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 17:32:06,824 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:06] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:32:08,279 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/new
+2026-04-22 17:32:08,314 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:08] "[32mGET /prograde/session/new?brand=pj HTTP/1.1[0m" 302 -
+2026-04-22 17:32:08,323 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:09,397 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:09] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj HTTP/1.1" 200 -
+2026-04-22 17:32:09,453 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 17:32:09,455 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 17:32:09,457 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 17:32:09,458 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:09] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 17:32:09,459 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:09] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 17:32:09,461 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:09] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:32:16,358 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:32:16,390 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:16] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:32:16,405 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:16,495 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:16] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:16,869 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:17,086 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:17] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:32:19,208 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/remove
+2026-04-22 17:32:19,247 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:19] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/remove HTTP/1.1" 200 -
+2026-04-22 17:32:19,256 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:19,332 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:19] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:19,700 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:19,840 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:19] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:32:21,285 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:32:21,334 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:21] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:32:21,343 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:21,432 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:21] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:21,801 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:22,029 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:22] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:32:23,057 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/remove
+2026-04-22 17:32:23,098 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:23] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/remove HTTP/1.1" 200 -
+2026-04-22 17:32:23,109 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:23,179 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:23] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:23,556 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:23,726 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:23] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:32:29,130 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:32:29,181 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:29] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:32:29,189 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:29,279 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:29] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:29,648 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:29,855 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:29] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:32:31,412 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:32:31,471 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:31] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:32:31,480 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:31,567 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:31] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:31,982 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:32,206 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:32] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:32:33,474 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:32:33,523 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:33] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:32:33,529 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:33,631 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:33] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:33,998 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:34,258 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:34] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:32:37,565 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:32:37,615 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:37] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:32:37,624 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:37,745 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:37] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:32:38,107 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:32:38,394 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:32:38] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:13,874 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/reset
+2026-04-22 17:36:13,967 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:13] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/reset HTTP/1.1" 200 -
+2026-04-22 17:36:13,975 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:14,144 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:14] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:15,862 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:36:15,910 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:15] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:36:15,917 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:15,997 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:15] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:36:16,362 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:16,569 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:16] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:18,681 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:36:18,729 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:18] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:36:18,736 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:18,826 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:18] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:36:19,185 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:19,397 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:19] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:20,777 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:36:20,831 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:20] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:36:20,838 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:20,931 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:20] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:36:21,291 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:21,517 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:21] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:22,896 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:36:22,935 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:22] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:36:22,944 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:23,052 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:23] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:36:23,429 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:23,711 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:23] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:29,046 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:36:29,103 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:29] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:36:29,112 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:29,239 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:29] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:36:29,595 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:29,867 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:29] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:32,144 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:36:32,189 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:32] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:36:32,198 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:32,329 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:32] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:36:32,717 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:33,067 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:33] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:36:40,222 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add
+2026-04-22 17:36:40,272 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:40] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/add HTTP/1.1" 200 -
+2026-04-22 17:36:40,282 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:40,421 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:40] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:36:40,779 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:36:41,087 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:36:41] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:37:12,573 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:37:12,610 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:37:12] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:37:12,616 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:37:12,745 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:37:12] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:37:13,110 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:37:13,420 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:37:13] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:37:15,804 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:37:15,847 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:37:15] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:37:15,854 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:37:16,030 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:37:16] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:37:16,391 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:37:16,711 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:37:16] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:40:42,236 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 17:40:42,430 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:40:42,718 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:40:44,937 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:40:45,031 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:40:45,033 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:40:45,033 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:40:45,043 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:40:45,106 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:40:45,106 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:40:45,110 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:40:45,110 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:40:45,117 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:40:45,118 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:40:45,229 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:40:45,234 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:40:47,885 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\services\\pj_rules.py', reloading
+2026-04-22 17:40:48,092 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:40:48,359 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:40:50,502 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:40:50,688 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:40:50,691 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:40:50,691 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:40:50,705 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:40:50,778 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:40:50,779 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:40:50,785 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:40:50,785 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:40:50,798 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:40:50,798 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:40:50,964 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:40:50,974 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:41:03,494 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_prograde_pj_stacking_rules.py', reloading
+2026-04-22 17:41:03,852 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:41:04,244 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:41:05,946 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:41:06,092 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:41:06,094 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:41:06,094 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:41:06,101 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:41:06,127 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:41:06,128 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:41:06,132 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:41:06,132 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:41:06,139 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:41:06,140 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:41:06,358 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:41:06,367 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:41:45,174 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 17:41:45,664 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:41:46,307 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:41:51,415 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:41:51,647 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:41:51,649 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:41:51,650 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:41:51,677 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:41:51,979 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:41:51,980 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:41:51,987 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:41:51,987 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:41:52,004 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:41:52,005 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:41:52,487 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:41:52,499 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:42:11,553 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\services\\pj_rules.py', reloading
+2026-04-22 17:42:11,787 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:42:12,063 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:42:14,018 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:42:14,194 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:42:14,196 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:42:14,196 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:42:14,206 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:42:14,238 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:42:14,239 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:42:14,246 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:42:14,246 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:42:14,254 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:42:14,255 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:42:14,459 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:42:14,469 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:42:29,337 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_prograde_pj_stacking_rules.py', reloading
+2026-04-22 17:42:29,646 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:42:30,047 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:42:32,249 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:42:32,402 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:42:32,403 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:42:32,404 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:42:32,415 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:42:32,446 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:42:32,447 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:42:32,452 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:42:32,452 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:42:32,463 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:42:32,465 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:42:32,628 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:42:32,636 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:44:49,224 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:44:50,050 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:44:50] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj HTTP/1.1" 200 -
+2026-04-22 17:44:50,092 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 17:44:50,094 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:44:50] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 17:44:50,171 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 17:44:50,174 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 17:44:50,175 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:44:50] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:44:50,178 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:44:50] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 17:44:55,825 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:44:55,847 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:44:55] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:44:55,854 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:44:55,913 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:44:55] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:44:56,287 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:44:56,432 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:44:56] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:45:01,211 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:45:01,234 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:01] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:45:01,239 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:01,283 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:01] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:45:01,641 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:01,773 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:01] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:45:02,708 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:45:02,731 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:02] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:45:02,739 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:02,785 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:02] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:45:03,149 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:03,264 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:03] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:45:06,849 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:45:06,870 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:06] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:45:06,876 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:06,927 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:06] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:45:07,289 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:07,426 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:07] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:45:10,232 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:45:10,255 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:10] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:45:10,260 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:10,307 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:10] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:45:10,673 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:45:10,783 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:45:10] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:48:04,120 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 17:48:04,240 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:48:04,503 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:48:06,220 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:48:06,326 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:48:06,328 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:48:06,328 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:48:06,334 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:48:06,353 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:48:06,354 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:48:06,357 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:48:06,357 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:48:06,362 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:48:06,362 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:48:06,455 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:48:06,460 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:49:00,710 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_prograde_pj_stacking_rules.py', reloading
+2026-04-22 17:49:00,923 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:49:01,287 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:49:02,948 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:49:03,056 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:49:03,058 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:49:03,058 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:49:03,064 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:49:03,086 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:49:03,086 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:49:03,091 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:49:03,091 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:49:03,098 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:49:03,098 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:49:03,200 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:49:03,206 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 17:49:30,461 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:30,993 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:30] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj HTTP/1.1" 200 -
+2026-04-22 17:49:31,032 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 17:49:31,034 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:31] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 17:49:31,078 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 17:49:31,079 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 17:49:31,080 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:31] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 17:49:31,081 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:31] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 17:49:33,842 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:49:33,884 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:33] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:49:33,892 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:34,062 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:34] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:49:34,430 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:34,755 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:34] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:49:35,186 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:49:35,221 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:35] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:49:35,227 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:35,357 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:35] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:49:35,712 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:36,019 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:36] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:49:36,802 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:49:36,839 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:36] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:49:36,846 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:36,993 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:36] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:49:37,354 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:37,671 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:37] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:49:38,693 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:49:38,727 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:38] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:49:38,733 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:38,884 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:38] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:49:39,239 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:39,541 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:39] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:49:40,351 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:49:40,387 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:40] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:49:40,393 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:40,544 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:40] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:49:40,914 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:41,217 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:41] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:49:42,993 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:49:43,033 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:43] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:49:43,039 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:43,161 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:43] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:49:43,515 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:43,819 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:43] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:49:46,767 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 17:49:46,809 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:46] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 17:49:46,815 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:46,975 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:46] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 17:49:47,340 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 17:49:47,692 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 17:49:47] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 17:53:02,742 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 17:53:02,955 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 17:53:03,175 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 17:53:05,079 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 17:53:05,198 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 17:53:05,200 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 17:53:05,201 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 17:53:05,211 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 17:53:05,231 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 17:53:05,231 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 17:53:05,234 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 17:53:05,234 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 17:53:05,240 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 17:53:05,240 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 17:53:05,353 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 17:53:05,363 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 18:00:15,899 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 18:00:16,045 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 18:00:16,268 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 18:00:17,977 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 18:00:18,104 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 18:00:18,107 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 18:00:18,107 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 18:00:18,116 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 18:00:18,142 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 18:00:18,142 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 18:00:18,146 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 18:00:18,146 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 18:00:18,153 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 18:00:18,154 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 18:00:18,285 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 18:00:18,294 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 18:02:50,569 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 18:02:50,779 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 18:02:51,012 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 18:02:52,606 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 18:02:52,698 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 18:02:52,700 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 18:02:52,700 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 18:02:52,707 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 18:02:52,725 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 18:02:52,726 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 18:02:52,729 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 18:02:52,731 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 18:02:52,736 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 18:02:52,736 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 18:02:52,866 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 18:02:52,876 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 18:03:24,257 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_prograde_pj_stacking_rules.py', reloading
+2026-04-22 18:03:24,377 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 18:03:24,654 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 18:03:26,258 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 18:03:26,380 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 18:03:26,381 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 18:03:26,382 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 18:03:26,388 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 18:03:26,409 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 18:03:26,409 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 18:03:26,412 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 18:03:26,412 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 18:03:26,420 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 18:03:26,420 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 18:03:26,533 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 18:03:26,539 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 18:04:34,870 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 18:04:35,023 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 18:04:35,338 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 18:04:36,954 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 18:04:37,066 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 18:04:37,067 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 18:04:37,067 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 18:04:37,075 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 18:04:37,101 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 18:04:37,102 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 18:04:37,108 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 18:04:37,109 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 18:04:37,118 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 18:04:37,119 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 18:04:37,274 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 18:04:37,281 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 18:06:11,286 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 18:06:11,423 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 18:06:11,654 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 18:06:13,271 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 18:06:13,384 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 18:06:13,386 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 18:06:13,386 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 18:06:13,394 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 18:06:13,422 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 18:06:13,422 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 18:06:13,428 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 18:06:13,428 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 18:06:13,436 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 18:06:13,437 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 18:06:13,587 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 18:06:13,594 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 18:06:39,010 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\prograde\\routes.py', reloading
+2026-04-22 18:06:39,266 [INFO] werkzeug:  * Restarting with stat
+2026-04-22 18:06:39,478 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-04-22 18:06:41,236 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-04-22 18:06:41,341 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-04-22 18:06:41,346 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-04-22 18:06:41,346 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-04-22 18:06:41,354 [INFO] blueprints.cot.routes: Database init starting.
+2026-04-22 18:06:41,380 [INFO] blueprints.cot.routes: Database init complete.
+2026-04-22 18:06:41,381 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-04-22 18:06:41,384 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-04-22 18:06:41,384 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-04-22 18:06:41,389 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-04-22 18:06:41,390 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-04-22 18:06:41,512 [WARNING] werkzeug:  * Debugger is active!
+2026-04-22 18:06:41,519 [INFO] werkzeug:  * Debugger PIN: 115-064-639
+2026-04-22 18:08:44,021 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:44,945 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:44] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj HTTP/1.1" 200 -
+2026-04-22 18:08:44,990 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/styles.css
+2026-04-22 18:08:44,994 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:44] "[36mGET /prograde/static/styles.css HTTP/1.1[0m" 304 -
+2026-04-22 18:08:45,264 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/pj-trailers-logo.svg
+2026-04-22 18:08:45,268 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:45] "[36mGET /prograde/static/images/brand-logos/pj-trailers-logo.svg HTTP/1.1[0m" 304 -
+2026-04-22 18:08:45,272 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/static/images/brand-logos/bigtex-trailers-logo.png
+2026-04-22 18:08:45,276 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:45] "[36mGET /prograde/static/images/brand-logos/bigtex-trailers-logo.png HTTP/1.1[0m" 304 -
+2026-04-22 18:08:47,281 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 18:08:47,321 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:47] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 18:08:47,330 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:47,495 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:47] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 18:08:47,866 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:48,198 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:48] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 18:08:49,287 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 18:08:49,326 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:49] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 18:08:49,334 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:49,482 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:49] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 18:08:49,847 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:50,176 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:50] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 18:08:50,852 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 18:08:50,893 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:50] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 18:08:50,900 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:51,052 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:51] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 18:08:51,418 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:51,775 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:51] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 18:08:52,196 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 18:08:52,237 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:52] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 18:08:52,245 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:52,379 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:52] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 18:08:52,740 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:53,091 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:53] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
+2026-04-22 18:08:53,924 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate
+2026-04-22 18:08:53,967 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:53] "POST /prograde/api/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/rotate HTTP/1.1" 200 -
+2026-04-22 18:08:53,974 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:54,105 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:54] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&pg_canvas_only=1 HTTP/1.1" 200 -
+2026-04-22 18:08:54,462 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load
+2026-04-22 18:08:54,789 [INFO] werkzeug: 127.0.0.1 - - [22/Apr/2026 18:08:54] "GET /prograde/session/73c5b7df-e18f-4f44-a6f3-6b9ca09cc9bd/load?brand=pj&pg_partial=1&refresh_inventory=1 HTTP/1.1" 200 -
