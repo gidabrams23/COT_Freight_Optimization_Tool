@@ -1,13 +1,13 @@
-# ProGrade Inventory Gap Workflow (v0.4)
+# ProGrade Inventory Gap Workflow (v0.5)
 
 ## Purpose
 Defines the current inventory-gap panel behavior on the ProGrade load page for both brands:
 - Big Tex: upload-backed availability (legacy workbook + BT inventory CSV).
-- PJ: catalog-based suggestions from loaded PJ SKUs.
+- PJ: upload-backed availability from PJ inventory CSV with catalog fallback.
 
 ## Entry Points
 - Load page: `/prograde/session/<session_id>/load`
-- BT upload API: `POST /prograde/api/session/<session_id>/inventory/upload`
+- Inventory upload API: `POST /prograde/api/session/<session_id>/inventory/upload`
 
 ## Brand Modes
 ### Big Tex mode (`brand=bigtex`)
@@ -34,18 +34,29 @@ Defines the current inventory-gap panel behavior on the ProGrade load page for b
 - Warehouse-level snapshot aggregates persisted per `(item_number, whse_code)`.
 
 ### PJ mode (`brand=pj`)
-- No workbook upload in current process.
-- Candidates are derived directly from `pj_skus`.
-- Panel scores fit by stack-level vertical headroom and stack length constraints.
+- Upload accepted format:
+  - PJ inventory CSV (`hstrailerconfiglongitemid`, `itemid`, `inventsiteid`).
+- CSV parsing:
+  - Warehouse filter is driven by `inventsiteid` (site code).
+  - Rows are de-duplicated by `id` when present (fallback composite key otherwise).
+  - Canonical match target is `pj_skus.item_number`.
+  - Normalization pipeline:
+    - exact `hstrailerconfiglongitemid`
+    - core token before first `-` suffix
+    - model + bed-length inference using `itemid` and long-item parse
+    - item-code fallback (`<model><2-digit length>`)
+  - Unresolved SKUs remain visible as unmapped rows with inferred metadata when possible.
+- Snapshot aggregates persisted per item and per `(item_number, whse_code)` using PJ inventory tables.
+- If no PJ inventory upload exists yet, panel falls back to catalog candidates from `pj_skus`.
 
 ## Panel Behavior
 - Panel title: `BT Inventory Gap Finder` or `PJ Inventory Gap Finder`.
-- Big Tex panel includes:
+- Both brand panels include:
   - `Upload Inventory` action (workbook or CSV).
-  - `WHSE` dropdown when warehouse-level inventory exists (`ALL`, `501`, `601`, etc.).
+  - `WHSE` dropdown when warehouse-level inventory exists (`ALL`, `301`, `306`, `501`, `601`, etc.).
 - Summary tiles:
   - Remaining gap feet
-  - Available units (BT) or catalog SKU count (PJ)
+  - Available units (upload-backed) or catalog SKU count (fallback mode)
   - Candidate row count
   - Active stack count
 - Table shows:
@@ -68,9 +79,12 @@ In ProGrade SQLite (`PROGRADE_DB_PATH`):
 - `bt_inventory_snapshot`: latest per-SKU BT aggregates.
 - `bt_inventory_snapshot_whse`: latest per-SKU, per-warehouse BT aggregates.
 - `bt_inventory_upload_log`: BT upload metadata history.
-- PJ catalog mode does not write a separate inventory snapshot table.
+- `pj_inventory_snapshot`: latest per-SKU PJ aggregates.
+- `pj_inventory_snapshot_whse`: latest per-SKU, per-warehouse PJ aggregates (`inventsiteid`).
+- `pj_inventory_upload_log`: PJ upload metadata history.
 
 ## Current Process Standards
 - Keep BT upload optional and non-blocking for load building.
-- Keep PJ catalog mode always available when PJ SKUs exist.
+- Keep PJ upload optional and non-blocking for load building.
+- Keep PJ catalog fallback available when PJ SKUs exist and no PJ upload has been run.
 - Keep fit scoring deterministic and tied to current session geometry/constraints.

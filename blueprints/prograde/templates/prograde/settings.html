@@ -630,10 +630,12 @@
       </div>
     </div>
     <div class="pj-component-rule-note">
-      <strong>Current PJ rule (all non-dump units):</strong>
-      every non-dump stacked layer uses <strong>1.3 ft</strong> for render height, manifest height, and trailer height checks.
-      Dump profiles continue to use dump-height behavior.
-      This stacked height is the value shown in the manifest Height column and used in trailer height totals.
+      <strong>Current PJ framework:</strong>
+      each category has two stacked-height values:
+      <strong>Bottom/Mid</strong> (used through the lower half of a stack) and
+      <strong>Top</strong> (used after crossing that midpoint).
+      Dump profiles keep dump-height behavior; gooseneck riser handling remains separate.
+      These values drive manifest heights, stack-height meters, and schematic rendering heights.
     </div>
   </div>
 
@@ -736,7 +738,7 @@
     <div class="card-header">
       <div>
         <div class="card-title">PJ SKU Cheat Sheet</div>
-        <div class="card-subtitle">Grouped as identifiers + deck dimensions. Height uses one value per category.</div>
+        <div class="card-subtitle">Grouped as identifiers + deck dimensions with dual stacked-height values by category.</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
         <input type="text" class="form-control" id="sku-search" placeholder="Filter PJ SKUsâ€¦" style="width:200px" />
@@ -749,7 +751,7 @@
         <thead>
           <tr class="pg-group-row">
             <th colspan="4">SKU Identifiers / Name</th>
-            <th colspan="4">Deck Dimensions</th>
+            <th colspan="5">Deck Dimensions</th>
             <th class="pg-group-spacer">Notes</th>
           </tr>
           <tr>
@@ -757,7 +759,8 @@
             <th class="pg-ident-col">Model</th>
             <th class="pg-ident-col">Item #</th>
             <th class="pg-ident-col">Item Code</th>
-            <th>Height (ft)</th>
+            <th>Bottom/Mid Height (ft)</th>
+            <th>Top Height (ft)</th>
             <th>Bed Length (ft)</th>
             <th>Tongue (ft)</th>
             <th>Footprint (ft)</th>
@@ -782,7 +785,15 @@
             <td>
               <input type="number" step="0.25"
                      class="editable-cell" style="min-width:90px"
-                     data-height-category="{{ s.pj_category or '' }}"
+                     data-height-category-mid="{{ s.pj_category or '' }}"
+                     data-table="pj_height_reference" data-pk="{{ s.pj_category or '' }}" data-field="height_mid_ft"
+                     value="{{ h.get('height_mid_ft') if h else '' }}"
+                     {% if not s.pj_category %}disabled{% endif %} />
+            </td>
+            <td>
+              <input type="number" step="0.25"
+                     class="editable-cell" style="min-width:90px"
+                     data-height-category-top="{{ s.pj_category or '' }}"
                      data-table="pj_height_reference" data-pk="{{ s.pj_category or '' }}" data-field="height_top_ft"
                      value="{{ h.get('height_top_ft') if h else '' }}"
                      {% if not s.pj_category %}disabled{% endif %} />
@@ -1045,9 +1056,12 @@ async function saveField(table, pk, field, value, triggerRecompute) {
       if (data.sessions_flagged) {
         STALE_ALERT.classList.add('visible');
       }
-      if (table === 'pj_height_reference' && field === 'height_top_ft') {
+      if (table === 'pj_height_reference' && (field === 'height_top_ft' || field === 'height_mid_ft')) {
         const key = String(pk || '').replace(/"/g, '\\"');
-        document.querySelectorAll(`[data-height-category="${key}"]`).forEach((input) => {
+        const selector = field === 'height_top_ft'
+          ? `[data-height-category-top="${key}"]`
+          : `[data-height-category-mid="${key}"]`;
+        document.querySelectorAll(selector).forEach((input) => {
           input.value = value ?? '';
         });
       }

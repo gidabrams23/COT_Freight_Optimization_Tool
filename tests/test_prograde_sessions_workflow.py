@@ -679,6 +679,206 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertAlmostEqual(float(third.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
         self.assertTrue(bool(third.get("bt_half_tongue_stuffed")))
 
+    def test_bigtex_cross_deck_same_direction_applies_half_tongue_to_upper_interface_stack(self):
+        profile_id = self.db.create_access_profile("BT Cross Deck Tongue Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Cross Deck Tongue Tester",
+            "BT Cross Deck Tongue Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Cross Deck Tongue Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-HALF-XDECK", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        lower_left_id = str(uuid.uuid4())
+        lower_right_id = str(uuid.uuid4())
+        upper_left_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=lower_left_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-XDECK",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=lower_right_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-XDECK",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=upper_left_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-XDECK",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+        units_by_id = {str(row.get("position_id")): row for row in canvas.get("enriched_positions") or []}
+        lower_left = units_by_id[lower_left_id]
+        lower_right = units_by_id[lower_right_id]
+        upper_left = units_by_id[upper_left_id]
+
+        # Lower-deck rule still applies.
+        self.assertAlmostEqual(float(lower_left.get("occupied_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertAlmostEqual(float(lower_right.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
+        self.assertTrue(bool(lower_right.get("bt_half_tongue_stuffed")))
+
+        # Cross-deck seam rule applies to the next same-direction upper stack.
+        self.assertAlmostEqual(float(upper_left.get("render_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertAlmostEqual(float(upper_left.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
+        self.assertTrue(bool(upper_left.get("bt_half_tongue_stuffed")))
+
+        # Visual endpoints should follow full rendered tongue length.
+        upper_deck_end = float(upper_left.get("deck_x_end_ft") or 0.0)
+        upper_tongue_end = float(upper_left.get("tongue_x_end_ft") or 0.0)
+        self.assertAlmostEqual(upper_tongue_end - upper_deck_end, 4.0, places=2)
+
+    def test_bigtex_same_direction_half_tongue_applies_to_all_layers_in_target_stack(self):
+        profile_id = self.db.create_access_profile("BT Layer Tongue Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Layer Tongue Tester",
+            "BT Layer Tongue Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Layer Tongue Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-HALF-LAYERS", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        left_base_id = str(uuid.uuid4())
+        right_base_id = str(uuid.uuid4())
+        right_top_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=left_base_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-LAYERS",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=right_base_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-LAYERS",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=right_top_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-HALF-LAYERS",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=2,
+            is_rotated=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+        units_by_id = {str(row.get("position_id")): row for row in canvas.get("enriched_positions") or []}
+        left_base = units_by_id[left_base_id]
+        right_base = units_by_id[right_base_id]
+        right_top = units_by_id[right_top_id]
+
+        self.assertAlmostEqual(float(left_base.get("occupied_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertFalse(bool(left_base.get("bt_half_tongue_stuffed")))
+
+        self.assertAlmostEqual(float(right_base.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
+        self.assertTrue(bool(right_base.get("bt_half_tongue_stuffed")))
+
+        # Half insertion should apply to all layers in the affected stack.
+        self.assertAlmostEqual(float(right_top.get("render_tongue_length_ft") or 0.0), 4.0, places=2)
+        self.assertAlmostEqual(float(right_top.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
+        self.assertTrue(bool(right_top.get("bt_half_tongue_stuffed")))
+
     def test_bigtex_add_on_stack_persists_column_alignment_on_base_stack(self):
         profile_id = self.db.create_access_profile("BT Alignment Tester")
         self._set_active_profile(profile_id)
@@ -1139,6 +1339,384 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(bool(lower["is_rotated"]), bool(upper["is_rotated"]))
         self.assertIn("gn_crisscross:1", str(lower.get("override_reason") or ""))
         self.assertIn("gn_crisscross:1", str(upper.get("override_reason") or ""))
+
+    def test_bigtex_flatbed_canvas_normalizes_upper_zone_to_lower_deck_surface(self):
+        profile_id = self.db.create_access_profile("BT Flatbed Zone Tester")
+        self._set_active_profile(profile_id)
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_flatbed",
+            "BT Flatbed Zone Tester",
+            "BT Flatbed Zone Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Flatbed Zone Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-FLATBED-ZONE", "utility", 1, "UT", 20.0, 4.0, 2.0, 24.0, "flat"),
+            )
+
+        pos_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=pos_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-FLATBED-ZONE",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_flatbed")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        self.assertEqual(len(enriched), 1)
+        self.assertEqual(enriched[0].get("deck_zone"), "lower_deck")
+        self.assertAlmostEqual(float(enriched[0].get("y_surface_ft") or 0.0), 4.0, places=3)
+
+    def test_bigtex_ground_pull_uses_first_unit_deck_length_as_capacity(self):
+        profile_id = self.db.create_access_profile("BT Ground Pull Tester")
+        self._set_active_profile(profile_id)
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("ground_pull", "bigtex", 53.0, 13.5, 53.0, 0.0, 4.0, 0.0, 0.0, "test ground pull"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-GROUND-DECK", "gooseneck", 1, "GN", 40.0, 5.0, 2.0, 45.0, "flat"),
+            )
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "ground_pull",
+            "BT Ground Pull Tester",
+            "BT Ground Pull Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Ground Pull Tester",
+        )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-GROUND-DECK",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("ground_pull")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+
+        trailer_geometry = dict(canvas.get("trailer_geometry") or {})
+        self.assertAlmostEqual(float(trailer_geometry.get("total_length_ft") or 0.0), 40.0, places=3)
+        self.assertAlmostEqual(float(canvas.get("z_caps", {}).get("lower_deck") or 0.0), 40.0, places=3)
+        self.assertTrue(bool(trailer_geometry.get("ground_pull_mode")))
+        self.assertFalse(bool(trailer_geometry.get("has_structural_deck")))
+        self.assertFalse(bool(trailer_geometry.get("show_upper_zone")))
+
+    def test_pj_ground_pull_shows_in_truck_dropdown_and_uses_first_unit_deck_length(self):
+        profile_id = self.db.create_access_profile("PJ Ground Pull Tester")
+        self._set_active_profile(profile_id)
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("ground_pull", "bigtex", 53.0, 13.5, 53.0, 0.0, 4.0, 0.0, 0.0, "test ground pull"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GROUND-DECK", "LS", "gooseneck", 40.0, 40.0, 9.0, 49.0),
+            )
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "ground_pull",
+            "PJ Ground Pull Tester",
+            "PJ Ground Pull Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Ground Pull Tester",
+        )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-GROUND-DECK",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        load_resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(load_resp.status_code, 200)
+        html = load_resp.get_data(as_text=True)
+        self.assertIn('option value="ground_pull"', html)
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("ground_pull")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+
+        trailer_geometry = dict(canvas.get("trailer_geometry") or {})
+        self.assertAlmostEqual(float(trailer_geometry.get("total_length_ft") or 0.0), 40.0, places=3)
+        self.assertAlmostEqual(float(canvas.get("z_caps", {}).get("lower_deck") or 0.0), 40.0, places=3)
+        self.assertTrue(bool(trailer_geometry.get("ground_pull_mode")))
+        self.assertFalse(bool(trailer_geometry.get("has_structural_deck")))
+        self.assertFalse(bool(trailer_geometry.get("show_upper_zone")))
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        self.assertEqual(len(enriched), 1)
+        self.assertEqual(enriched[0].get("deck_zone"), "lower_deck")
+
+        check_resp = self.client.get(f"/prograde/api/session/{session_id}/check")
+        self.assertEqual(check_resp.status_code, 200)
+        violation_codes = {
+            str(v.get("rule_code") or "")
+            for v in (check_resp.get_json() or {}).get("violations", [])
+        }
+        self.assertNotIn("PJ_STEP_CROSSING", violation_codes)
+
+    def test_ground_pull_single_stack_is_centered_in_schematic(self):
+        profile_id = self.db.create_access_profile("Ground Pull Center Tester")
+        self._set_active_profile(profile_id)
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("ground_pull", "bigtex", 53.0, 13.5, 53.0, 0.0, 4.0, 0.0, 0.0, "test ground pull"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-GROUND-CENTER", "gooseneck", 1, "GN", 40.0, 8.0, 2.0, 48.0, "flat"),
+            )
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "ground_pull",
+            "Ground Pull Center Tester",
+            "Ground Pull Center Session",
+            created_by_profile_id=profile_id,
+            created_by_name="Ground Pull Center Tester",
+        )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-GROUND-CENTER",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("ground_pull")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+
+        lower_x = float((canvas.get("x_positions", {}).get("lower_deck", {}) or {}).get(1) or 0.0)
+        self.assertAlmostEqual(lower_x, 4.0, places=2)
+
+    def test_bigtex_nested_guest_does_not_raise_next_layer_surface(self):
+        profile_id = self.db.create_access_profile("BT Nested Surface Tester")
+        self._set_active_profile(profile_id)
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Nested Surface Tester",
+            "BT Nested Surface Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Nested Surface Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                [
+                    ("BT-DUMP-HOST", "DUMP", 1, "DM", 16.0, 3.0, 4.0, 19.0, "hydraulic"),
+                    ("BT-NEST-GUEST", "UTILITY", 1, "UT", 6.0, 2.0, 2.0, 8.0, "flat"),
+                    ("BT-TOP-UNIT", "UTILITY", 1, "UT", 10.0, 2.0, 2.5, 12.0, "flat"),
+                ],
+            )
+
+        host_id = str(uuid.uuid4())
+        guest_id = str(uuid.uuid4())
+        top_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=host_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-DUMP-HOST",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=guest_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-NEST-GUEST",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=top_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-TOP-UNIT",
+            deck_zone="lower_deck",
+            layer=3,
+            sequence=1,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+
+        def _build_canvas():
+            canvas_data = self.routes._build_canvas_data(
+                session_id=session_id,
+                session=session_row,
+                carrier=carrier_row,
+                zones=zones,
+                positions=self.db.get_positions(session_id),
+                brand="bigtex",
+            )
+            enriched = {str(p.get("position_id")): dict(p) for p in (canvas_data.get("enriched_positions") or [])}
+            lower_cols = list((canvas_data.get("spatial_columns", {}).get("lower_deck") or []))
+            col_one = next((c for c in lower_cols if int(c.get("sequence") or 0) == 1), {})
+            return canvas_data, enriched, dict(col_one)
+
+        _, baseline, baseline_col = _build_canvas()
+        baseline_host = baseline[host_id]
+        baseline_guest = baseline[guest_id]
+        baseline_top = baseline[top_id]
+        baseline_top_surface = float(baseline_top.get("y_surface_ft") or 0.0)
+        baseline_guest_top = float(baseline_guest.get("y_surface_ft") or 0.0) + float(
+            baseline_guest.get("deck_component_height_ft") or baseline_guest.get("height") or 0.0
+        )
+        self.assertAlmostEqual(baseline_top_surface, baseline_guest_top, places=3)
+
+        self.db.update_position_field(guest_id, "is_nested", 1)
+        self.db.update_position_field(guest_id, "nested_inside", host_id)
+
+        _, nested, nested_col = _build_canvas()
+        nested_host = nested[host_id]
+        nested_guest = nested[guest_id]
+        nested_top = nested[top_id]
+
+        nested_host_surface = float(nested_host.get("y_surface_ft") or 0.0)
+        nested_host_height = float(nested_host.get("deck_component_height_ft") or nested_host.get("height") or 0.0)
+        nested_guest_surface = float(nested_guest.get("y_surface_ft") or 0.0)
+        nested_guest_height = float(nested_guest.get("deck_component_height_ft") or nested_guest.get("height") or 0.0)
+        nested_top_surface = float(nested_top.get("y_surface_ft") or 0.0)
+        nested_top_height = float(nested_top.get("deck_component_height_ft") or nested_top.get("height") or 0.0)
+
+        self.assertAlmostEqual(nested_top_surface, nested_host_surface + nested_host_height, places=3)
+        self.assertGreater(nested_guest_surface, nested_host_surface)
+        self.assertLessEqual(nested_guest_surface + nested_guest_height, nested_host_surface + nested_host_height)
+        self.assertLess(nested_top_surface, baseline_top_surface)
+
+        self.assertGreater(float(baseline_col.get("height_ft") or 0.0), float(nested_col.get("height_ft") or 0.0))
+        self.assertAlmostEqual(float(nested_col.get("height_ft") or 0.0), nested_host_height + nested_top_height, places=3)
 
 
 if __name__ == "__main__":

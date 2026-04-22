@@ -64,6 +64,22 @@ FALLBACK_PJ_TEMP_WORKBOOK_PATH = ROOT_DIR / ".tmp" / "pj_product_guide_working.x
 
 PJ_TOC_MODEL_RE = re.compile(r"\[([A-Za-z0-9]{1,8})\]")
 PJ_FT_LENGTH_RE = re.compile(r"(?<!\d)(\d{1,2}(?:\.\d+)?)\s*[\'\u2019]")
+PJ_DUMP_CATEGORY_KEYS = {
+    "dump_lowside",
+    "dump_highside_3ft",
+    "dump_highside_4ft",
+    "dump_small",
+    "dump_gn",
+    "dump_variants",
+}
+PJ_GOOSENECK_CATEGORY_KEYS = {
+    "gooseneck",
+    "gooseneck_flatdeck",
+    "gooseneck_quest",
+    "gooseneck_pintle",
+    "gooseneck_variants",
+    "pintle",
+}
 
 BIGTEX_CATEGORY_ALIASES = {
     "OL CAR HAULER": "CAR HAULER",
@@ -196,6 +212,18 @@ REFERENCE_CARRIER_DEFAULTS = [
         "gn_max_lower_deck_ft": 0.0,
         "notes": "Default Big Tex flatbed carrier profile",
     },
+    {
+        "carrier_type": "ground_pull",
+        "brand": "bigtex",
+        "total_length_ft": 53.0,
+        "max_height_ft": 13.5,
+        "lower_deck_length_ft": 53.0,
+        "upper_deck_length_ft": 0.0,
+        "lower_deck_ground_height_ft": 4.0,
+        "upper_deck_ground_height_ft": 0.0,
+        "gn_max_lower_deck_ft": 0.0,
+        "notes": "Ground pull mode: first placed unit defines usable deck length",
+    },
 ]
 
 REFERENCE_PJ_TONGUE_GROUP_DEFAULTS = [
@@ -244,20 +272,20 @@ REFERENCE_PJ_TONGUE_GROUP_DEFAULTS = [
 ]
 
 REFERENCE_PJ_HEIGHT_DEFAULTS = [
-    {"category": "car_hauler", "label": "Car Hauler", "height_mid_ft": 1.5, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": "Flat bed with ramps; mid/top refer to position in stack"},
-    {"category": "car_hauler_deckover", "label": "Car Hauler Deck Over", "height_mid_ft": 1.75, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": ""},
-    {"category": "deck_over", "label": "Deck Over", "height_mid_ft": 1.75, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": ""},
-    {"category": "dump_gn", "label": "Dump - Gooseneck", "height_mid_ft": 2.5, "height_top_ft": 3.5, "gn_axle_dropped_ft": None, "notes": "GN dump"},
-    {"category": "dump_highside_3ft", "label": "Dump - High Side 3'", "height_mid_ft": 2.5, "height_top_ft": 3.5, "gn_axle_dropped_ft": None, "notes": "3' high side"},
-    {"category": "dump_highside_4ft", "label": "Dump - High Side 4'", "height_mid_ft": 3.0, "height_top_ft": 4.0, "gn_axle_dropped_ft": None, "notes": "4' high side"},
-    {"category": "dump_lowside", "label": "Dump - Low Side", "height_mid_ft": 2.0, "height_top_ft": 3.0, "gn_axle_dropped_ft": None, "notes": "Low-side dump; team to confirm side height"},
-    {"category": "dump_small", "label": "Dump - Small", "height_mid_ft": 1.75, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "Compact dump (D5/D7 class)"},
-    {"category": "dump_variants", "label": "Dump - Variants", "height_mid_ft": 2.25, "height_top_ft": 3.25, "gn_axle_dropped_ft": None, "notes": "DTJ, DT1 and other variant dumps"},
-    {"category": "gooseneck", "label": "Gooseneck", "height_mid_ft": 2.5, "height_top_ft": 2.5, "gn_axle_dropped_ft": 2.0, "notes": "Axle-drop reduces stacked height"},
-    {"category": "pintle", "label": "Pintle", "height_mid_ft": 1.5, "height_top_ft": 2.0, "gn_axle_dropped_ft": None, "notes": ""},
-    {"category": "tilt", "label": "Tilt", "height_mid_ft": 1.5, "height_top_ft": 2.0, "gn_axle_dropped_ft": None, "notes": ""},
-    {"category": "tilt_deckover", "label": "Tilt Deck Over", "height_mid_ft": 1.75, "height_top_ft": 2.75, "gn_axle_dropped_ft": None, "notes": ""},
-    {"category": "utility", "label": "Utility", "height_mid_ft": 1.25, "height_top_ft": 1.75, "gn_axle_dropped_ft": None, "notes": "Small utility trailer"},
+    {"category": "car_hauler", "label": "Car Hauler", "height_mid_ft": 1.5, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "Bottom/mid 1.5'; top 2.5' placeholder from shipping notes"},
+    {"category": "car_hauler_deckover", "label": "Car Hauler Deck Over", "height_mid_ft": 2.0, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "Deck-over style placeholder: bottom/mid 2.0'; top 2.5'"},
+    {"category": "deck_over", "label": "Deck Over", "height_mid_ft": 2.0, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "Bottom/mid 2.0'; top 2.5'"},
+    {"category": "dump_gn", "label": "Dump - Gooseneck", "height_mid_ft": 3.5, "height_top_ft": 3.5, "gn_axle_dropped_ft": None, "notes": "DDQ-like dump GN placeholder near 3.5'"},
+    {"category": "dump_highside_3ft", "label": "Dump - High Side 3'", "height_mid_ft": 5.0, "height_top_ft": 5.0, "gn_axle_dropped_ft": None, "notes": "3' high-side dump placeholder"},
+    {"category": "dump_highside_4ft", "label": "Dump - High Side 4'", "height_mid_ft": 6.0, "height_top_ft": 6.0, "gn_axle_dropped_ft": None, "notes": "4' high-side dump placeholder"},
+    {"category": "dump_lowside", "label": "Dump - Low Side", "height_mid_ft": 4.0, "height_top_ft": 4.0, "gn_axle_dropped_ft": None, "notes": "Low-side dump placeholder"},
+    {"category": "dump_small", "label": "Dump - Small", "height_mid_ft": 3.5, "height_top_ft": 3.5, "gn_axle_dropped_ft": None, "notes": "Compact dump placeholder; D5 often 3.0', D3 often 3.5'"},
+    {"category": "dump_variants", "label": "Dump - Variants", "height_mid_ft": 4.0, "height_top_ft": 4.0, "gn_axle_dropped_ft": None, "notes": "Variant dump placeholder (DT1 family trends low-side)"},
+    {"category": "gooseneck", "label": "Gooseneck", "height_mid_ft": 2.5, "height_top_ft": 2.5, "gn_axle_dropped_ft": 2.0, "notes": "GN/PLP baseline 2.5'; axle-drop 2.0'; riser envelope handled as 6.0'"},
+    {"category": "pintle", "label": "Pintle", "height_mid_ft": 2.5, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "PLP-style baseline placeholder 2.5'"},
+    {"category": "tilt", "label": "Tilt", "height_mid_ft": 1.5, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "Tilt placeholder aligned to car-hauler family"},
+    {"category": "tilt_deckover", "label": "Tilt Deck Over", "height_mid_ft": 2.0, "height_top_ft": 2.5, "gn_axle_dropped_ft": None, "notes": "Deck-over tilt placeholder"},
+    {"category": "utility", "label": "Utility", "height_mid_ft": 1.3, "height_top_ft": 2.0, "gn_axle_dropped_ft": None, "notes": "Bottom/mid 1.3'; top 2.0'"},
 ]
 
 REFERENCE_BT_STACK_CONFIG_DEFAULTS = [
@@ -445,6 +473,13 @@ def init_db():
         "ALTER TABLE bt_inventory_upload_log ADD COLUMN deduped_rows INTEGER DEFAULT 0",
         "ALTER TABLE bt_inventory_upload_log ADD COLUMN duplicate_rows INTEGER DEFAULT 0",
         "ALTER TABLE bt_inventory_upload_log ADD COLUMN warehouse_count INTEGER DEFAULT 0",
+        "ALTER TABLE pj_inventory_upload_log ADD COLUMN source_format TEXT DEFAULT 'csv_inventory'",
+        "ALTER TABLE pj_inventory_upload_log ADD COLUMN deduped_rows INTEGER DEFAULT 0",
+        "ALTER TABLE pj_inventory_upload_log ADD COLUMN duplicate_rows INTEGER DEFAULT 0",
+        "ALTER TABLE pj_inventory_upload_log ADD COLUMN warehouse_count INTEGER DEFAULT 0",
+        "ALTER TABLE pj_inventory_upload_log ADD COLUMN matched_rows INTEGER DEFAULT 0",
+        "ALTER TABLE pj_inventory_upload_log ADD COLUMN matched_items INTEGER DEFAULT 0",
+        "ALTER TABLE pj_inventory_upload_log ADD COLUMN unmatched_items INTEGER DEFAULT 0",
     ]
     for m in migrations:
         try:
@@ -646,6 +681,52 @@ def init_db():
         uploaded_at DATETIME
     );
 
+    CREATE TABLE IF NOT EXISTS pj_inventory_snapshot (
+        item_number TEXT PRIMARY KEY,
+        source_item_number TEXT,
+        match_method TEXT,
+        normalized_model TEXT,
+        normalized_category TEXT,
+        footprint_each REAL DEFAULT 0,
+        stack_height_each REAL DEFAULT 0,
+        total_count INTEGER DEFAULT 0,
+        available_count INTEGER DEFAULT 0,
+        assigned_count INTEGER DEFAULT 0,
+        updated_at DATETIME
+    );
+
+    CREATE TABLE IF NOT EXISTS pj_inventory_snapshot_whse (
+        item_number TEXT NOT NULL,
+        whse_code TEXT NOT NULL,
+        source_item_number TEXT,
+        match_method TEXT,
+        normalized_model TEXT,
+        normalized_category TEXT,
+        footprint_each REAL DEFAULT 0,
+        stack_height_each REAL DEFAULT 0,
+        total_count INTEGER DEFAULT 0,
+        available_count INTEGER DEFAULT 0,
+        assigned_count INTEGER DEFAULT 0,
+        updated_at DATETIME,
+        PRIMARY KEY (item_number, whse_code)
+    );
+
+    CREATE TABLE IF NOT EXISTS pj_inventory_upload_log (
+        upload_id TEXT PRIMARY KEY,
+        source_filename TEXT,
+        source_format TEXT DEFAULT 'csv_inventory',
+        processed_rows INTEGER DEFAULT 0,
+        valid_rows INTEGER DEFAULT 0,
+        deduped_rows INTEGER DEFAULT 0,
+        duplicate_rows INTEGER DEFAULT 0,
+        distinct_items INTEGER DEFAULT 0,
+        warehouse_count INTEGER DEFAULT 0,
+        matched_rows INTEGER DEFAULT 0,
+        matched_items INTEGER DEFAULT 0,
+        unmatched_items INTEGER DEFAULT 0,
+        uploaded_at DATETIME
+    );
+
     CREATE TABLE IF NOT EXISTS app_meta (
         meta_key TEXT PRIMARY KEY,
         meta_value TEXT,
@@ -660,6 +741,15 @@ def init_db():
 
     CREATE INDEX IF NOT EXISTS idx_bt_inventory_upload_log_uploaded_at
         ON bt_inventory_upload_log(uploaded_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_pj_inventory_snapshot_available
+        ON pj_inventory_snapshot(available_count DESC, item_number);
+
+    CREATE INDEX IF NOT EXISTS idx_pj_inventory_snapshot_whse_lookup
+        ON pj_inventory_snapshot_whse(whse_code, available_count DESC, item_number);
+
+    CREATE INDEX IF NOT EXISTS idx_pj_inventory_upload_log_uploaded_at
+        ON pj_inventory_upload_log(uploaded_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_prograde_access_profiles_name
         ON prograde_access_profiles(name COLLATE NOCASE);
@@ -1931,6 +2021,714 @@ def import_bigtex_inventory_orders_workbook(workbook_path, sheet_name="All.Order
     if ext == ".csv":
         return _import_bigtex_inventory_csv_report(source_path)
     return _import_bigtex_inventory_orders_workbook(source_path, sheet_name=sheet_name)
+
+
+def get_pj_inventory_upload_meta():
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT *
+            FROM pj_inventory_upload_log
+            ORDER BY uploaded_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+
+def _normalize_pj_inventory_whse_code(value):
+    code = str(value or "").strip().upper()
+    if not code or code == "ALL":
+        return ""
+    return code
+
+
+def get_pj_inventory_whse_codes():
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT whse_code
+            FROM pj_inventory_snapshot_whse
+            WHERE TRIM(COALESCE(whse_code, '')) <> ''
+            ORDER BY whse_code ASC
+            """
+        ).fetchall()
+    return [str(row["whse_code"]).strip().upper() for row in rows if str(row["whse_code"]).strip()]
+
+
+def get_pj_inventory_snapshot_rows(limit=500, whse_code=None):
+    try:
+        row_limit = int(limit)
+    except (TypeError, ValueError):
+        row_limit = 500
+    row_limit = max(1, min(row_limit, 3000))
+    whse = _normalize_pj_inventory_whse_code(whse_code)
+    with get_db() as conn:
+        if whse:
+            return conn.execute(
+                """
+                SELECT
+                    inv.item_number,
+                    inv.source_item_number,
+                    inv.match_method,
+                    inv.normalized_model,
+                    inv.normalized_category,
+                    inv.footprint_each,
+                    inv.stack_height_each,
+                    inv.whse_code,
+                    inv.total_count,
+                    inv.available_count,
+                    inv.assigned_count,
+                    inv.updated_at,
+                    sku.model AS sku_model,
+                    sku.pj_category AS sku_pj_category,
+                    sku.total_footprint AS sku_total_footprint,
+                    sku.tongue_feet AS sku_tongue_feet,
+                    sku.dump_side_height_ft AS sku_dump_side_height_ft
+                FROM pj_inventory_snapshot_whse inv
+                LEFT JOIN pj_skus sku
+                    ON sku.item_number = inv.item_number
+                WHERE inv.whse_code = ?
+                ORDER BY inv.available_count DESC, inv.total_count DESC, inv.item_number ASC
+                LIMIT ?
+                """,
+                (whse, row_limit),
+            ).fetchall()
+        return conn.execute(
+            """
+            SELECT
+                inv.item_number,
+                inv.source_item_number,
+                inv.match_method,
+                inv.normalized_model,
+                inv.normalized_category,
+                inv.footprint_each,
+                inv.stack_height_each,
+                '' AS whse_code,
+                inv.total_count,
+                inv.available_count,
+                inv.assigned_count,
+                inv.updated_at,
+                sku.model AS sku_model,
+                sku.pj_category AS sku_pj_category,
+                sku.total_footprint AS sku_total_footprint,
+                sku.tongue_feet AS sku_tongue_feet,
+                sku.dump_side_height_ft AS sku_dump_side_height_ft
+            FROM pj_inventory_snapshot inv
+            LEFT JOIN pj_skus sku
+                ON sku.item_number = inv.item_number
+            ORDER BY inv.available_count DESC, inv.total_count DESC, inv.item_number ASC
+            LIMIT ?
+            """,
+            (row_limit,),
+        ).fetchall()
+
+
+def _clear_pj_inventory_snapshots(conn):
+    conn.execute("DELETE FROM pj_inventory_snapshot")
+    conn.execute("DELETE FROM pj_inventory_snapshot_whse")
+
+
+def _insert_pj_inventory_snapshot_rows(conn, rows, *, include_whse=False):
+    if include_whse:
+        conn.executemany(
+            """
+            INSERT INTO pj_inventory_snapshot_whse
+            (
+                item_number,
+                whse_code,
+                source_item_number,
+                match_method,
+                normalized_model,
+                normalized_category,
+                footprint_each,
+                stack_height_each,
+                total_count,
+                available_count,
+                assigned_count,
+                updated_at
+            )
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            rows,
+        )
+        return
+    conn.executemany(
+        """
+        INSERT INTO pj_inventory_snapshot
+        (
+            item_number,
+            source_item_number,
+            match_method,
+            normalized_model,
+            normalized_category,
+            footprint_each,
+            stack_height_each,
+            total_count,
+            available_count,
+            assigned_count,
+            updated_at
+        )
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        rows,
+    )
+
+
+def _insert_pj_inventory_upload_log(
+    conn,
+    *,
+    upload_id,
+    source_filename,
+    source_format,
+    processed_rows,
+    valid_rows,
+    deduped_rows,
+    duplicate_rows,
+    distinct_items,
+    warehouse_count,
+    matched_rows,
+    matched_items,
+    unmatched_items,
+    uploaded_at,
+):
+    conn.execute(
+        """
+        INSERT INTO pj_inventory_upload_log
+        (
+            upload_id,
+            source_filename,
+            source_format,
+            processed_rows,
+            valid_rows,
+            deduped_rows,
+            duplicate_rows,
+            distinct_items,
+            warehouse_count,
+            matched_rows,
+            matched_items,
+            unmatched_items,
+            uploaded_at
+        )
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            upload_id,
+            source_filename,
+            source_format,
+            int(processed_rows),
+            int(valid_rows),
+            int(deduped_rows),
+            int(duplicate_rows),
+            int(distinct_items),
+            int(warehouse_count),
+            int(matched_rows),
+            int(matched_items),
+            int(unmatched_items),
+            uploaded_at,
+        ),
+    )
+
+
+def _alnum_upper(value):
+    return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
+
+
+def _pj_inventory_stack_height_for_category(category, dump_side_height_ft=None):
+    category_key = str(category or "").strip().lower()
+    if category_key == "utility":
+        return 2.0
+    if category_key in PJ_DUMP_CATEGORY_KEYS:
+        dump_h = _coerce_float(dump_side_height_ft, None)
+        if dump_h is None:
+            return 4.0
+        if abs(dump_h - 3.0) <= 0.05:
+            return 4.0
+        if abs(dump_h - 4.0) <= 0.05:
+            return 6.0
+        return max(dump_h, 3.0)
+    if category_key in PJ_GOOSENECK_CATEGORY_KEYS:
+        return 2.5
+    if category_key in {"car_hauler", "car_hauler_deckover", "deck_over", "tilt", "tilt_deckover"}:
+        return 2.5
+    if category_key:
+        return 2.0
+    return 2.0
+
+
+def _pj_inventory_tongue_profile_for_model_category(model_code, category):
+    category_key = str(category or "").strip().lower()
+    if category_key in PJ_GOOSENECK_CATEGORY_KEYS:
+        return "gooseneck"
+    model_norm = _alnum_upper(model_code)
+    if model_norm[:2] in {"LD", "LQ", "LS", "LX", "LY", "PL"}:
+        return "gooseneck"
+    return "standard"
+
+
+def _pj_inventory_default_override_reason(category, tongue_profile, dump_side_height_ft=None):
+    tokens = [f"tongue_profile:{tongue_profile}"]
+    category_key = str(category or "").strip().lower()
+    if category_key in PJ_DUMP_CATEGORY_KEYS:
+        dump_h = _coerce_float(dump_side_height_ft, None)
+        if dump_h is not None:
+            tokens.append(f"dump_height_ft:{dump_h:.1f}")
+    return ";".join(tokens)
+
+
+def _pj_inventory_similarity_score(raw_core, candidate_item_number):
+    raw = _alnum_upper(raw_core)
+    candidate = _alnum_upper(candidate_item_number)
+    prefix = 0
+    for raw_ch, candidate_ch in zip(raw, candidate):
+        if raw_ch != candidate_ch:
+            break
+        prefix += 1
+    length_penalty = abs(len(raw) - len(candidate))
+    return (prefix * 10) - length_penalty
+
+
+def _pj_inventory_pick_best_candidate(raw_core, candidates):
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    ordered = sorted(
+        candidates,
+        key=lambda row: (
+            -_pj_inventory_similarity_score(raw_core, row.get("item_number")),
+            abs(
+                _coerce_float(row.get("total_footprint"), 0.0)
+                - _coerce_float(_parse_bed_length_from_item_number(raw_core, row.get("model")), 0.0)
+            ),
+            str(row.get("item_number") or ""),
+        ),
+    )
+    return ordered[0]
+
+
+def _build_pj_inventory_match_indexes():
+    sku_rows = [dict(row) for row in get_pj_skus()]
+    exact = {}
+    models = set()
+    by_model_len = defaultdict(list)
+    by_item_code = defaultdict(list)
+    by_model = defaultdict(list)
+    model_tongues = defaultdict(list)
+    model_categories = defaultdict(lambda: defaultdict(int))
+
+    for row in sku_rows:
+        item_number = _alnum_upper(row.get("item_number"))
+        model = _alnum_upper(row.get("model"))
+        category = str(row.get("pj_category") or "").strip().lower()
+        if not item_number:
+            continue
+        exact[item_number] = row
+        if model:
+            models.add(model)
+            by_model[model].append(row)
+            model_categories[model][category] += 1
+            tongue = _coerce_float(row.get("tongue_feet"), None)
+            if tongue is not None and tongue > 0:
+                model_tongues[model].append(float(tongue))
+        bed_length = _coerce_int(row.get("bed_length_measured"), None)
+        if bed_length is None:
+            bed_length = _coerce_int(row.get("bed_length_stated"), None)
+        if model and bed_length is not None:
+            key = (model, int(bed_length))
+            by_model_len[key].append(row)
+            by_item_code[f"{model}{int(bed_length):02d}"].append(row)
+
+    dominant_category_by_model = {}
+    median_tongue_by_model = {}
+    for model, counts in model_categories.items():
+        dominant_category_by_model[model] = sorted(
+            counts.items(),
+            key=lambda item: (-int(item[1]), str(item[0] or "")),
+        )[0][0]
+    for model, values in model_tongues.items():
+        ordered = sorted(values)
+        if not ordered:
+            continue
+        idx = len(ordered) // 2
+        if len(ordered) % 2:
+            median_tongue_by_model[model] = float(ordered[idx])
+        else:
+            median_tongue_by_model[model] = float((ordered[idx - 1] + ordered[idx]) / 2.0)
+
+    return {
+        "exact": exact,
+        "models": models,
+        "by_model_len": by_model_len,
+        "by_item_code": by_item_code,
+        "by_model": by_model,
+        "dominant_category_by_model": dominant_category_by_model,
+        "median_tongue_by_model": median_tongue_by_model,
+    }
+
+
+def _normalize_pj_inventory_model_code(raw_itemid, known_models):
+    model = _alnum_upper(raw_itemid)
+    if not model:
+        return ""
+    if model in known_models:
+        return model
+    trimmed = model
+    while len(trimmed) > 1 and trimmed not in known_models and trimmed[-1].isdigit():
+        trimmed = trimmed[:-1]
+    if trimmed in known_models:
+        return trimmed
+    if len(model) >= 2 and model[:2] in known_models:
+        return model[:2]
+    return trimmed
+
+
+def _infer_pj_inventory_category(raw_sku, raw_itemid, normalized_model):
+    model = _alnum_upper(normalized_model or raw_itemid)
+    raw = _alnum_upper(raw_sku)
+    model_prefix = model[:2]
+
+    if model_prefix in {"LD", "LQ", "LS", "LX", "LY", "PL"} or model.startswith("GN"):
+        return "gooseneck"
+    if model_prefix in {"D5", "D7"}:
+        return "dump_small"
+    if model.startswith("D"):
+        return "dump_variants"
+    if model.startswith("T"):
+        return "tilt"
+    if model_prefix in {"U2", "U6", "U7", "U8", "UC", "UK", "UL"}:
+        return "utility"
+    if model_prefix in {"B5", "B6", "B8", "C4", "C5", "C8", "CC", "CD", "CE", "CH"}:
+        return "car_hauler"
+    if model.startswith("F"):
+        return "deck_over"
+
+    if raw.startswith("LQ") or raw.startswith("LS") or raw.startswith("LD"):
+        return "gooseneck"
+    if raw.startswith("D"):
+        return "dump_variants"
+    if raw.startswith("T"):
+        return "tilt"
+    return ""
+
+
+def _resolve_pj_inventory_item(raw_sku, raw_itemid, indexes):
+    raw_text = str(raw_sku or "").strip().upper()
+    core_text = raw_text.split("-", 1)[0].strip().upper()
+    raw_alnum = _alnum_upper(raw_text)
+    core_alnum = _alnum_upper(core_text)
+    exact = indexes["exact"]
+
+    if raw_alnum and raw_alnum in exact:
+        resolved = dict(exact[raw_alnum])
+        return {"sku": resolved, "item_number": _alnum_upper(resolved.get("item_number")), "match_method": "exact"}
+    if core_alnum and core_alnum in exact:
+        resolved = dict(exact[core_alnum])
+        return {"sku": resolved, "item_number": _alnum_upper(resolved.get("item_number")), "match_method": "core"}
+
+    known_models = indexes["models"]
+    model_code = _normalize_pj_inventory_model_code(raw_itemid, known_models)
+    bed_length = _parse_bed_length_from_item_number(core_alnum or raw_alnum, model_code or raw_itemid)
+
+    if model_code and bed_length is not None:
+        length_key = (model_code, int(round(float(bed_length))))
+        candidates = list(indexes["by_model_len"].get(length_key) or [])
+        if candidates:
+            resolved = dict(_pj_inventory_pick_best_candidate(core_alnum, candidates))
+            return {"sku": resolved, "item_number": _alnum_upper(resolved.get("item_number")), "match_method": "model_length"}
+
+        item_code_key = f"{model_code}{int(round(float(bed_length))):02d}"
+        item_code_candidates = list(indexes["by_item_code"].get(item_code_key) or [])
+        if item_code_candidates:
+            resolved = dict(_pj_inventory_pick_best_candidate(core_alnum, item_code_candidates))
+            return {"sku": resolved, "item_number": _alnum_upper(resolved.get("item_number")), "match_method": "item_code"}
+
+    if model_code:
+        model_candidates = list(indexes["by_model"].get(model_code) or [])
+        if model_candidates:
+            resolved = dict(_pj_inventory_pick_best_candidate(core_alnum, model_candidates))
+            return {"sku": resolved, "item_number": _alnum_upper(resolved.get("item_number")), "match_method": "model_similarity"}
+
+    normalized_key = core_alnum or raw_alnum
+    if not normalized_key:
+        normalized_key = f"UNMAPPED-{uuid.uuid4().hex[:8].upper()}"
+    return {"sku": None, "item_number": normalized_key, "match_method": "unmapped"}
+
+
+def _import_pj_inventory_csv_report(source_path):
+    with _open_csv_with_fallback(source_path) as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames:
+            raise ValueError("CSV report is missing a header row.")
+        field_map = {_normalize_header(field): field for field in reader.fieldnames}
+
+        sku_key = next(
+            (
+                field_map[k]
+                for k in (
+                    "hstrailerconfiglongitemid",
+                    "trailerconfiglongitemid",
+                    "itemnum",
+                    "itemnumber",
+                    "item",
+                    "sku",
+                )
+                if k in field_map
+            ),
+            None,
+        )
+        itemid_key = next((field_map[k] for k in ("itemid", "model", "itemprefix") if k in field_map), None)
+        whse_key = next((field_map[k] for k in ("inventsiteid", "site", "warehouse", "warehousecode") if k in field_map), None)
+        row_id_key = next((field_map[k] for k in ("id", "recid", "serialid", "serialnumber") if k in field_map), None)
+        avail_key = next((field_map[k] for k in ("availphysical", "available", "availableqty") if k in field_map), None)
+        reserved_key = next((field_map[k] for k in ("reservphysical", "reserved", "reservedqty") if k in field_map), None)
+        total_key = next((field_map[k] for k in ("physicalinvent", "onhand", "qtyonhand") if k in field_map), None)
+
+        if not sku_key or not whse_key:
+            raise ValueError(
+                "CSV report is missing required columns. Expected hstrailerconfiglongitemid and inventsiteid."
+            )
+
+        indexes = _build_pj_inventory_match_indexes()
+        seen_keys = set()
+        processed_rows = 0
+        valid_rows = 0
+        duplicate_rows = 0
+        matched_rows = 0
+
+        metrics_by_item = {}
+        metrics_by_item_whse = {}
+
+        def _ensure_entry(store, key, *, resolved_item_number, raw_item_number, match_method, model, category, footprint, stack_height):
+            if key in store:
+                return store[key]
+            store[key] = {
+                "item_number": resolved_item_number,
+                "source_item_number": raw_item_number,
+                "match_method": match_method,
+                "normalized_model": model,
+                "normalized_category": category,
+                "footprint_each": float(footprint or 0.0),
+                "stack_height_each": float(stack_height or 0.0),
+                "total_count": 0,
+                "available_count": 0,
+                "assigned_count": 0,
+            }
+            return store[key]
+
+        for row in reader:
+            processed_rows += 1
+            raw_sku = str(row.get(sku_key) or "").strip().upper()
+            raw_itemid = str(row.get(itemid_key) or "").strip().upper() if itemid_key else ""
+            whse_code = _normalize_pj_inventory_whse_code(row.get(whse_key))
+            if not raw_sku or not whse_code:
+                continue
+
+            dedupe_raw = str(row.get(row_id_key) or "").strip() if row_id_key else ""
+            if dedupe_raw:
+                dedupe_key = f"ID:{dedupe_raw}"
+            else:
+                dedupe_key = "|".join(
+                    [
+                        _alnum_upper(raw_sku),
+                        _alnum_upper(raw_itemid),
+                        whse_code,
+                        str(row.get(field_map.get("inventlocationid", ""), "") or "").strip().upper(),
+                        str(row.get(field_map.get("wmslocationid", ""), "") or "").strip().upper(),
+                    ]
+                )
+            if dedupe_key in seen_keys:
+                duplicate_rows += 1
+                continue
+            seen_keys.add(dedupe_key)
+            valid_rows += 1
+
+            available_raw = _coerce_int(row.get(avail_key), None) if avail_key else None
+            reserved_raw = _coerce_int(row.get(reserved_key), None) if reserved_key else None
+            total_raw = _coerce_int(row.get(total_key), None) if total_key else None
+
+            available_count = max(int(available_raw), 0) if available_raw is not None else None
+            reserved_count = max(int(reserved_raw), 0) if reserved_raw is not None else 0
+            total_count = max(int(total_raw), 0) if total_raw is not None else None
+            if available_count is None:
+                if total_count is not None:
+                    available_count = max(total_count - reserved_count, 0)
+                else:
+                    available_count = 1
+            if total_count is None:
+                total_count = max(available_count + reserved_count, available_count)
+            assigned_count = max(total_count - available_count, 0)
+
+            resolved = _resolve_pj_inventory_item(raw_sku, raw_itemid, indexes)
+            resolved_sku = dict(resolved.get("sku") or {})
+            resolved_item_number = str(resolved.get("item_number") or "").strip().upper()
+            if not resolved_item_number:
+                continue
+            match_method = str(resolved.get("match_method") or "unmapped").strip().lower()
+            if match_method != "unmapped":
+                matched_rows += 1
+
+            normalized_model = _alnum_upper(resolved_sku.get("model"))
+            if not normalized_model:
+                normalized_model = _normalize_pj_inventory_model_code(raw_itemid, indexes["models"])
+            normalized_category = str(resolved_sku.get("pj_category") or "").strip().lower()
+            if not normalized_category and normalized_model:
+                normalized_category = str(indexes["dominant_category_by_model"].get(normalized_model) or "").strip().lower()
+            if not normalized_category:
+                normalized_category = _infer_pj_inventory_category(raw_sku, raw_itemid, normalized_model)
+
+            tongue_profile = _pj_inventory_tongue_profile_for_model_category(normalized_model, normalized_category)
+            footprint_each = _coerce_float(resolved_sku.get("total_footprint"), None)
+            if footprint_each is None:
+                raw_core_alnum = _alnum_upper(str(raw_sku).split("-", 1)[0])
+                bed_length = _parse_bed_length_from_item_number(raw_core_alnum, normalized_model or raw_itemid)
+                model_tongue = _coerce_float(indexes["median_tongue_by_model"].get(normalized_model), None)
+                if model_tongue is None:
+                    model_tongue = 9.0 if tongue_profile == "gooseneck" else 4.5
+                if bed_length is not None:
+                    footprint_each = float(max(float(bed_length) + float(model_tongue), 0.0))
+            if footprint_each is None:
+                footprint_each = 0.0
+            stack_height_each = _coerce_float(
+                _pj_inventory_stack_height_for_category(
+                    normalized_category,
+                    resolved_sku.get("dump_side_height_ft"),
+                ),
+                0.0,
+            )
+
+            raw_core = str(raw_sku or "").split("-", 1)[0].strip().upper()
+            source_item_number = raw_core or raw_sku
+
+            agg = _ensure_entry(
+                metrics_by_item,
+                resolved_item_number,
+                resolved_item_number=resolved_item_number,
+                raw_item_number=source_item_number,
+                match_method=match_method,
+                model=normalized_model,
+                category=normalized_category,
+                footprint=footprint_each,
+                stack_height=stack_height_each,
+            )
+            agg["total_count"] += int(total_count)
+            agg["available_count"] += int(available_count)
+            agg["assigned_count"] += int(assigned_count)
+
+            whse_key_value = (resolved_item_number, whse_code)
+            agg_whse = _ensure_entry(
+                metrics_by_item_whse,
+                whse_key_value,
+                resolved_item_number=resolved_item_number,
+                raw_item_number=source_item_number,
+                match_method=match_method,
+                model=normalized_model,
+                category=normalized_category,
+                footprint=footprint_each,
+                stack_height=stack_height_each,
+            )
+            agg_whse["total_count"] += int(total_count)
+            agg_whse["available_count"] += int(available_count)
+            agg_whse["assigned_count"] += int(assigned_count)
+
+        if not metrics_by_item:
+            raise ValueError("No inventory rows parsed from CSV report.")
+
+        now = datetime.utcnow().isoformat()
+        upload_id = str(uuid.uuid4())
+        with get_db() as conn:
+            _clear_pj_inventory_snapshots(conn)
+            _insert_pj_inventory_snapshot_rows(
+                conn,
+                [
+                    (
+                        row["item_number"],
+                        row["source_item_number"],
+                        row["match_method"],
+                        row["normalized_model"],
+                        row["normalized_category"],
+                        round(_coerce_float(row["footprint_each"], 0.0), 2),
+                        round(_coerce_float(row["stack_height_each"], 0.0), 2),
+                        int(row["total_count"]),
+                        int(row["available_count"]),
+                        int(row["assigned_count"]),
+                        now,
+                    )
+                    for row in metrics_by_item.values()
+                ],
+                include_whse=False,
+            )
+            _insert_pj_inventory_snapshot_rows(
+                conn,
+                [
+                    (
+                        row["item_number"],
+                        whse_code,
+                        row["source_item_number"],
+                        row["match_method"],
+                        row["normalized_model"],
+                        row["normalized_category"],
+                        round(_coerce_float(row["footprint_each"], 0.0), 2),
+                        round(_coerce_float(row["stack_height_each"], 0.0), 2),
+                        int(row["total_count"]),
+                        int(row["available_count"]),
+                        int(row["assigned_count"]),
+                        now,
+                    )
+                    for (_, whse_code), row in metrics_by_item_whse.items()
+                ],
+                include_whse=True,
+            )
+            matched_items = sum(1 for row in metrics_by_item.values() if str(row.get("match_method")) != "unmapped")
+            unmatched_items = sum(1 for row in metrics_by_item.values() if str(row.get("match_method")) == "unmapped")
+            _insert_pj_inventory_upload_log(
+                conn,
+                upload_id=upload_id,
+                source_filename=source_path.name,
+                source_format="pj_csv_inventory",
+                processed_rows=processed_rows,
+                valid_rows=valid_rows,
+                deduped_rows=len(seen_keys),
+                duplicate_rows=duplicate_rows,
+                distinct_items=len(metrics_by_item),
+                warehouse_count=len({whse for (_, whse) in metrics_by_item_whse.keys()}),
+                matched_rows=matched_rows,
+                matched_items=matched_items,
+                unmatched_items=unmatched_items,
+                uploaded_at=now,
+            )
+
+        available_total = sum(int(row["available_count"]) for row in metrics_by_item.values())
+        unmatched_items_all = sorted(
+            [row["item_number"] for row in metrics_by_item.values() if str(row.get("match_method")) == "unmapped"]
+        )
+        unmatched_list = unmatched_items_all[:25]
+        matched_item_count = sum(1 for row in metrics_by_item.values() if str(row.get("match_method")) != "unmapped")
+        matched_pct = (matched_rows / valid_rows) if valid_rows else 0.0
+        return {
+            "source_filename": source_path.name,
+            "source_format": "pj_csv_inventory",
+            "processed_rows": int(processed_rows),
+            "valid_rows": int(valid_rows),
+            "deduped_rows": int(len(seen_keys)),
+            "duplicate_rows": int(duplicate_rows),
+            "distinct_items": int(len(metrics_by_item)),
+            "warehouse_count": int(len({whse for (_, whse) in metrics_by_item_whse.keys()})),
+            "available_total": int(available_total),
+            "matched_rows": int(matched_rows),
+            "matched_item_count": int(matched_item_count),
+            "matched_ratio": round(float(matched_pct), 6),
+            "unmatched_item_count": int(len(unmatched_items_all)),
+            "unmatched_items": unmatched_list,
+        }
+
+
+def import_pj_inventory_report(workbook_path):
+    source_path = Path(str(workbook_path))
+    if not source_path.exists():
+        raise FileNotFoundError(f"Inventory source file not found: {source_path}")
+    if source_path.suffix.lower() != ".csv":
+        raise ValueError("PJ inventory upload requires a CSV report.")
+    return _import_pj_inventory_csv_report(source_path)
 
 
 def _resolve_sheet_by_name(workbook, sheet_name):

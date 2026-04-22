@@ -859,7 +859,62 @@ body {
 }
 .sku-item-head.pj-table,
 .sku-list-item.pj-table {
-  grid-template-columns: minmax(90px, 1fr) minmax(60px, auto) minmax(60px, auto) minmax(86px, auto) minmax(86px, auto);
+  grid-template-columns: minmax(50px, 0.95fr) minmax(32px, 0.52fr) minmax(32px, 0.52fr) minmax(52px, 0.9fr) minmax(52px, 0.9fr);
+  column-gap: 4px;
+  padding-left: 20px;
+  padding-right: 8px;
+}
+.sku-item-head.pj-table-no-dump,
+.sku-list-item.pj-table-no-dump {
+  grid-template-columns: minmax(56px, 1.1fr) minmax(34px, 0.55fr) minmax(34px, 0.55fr) minmax(64px, 1fr);
+  column-gap: 5px;
+  padding-left: 20px;
+  padding-right: 8px;
+}
+.sku-item-head.pj-table {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+.sku-item-head.pj-table-no-dump {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+.sku-item-head.pj-table > span,
+.sku-list-item.pj-table > span {
+  min-width: 0;
+}
+.sku-item-head.pj-table-no-dump > span,
+.sku-list-item.pj-table-no-dump > span {
+  min-width: 0;
+}
+.sku-list-item.pj-table .sku-item-id {
+  font-size: 10px;
+  text-overflow: clip;
+}
+.sku-list-item.pj-table-no-dump .sku-item-id {
+  font-size: 10px;
+  text-overflow: clip;
+}
+.sku-list-item.pj-table .sku-item-length,
+.sku-list-item.pj-table .sku-item-height {
+  font-size: 10px;
+  justify-self: center;
+}
+.sku-list-item.pj-table-no-dump .sku-item-length,
+.sku-list-item.pj-table-no-dump .sku-item-height {
+  font-size: 10px;
+  justify-self: center;
+}
+.sku-list-item.pj-table .sku-item-tongue,
+.sku-list-item.pj-table .sku-item-dump-height {
+  justify-self: center;
+  justify-content: center;
+  gap: 2px;
+}
+.sku-list-item.pj-table-no-dump .sku-item-tongue {
+  justify-self: center;
+  justify-content: center;
+  gap: 2px;
 }
 .sku-item-tongue {
   justify-self: end;
@@ -878,8 +933,8 @@ body {
   background: transparent;
   color: var(--text-secondary);
   border-radius: var(--radius-pill);
-  padding: 2px 6px;
-  font-size: 10px;
+  padding: 1px 5px;
+  font-size: 9px;
   font-weight: 700;
   font-family: var(--font-mono);
   letter-spacing: 0.02em;
@@ -2922,6 +2977,7 @@ function renderSkuTree() {
     categoryGroup.models.forEach((modelGroup) => {
       const modelDetails = document.createElement("details");
       modelDetails.className = "sku-model-group";
+      const modelHasDumpProfile = SESSION_BRAND === "pj" && modelGroup.items.some((item) => item.isDumpProfile === true);
 
       const modelSummary = document.createElement("summary");
       modelSummary.className = "sku-model-summary";
@@ -2946,8 +3002,10 @@ function renderSkuTree() {
       const itemHeader = document.createElement("div");
       itemHeader.className = "sku-item-head";
       if (SESSION_BRAND === "pj") {
-        itemHeader.classList.add("pj-table");
-        itemHeader.innerHTML = "<span>Item</span><span>Deck L</span><span>Deck H</span><span>Tongue</span><span>Dump H</span>";
+        itemHeader.classList.add(modelHasDumpProfile ? "pj-table" : "pj-table-no-dump");
+        itemHeader.innerHTML = modelHasDumpProfile
+          ? "<span>Item</span><span>Len</span><span>Ht</span><span>Tongue</span><span>Dump</span>"
+          : "<span>Item</span><span>Len</span><span>Ht</span><span>Tongue</span>";
       } else {
         itemHeader.innerHTML = "<span>Item</span><span>Total Length</span>";
       }
@@ -2957,7 +3015,7 @@ function renderSkuTree() {
         const row = document.createElement("div");
         row.className = "sku-list-item sku-pick-item";
         if (SESSION_BRAND === "pj") {
-          row.classList.add("pj-table");
+          row.classList.add(modelHasDumpProfile ? "pj-table" : "pj-table-no-dump");
         }
         row.draggable = true;
         row.dataset.item = item.itemNumber;
@@ -3099,7 +3157,9 @@ function renderSkuTree() {
         if (SESSION_BRAND === "pj") {
           row.appendChild(itemHeight);
           row.appendChild(itemTongue);
-          row.appendChild(itemDumpHeight);
+          if (modelHasDumpProfile) {
+            row.appendChild(itemDumpHeight);
+          }
         }
         itemsWrap.appendChild(row);
       });
@@ -3205,13 +3265,24 @@ function initInventoryUploadControls() {
       }
 
       const result = data.import_result || {};
-      const sourceLabel = result.source_format === "csv_inventory" ? "CSV" : "Workbook";
+      const sourceFormat = String(result.source_format || "").toLowerCase();
+      const sourceLabel = sourceFormat.includes("csv") ? "CSV" : "Workbook";
       const deduped = Number(result.deduped_rows || 0);
       const whseCount = Number(result.warehouse_count || 0);
-      showToast(
-        `Inventory upload complete (${sourceLabel}): ${deduped || result.valid_rows || 0} units, ${result.distinct_items || 0} SKUs${whseCount ? `, ${whseCount} WHSE` : ""}.`,
-        "success",
-      );
+      if (SESSION_BRAND === "pj") {
+        const matchedRows = Number(result.matched_rows || 0);
+        const matchedRatio = Number(result.matched_ratio || 0);
+        const matchedPct = Number.isFinite(matchedRatio) ? Math.round(matchedRatio * 100) : 0;
+        showToast(
+          `PJ inventory upload complete (${sourceLabel}): ${deduped || result.valid_rows || 0} units, ${result.distinct_items || 0} SKUs${whseCount ? `, ${whseCount} WHSE` : ""}, ${matchedRows} matched (${matchedPct}%).`,
+          "success",
+        );
+      } else {
+        showToast(
+          `Inventory upload complete (${sourceLabel}): ${deduped || result.valid_rows || 0} units, ${result.distinct_items || 0} SKUs${whseCount ? `, ${whseCount} WHSE` : ""}.`,
+          "success",
+        );
+      }
       await refreshBuilderFragments();
     } catch (e) {
       showToast(`Inventory upload failed: ${e.message}`, "error");
@@ -3232,8 +3303,10 @@ function initInventoryWarehouseFilter() {
     const selected = String(whseFilter.value || "").trim().toUpperCase();
     const nextUrl = new URL(window.location.href);
     if (selected && selected !== "ALL") {
-      nextUrl.searchParams.set("bt_whse", selected);
+      nextUrl.searchParams.set("inventory_whse", selected);
+      nextUrl.searchParams.delete("bt_whse");
     } else {
+      nextUrl.searchParams.delete("inventory_whse");
       nextUrl.searchParams.delete("bt_whse");
     }
     const relativeUrl = `${nextUrl.pathname}${nextUrl.search}`;

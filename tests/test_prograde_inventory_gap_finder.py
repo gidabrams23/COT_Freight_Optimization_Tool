@@ -167,7 +167,61 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
                 ),
             )
 
-    def _get_gap_data(self, session_id, *, bt_whse=""):
+    def _insert_pj_snapshot(self, item_number, *, available_count, total_count=None, model="U1", category="utility"):
+        now = "2026-04-13T00:00:00"
+        total = int(total_count if total_count is not None else available_count)
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_inventory_snapshot
+                (item_number, source_item_number, match_method, normalized_model, normalized_category,
+                 footprint_each, stack_height_each, total_count, available_count, assigned_count, updated_at)
+                VALUES (?, ?, 'exact', ?, ?, 16.0, 1.8, ?, ?, 0, ?)
+                """,
+                (
+                    item_number,
+                    item_number,
+                    model,
+                    category,
+                    total,
+                    int(available_count),
+                    now,
+                ),
+            )
+
+    def _insert_pj_snapshot_whse(
+        self,
+        item_number,
+        *,
+        whse_code,
+        available_count,
+        total_count=None,
+        model="U1",
+        category="utility",
+    ):
+        now = "2026-04-13T00:00:00"
+        total = int(total_count if total_count is not None else available_count)
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_inventory_snapshot_whse
+                (item_number, whse_code, source_item_number, match_method, normalized_model, normalized_category,
+                 footprint_each, stack_height_each, total_count, available_count, assigned_count, updated_at)
+                VALUES (?, ?, ?, 'exact', ?, ?, 16.0, 1.8, ?, ?, 0, ?)
+                """,
+                (
+                    item_number,
+                    whse_code,
+                    item_number,
+                    model,
+                    category,
+                    total,
+                    int(available_count),
+                    now,
+                ),
+            )
+
+    def _get_gap_data(self, session_id, *, bt_whse="", inventory_whse=None):
         session, carrier, canvas = self._build_canvas_and_carrier(session_id)
         return self.gap_finder.build_inventory_gap_data(
             session_id=session_id,
@@ -175,6 +229,7 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
             carrier=carrier,
             canvas=canvas,
             bt_whse=bt_whse,
+            inventory_whse=inventory_whse,
         )
 
     def test_bt_prefers_stack_top_when_vertical_fit_is_best(self):
@@ -368,6 +423,40 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertIn("Stack 1 Fit", html)
         self.assertIn("remaining height", html)
 
+    def test_pj_inventory_gap_supports_upload_mode_and_warehouse_filter(self):
+        session_id = self._create_session("pj")
+        self._insert_pj_sku(
+            "PJ-UP-01",
+            model="U1",
+            category="utility",
+            bed_length_measured=12.0,
+            tongue_feet=4.0,
+            total_footprint=16.0,
+        )
+        self._insert_pj_snapshot("PJ-UP-01", available_count=9, model="U1", category="utility")
+        self._insert_pj_snapshot_whse("PJ-UP-01", whse_code="301", available_count=4, model="U1", category="utility")
+        self._insert_pj_snapshot_whse("PJ-UP-01", whse_code="306", available_count=5, model="U1", category="utility")
+
+        all_data = self._get_gap_data(session_id)
+        whse_301_data = self._get_gap_data(session_id, inventory_whse="301")
+        whse_306_data = self._get_gap_data(session_id, inventory_whse="306")
+
+        all_row = {row["item_number"]: row for row in all_data["rows"]}["PJ-UP-01"]
+        row_301 = {row["item_number"]: row for row in whse_301_data["rows"]}["PJ-UP-01"]
+        row_306 = {row["item_number"]: row for row in whse_306_data["rows"]}["PJ-UP-01"]
+
+        self.assertEqual(all_data["mode"], "pj_upload")
+        self.assertEqual(all_row["available_count"], 9)
+        self.assertEqual(row_301["available_count"], 4)
+        self.assertEqual(row_306["available_count"], 5)
+        self.assertEqual(whse_301_data["selected_warehouse"], "301")
+        self.assertEqual(whse_306_data["selected_warehouse"], "306")
+        self.assertEqual(all_data["selected_warehouse"], "ALL")
+        self.assertEqual(
+            [opt["value"] for opt in all_data["warehouse_options"]],
+            ["ALL", "301", "306"],
+        )
+
     def test_pj_load_page_uses_catalog_mode_and_tongue_metadata(self):
         profile_id = self._activate_profile(name="PJ Gap Tester")
         session_id = str(uuid.uuid4())
@@ -393,6 +482,7 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("PJ Inventory Gap Finder", html)
+        self.assertIn("Upload Inventory", html)
         self.assertNotIn("Upload Orders", html)
         self.assertIn("Available Qty", html)
 

@@ -352,21 +352,16 @@ def _safe_next_url(value):
     return None
 
 
-def _empty_inventory_gap_data(*, brand, bt_whse=""):
-    selected = str(bt_whse or "").strip().upper() or "ALL"
-    if brand == "bigtex":
+def _empty_inventory_gap_data(*, brand, inventory_whse=""):
+    selected = str(inventory_whse or "").strip().upper() or "ALL"
+    if brand in {"bigtex", "pj"}:
         return {
             "rows": [],
             "stack_slots": [],
             "warehouse_options": [{"value": "ALL", "label": "ALL"}],
             "selected_warehouse": selected,
         }
-    return {
-        "rows": [],
-        "stack_slots": [],
-        "warehouse_options": [],
-        "selected_warehouse": "ALL",
-    }
+    return {"rows": [], "stack_slots": [], "warehouse_options": [], "selected_warehouse": "ALL"}
 
 
 def _set_account_notice(message, level="info"):
@@ -504,16 +499,40 @@ def _carrier_type_label(carrier_type):
         return "53' Step Deck"
     if key == "53_flatbed":
         return "53' Flatbed"
+    if key == "ground_pull":
+        return "Ground Pull"
     raw = str(carrier_type or "").strip()
     if not raw:
         return "Carrier"
     return raw.replace("_", " ").title()
 
 
+def _is_ground_pull_carrier(carrier=None, carrier_type=None):
+    carrier_map = _row_to_dict(carrier)
+    key = str(
+        carrier_type
+        or carrier_map.get("carrier_type")
+        or ""
+    ).strip().lower()
+    return key == "ground_pull"
+
+
+def _carrier_supports_upper_deck(carrier=None, carrier_type=None):
+    if _is_ground_pull_carrier(carrier=carrier, carrier_type=carrier_type):
+        return False
+    carrier_map = _row_to_dict(carrier)
+    if carrier_map:
+        return _as_float(carrier_map.get("upper_deck_length_ft"), 0.0) > 0.0
+    carrier_key = str(carrier_type or "").strip().lower()
+    if carrier_key == "53_flatbed":
+        return False
+    return True
+
+
 def _carrier_type_options_for_brand(brand):
     rows = [dict(row) for row in db.get_carrier_configs() or []]
     by_type = {str(row.get("carrier_type") or "").strip(): row for row in rows if row.get("carrier_type")}
-    preferred = ["53_step_deck", "53_flatbed"]
+    preferred = ["53_step_deck", "53_flatbed", "ground_pull"]
     ordered = [ctype for ctype in preferred if ctype in by_type]
     for ctype in sorted(by_type.keys()):
         if ctype not in ordered:
@@ -523,7 +542,7 @@ def _carrier_type_options_for_brand(brand):
     for ctype in ordered:
         row = by_type.get(ctype) or {}
         row_brand = str(row.get("brand") or "").strip().lower()
-        if row_brand and row_brand != brand_key and ctype not in {"53_step_deck", "53_flatbed"}:
+        if row_brand and row_brand != brand_key and ctype not in {"53_step_deck", "53_flatbed", "ground_pull"}:
             continue
         options.append(
             {
@@ -558,20 +577,24 @@ def _default_carrier_type_for_brand(_brand: str) -> str:
     return "53_step_deck"
 
 
-def _normalize_zone_for_brand(brand: str, zone: str) -> str:
+def _normalize_zone_for_brand(brand: str, zone: str, *, carrier=None, carrier_type=None) -> str:
     """Map incoming/legacy deck zone values to current per-brand zone names."""
     zone_value = (zone or "").strip()
     if not zone_value:
         return zone_value
     brand_key = (brand or "").strip().lower()
-    if brand_key != "bigtex":
-        return zone_value
-    legacy_map = {
-        "stack_1": "lower_deck",
-        "stack_2": "lower_deck",
-        "stack_3": "upper_deck",
-    }
-    return legacy_map.get(zone_value, zone_value)
+    if brand_key == "bigtex":
+        legacy_map = {
+            "stack_1": "lower_deck",
+            "stack_2": "lower_deck",
+            "stack_3": "upper_deck",
+        }
+        normalized = legacy_map.get(zone_value, zone_value)
+    else:
+        normalized = zone_value
+    if normalized == "upper_deck" and not _carrier_supports_upper_deck(carrier=carrier, carrier_type=carrier_type):
+        return "lower_deck"
+    return normalized
 
 
 def _build_session_api_state(session_id):
@@ -783,10 +806,36 @@ def _zone_caps(carrier, zones):
 def _zone_clearances(carrier):
     if not carrier:
         return {"lower_deck": 10.0, "upper_deck": 8.5}
+    carrier_map = _row_to_dict(carrier)
+    max_height = _as_float(carrier_map.get("max_height_ft"), 13.5)
+    lower_ground = _as_float(carrier_map.get("lower_deck_ground_height_ft"), 3.5)
+    upper_ground = _as_float(carrier_map.get("upper_deck_ground_height_ft"), 5.0)
+    lower_len = _as_float(carrier_map.get("lower_deck_length_ft"), 0.0)
+    upper_len = _as_float(carrier_map.get("upper_deck_length_ft"), 0.0)
     return {
-        "lower_deck": round(carrier["max_height_ft"] - carrier["lower_deck_ground_height_ft"], 2),
-        "upper_deck": round(carrier["max_height_ft"] - carrier["upper_deck_ground_height_ft"], 2),
+        "lower_deck": round(max(max_height - lower_ground, 0.0), 2) if lower_len > 0 else 0.0,
+        "upper_deck": round(max(max_height - upper_ground, 0.0), 2) if upper_len > 0 else 0.0,
     }
+
+
+def _ground_pull_first_deck_length_ft(enriched_positions):
+    if not enriched_positions:
+        return None
+    ordered = sorted(
+        [dict(p or {}) for p in enriched_positions],
+        key=lambda p: (
+            str(p.get("added_at") or "9999-12-31T23:59:59"),
+            str(p.get("position_id") or ""),
+        ),
+    )
+    for pos in ordered:
+        deck_len_ft = _as_float(
+            pos.get("deck_length_ft"),
+            _as_float(pos.get("bed_length"), 0.0),
+        )
+        if deck_len_ft > 0:
+            return round(deck_len_ft, 3)
+    return None
 
 
 def _as_float(value, default=0.0):
@@ -1315,65 +1364,81 @@ def _apply_bt_same_direction_tongue_stuffing(zone_cols):
     """
     BT rule-of-thumb for same-direction stacks:
     when consecutive base units both point tongue-forward (rotated),
-    count only half of the current unit's tongue for occupied length.
+    count only half of the inward-facing stack tongue for occupied length.
+    Once a stack/column is selected for halving, apply that occupancy to all
+    layers in the column so visualized stacked units stay consistent.
     """
     applied = False
+    bases_by_zone = {"lower_deck": [], "upper_deck": []}
+    cols_by_key = {}
+    occupied_scale_by_key = {}
+
     for zone in ("lower_deck", "upper_deck"):
         cols = (zone_cols or {}).get(zone) or {}
-        bases = []
         for seq in sorted(cols.keys()):
             col = cols.get(seq) or []
             if not col:
                 continue
             base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
-            bases.append((int(seq), base))
+            key = (zone, int(seq))
+            bases_by_zone[zone].append((int(seq), base))
+            cols_by_key[key] = list(col)
+            occupied_scale_by_key[key] = 1.0
 
-        occupied_tongue_by_seq = {}
-        for seq, base in bases:
-            occupied_tongue_by_seq[seq] = max(
-                _as_float(
-                    base.get("render_tongue_length_ft"),
-                    _as_float(base.get("tongue_length"), 0.0),
-                ),
-                0.0,
-            )
+    def apply_pair(cur_key, cur_base, next_key, next_base):
+        cur_rotated = bool(cur_base.get("is_rotated"))
+        next_rotated = bool(next_base.get("is_rotated"))
+        if cur_rotated == next_rotated:
+            # Same direction: inward-facing tongue unit gets halved.
+            target_key = next_key if cur_rotated else cur_key
+            occupied_scale_by_key[target_key] = occupied_scale_by_key.get(target_key, 1.0) * 0.5
+        elif not cur_rotated and next_rotated:
+            # Face-to-face: both tongues enter each other halfway.
+            occupied_scale_by_key[cur_key] = occupied_scale_by_key.get(cur_key, 1.0) * 0.5
+            occupied_scale_by_key[next_key] = occupied_scale_by_key.get(next_key, 1.0) * 0.5
+        # Rotated cur + non-rotated next: tongues point away - no interaction.
 
+    # Intra-deck interactions.
+    for zone in ("lower_deck", "upper_deck"):
+        bases = bases_by_zone.get(zone) or []
         for idx in range(len(bases) - 1):
             seq_cur, cur_base = bases[idx]
             seq_next, next_base = bases[idx + 1]
-            cur_rotated = bool(cur_base.get("is_rotated"))
-            next_rotated = bool(next_base.get("is_rotated"))
-            if cur_rotated == next_rotated:
-                # Same direction: inward-facing tongue unit gets halved.
-                target_seq = seq_next if cur_rotated else seq_cur
-                occupied_tongue_by_seq[target_seq] = occupied_tongue_by_seq.get(target_seq, 0.0) * 0.5
-            elif not cur_rotated and next_rotated:
-                # Face-to-face: both tongues enter each other halfway.
-                occupied_tongue_by_seq[seq_cur] = occupied_tongue_by_seq.get(seq_cur, 0.0) * 0.5
-                occupied_tongue_by_seq[seq_next] = occupied_tongue_by_seq.get(seq_next, 0.0) * 0.5
-            # Rotated cur + non-rotated next: tongues point away - no interaction.
+            apply_pair((zone, seq_cur), cur_base, (zone, seq_next), next_base)
 
-        for seq, base in bases:
+    # Cross-deck seam interaction: right-most lower with left-most upper.
+    # This keeps half-insertion behavior consistent when the next stack continues
+    # on upper deck after lower deck is full.
+    lower_bases = bases_by_zone.get("lower_deck") or []
+    upper_bases = bases_by_zone.get("upper_deck") or []
+    if lower_bases and upper_bases:
+        lower_seq, lower_base = lower_bases[-1]
+        upper_seq, upper_base = upper_bases[0]
+        apply_pair(("lower_deck", lower_seq), lower_base, ("upper_deck", upper_seq), upper_base)
+
+    for key, col in cols_by_key.items():
+        scale = max(min(_as_float(occupied_scale_by_key.get(key), 1.0), 1.0), 0.0)
+        for unit in col:
             render_tongue_ft = max(
                 _as_float(
-                    base.get("render_tongue_length_ft"),
-                    _as_float(base.get("tongue_length"), 0.0),
+                    unit.get("render_tongue_length_ft"),
+                    _as_float(unit.get("tongue_length"), 0.0),
                 ),
                 0.0,
             )
             deck_len_ft = max(
-                _as_float(base.get("deck_length_ft"), _as_float(base.get("bed_length"), 0.0)),
+                _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)),
                 0.0,
             )
-            occupied_tongue_ft = max(_as_float(occupied_tongue_by_seq.get(seq), render_tongue_ft), 0.0)
+            occupied_tongue_ft = max(render_tongue_ft * scale, 0.0)
             if render_tongue_ft > 0.0:
                 occupied_tongue_ft = min(occupied_tongue_ft, render_tongue_ft)
             stuffed_half = occupied_tongue_ft + 1e-9 < render_tongue_ft
-            prev_occupied_tongue = _as_float(base.get("occupied_tongue_length_ft"), render_tongue_ft)
-            prev_occupied_footprint = _as_float(base.get("occupied_footprint_ft"), deck_len_ft + render_tongue_ft)
-            base["occupied_tongue_length_ft"] = round(occupied_tongue_ft, 3)
-            base["occupied_footprint_ft"] = round(deck_len_ft + occupied_tongue_ft, 3)
-            base["bt_half_tongue_stuffed"] = stuffed_half
+            prev_occupied_tongue = _as_float(unit.get("occupied_tongue_length_ft"), render_tongue_ft)
+            prev_occupied_footprint = _as_float(unit.get("occupied_footprint_ft"), deck_len_ft + render_tongue_ft)
+            unit["occupied_tongue_length_ft"] = round(occupied_tongue_ft, 3)
+            unit["occupied_footprint_ft"] = round(deck_len_ft + occupied_tongue_ft, 3)
+            unit["bt_half_tongue_stuffed"] = stuffed_half
             if (
                 abs(prev_occupied_tongue - occupied_tongue_ft) > 1e-9
                 or abs(prev_occupied_footprint - (deck_len_ft + occupied_tongue_ft)) > 1e-9
@@ -2260,6 +2325,12 @@ def _recompute_pj_skus_for_tongue_group(group_id, new_tongue_ft):
 def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *, include_violations=True):
     """Build all zone/column data needed for the load canvas."""
     carrier_map = dict(carrier) if carrier else {}
+    carrier_type = str(
+        carrier_map.get("carrier_type")
+        or _row_to_dict(session).get("carrier_type")
+        or ""
+    ).strip().lower()
+    ground_pull_mode = _is_ground_pull_carrier(carrier=carrier_map, carrier_type=carrier_type)
     height_ref  = db.get_pj_height_ref_dict() if brand == "pj" else {}
     bt_item_numbers = set()
     if brand == "bigtex":
@@ -2273,7 +2344,12 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
     enriched = []
     for p in positions:
         pv = _build_position_view(p, brand, bt_sku_map, height_ref)
-        pv["deck_zone"] = _normalize_zone_for_brand(brand, pv.get("deck_zone"))
+        pv["deck_zone"] = _normalize_zone_for_brand(
+            brand,
+            pv.get("deck_zone"),
+            carrier=carrier_map,
+            carrier_type=carrier_map.get("carrier_type") or (session or {}).get("carrier_type"),
+        )
         enriched.append(pv)
     pj_sku_map = {}
     if brand == "pj":
@@ -2282,6 +2358,16 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
             if not item_number or item_number in pj_sku_map:
                 continue
             pj_sku_map[item_number] = dict(db.get_pj_sku(item_number) or {})
+
+    if ground_pull_mode:
+        dynamic_deck_len_ft = _ground_pull_first_deck_length_ft(enriched)
+        if dynamic_deck_len_ft and dynamic_deck_len_ft > 0:
+            carrier_map["total_length_ft"] = dynamic_deck_len_ft
+            carrier_map["lower_deck_length_ft"] = dynamic_deck_len_ft
+        carrier_map["upper_deck_length_ft"] = 0.0
+        # Ground Pull has no fixed trailer deck surface; layer 1 unit is the deck.
+        carrier_map["lower_deck_ground_height_ft"] = 0.0
+        carrier_map["upper_deck_ground_height_ft"] = 0.0
 
     # Group positions: {zone: {seq: [positions sorted by layer]}}
     zone_cols: dict = {z: {} for z in zones}
@@ -2339,6 +2425,9 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                                 p,
                                 sku,
                                 p["is_top_layer"],
+                                layer_index=idx + 1,
+                                total_layers=len(col_rows),
+                                height_ref=height_ref,
                             )
                             if non_dump_stack_height_ft is not None:
                                 stacked_height_ft = _as_float(non_dump_stack_height_ft, 0.0)
@@ -2415,10 +2504,18 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
     elif brand == "bigtex":
         for z in zones:
             for seq, col in zone_cols[z].items():
-                col_heights[z][seq] = round(sum(p["height"] for p in col), 2)
+                # Nested units render inside dump hosts and do not add to vertical stack.
+                col_heights[z][seq] = round(
+                    sum(
+                        _as_float(p.get("height"), 0.0)
+                        for p in col
+                        if not (bool(p.get("is_nested")) and p.get("nested_inside"))
+                    ),
+                    2,
+                )
 
     # Zone caps
-    z_caps = _zone_caps(carrier, zones)
+    z_caps = _zone_caps(carrier_map, zones)
     zone_blocked_ft = {z: 0.0 for z in zones}
     length_metrics = {}
 
@@ -2436,10 +2533,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
     elif brand == "bigtex":
         bt_skus = bt_sku_map or {}
         length_metrics = compute_bt_length_metrics(
-            positions,
+            enriched,
             sku_map=bt_skus,
             lower_cap_ft=float(z_caps.get("lower_deck") or 41.0),
             upper_cap_ft=float(z_caps.get("upper_deck") or 12.0),
+            carrier=carrier_map,
         )
 
     if length_metrics:
@@ -2449,7 +2547,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
         # Step-seam blocked distance is retained separately in zone_blocked_ft for rule diagnostics.
 
     # BT: fill in caps from stack configs
-    if brand == "bigtex":
+    if brand == "bigtex" and not ground_pull_mode:
         for z in zones:
             # Use utility_3stack caps as default display cap
             cfg_key = f"utility_3stack_{z}"
@@ -2457,10 +2555,10 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 z_caps[z] = bt_configs[cfg_key]["max_length_ft"]
 
     # Zone clearances (PJ height caps)
-    clearances = _zone_clearances(carrier)
+    clearances = _zone_clearances(carrier_map)
 
     # BT height caps
-    if brand == "bigtex":
+    if brand == "bigtex" and not ground_pull_mode:
         for z in zones:
             cfg_key = f"utility_3stack_{z}"
             if cfg_key in bt_configs and bt_configs[cfg_key].get("max_height_ft"):
@@ -2472,6 +2570,9 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
     lower_surface_ft = _as_float(carrier_map.get("lower_deck_ground_height_ft"), 3.5)
     upper_surface_ft = _as_float(carrier_map.get("upper_deck_ground_height_ft"), 5.0)
     max_height_ft = _as_float(carrier_map.get("max_height_ft"), 13.5)
+    show_upper_zone = bool(_carrier_supports_upper_deck(carrier=carrier_map, carrier_type=carrier_type) and upper_deck_len_ft > 0)
+    if not show_upper_zone:
+        upper_deck_len_ft = 0.0
     step_x_ft = lower_deck_len_ft
     zone_origin_x_ft = {
         "lower_deck": 0.0,
@@ -2649,6 +2750,17 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 for seq in lower_seqs_sorted:
                     cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
                     x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
+
+        if ground_pull_mode and len(lower_seqs_sorted) == 1:
+            centered_seq = int(lower_seqs_sorted[0])
+            centered_col = (zone_cols.get(lower_zone) or {}).get(centered_seq) or []
+            centered_dims = _column_render_envelope_dims(centered_col, zone=lower_zone)
+            centered_span_ft = max(_as_float(centered_dims.get("full_span_ft"), 0.0), 0.0)
+            centered_left_tongue_ft = max(_as_float(centered_dims.get("left_tongue_ft"), 0.0), 0.0)
+            if centered_span_ft > 1e-9 and lower_cap_local > 0:
+                centered_left_edge_ft = (lower_cap_local - centered_span_ft) / 2.0
+                centered_start_ft = centered_left_edge_ft + centered_left_tongue_ft
+                x_positions[lower_zone][centered_seq] = round(centered_start_ft, 3)
 
         if brand == "pj":
             # Minimize lower-deck overhang by pulling each left stack right until it
@@ -2873,6 +2985,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                     sorted_col,
                     prefer_occupied_tongue=False,
                 )
+            resolved_vertical_by_position = {}
             for idx, unit in enumerate(sorted_col):
                 deck_len_ft = _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0))
                 tongue_len_ft = _as_float(
@@ -2896,21 +3009,45 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 else:
                     unit_deck_start_ft = global_x_ft
 
+                unit_surface_ft = y_cursor_ft
+                unit_top_ft = unit_surface_ft + deck_component_h_ft
+                nested_host_id = unit.get("nested_inside")
+                if bool(unit.get("is_nested")) and nested_host_id:
+                    host_vertical = resolved_vertical_by_position.get(str(nested_host_id))
+                    if host_vertical:
+                        host_surface_ft = _as_float(host_vertical.get("y_surface_ft"), unit_surface_ft)
+                        host_body_h_ft = _as_float(host_vertical.get("deck_component_height_ft"), 0.0)
+                        host_stack_top_ft = _as_float(host_vertical.get("stack_top_ft"), host_surface_ft + host_body_h_ft)
+                        # Keep nested guest visually inside the dump body and leave stack baseline at host top.
+                        nested_raise_ft = min(max(host_body_h_ft * 0.26, 0.35), 1.1)
+                        unit_surface_ft = host_surface_ft + nested_raise_ft
+                        unit_top_ft = unit_surface_ft + deck_component_h_ft
+                        y_cursor_ft = max(y_cursor_ft, host_stack_top_ft)
+                    else:
+                        y_cursor_ft = unit_top_ft
+                else:
+                    y_cursor_ft = unit_top_ft
+
                 unit["x_ft"] = round(unit_deck_start_ft, 3)
                 unit["x_local_ft"] = round(unit_deck_start_ft - zone_origin, 3)
                 unit["deck_x_start_ft"] = round(unit_deck_start_ft, 3)
                 unit["deck_x_end_ft"] = round(unit_deck_start_ft + deck_len_ft, 3)
-                unit["y_surface_ft"] = round(y_cursor_ft, 3)
-                unit["y_body_top_ft"] = round(y_cursor_ft + deck_component_h_ft, 3)
+                unit["y_surface_ft"] = round(unit_surface_ft, 3)
+                unit["y_body_top_ft"] = round(unit_top_ft, 3)
                 unit["y_outline_top_ft"] = unit["y_body_top_ft"]
                 if brand == "pj" and _is_gooseneck_render_profile(unit):
                     # Keep canvas scaling/gauges aligned with the true rendered GN neck crown.
-                    gn_crown_top_ft = y_cursor_ft + _GOOSENECK_RENDER_RISE_FT
+                    gn_crown_top_ft = unit_surface_ft + _GOOSENECK_RENDER_RISE_FT
                     unit["y_outline_top_ft"] = round(
                         max(_as_float(unit["y_body_top_ft"], 0.0), gn_crown_top_ft),
                         3,
                     )
                 unit["zone_surface_ft"] = round(zone_surface, 3)
+                resolved_vertical_by_position[str(unit.get("position_id") or "")] = {
+                    "y_surface_ft": unit_surface_ft,
+                    "stack_top_ft": unit_surface_ft + deck_component_h_ft,
+                    "deck_component_height_ft": deck_component_h_ft,
+                }
 
                 if is_unit_rotated:
                     tongue_attach_x_ft = unit_deck_start_ft
@@ -2931,7 +3068,6 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 unit["neck_overhangs_cab"] = bool(tongue_tip_x_ft > trailer_total_len_ft)
                 unit["overhang_ft"] = round(max(0.0, tongue_tip_x_ft - trailer_total_len_ft), 3)
 
-                y_cursor_ft += deck_component_h_ft
             rendered_col_height_ft = max(y_cursor_ft - zone_surface, 0.0)
             logical_col_height_ft = rendered_col_height_ft
             if brand == "pj":
@@ -3069,13 +3205,17 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
         "max_height_ft": round(max_height_ft, 3),
         "lower_clearance_ft": round(_as_float(clearances.get("lower_deck"), max_height_ft - lower_surface_ft), 3),
         "upper_clearance_ft": round(_as_float(clearances.get("upper_deck"), max_height_ft - upper_surface_ft), 3),
+        "carrier_type": carrier_type or str(carrier_map.get("carrier_type") or "").strip().lower(),
+        "ground_pull_mode": bool(ground_pull_mode),
+        "has_structural_deck": not bool(ground_pull_mode),
+        "show_upper_zone": bool(show_upper_zone),
     }
 
     if brand in {"pj", "bigtex"} and length_metrics:
         total_footprint = round(float(length_metrics.get("effective_total_ft") or 0.0), 2)
     else:
         total_footprint = sum(zone_lengths.values())
-    pct_used = round(total_footprint / (carrier["total_length_ft"] if carrier else 53.0) * 100, 1)
+    pct_used = round(total_footprint / (trailer_total_len_ft if trailer_total_len_ft > 0 else 53.0) * 100, 1)
 
     violations = []
     violated_position_ids = set()
@@ -3377,16 +3517,16 @@ def load_builder(session_id):
         include_violations=not canvas_only,
     )
     refresh_inventory = str(request.args.get("refresh_inventory") or "").strip().lower() in {"1", "true", "yes", "y"}
-    bt_whse = (request.args.get("bt_whse") or "").strip().upper() if brand == "bigtex" else ""
+    inventory_whse = (request.args.get("inventory_whse") or request.args.get("bt_whse") or "").strip().upper()
     if partial_refresh and not refresh_inventory:
-        inventory_gap = _empty_inventory_gap_data(brand=brand, bt_whse=bt_whse)
+        inventory_gap = _empty_inventory_gap_data(brand=brand, inventory_whse=inventory_whse)
     else:
         inventory_gap = build_inventory_gap_data(
             session_id=session_id,
             brand=brand,
             carrier=carrier,
             canvas=canvas,
-            bt_whse=bt_whse,
+            inventory_whse=inventory_whse,
         )
 
     # SKU list for picker
@@ -3654,8 +3794,9 @@ def api_upload_bt_inventory(session_id):
     session, err = _session_or_404(session_id)
     if err:
         return err
-    if (session["brand"] or "").strip().lower() != "bigtex":
-        return _json_error("Inventory upload is currently available for Big Tex sessions only.", 400)
+    brand = (session["brand"] or "").strip().lower()
+    if brand not in {"bigtex", "pj"}:
+        return _json_error("Inventory upload is only supported for Big Tex and PJ sessions.", 400)
 
     orders_file = request.files.get("orders_file")
     if orders_file is None or not (orders_file.filename or "").strip():
@@ -3663,23 +3804,27 @@ def api_upload_bt_inventory(session_id):
 
     filename = Path(orders_file.filename).name
     ext = Path(filename).suffix.lower()
-    if ext not in _ALLOWED_ORDER_UPLOAD_EXTENSIONS:
-        allowed = ", ".join(sorted(_ALLOWED_ORDER_UPLOAD_EXTENSIONS))
+    allowed_extensions = {".csv"} if brand == "pj" else set(_ALLOWED_ORDER_UPLOAD_EXTENSIONS)
+    if ext not in allowed_extensions:
+        allowed = ", ".join(sorted(allowed_extensions))
         return _json_error(f"Unsupported file type. Upload one of: {allowed}")
 
     sheet_name = (request.form.get("sheet_name") or "All.Orders.Quick").strip() or "All.Orders.Quick"
     temp_path = Path(tempfile.gettempdir()) / f"prograde_bt_orders_{uuid.uuid4().hex}{ext}"
     orders_file.save(temp_path)
     try:
-        result = db.import_bigtex_inventory_orders_workbook(workbook_path=temp_path, sheet_name=sheet_name)
+        if brand == "bigtex":
+            result = db.import_bigtex_inventory_orders_workbook(workbook_path=temp_path, sheet_name=sheet_name)
+        else:
+            result = db.import_pj_inventory_report(workbook_path=temp_path)
         return jsonify(ok=True, import_result=result)
     except FileNotFoundError as exc:
         return _json_error(str(exc), 404)
     except ValueError as exc:
         return _json_error(str(exc), 400)
     except Exception:
-        current_app.logger.exception("Failed to import Big Tex inventory workbook")
-        return _json_error("Failed to import Big Tex inventory workbook", 500)
+        current_app.logger.exception("Failed to import inventory report for brand=%s", brand)
+        return _json_error("Failed to import inventory report", 500)
     finally:
         try:
             temp_path.unlink(missing_ok=True)
@@ -3756,9 +3901,6 @@ def api_settings_save():
             db.update_pj_tongue_group(pk, field, value)
         elif table == "pj_height_reference":
             db.update_pj_height_reference(pk, field, value)
-            if field == "height_top_ft":
-                # ProGrade settings now use a single height field; keep mid/top synchronized.
-                db.update_pj_height_reference(pk, "height_mid_ft", value)
         elif table == "pj_measurement_offsets":
             db.update_pj_measurement_offset(pk, field, value)
         elif table == "bt_stack_configs":
@@ -3849,7 +3991,11 @@ def api_add_unit(session_id):
 
     data = request.get_json(silent=True) or {}
     item_number = (data.get("item_number") or "").strip()
-    deck_zone = _normalize_zone_for_brand(session["brand"], data.get("deck_zone"))
+    deck_zone = _normalize_zone_for_brand(
+        session["brand"],
+        data.get("deck_zone"),
+        carrier_type=session["carrier_type"],
+    )
     stack_on = data.get("stack_on")
     insert_index = data.get("insert_index")
     requested_tongue_profile = _normalize_pj_tongue_profile(data.get("pj_tongue_profile"), default=None)
@@ -3885,7 +4031,11 @@ def api_add_unit(session_id):
         normalized_positions = []
         for p in positions:
             pd = dict(p)
-            pd["deck_zone"] = _normalize_zone_for_brand(brand, pd.get("deck_zone"))
+            pd["deck_zone"] = _normalize_zone_for_brand(
+                brand,
+                pd.get("deck_zone"),
+                carrier_type=session["carrier_type"],
+            )
             normalized_positions.append(pd)
         target = None
         if stack_on:
@@ -4325,7 +4475,11 @@ def api_move_position(session_id):
     data = request.get_json(silent=True) or {}
     include_state = _api_include_state(data, default=True)
     position_id = (data.get("position_id") or "").strip()
-    to_zone = _normalize_zone_for_brand(session["brand"], data.get("to_zone"))
+    to_zone = _normalize_zone_for_brand(
+        session["brand"],
+        data.get("to_zone"),
+        carrier_type=session["carrier_type"],
+    )
     to_sequence = data.get("to_sequence")
     insert_index = data.get("insert_index")
     to_layer_index = data.get("to_layer_index")
@@ -4400,8 +4554,16 @@ def api_move_column(session_id):
 
     data = request.get_json(silent=True) or {}
     include_state = _api_include_state(data, default=True)
-    from_zone = _normalize_zone_for_brand(session["brand"], data.get("from_zone"))
-    to_zone = _normalize_zone_for_brand(session["brand"], data.get("to_zone"))
+    from_zone = _normalize_zone_for_brand(
+        session["brand"],
+        data.get("from_zone"),
+        carrier_type=session["carrier_type"],
+    )
+    to_zone = _normalize_zone_for_brand(
+        session["brand"],
+        data.get("to_zone"),
+        carrier_type=session["carrier_type"],
+    )
     sequence = data.get("sequence")
     insert_index = data.get("insert_index")
 
@@ -4452,7 +4614,11 @@ def api_duplicate_column(session_id):
     data = request.get_json(silent=True) or {}
     include_state = _api_include_state(data, default=True)
     brand = session_row["brand"]
-    deck_zone = _normalize_zone_for_brand(brand, data.get("deck_zone"))
+    deck_zone = _normalize_zone_for_brand(
+        brand,
+        data.get("deck_zone"),
+        carrier_type=session_row["carrier_type"],
+    )
     sequence = data.get("sequence")
     if not deck_zone or sequence is None:
         return _json_error("deck_zone and sequence required")
@@ -4484,8 +4650,16 @@ def api_move_column_zone(session_id):
     data = request.get_json(silent=True) or {}
     include_state = _api_include_state(data, default=True)
     brand = session_row["brand"]
-    from_zone = _normalize_zone_for_brand(brand, data.get("from_zone"))
-    to_zone = _normalize_zone_for_brand(brand, data.get("to_zone"))
+    from_zone = _normalize_zone_for_brand(
+        brand,
+        data.get("from_zone"),
+        carrier_type=session_row["carrier_type"],
+    )
+    to_zone = _normalize_zone_for_brand(
+        brand,
+        data.get("to_zone"),
+        carrier_type=session_row["carrier_type"],
+    )
     sequence = data.get("sequence")
     if not from_zone or not to_zone or sequence is None:
         return _json_error("from_zone, to_zone, and sequence required")

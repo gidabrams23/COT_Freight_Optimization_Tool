@@ -26,12 +26,44 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         self.assertEqual(pj_rules.pj_dump_stacked_height_ft(4), 6.0)
         self.assertIsNone(pj_rules.pj_dump_stacked_height_ft(5))
 
-    def test_non_dump_stacking_height_override_applies_to_non_gooseneck_non_dump_units(self):
+    def test_non_dump_stacking_height_override_uses_mid_then_top_by_stack_depth(self):
         utility_sku = {"pj_category": "utility", "model": "UL"}
         gn_sku = {"pj_category": "gooseneck", "model": "LS"}
         dump_sku = {"pj_category": "dump_lowside", "model": "DL"}
-        self.assertEqual(pj_rules.pj_non_dump_stacking_height_ft({"layer": 1}, utility_sku, is_top=True), 1.3)
-        self.assertEqual(pj_rules.pj_non_dump_stacking_height_ft({"layer": 2}, utility_sku, is_top=False), 1.3)
+        height_ref = {"utility": {"height_mid_ft": 1.3, "height_top_ft": 2.0}}
+        self.assertEqual(
+            pj_rules.pj_non_dump_stacking_height_ft(
+                {"layer": 1},
+                utility_sku,
+                is_top=False,
+                layer_index=1,
+                total_layers=3,
+                height_ref=height_ref,
+            ),
+            1.3,
+        )
+        self.assertEqual(
+            pj_rules.pj_non_dump_stacking_height_ft(
+                {"layer": 2},
+                utility_sku,
+                is_top=False,
+                layer_index=2,
+                total_layers=3,
+                height_ref=height_ref,
+            ),
+            1.3,
+        )
+        self.assertEqual(
+            pj_rules.pj_non_dump_stacking_height_ft(
+                {"layer": 3},
+                utility_sku,
+                is_top=True,
+                layer_index=3,
+                total_layers=3,
+                height_ref=height_ref,
+            ),
+            2.0,
+        )
         self.assertIsNone(
             pj_rules.pj_non_dump_stacking_height_ft(
                 {"override_reason": "tongue_profile:gooseneck"},
@@ -115,6 +147,46 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             offsets={"gn_crisscross_height_save_ft": 1.0},
         )
         self.assertEqual(total_height, 5.0)
+
+    def test_nested_guest_is_ignored_for_column_height(self):
+        col = [
+            {
+                "position_id": "host",
+                "item_number": "DL14",
+                "layer": 1,
+                "is_rotated": 0,
+                "is_nested": 0,
+                "nested_inside": None,
+            },
+            {
+                "position_id": "guest",
+                "item_number": "D5X10",
+                "layer": 2,
+                "is_rotated": 0,
+                "is_nested": 1,
+                "nested_inside": "host",
+            },
+            {
+                "position_id": "top",
+                "item_number": "UL14",
+                "layer": 3,
+                "is_rotated": 0,
+                "is_nested": 0,
+                "nested_inside": None,
+            },
+        ]
+        skus = {
+            "DL14": {"pj_category": "dump_lowside", "model": "DL", "dump_side_height_ft": 3.0},
+            "D5X10": {"pj_category": "dump_small", "model": "D5", "dump_side_height_ft": 3.0},
+            "UL14": {"pj_category": "utility", "model": "UL"},
+        }
+        height_ref = {
+            "utility": {"height_mid_ft": 1.3, "height_top_ft": 2.0, "gn_axle_dropped_ft": None},
+            "dump_lowside": {"height_mid_ft": 4.0, "height_top_ft": 4.0, "gn_axle_dropped_ft": None},
+            "dump_small": {"height_mid_ft": 3.5, "height_top_ft": 3.5, "gn_axle_dropped_ft": None},
+        }
+        total_height = pj_rules._col_height(col, skus, height_ref=height_ref, offsets={})
+        self.assertEqual(total_height, 6.0)
 
     def test_lower_stack_auto_alignment_applies_overlap_then_utility_avoidance(self):
         col = [
@@ -273,9 +345,9 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         bottom = upper_stack[0]
         top = upper_stack[1]
 
-        self.assertAlmostEqual(bottom["deck_component_height_ft"], 1.3, places=2)
-        self.assertAlmostEqual(top["deck_component_height_ft"], 1.3, places=2)
-        self.assertAlmostEqual(canvas["col_heights"]["upper_deck"][1], 2.6, places=2)
+        self.assertAlmostEqual(bottom["deck_component_height_ft"], 2.6, places=2)
+        self.assertAlmostEqual(top["deck_component_height_ft"], 2.9, places=2)
+        self.assertAlmostEqual(canvas["col_heights"]["upper_deck"][1], 5.5, places=2)
 
         self.assertAlmostEqual(bottom["deck_x_end_ft"], top["deck_x_end_ft"], places=3)
         self.assertGreater(top["deck_x_start_ft"], bottom["deck_x_start_ft"])
@@ -286,7 +358,7 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         self.assertAlmostEqual(upper_segments[0]["x_local_ft"], -12.58, places=2)
 
         manifest_heights = sorted(float(row["height_each"]) for row in canvas["manifest_rows"])
-        self.assertEqual(manifest_heights, [1.3, 1.3])
+        self.assertEqual(manifest_heights, [2.6, 2.9])
 
     def test_canvas_cross_deck_guard_resolves_upper_lower_overlap(self):
         session = {"brand": "pj", "carrier_type": "53_step_deck"}
@@ -599,8 +671,10 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         }
         height_ref = {
             "utility": {
-                "height_mid_ft": 2.6,
-                "height_top_ft": 2.9,
+                # Keep this fixture intentionally low-profile so overlap
+                # handling still exercises the "allow under step height" path.
+                "height_mid_ft": 1.0,
+                "height_top_ft": 1.2,
                 "gn_axle_dropped_ft": None,
             }
         }

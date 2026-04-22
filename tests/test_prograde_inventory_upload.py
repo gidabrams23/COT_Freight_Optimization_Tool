@@ -33,6 +33,17 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
                     ("22PH20", "equipment", "22PH", 24.0, now),
                 ],
             )
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, description, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                """,
+                [
+                    ("UL21632CSSK", "UL", "utility", "UL utility 16", 16.0, 16.0, 4.0, 20.0, now),
+                    ("D3J1252BSSK", "D3", "dump_variants", "D3 dump 12", 12.0, 12.0, 6.0, 18.0, now),
+                ],
+            )
 
     def tearDown(self):
         if self._previous_db_path is None:
@@ -83,6 +94,23 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
                     "001,70BT14,SER-002,501,4,100,1/1/1900 0:00,,1,1,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,UTILITY",
                     "001,22PH20,SER-003,601,4,100,1/1/1900 0:00,,1,0,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,EQUIPMENT",
                     "001,UNMAPPED01,SER-004,601,4,100,1/1/1900 0:00,,1,0,0,0,0,1/1/1900 0:00,4/8/2026 2:34,desc,060,UNKNOWN",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return csv_path
+
+    def _build_pj_inventory_csv_report(self):
+        csv_path = Path(self._tmpdir.name) / "pj_inventory.csv"
+        csv_path.write_text(
+            "\n".join(
+                [
+                    "id,arrived,availordered,availphysical,itemid,onorder,ordered,physicalinvent,physicalvalue,postedqty,reservordered,reservphysical,configid,inventlocationid,inventserialid,inventsiteid,inventstatusid,wmslocationid,dataareaid,hstrailerconfiglongitemid",
+                    "row-1,0,1,1,UL,0,0,1,0,0,0,0,,,SER-001,301,,,306,UL21632CSSK",
+                    "row-2,0,1,1,UL,0,0,1,0,0,0,0,,,SER-002,301,,,306,UL21632CSFK-SP02",
+                    "row-3,0,1,1,D3,0,0,1,0,0,0,0,,,SER-003,306,,,306,D3J1252BSSK-RA01",
+                    "row-4,0,1,1,KD,0,0,1,0,0,0,0,,,SER-004,306,,,306,KD14083BK",
+                    "row-3,0,1,1,D3,0,0,1,0,0,0,0,,,SER-003,306,,,306,D3J1252BSSK-RA01",
                 ]
             ),
             encoding="utf-8",
@@ -171,6 +199,49 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
         self.assertEqual(upload_meta["deduped_rows"], 4)
         self.assertEqual(upload_meta["duplicate_rows"], 1)
         self.assertEqual(upload_meta["warehouse_count"], 2)
+
+    def test_import_pj_inventory_csv_normalizes_skus_and_tracks_inventsite_warehouse(self):
+        csv_path = self._build_pj_inventory_csv_report()
+
+        result = self.db.import_pj_inventory_report(workbook_path=csv_path)
+
+        self.assertEqual(result["source_format"], "pj_csv_inventory")
+        self.assertEqual(result["processed_rows"], 5)
+        self.assertEqual(result["valid_rows"], 4)
+        self.assertEqual(result["deduped_rows"], 4)
+        self.assertEqual(result["duplicate_rows"], 1)
+        self.assertEqual(result["distinct_items"], 3)
+        self.assertEqual(result["warehouse_count"], 2)
+        self.assertEqual(result["available_total"], 4)
+        self.assertEqual(result["matched_rows"], 3)
+        self.assertEqual(result["matched_item_count"], 2)
+        self.assertEqual(result["unmatched_item_count"], 1)
+        self.assertIn("KD14083BK", result["unmatched_items"])
+
+        snapshot_rows = [dict(r) for r in self.db.get_pj_inventory_snapshot_rows(limit=20)]
+        by_item = {row["item_number"]: row for row in snapshot_rows}
+        self.assertEqual(by_item["UL21632CSSK"]["available_count"], 2)
+        self.assertEqual(by_item["UL21632CSSK"]["total_count"], 2)
+        self.assertEqual(by_item["D3J1252BSSK"]["available_count"], 1)
+        self.assertEqual(by_item["KD14083BK"]["available_count"], 1)
+        self.assertEqual(by_item["KD14083BK"]["match_method"], "unmapped")
+
+        whse_codes = self.db.get_pj_inventory_whse_codes()
+        self.assertEqual(whse_codes, ["301", "306"])
+
+        snapshot_301 = [dict(r) for r in self.db.get_pj_inventory_snapshot_rows(limit=20, whse_code="301")]
+        self.assertEqual(len(snapshot_301), 1)
+        self.assertEqual(snapshot_301[0]["item_number"], "UL21632CSSK")
+        self.assertEqual(snapshot_301[0]["available_count"], 2)
+
+        upload_meta = dict(self.db.get_pj_inventory_upload_meta())
+        self.assertEqual(upload_meta["source_format"], "pj_csv_inventory")
+        self.assertEqual(upload_meta["deduped_rows"], 4)
+        self.assertEqual(upload_meta["duplicate_rows"], 1)
+        self.assertEqual(upload_meta["warehouse_count"], 2)
+        self.assertEqual(upload_meta["matched_rows"], 3)
+        self.assertEqual(upload_meta["matched_items"], 2)
+        self.assertEqual(upload_meta["unmatched_items"], 1)
 
 
 if __name__ == "__main__":

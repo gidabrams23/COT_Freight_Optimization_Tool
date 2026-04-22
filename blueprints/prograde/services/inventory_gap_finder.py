@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import uuid
+from collections import defaultdict
 
 from .. import db
 from . import bt_rules, pj_rules
@@ -23,9 +25,10 @@ _PJ_GOOSENECK_CATEGORIES = {
     "pintle",
 }
 _PJ_GOOSENECK_MODEL_PREFIXES = {"LD", "LQ", "LS", "LX", "LY", "PL"}
+_BT_LEN_RE = re.compile(r"(?<!\d)(\d{2})(?!\d)")
 
 
-def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse=""):
+def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", inventory_whse=None):
     brand_key = str(brand or "").strip().lower()
     if brand_key not in {"bigtex", "pj"}:
         return {
@@ -40,7 +43,7 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse=""):
             "selected_warehouse": "ALL",
         }
 
-    positions = _normalized_positions(db.get_positions(session_id), brand_key)
+    positions = _normalized_positions(db.get_positions(session_id), brand_key, carrier_map=dict(carrier or {}))
     columns = _group_columns(positions)
     stack_slots = _build_stack_slots(canvas, columns)
     bt_sku_map = _build_bigtex_sku_map() if brand_key == "bigtex" else {}
@@ -60,10 +63,14 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse=""):
     baseline_signatures = _error_signatures(baseline_errors)
     baseline_error_count = len(baseline_errors)
 
+    selected_whse_raw = inventory_whse
+    if selected_whse_raw is None:
+        selected_whse_raw = bt_whse
+
     if brand_key == "bigtex":
         upload_meta = db.get_bt_inventory_upload_meta()
         whse_codes = db.get_bt_inventory_whse_codes()
-        selected_whse = str(bt_whse or "").strip().upper()
+        selected_whse = str(selected_whse_raw or "").strip().upper()
         if selected_whse == "ALL":
             selected_whse = ""
         if selected_whse and selected_whse not in whse_codes:
@@ -73,11 +80,29 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse=""):
         warehouse_options.extend({"value": code, "label": code} for code in whse_codes)
         mode = "bt_upload"
     else:
-        upload_meta = None
-        candidates = _build_pj_candidates(pj_sku_map)
-        selected_whse = "ALL"
-        warehouse_options = []
-        mode = "pj_catalog"
+        upload_meta = db.get_pj_inventory_upload_meta()
+        whse_codes = db.get_pj_inventory_whse_codes()
+        selected_whse = str(selected_whse_raw or "").strip().upper()
+        if selected_whse == "ALL":
+            selected_whse = ""
+        if selected_whse and selected_whse not in whse_codes:
+            selected_whse = ""
+
+        upload_candidates = _build_pj_upload_candidates(
+            pj_sku_map,
+            whse_code=selected_whse,
+            pj_height_ref=pj_height_ref,
+        )
+        if upload_meta or upload_candidates:
+            candidates = upload_candidates
+            warehouse_options = [{"value": "ALL", "label": "All Warehouses"}]
+            warehouse_options.extend({"value": code, "label": code} for code in whse_codes)
+            mode = "pj_upload"
+        else:
+            candidates = _build_pj_catalog_candidates(pj_sku_map, pj_height_ref=pj_height_ref)
+            selected_whse = ""
+            warehouse_options = []
+            mode = "pj_catalog"
 
     rows = []
     for candidate in candidates:
@@ -99,12 +124,17 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse=""):
 
     rows.sort(key=_row_sort_key)
 
-    total_length_ft = _as_float(carrier_map.get("total_length_ft"), 53.0)
+    total_length_ft = _as_float(
+        ((canvas or {}).get("trailer_geometry") or {}).get("total_length_ft"),
+        _as_float(carrier_map.get("total_length_ft"), 53.0),
+    )
     used_ft = _as_float((canvas or {}).get("total_footprint"), 0.0)
     remaining_ft_raw = round(total_length_ft - used_ft, 2)
     remaining_ft = max(remaining_ft_raw, 0.0)
 
     if brand_key == "bigtex":
+        total_available_units = sum(int(r.get("available_count") or 0) for r in rows)
+    elif mode == "pj_upload":
         total_available_units = sum(int(r.get("available_count") or 0) for r in rows)
     else:
         total_available_units = len(rows)
@@ -773,24 +803,141 @@ def _zone_horizontal_gaps(*, zone, cols, x_by_seq, zone_cap_ft):
     return gaps
 
 
+def _bt_norm_token(value):
+    return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
+
+
+def _bt_family_key(item_number):
+    item = str(item_number or "").strip().upper()
+    if not item:
+        return ""
+    if "-" in item:
+        return item.split("-", 1)[0].strip()
+    m = re.match(r"^([0-9]*[A-Z]+)", _bt_norm_token(item))
+    return m.group(1) if m else item[:4]
+
+
+def _bt_parse_length(item_number):
+    raw = str(item_number or "").strip().upper()
+    if not raw:
+        return None
+    parts = [p for p in raw.split("-") if p]
+    for token in parts[1:]:
+        m = re.match(r"^(\d{2})", token)
+        if not m:
+            continue
+        length = int(m.group(1))
+        if 8 <= length <= 53:
+            return length
+    tail = "-".join(parts[1:]) if len(parts) > 1 else raw
+    for m in _BT_LEN_RE.finditer(tail):
+        length = int(m.group(1))
+        if 8 <= length <= 53:
+            return length
+    return None
+
+
+def _common_prefix_len(a, b):
+    count = 0
+    for ch_a, ch_b in zip(str(a or ""), str(b or "")):
+        if ch_a != ch_b:
+            break
+        count += 1
+    return count
+
+
+def _build_bt_family_index(bt_sku_map):
+    index = defaultdict(list)
+    for sku in (bt_sku_map or {}).values():
+        item = str((sku or {}).get("item_number") or "").strip().upper()
+        if not item:
+            continue
+        family = _bt_family_key(item)
+        if family:
+            index[family].append(dict(sku))
+    return index
+
+
+def _approximate_bt_sku(item_number, bt_sku_map, family_index):
+    raw = str(item_number or "").strip().upper()
+    if not raw:
+        return None, "none"
+    if raw in bt_sku_map:
+        return bt_sku_map.get(raw), "exact"
+
+    parts = [p for p in raw.split("-") if p]
+    for cut in range(len(parts) - 1, 1, -1):
+        trimmed = "-".join(parts[:cut]).strip().upper()
+        if trimmed in bt_sku_map:
+            return bt_sku_map.get(trimmed), "trim_suffix"
+
+    family = _bt_family_key(raw)
+    length = _bt_parse_length(raw)
+    if family and length is not None:
+        direct_keys = [
+            f"{family}-{length:02d}",
+            f"{family}-{length}",
+            f"{family}-{length:02d}BK",
+            f"{family}-{length}BK",
+        ]
+        for key in direct_keys:
+            if key in bt_sku_map:
+                return bt_sku_map.get(key), "family_length"
+
+    candidates = list((family_index or {}).get(family) or [])
+    if not candidates:
+        return None, "none"
+
+    raw_norm = _bt_norm_token(raw)
+
+    def _candidate_sort_key(sku):
+        sku_item = str((sku or {}).get("item_number") or "").strip().upper()
+        sku_norm = _bt_norm_token(sku_item)
+        prefix_len = _common_prefix_len(raw_norm, sku_norm)
+        sku_len = _bt_parse_length(sku_item)
+        len_diff = abs((sku_len if sku_len is not None else 0) - (length if length is not None else 0))
+        if length is None:
+            len_diff = 0
+        return (
+            len_diff,
+            -prefix_len,
+            abs(len(sku_norm) - len(raw_norm)),
+            sku_item,
+        )
+
+    best = sorted(candidates, key=_candidate_sort_key)[0]
+    return best, "family_nearest"
+
+
 def _build_bt_candidates(bt_sku_map, whse_code=""):
+    family_index = _build_bt_family_index(bt_sku_map)
     candidates = []
     for row in db.get_bt_inventory_snapshot_rows(limit=500, whse_code=whse_code):
         available = int(row["available_count"] or 0)
         if available <= 0:
             continue
-        footprint = _as_float(row["sku_total_footprint"], 0.0)
-        stack_height = 0.0
         item_number = str(row["item_number"] or "").strip().upper()
-        if item_number:
-            sku = bt_sku_map.get(item_number) or {}
-            stack_height = _as_float((sku or {}).get("stack_height"), 0.0)
+        sku = bt_sku_map.get(item_number) or {}
+        bt_match_method = "exact" if sku else "none"
+        if item_number and not sku:
+            approx_sku, bt_match_method = _approximate_bt_sku(item_number, bt_sku_map, family_index)
+            if approx_sku:
+                sku = approx_sku
+
+        footprint = _as_float(row["sku_total_footprint"], 0.0)
+        if footprint <= _EPS:
+            footprint = _as_float((sku or {}).get("total_footprint"), 0.0)
+        stack_height = _as_float((sku or {}).get("stack_height"), 0.0)
+
+        model = str(row["sku_model"] or (sku or {}).get("model") or "").strip().upper()
+        mcat = db.normalize_bigtex_mcat(row["sku_mcat"] or (sku or {}).get("mcat") or "")
+        is_unmapped = not bool(model or mcat or footprint)
         candidates.append(
             {
                 "brand": "bigtex",
                 "item_number": item_number,
-                "model": row["sku_model"] or "",
-                "mcat": db.normalize_bigtex_mcat(row["sku_mcat"] or ""),
+                "model": model,
+                "mcat": mcat,
                 "footprint_each": footprint,
                 "stack_height_each": stack_height,
                 "available_count": available,
@@ -800,7 +947,8 @@ def _build_bt_candidates(bt_sku_map, whse_code=""):
                 "future_build_count": int(row["future_build_count"] or 0),
                 "available_built_count": int(row["available_built_count"] or 0),
                 "available_future_count": int(row["available_future_count"] or 0),
-                "is_unmapped": not bool(row["sku_model"] or row["sku_mcat"] or row["sku_total_footprint"]),
+                "is_unmapped": is_unmapped,
+                "approximate_match_method": bt_match_method if bt_match_method != "none" else None,
                 "default_tongue_profile": "standard",
                 "default_override_reason": None,
                 "catalog_only": False,
@@ -809,7 +957,7 @@ def _build_bt_candidates(bt_sku_map, whse_code=""):
     return candidates
 
 
-def _build_pj_candidates(pj_sku_map):
+def _build_pj_catalog_candidates(pj_sku_map, *, pj_height_ref):
     candidates = []
     for row in db.get_pj_skus():
         sku = dict(row)
@@ -818,7 +966,7 @@ def _build_pj_candidates(pj_sku_map):
             continue
         default_tongue = _pj_default_tongue_profile(sku)
         footprint = _pj_render_footprint(sku, default_tongue)
-        stack_height = _pj_stack_height_hint(sku, default_tongue)
+        stack_height = _pj_stack_height_hint(sku, default_tongue, pj_height_ref=pj_height_ref)
         category = str(sku.get("pj_category") or "").strip().lower()
         model = str(sku.get("model") or "").strip().upper()
         default_override = _pj_default_override_reason(sku, default_tongue)
@@ -844,6 +992,90 @@ def _build_pj_candidates(pj_sku_map):
             }
         )
         pj_sku_map.setdefault(item_number, sku)
+    return candidates
+
+
+def _build_pj_upload_candidates(pj_sku_map, whse_code="", *, pj_height_ref):
+    candidates = []
+    for source_row in db.get_pj_inventory_snapshot_rows(limit=1500, whse_code=whse_code):
+        row = dict(source_row or {})
+        available = int(row.get("available_count") or 0)
+        if available <= 0:
+            continue
+
+        item_number = str(row.get("item_number") or "").strip().upper()
+        if not item_number:
+            continue
+        sku = dict(pj_sku_map.get(item_number) or {})
+        if not sku and row.get("sku_model"):
+            sku = {
+                "item_number": item_number,
+                "model": row.get("sku_model"),
+                "pj_category": row.get("sku_pj_category"),
+                "total_footprint": row.get("sku_total_footprint"),
+                "tongue_feet": row.get("sku_tongue_feet"),
+                "dump_side_height_ft": row.get("sku_dump_side_height_ft"),
+            }
+
+        category = str(sku.get("pj_category") or row.get("normalized_category") or "").strip().lower()
+        model = str(sku.get("model") or row.get("normalized_model") or "").strip().upper()
+        default_tongue = _pj_default_tongue_profile(sku) if sku else _pj_default_tongue_profile_from_values(model, category)
+        default_override = (
+            _pj_default_override_reason(sku, default_tongue)
+            if sku
+            else _pj_default_override_reason_from_values(
+                category=category,
+                tongue_profile=default_tongue,
+                dump_side_height_ft=row.get("sku_dump_side_height_ft"),
+            )
+        )
+        footprint = (
+            _pj_render_footprint(sku, default_tongue)
+            if sku
+            else _as_float(row.get("footprint_each"), 0.0)
+        )
+        stack_height = _as_float(row.get("stack_height_each"), 0.0)
+        if sku:
+            stack_height = max(
+                stack_height,
+                _pj_stack_height_hint(
+                    sku,
+                    default_tongue,
+                    pj_height_ref=pj_height_ref,
+                ),
+            )
+        elif stack_height <= _EPS:
+            stack_height = _pj_stack_height_hint_from_values(
+                category=category,
+                tongue_profile=default_tongue,
+                pj_height_ref=pj_height_ref,
+                dump_side_height_ft=row.get("sku_dump_side_height_ft"),
+            )
+        match_method = str(row.get("match_method") or "").strip().lower()
+
+        candidates.append(
+            {
+                "brand": "pj",
+                "item_number": item_number,
+                "model": model,
+                "mcat": category.replace("_", " ").title() if category else "",
+                "footprint_each": footprint,
+                "stack_height_each": stack_height,
+                "available_count": available,
+                "total_count": int(row["total_count"] or 0),
+                "assigned_count": int(row["assigned_count"] or 0),
+                "built_count": 0,
+                "future_build_count": 0,
+                "available_built_count": 0,
+                "available_future_count": 0,
+                "is_unmapped": match_method == "unmapped",
+                "default_tongue_profile": default_tongue,
+                "default_override_reason": default_override,
+                "catalog_only": False,
+            }
+        )
+        if sku:
+            pj_sku_map.setdefault(item_number, sku)
     return candidates
 
 
@@ -909,16 +1141,16 @@ def _group_columns(positions):
     return grouped
 
 
-def _normalized_positions(rows, brand):
+def _normalized_positions(rows, brand, carrier_map=None):
     normalized = []
     for row in rows or []:
         p = dict(row)
-        p["deck_zone"] = _normalize_zone(brand, p.get("deck_zone"))
+        p["deck_zone"] = _normalize_zone(brand, p.get("deck_zone"), carrier_map=carrier_map)
         normalized.append(p)
     return normalized
 
 
-def _normalize_zone(brand, zone):
+def _normalize_zone(brand, zone, carrier_map=None):
     zone_value = str(zone or "").strip()
     if brand != "bigtex":
         return zone_value
@@ -927,7 +1159,12 @@ def _normalize_zone(brand, zone):
         "stack_2": "lower_deck",
         "stack_3": "upper_deck",
     }
-    return legacy_map.get(zone_value, zone_value)
+    normalized = legacy_map.get(zone_value, zone_value)
+    carrier_key = str((carrier_map or {}).get("carrier_type") or "").strip().lower()
+    upper_len = _as_float((carrier_map or {}).get("upper_deck_length_ft"), 0.0)
+    if normalized == "upper_deck" and (carrier_key == "ground_pull" or upper_len <= 0.0):
+        return "lower_deck"
+    return normalized
 
 
 def _pj_default_tongue_profile(sku):
@@ -936,6 +1173,16 @@ def _pj_default_tongue_profile(sku):
         return "gooseneck"
     model = "".join(ch for ch in str(sku.get("model") or "").upper() if ch.isalnum())
     if model[:2] in _PJ_GOOSENECK_MODEL_PREFIXES:
+        return "gooseneck"
+    return "standard"
+
+
+def _pj_default_tongue_profile_from_values(model, category):
+    category_key = str(category or "").strip().lower()
+    if category_key in _PJ_GOOSENECK_CATEGORIES:
+        return "gooseneck"
+    model_norm = "".join(ch for ch in str(model or "").upper() if ch.isalnum())
+    if model_norm[:2] in _PJ_GOOSENECK_MODEL_PREFIXES:
         return "gooseneck"
     return "standard"
 
@@ -957,7 +1204,7 @@ def _pj_render_footprint(sku, tongue_profile):
     return round(_pj_deck_length_ft(sku) + _pj_render_tongue_ft(sku, tongue_profile), 2)
 
 
-def _pj_stack_height_hint(sku, tongue_profile):
+def _pj_stack_height_hint(sku, tongue_profile, *, pj_height_ref=None):
     category = str(sku.get("pj_category") or "").strip().lower()
     if category == "utility" and str(tongue_profile) == "standard":
         return 1.8
@@ -965,7 +1212,32 @@ def _pj_stack_height_hint(sku, tongue_profile):
         dump_h = _normalize_dump_height(sku.get("dump_side_height_ft"))
         if dump_h is not None:
             return dump_h
-    return 0.0
+    ref = dict((pj_height_ref or {}).get(category) or {})
+    top_h = _as_float(ref.get("height_top_ft"), 0.0)
+    if top_h > _EPS:
+        return top_h
+    mid_h = _as_float(ref.get("height_mid_ft"), 0.0)
+    if mid_h > _EPS:
+        return mid_h
+    return 2.0
+
+
+def _pj_stack_height_hint_from_values(*, category, tongue_profile, pj_height_ref=None, dump_side_height_ft=None):
+    category_key = str(category or "").strip().lower()
+    if category_key == "utility" and str(tongue_profile) == "standard":
+        return 1.8
+    if category_key in _PJ_DUMP_CATEGORIES:
+        dump_h = _normalize_dump_height(dump_side_height_ft)
+        if dump_h is not None:
+            return dump_h
+    ref = dict((pj_height_ref or {}).get(category_key) or {})
+    top_h = _as_float(ref.get("height_top_ft"), 0.0)
+    if top_h > _EPS:
+        return top_h
+    mid_h = _as_float(ref.get("height_mid_ft"), 0.0)
+    if mid_h > _EPS:
+        return mid_h
+    return 2.0
 
 
 def _pj_default_override_reason(sku, tongue_profile):
@@ -973,6 +1245,16 @@ def _pj_default_override_reason(sku, tongue_profile):
     category = str(sku.get("pj_category") or "").strip().lower()
     if category in _PJ_DUMP_CATEGORIES:
         dump_h = _normalize_dump_height(sku.get("dump_side_height_ft"))
+        if dump_h is not None:
+            tokens.append(f"dump_height_ft:{dump_h:.1f}")
+    return ";".join(tokens)
+
+
+def _pj_default_override_reason_from_values(*, category, tongue_profile, dump_side_height_ft=None):
+    tokens = [f"tongue_profile:{tongue_profile}"]
+    category_key = str(category or "").strip().lower()
+    if category_key in _PJ_DUMP_CATEGORIES:
+        dump_h = _normalize_dump_height(dump_side_height_ft)
         if dump_h is not None:
             tokens.append(f"dump_height_ft:{dump_h:.1f}")
     return ";".join(tokens)

@@ -85,7 +85,7 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(int(row["is_saved"] or 0), 1)
 
-    def test_height_top_save_keeps_mid_synced(self):
+    def test_height_top_and_mid_save_independently(self):
         now = datetime.utcnow().isoformat()
         with self.db.get_db() as conn:
             conn.execute(
@@ -118,7 +118,30 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
                 ).fetchone()
             )
         self.assertEqual(float(row["height_top_ft"]), 4.25)
-        self.assertEqual(float(row["height_mid_ft"]), 4.25)
+        self.assertEqual(float(row["height_mid_ft"]), 2.0)
+
+        resp_mid = self.client.post(
+            "/prograde/api/settings/save",
+            json={
+                "table": "pj_height_reference",
+                "pk": "utility",
+                "field": "height_mid_ft",
+                "value": 3.75,
+            },
+        )
+        self.assertEqual(resp_mid.status_code, 200)
+        payload_mid = resp_mid.get_json()
+        self.assertTrue(payload_mid["ok"])
+
+        with self.db.get_db() as conn:
+            row_after_mid = dict(
+                conn.execute(
+                    "SELECT * FROM pj_height_reference WHERE category=?",
+                    ("utility",),
+                ).fetchone()
+            )
+        self.assertEqual(float(row_after_mid["height_top_ft"]), 4.25)
+        self.assertEqual(float(row_after_mid["height_mid_ft"]), 3.75)
 
     def test_pj_bed_length_edit_recomputes_footprint(self):
         now = datetime.utcnow().isoformat()

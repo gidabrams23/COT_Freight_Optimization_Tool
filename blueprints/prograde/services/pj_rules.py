@@ -25,9 +25,8 @@ _PJ_DUMP_CATEGORIES = {
 }
 _REAR_POCKET_LEN_FT = 5.0
 _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT = 1.0
-_PJ_UTILITY_STACK_TOP_FT = 1.8
-_PJ_UTILITY_STACK_SUPPORTED_FT = 1.3
-_PJ_NON_DUMP_STACK_TEMP_FT = 1.3
+_PJ_NON_DUMP_STACK_MID_FALLBACK_FT = 1.3
+_PJ_NON_DUMP_STACK_TOP_FALLBACK_FT = 2.0
 
 
 def _normalize_dump_height_ft(value):
@@ -58,6 +57,54 @@ def _row_to_dict(row):
     if isinstance(row, dict):
         return row
     return dict(row or {})
+
+
+def _is_ground_pull_carrier(carrier) -> bool:
+    carrier_map = _row_to_dict(carrier)
+    return str(carrier_map.get("carrier_type") or "").strip().lower() == "ground_pull"
+
+
+def _carrier_supports_upper_deck(carrier) -> bool:
+    carrier_map = _row_to_dict(carrier)
+    if _is_ground_pull_carrier(carrier_map):
+        return False
+    if "upper_deck_length_ft" not in carrier_map:
+        return True
+    return float(carrier_map.get("upper_deck_length_ft") or 0.0) > 0.0
+
+
+def _normalize_zone_for_carrier(zone, carrier):
+    zone_value = str(zone or "").strip()
+    if not zone_value:
+        return zone_value
+    if zone_value == "upper_deck" and not _carrier_supports_upper_deck(carrier):
+        return "lower_deck"
+    return zone_value
+
+
+def _normalized_positions_for_carrier(positions, carrier):
+    normalized = []
+    for row in (positions or []):
+        pos = _row_to_dict(row)
+        pos["deck_zone"] = _normalize_zone_for_carrier(pos.get("deck_zone"), carrier)
+        normalized.append(pos)
+    return normalized
+
+
+def _ground_pull_first_deck_length_ft(positions, skus, default_cap=53.0):
+    ordered = sorted(
+        [_row_to_dict(p) for p in (positions or [])],
+        key=lambda p: (
+            str(p.get("added_at") or "9999-12-31T23:59:59"),
+            str(p.get("position_id") or ""),
+        ),
+    )
+    for pos in ordered:
+        sku = _row_to_dict((skus or {}).get(pos.get("item_number")) or {})
+        deck_len = _position_deck_length_ft(pos, sku)
+        if deck_len > 0:
+            return float(deck_len)
+    return float(default_cap or 53.0)
 
 
 def _position_uses_gooseneck(row, sku):
@@ -168,22 +215,94 @@ def _gn_crisscross_height_credit_ft(offsets, pair_count):
     return max(per_pair, 0.0) * max(int(pair_count or 0), 0)
 
 
-def pj_utility_stacking_height_ft(row, sku, is_top):
-    """Return PJ utility stacking height override, or None when not applicable."""
-    pos = _row_to_dict(row)
+def _normalize_layer_value(value, fallback):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return int(fallback)
+    return max(parsed, 1)
+
+
+def _non_dump_stack_uses_top_height(layer_index, total_layers, is_top):
+    """
+    Decide when a stack should transition from mid/bottom height to top height.
+
+    Framework assumption:
+    - Lower half (rounded up) of layers use mid/bottom height.
+    - Remaining upper layers use top height.
+    """
+    layers = _normalize_layer_value(total_layers, 1)
+    layer = _normalize_layer_value(layer_index, 1)
+    if layers <= 1:
+        return False
+    mid_cutoff = (layers + 1) // 2
+    if layer > mid_cutoff:
+        return True
+    # Backward-compatible fallback for callers that only know top/non-top.
+    return bool(is_top and layer >= layers and layers > 2)
+
+
+def _resolve_non_dump_layer_height_ft(sku, height_ref, *, use_top_height):
+    sku_map = _row_to_dict(sku)
+    category = str(sku_map.get("pj_category") or "").strip()
+    ref = (height_ref or {}).get(category, {})
+    mid_height = ref.get("height_mid_ft")
+    top_height = ref.get("height_top_ft")
+    try:
+        mid_value = float(mid_height) if mid_height is not None else None
+    except (TypeError, ValueError):
+        mid_value = None
+    try:
+        top_value = float(top_height) if top_height is not None else None
+    except (TypeError, ValueError):
+        top_value = None
+
+    if use_top_height:
+        if top_value is not None:
+            return top_value
+        if mid_value is not None:
+            return mid_value
+        return _PJ_NON_DUMP_STACK_TOP_FALLBACK_FT
+    if mid_value is not None:
+        return mid_value
+    if top_value is not None:
+        return top_value
+    return _PJ_NON_DUMP_STACK_MID_FALLBACK_FT
+
+
+def pj_utility_stacking_height_ft(
+    row,
+    sku,
+    is_top,
+    *,
+    layer_index=None,
+    total_layers=None,
+    height_ref=None,
+):
+    """Backward-compatible utility wrapper around the generalized PJ non-dump stack logic."""
     sku_map = _row_to_dict(sku)
     category = str(sku_map.get("pj_category") or "").strip().lower()
     if category != "utility":
         return None
-    if _position_uses_gooseneck(pos, sku_map):
-        return None
-    layer = int(pos.get("layer") or 0)
-    if layer <= 1:
-        return _PJ_UTILITY_STACK_SUPPORTED_FT
-    return _PJ_UTILITY_STACK_TOP_FT if bool(is_top) else _PJ_UTILITY_STACK_SUPPORTED_FT
+    return pj_non_dump_stacking_height_ft(
+        row,
+        sku,
+        is_top,
+        layer_index=layer_index,
+        total_layers=total_layers,
+        height_ref=height_ref,
+    )
 
 
-def pj_non_dump_stacking_height_ft(row, sku, is_top):
+def pj_non_dump_stacking_height_ft(
+    row,
+    sku,
+    is_top,
+    *,
+    layer_index=None,
+    total_layers=None,
+    height_ref=None,
+):
     """
     PJ stacked-height override for non-dump, non-gooseneck units.
 
@@ -199,7 +318,18 @@ def pj_non_dump_stacking_height_ft(row, sku, is_top):
         return None
     if _position_uses_gooseneck(pos, sku_map):
         return None
-    return _PJ_NON_DUMP_STACK_TEMP_FT
+    normalized_layer = _normalize_layer_value(layer_index, pos.get("layer") or 1)
+    normalized_total_layers = _normalize_layer_value(total_layers, normalized_layer)
+    use_top_height = _non_dump_stack_uses_top_height(
+        normalized_layer,
+        normalized_total_layers,
+        is_top,
+    )
+    return _resolve_non_dump_layer_height_ft(
+        sku_map,
+        height_ref,
+        use_top_height=use_top_height,
+    )
 
 
 def _position_nominal_height_ft(pos, sku, height_ref, is_top, use_axle_drop=True):
@@ -543,18 +673,22 @@ def check(positions, carrier) -> list:
     if not positions:
         return violations
 
-    skus = {p["item_number"]: dict(db.get_pj_sku(p["item_number"]) or {}) for p in positions}
+    normalized_positions = _normalized_positions_for_carrier(positions, carrier)
+    skus = {
+        p["item_number"]: dict(db.get_pj_sku(p["item_number"]) or {})
+        for p in normalized_positions
+    }
     offsets = db.get_pj_offsets_dict()
     height_ref = db.get_pj_height_ref_dict()   # {category: dict} - no DB calls inside rules
 
-    violations += _pj_total_length(positions, carrier, skus, offsets, height_ref)
-    violations += _pj_height_lower(positions, carrier, skus, height_ref, offsets)
-    violations += _pj_height_upper(positions, carrier, skus, height_ref, offsets)
-    violations += _pj_step_crossing(positions, carrier, skus, offsets)
-    violations += _pj_gn_lower_deck(positions, carrier, skus)
-    violations += _pj_dtj_offset(positions, skus)
-    violations += _pj_d5_nesting(positions, skus)
-    violations += _pj_gn_dump_orientation(positions, skus)
+    violations += _pj_total_length(normalized_positions, carrier, skus, offsets, height_ref)
+    violations += _pj_height_lower(normalized_positions, carrier, skus, height_ref, offsets)
+    violations += _pj_height_upper(normalized_positions, carrier, skus, height_ref, offsets)
+    violations += _pj_step_crossing(normalized_positions, carrier, skus, offsets)
+    violations += _pj_gn_lower_deck(normalized_positions, carrier, skus)
+    violations += _pj_dtj_offset(normalized_positions, skus)
+    violations += _pj_d5_nesting(normalized_positions, skus)
+    violations += _pj_gn_dump_orientation(normalized_positions, skus)
     return violations
 
 
@@ -563,6 +697,13 @@ def _pj_total_length(positions, carrier, skus, offsets, height_ref):
     carrier_map = _row_to_dict(carrier) if carrier else {}
     lower_cap = float(carrier_map.get("lower_deck_length_ft") or 41.0)
     upper_cap = float(carrier_map.get("upper_deck_length_ft") or 12.0)
+    if _is_ground_pull_carrier(carrier_map):
+        lower_cap = _ground_pull_first_deck_length_ft(
+            positions,
+            skus,
+            default_cap=lower_cap,
+        )
+        upper_cap = 0.0
     metrics = compute_pj_length_metrics(
         positions,
         skus=skus,
@@ -582,6 +723,8 @@ def _pj_total_length(positions, carrier, skus, offsets, height_ref):
     implicated = [p["position_id"] for p in positions]
 
     cap = float(carrier_map.get("total_length_ft") or 53.0)
+    if _is_ground_pull_carrier(carrier_map):
+        cap = _ground_pull_first_deck_length_ft(positions, skus, default_cap=cap)
     if total > cap:
         notes = []
         if overlap_credit > 0:
@@ -614,17 +757,21 @@ def _col_height(col_sorted, skus, height_ref, use_axle_drop=True, offsets=None):
     """Compute cumulative stack height for a sorted list of positions (layer 1 -> top)."""
     total = 0.0
     ordered = [_row_to_dict(row) for row in (col_sorted or [])]
+    total_layers = len(ordered)
     gooseneck_flags = []
     for row in ordered:
         sku = skus.get(row.get("item_number")) or {}
         gooseneck_flags.append(_position_uses_gooseneck(row, sku))
 
-    for i, row in enumerate(col_sorted):
-        p = _row_to_dict(row)
+    for i, p in enumerate(ordered):
+        if bool(p.get("is_nested")) and p.get("nested_inside"):
+            # Nested guests sit inside their host envelope and do not increase stack height.
+            continue
         sku = skus.get(p.get("item_number"))
         if not sku:
             continue
-        is_top = (i == len(col_sorted) - 1)
+        layer_index = i + 1
+        is_top = (i == total_layers - 1)
         is_gooseneck = gooseneck_flags[i]
         has_gooseneck_above = any(gooseneck_flags[i + 1:]) if i + 1 < len(gooseneck_flags) else False
 
@@ -641,7 +788,14 @@ def _col_height(col_sorted, skus, height_ref, use_axle_drop=True, offsets=None):
                 total += _PJ_GOOSENECK_HEIGHT_FT
             continue
 
-        non_dump_stacked_height_ft = pj_non_dump_stacking_height_ft(p, sku, is_top)
+        non_dump_stacked_height_ft = pj_non_dump_stacking_height_ft(
+            p,
+            sku,
+            is_top,
+            layer_index=layer_index,
+            total_layers=total_layers,
+            height_ref=height_ref,
+        )
         if non_dump_stacked_height_ft is not None:
             total += non_dump_stacked_height_ft
             continue
@@ -722,6 +876,8 @@ def _pj_step_crossing(positions, carrier, skus, offsets):
     Tongues/necks are appendages and may cross.
     """
     carrier_map = _row_to_dict(carrier) if carrier else {}
+    if not _carrier_supports_upper_deck(carrier_map):
+        return []
     step_x_ft = float(carrier_map.get("lower_deck_length_ft") or 41.5)
     grouped = _group_columns_by_zone(positions)
     x_positions = _column_x_positions_by_zone(grouped, skus, offsets)
@@ -755,6 +911,8 @@ def _pj_step_crossing(positions, carrier, skus, offsets):
 
 def _pj_gn_lower_deck(positions, carrier, skus):
     """PJ_GN_LOWER_DECK - warn if GN bed > 32' (will span the step)."""
+    if not _carrier_supports_upper_deck(carrier):
+        return []
     cap = carrier["gn_max_lower_deck_ft"] if carrier else 32.0
     violations = []
     for p in positions:

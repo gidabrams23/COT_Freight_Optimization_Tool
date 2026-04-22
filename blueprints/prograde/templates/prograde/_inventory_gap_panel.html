@@ -1,8 +1,12 @@
 {% set is_bt = session.brand == 'bigtex' %}
+{% set is_pj = session.brand == 'pj' %}
+{% set can_upload_inventory = is_bt or is_pj %}
+{% set upload_accept = '.xlsx,.xlsm,.csv' if is_bt else '.csv' %}
 {% set stack_slots = (inventory_gap.stack_slots if inventory_gap and inventory_gap.stack_slots else []) %}
 {% set fixed_col_count = 6 %}
 {% set warehouse_options = (inventory_gap.warehouse_options if inventory_gap and inventory_gap.warehouse_options else []) %}
 {% set selected_whse = (inventory_gap.selected_warehouse if inventory_gap and inventory_gap.selected_warehouse else 'ALL') %}
+{% set inventory_mode = (inventory_gap.mode if inventory_gap and inventory_gap.mode else '') %}
 <div class="inventory-wrap card" id="pg-inventory-card" style="padding:0;overflow:hidden">
   <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
     <div class="inventory-header-row">
@@ -14,7 +18,7 @@
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        {% if is_bt %}
+        {% if can_upload_inventory %}
         {% if warehouse_options|length > 1 %}
         <label for="inv-whse-filter" style="font-size:11px;color:var(--text-secondary);font-weight:600;">WHSE</label>
         <select id="inv-whse-filter" class="form-control form-control-sm" style="min-width:84px;">
@@ -23,7 +27,7 @@
           {% endfor %}
         </select>
         {% endif %}
-        <input type="file" id="inv-upload-input" accept=".xlsx,.xlsm,.csv" style="display:none" />
+        <input type="file" id="inv-upload-input" accept="{{ upload_accept }}" style="display:none" />
         <button type="button" class="btn btn-secondary btn-sm" id="inv-upload-btn">
           Upload Inventory
         </button>
@@ -108,6 +112,8 @@
             <td colspan="{{ fixed_col_count + (stack_slots | length) }}" style="text-align:center;color:var(--text-secondary);padding:10px 8px;">
               {% if is_bt %}
                 Upload BT inventory (.xlsx/.xlsm or inventory CSV) to populate availability.
+              {% elif inventory_mode == 'pj_upload' %}
+                Upload PJ inventory CSV (with inventsiteid warehouse values) to populate availability.
               {% else %}
                 PJ catalog suggestions are unavailable because no PJ SKUs are loaded.
               {% endif %}

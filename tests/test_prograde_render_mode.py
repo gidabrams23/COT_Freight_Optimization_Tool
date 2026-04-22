@@ -70,6 +70,9 @@ class ProgradeRenderModeTests(unittest.TestCase):
         self.assertIn("display: block;", html)
         self.assertIn("Category -&gt; Model -&gt; Item", html)
         self.assertIn(".sku-row-tongue-btn", html)
+        self.assertIn("pj-table-no-dump", html)
+        self.assertIn("modelHasDumpProfile", html)
+        self.assertIn("<span>Item</span><span>Len</span><span>Ht</span><span>Tongue</span>", html)
         self.assertIn("pj_tongue_profile", html)
         self.assertNotIn('role="radiogroup" aria-label="Rendering mode"', html)
 

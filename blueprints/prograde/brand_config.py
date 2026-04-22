@@ -31,6 +31,19 @@ CARRIER_DEFAULTS = {
         "upper_deck_clearance_ft": 0.0,
         "gn_max_lower_deck_ft": 0.0,
     },
+    "ground_pull": {
+        "brand": "bigtex",
+        "label": "Ground Pull",
+        "total_length_ft": 53.0,
+        "max_height_ft": 13.5,
+        "lower_deck_length_ft": 53.0,
+        "upper_deck_length_ft": 0.0,
+        "lower_deck_ground_height_ft": 4.0,
+        "upper_deck_ground_height_ft": 0.0,
+        "lower_deck_clearance_ft": 9.5,
+        "upper_deck_clearance_ft": 0.0,
+        "gn_max_lower_deck_ft": 0.0,
+    },
 }
 
 # Deck zones per brand/carrier

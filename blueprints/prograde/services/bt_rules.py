@@ -23,11 +23,55 @@ def _normalize_bt_zone(zone: str) -> str:
     return legacy_map.get(zone_value, zone_value)
 
 
-def _group_columns_by_zone(positions):
+def _is_ground_pull_carrier(carrier) -> bool:
+    carrier_map = _row_to_dict(carrier)
+    return str(carrier_map.get("carrier_type") or "").strip().lower() == "ground_pull"
+
+
+def _carrier_supports_upper_deck(carrier) -> bool:
+    carrier_map = _row_to_dict(carrier)
+    if not carrier_map:
+        return True
+    if _is_ground_pull_carrier(carrier_map):
+        return False
+    if "upper_deck_length_ft" not in carrier_map:
+        return True
+    return float(carrier_map.get("upper_deck_length_ft") or 0.0) > 0.0
+
+
+def _normalize_bt_zone_for_carrier(zone: str, carrier) -> str:
+    normalized = _normalize_bt_zone(zone)
+    if normalized == "upper_deck" and not _carrier_supports_upper_deck(carrier):
+        return "lower_deck"
+    return normalized
+
+
+def _ground_pull_first_deck_length_ft(positions, sku_map, default_cap=53.0):
+    ordered = sorted(
+        [_row_to_dict(p) for p in (positions or [])],
+        key=lambda p: (
+            str(p.get("added_at") or "9999-12-31T23:59:59"),
+            str(p.get("position_id") or ""),
+        ),
+    )
+    for pos in ordered:
+        sku = sku_map.get(pos.get("item_number")) or {}
+        deck_len_ft = float(sku.get("bed_length") or 0.0)
+        if deck_len_ft <= 0.0:
+            tongue_ft = float(sku.get("tongue") or 0.0)
+            total_fp_ft = float(sku.get("total_footprint") or 0.0)
+            if total_fp_ft > 0.0:
+                deck_len_ft = max(total_fp_ft - tongue_ft, 0.0)
+        if deck_len_ft > 0.0:
+            return deck_len_ft
+    return float(default_cap or 53.0)
+
+
+def _group_columns_by_zone(positions, carrier=None):
     grouped = {"lower_deck": {}, "upper_deck": {}}
     for p in positions:
         pos = _row_to_dict(p)
-        zone = _normalize_bt_zone(pos["deck_zone"])
+        zone = _normalize_bt_zone_for_carrier(pos.get("deck_zone"), carrier)
         if zone not in grouped:
             continue
         seq = int(pos["sequence"] or 0)
@@ -38,6 +82,8 @@ def _group_columns_by_zone(positions):
 def _clearance_cap_for_zone(carrier, zone):
     if not carrier:
         return 10.0 if zone == "lower_deck" else 8.5
+    if zone == "upper_deck" and not _carrier_supports_upper_deck(carrier):
+        return 0.0
     max_height = float(carrier.get("max_height_ft") or 13.5)
     if zone == "upper_deck":
         ground = float(carrier.get("upper_deck_ground_height_ft") or 5.0)
@@ -52,6 +98,7 @@ def compute_bt_length_metrics(
     lower_cap_ft=41.0,
     upper_cap_ft=12.0,
     step_gap_ft=1.5,
+    carrier=None,
 ):
     """
     Compute Big Tex footprint metrics with cross-deck tongue overlap awareness.
@@ -64,7 +111,7 @@ def compute_bt_length_metrics(
     if sku_map is None:
         sku_map = {p["item_number"]: dict(db.get_bigtex_sku(p["item_number"]) or {}) for p in normalized_positions}
 
-    grouped = _group_columns_by_zone(normalized_positions)
+    grouped = _group_columns_by_zone(normalized_positions, carrier=carrier)
     base_units_by_zone = {"lower_deck": {}, "upper_deck": {}}
     base_tongue_by_zone = {"lower_deck": {}, "upper_deck": {}}
     base_footprint_by_zone = {"lower_deck": {}, "upper_deck": {}}
@@ -190,7 +237,7 @@ def check(positions, carrier) -> list:
 
     violations += _bt_total_length(positions, sku_map, carrier_map, stack_configs)
     violations += _bt_height(positions, sku_map, carrier_map, stack_configs)
-    violations += _bt_dump_hydraulic(positions, sku_map)
+    violations += _bt_dump_hydraulic(positions, sku_map, carrier_map)
     violations += _bt_gn_sequence(positions, sku_map)
     return violations
 
@@ -198,13 +245,18 @@ def check(positions, carrier) -> list:
 def _bt_total_length(positions, sku_map, carrier, _stack_configs):
     """BT_TOTAL_LENGTH - deck footprint usage must fit each deck length cap."""
     violations = []
-    lower_cap = float((carrier or {}).get("lower_deck_length_ft") or 41.0)
-    upper_cap = float((carrier or {}).get("upper_deck_length_ft") or 12.0)
+    carrier_map = _row_to_dict(carrier)
+    lower_cap = float(carrier_map.get("lower_deck_length_ft") or 41.0)
+    upper_cap = float(carrier_map.get("upper_deck_length_ft") or 12.0)
+    if _is_ground_pull_carrier(carrier_map):
+        lower_cap = _ground_pull_first_deck_length_ft(positions, sku_map, default_cap=lower_cap)
+        upper_cap = 0.0
     metrics = compute_bt_length_metrics(
         positions,
         sku_map=sku_map,
         lower_cap_ft=lower_cap,
         upper_cap_ft=upper_cap,
+        carrier=carrier_map,
     )
     deck_caps = {"lower_deck": lower_cap, "upper_deck": upper_cap}
     deck_labels = {"lower_deck": "Lower Deck", "upper_deck": "Upper Deck"}
@@ -247,7 +299,7 @@ def _bt_total_length(positions, sku_map, carrier, _stack_configs):
 def _bt_height(positions, sku_map, carrier, _stack_configs):
     """BT_HEIGHT - cumulative stack_height per column must fit deck clearance."""
     violations = []
-    grouped = _group_columns_by_zone(positions)
+    grouped = _group_columns_by_zone(positions, carrier=carrier)
 
     for zone, columns in grouped.items():
         cap = _clearance_cap_for_zone(carrier, zone)
@@ -271,20 +323,21 @@ def _bt_height(positions, sku_map, carrier, _stack_configs):
     return violations
 
 
-def _bt_dump_hydraulic(positions, sku_map):
+def _bt_dump_hydraulic(positions, sku_map, carrier=None):
     """BT_DUMP_HYDRAULIC - hydraulic units should be reviewed if loaded on upper deck."""
     violations = []
     for p in positions:
-        zone = _normalize_bt_zone(p["deck_zone"])
+        pos = _row_to_dict(p)
+        zone = _normalize_bt_zone_for_carrier(pos.get("deck_zone"), carrier)
         if zone != "upper_deck":
             continue
-        sku = sku_map.get(p["item_number"])
+        sku = sku_map.get(pos.get("item_number"))
         if sku and sku.get("floor_type") == "hydraulic":
             violations.append(Violation(
                 severity="warning",
                 rule_code="BT_DUMP_HYDRAULIC",
-                message=f"{p['item_number']}: Hydraulic unit on upper deck - confirm this placement is acceptable.",
-                position_ids=[p["position_id"]],
+                message=f"{pos.get('item_number')}: Hydraulic unit on upper deck - confirm this placement is acceptable.",
+                position_ids=[pos.get("position_id")],
                 suggested_fix="Move hydraulic unit to lower deck if needed.",
             ))
     return violations

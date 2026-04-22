@@ -41,7 +41,8 @@ Try 2 at building a web optimization app.
 - `All Sessions` (`/prograde/sessions`) is owner-scoped by default:
   - admin accounts can view all saved sessions
   - planner accounts only see sessions they built
-- Load Builder includes a `Truck` dropdown in the top header so planners can switch session carrier type between configured trailer profiles (for example `53_step_deck` and `53_flatbed`).
+- Load Builder includes a `Truck` dropdown in the top header so planners can switch session carrier type between configured trailer profiles (`53_step_deck`, `53_flatbed`, and `ground_pull`).
+- `ground_pull` mode renders without a structural deck line; the first placed unit becomes the effective deck and drives the active total-length capacity.
 - Default admin account name is seeded from `PROGRADE_DEFAULT_ADMIN_NAME`; fallback is OS `USERNAME` (or `Admin`).
 - ProGrade SKU catalogs (`pj_skus`, `bigtex_skus`) are upserted from `data/seed/*.csv` on startup by default.
 - Optional preservation mode (future use): set `PROGRADE_PRESERVE_SKU_EDITS_ON_START=true` to seed only empty tables and avoid overwriting existing SKU edits on restart.

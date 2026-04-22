@@ -5,6 +5,9 @@
 {% set step_x_ft = (geo.get('step_x_ft', (carrier.lower_deck_length_ft or 41.5)) if geo else (carrier.lower_deck_length_ft or 41.5)) | float %}
 {% set lower_surface_ft = (geo.get('lower_deck_surface_ft', (carrier.lower_deck_ground_height_ft or 3.5)) if geo else (carrier.lower_deck_ground_height_ft or 3.5)) | float %}
 {% set upper_surface_ft = (geo.get('upper_deck_surface_ft', (carrier.upper_deck_ground_height_ft or 5.0)) if geo else (carrier.upper_deck_ground_height_ft or 5.0)) | float %}
+{% set ground_pull_mode = (geo.get('ground_pull_mode', false) if geo else false) %}
+{% set has_structural_deck = (geo.get('has_structural_deck', true) if geo else true) %}
+{% set show_upper_zone = (geo.get('show_upper_zone', true) if geo else true) %}
 {% set svg_w = 1220 %}
 {% set svg_h = 392 %}
 {% set margin_l = 150 %}
@@ -30,7 +33,11 @@
 {% set upper_used_base_ft = (max_stacked_ft_by_zone.get('upper_deck', 0.0) if max_stacked_ft_by_zone else 0.0) | float %}
 {% set lower_used_ft = (max_rendered_outline_ft_by_zone.get('lower_deck', lower_used_base_ft) if max_rendered_outline_ft_by_zone else lower_used_base_ft) | float %}
 {% set upper_used_ft = (max_rendered_outline_ft_by_zone.get('upper_deck', upper_used_base_ft) if max_rendered_outline_ft_by_zone else upper_used_base_ft) | float %}
+{% if show_upper_zone %}
 {% set required_span_ft = [lower_cap_ft, upper_cap_ft + step_height_ft, lower_used_ft * 1.10, (upper_used_ft + step_height_ft) * 1.10] | max %}
+{% else %}
+{% set required_span_ft = [lower_cap_ft, lower_used_ft * 1.10] | max %}
+{% endif %}
 {% set py_per_ft = ((ground_y - guide_line_y) / required_span_ft) if required_span_ft > 0 else 1 %}
 {% set px_per_ft = (plot_w / total_len_ft) if total_len_ft > 0 else 1 %}
 {% set step_x_px = margin_l + step_x_ft * px_per_ft %}
@@ -315,7 +322,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
 }
 </style>
 
-<div class="trailer-schematic prograde-schematic trailer-step_deck trailer-step-deck-profile {{ render_mode_class }} pg-spatial-wrap">
+<div class="trailer-schematic prograde-schematic {% if ground_pull_mode %}trailer-ground-pull-profile{% else %}trailer-step-deck-profile{% endif %} {{ render_mode_class }} pg-spatial-wrap">
   <div class="trailer-body">
     <div class="pg-spatial-frame">
       {% if lower_used_pct > 100 %}
@@ -358,8 +365,16 @@ body.pg-sku-drag-active .pg-lower-side-label {
       {% else %}
         {% set upper_fill_color = '#22c55e' %}
       {% endif %}
-      <div class="pg-zone-chip lower">LOWER DECK ({{ (z_caps.get('lower_deck', 0) if z_caps else 0) | round(0, 'floor') | int }}')</div>
+      <div class="pg-zone-chip lower">
+        {% if ground_pull_mode %}
+          Ground Pull Deck ({{ (z_caps.get('lower_deck', 0) if z_caps else 0) | round(0, 'floor') | int }}')
+        {% else %}
+          LOWER DECK ({{ (z_caps.get('lower_deck', 0) if z_caps else 0) | round(0, 'floor') | int }}')
+        {% endif %}
+      </div>
+      {% if show_upper_zone %}
       <div class="pg-zone-chip upper">UPPER DECK ({{ (z_caps.get('upper_deck', 0) if z_caps else 0) | round(0, 'floor') | int }}')</div>
+      {% endif %}
       <div class="pg-canvas-center">
       <svg id="pg-canvas-svg"
            class="prograde-schematic"
@@ -379,10 +394,12 @@ body.pg-sku-drag-active .pg-lower-side-label {
          </defs>
 
         {# Top guide lines under deck labels #}
-        <line x1="{{ margin_l + 8 }}" y1="{{ guide_line_y }}" x2="{{ step_x_px - 10 }}" y2="{{ guide_line_y }}"
+        <line x1="{{ margin_l + 8 }}" y1="{{ guide_line_y }}" x2="{{ step_x_px - 10 if show_upper_zone else trailer_end_x_px - 8 }}" y2="{{ guide_line_y }}"
               stroke="rgba(125, 211, 252, 0.30)" stroke-width="1"/>
+        {% if show_upper_zone %}
         <line x1="{{ step_x_px + 10 }}" y1="{{ guide_line_y }}" x2="{{ trailer_end_x_px - 8 }}" y2="{{ guide_line_y }}"
               stroke="rgba(125, 211, 252, 0.30)" stroke-width="1"/>
+        {% endif %}
         {# Height meters rendered in the SAME SVG coordinate system as the deck/units. #}
         <g class="pg-height-meter-svg">
           <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(lower_cap_ft) }} ft</text>
@@ -392,20 +409,26 @@ body.pg-sku-drag-active .pg-lower-side-label {
           {% endif %}
           <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(lower_used_ft) }}</text>
 
+          {% if show_upper_zone %}
           <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(upper_cap_ft) }} ft</text>
           <rect x="{{ right_meter_x }}" y="{{ upper_bar_top_px }}" width="{{ meter_w }}" height="{{ upper_bar_h_px }}" rx="{{ meter_rx }}" fill="rgba(15, 23, 42, 0.28)" stroke="rgba(125, 211, 252, 0.72)" stroke-width="1"/>
           {% if upper_fill_h_px > 0 %}
             <rect x="{{ right_meter_x + 1 }}" y="{{ upper_fill_y }}" width="{{ meter_w - 2 }}" height="{{ upper_fill_h_px }}" rx="{{ meter_rx - 1 }}" fill="{{ upper_fill_color }}" fill-opacity="0.92"/>
           {% endif %}
           <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(upper_used_ft) }}</text>
+          {% endif %}
         </g>
-        {# Stepdeck profile line on true deck surfaces (where units sit) #}
+        {# Structural deck line for step deck/flatbed carriers. Ground Pull draws no deck. #}
+        {% if has_structural_deck %}
         <path d="M {{ margin_l }},{{ lower_y_px }} L {{ step_x_px }},{{ lower_y_px }} L {{ step_x_px }},{{ upper_y_px }} L {{ trailer_end_x_px }},{{ upper_y_px }}"
               fill="none" stroke="rgba(148, 163, 184, 0.28)" stroke-width="5.5" stroke-linecap="square" stroke-linejoin="miter"/>
         <path d="M {{ margin_l }},{{ lower_y_px }} L {{ step_x_px }},{{ lower_y_px }} L {{ step_x_px }},{{ upper_y_px }} L {{ trailer_end_x_px }},{{ upper_y_px }}"
               fill="none" stroke="rgba(203, 213, 225, 0.95)" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/>
+        {% endif %}
         <line x1="{{ margin_l }}" y1="{{ max_height_y_px }}" x2="{{ trailer_end_x_px }}" y2="{{ max_height_y_px }}" stroke="#ef4444" stroke-opacity="0.20" stroke-dasharray="5,4"/>
+        {% if show_upper_zone %}
         <line x1="{{ step_x_px }}" y1="{{ guide_line_y }}" x2="{{ step_x_px }}" y2="{{ ground_y }}" stroke="rgba(148, 163, 184, 0.35)" stroke-dasharray="3,3" stroke-opacity="0.5"/>
+        {% endif %}
 
         {% set lower_drop_w = step_x_ft * px_per_ft %}
         {% if session.brand == 'bigtex' %}
@@ -419,7 +442,9 @@ body.pg-sku-drag-active .pg-lower-side-label {
         {% else %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_drop_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck"/>
         {% endif %}
+        {% if show_upper_zone and (total_len_ft - step_x_ft) > 0 %}
         <rect x="{{ step_x_px }}" y="{{ stack_plot_y }}" width="{{ (total_len_ft - step_x_ft) * px_per_ft }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="upper_deck"/>
+        {% endif %}
 
         {% for zone in zones %}
           {% set zone_origin = (zone_origin_x_ft.get(zone, 0) if zone_origin_x_ft else 0) | float %}
@@ -488,6 +513,11 @@ body.pg-sku-drag-active .pg-lower-side-label {
               {% set deck_len = (pos.deck_length_ft or pos.bed_length or 0) | float %}
               {% set deck_h = (pos.deck_component_height_ft or pos.height or 0) | float %}
               {% set tongue_len = (pos.render_tongue_length_ft or pos.tongue_length or 0) | float %}
+              {% set occupied_tongue_len = (
+                pos.occupied_tongue_length_ft
+                if pos.occupied_tongue_length_ft is defined and pos.occupied_tongue_length_ft is not none
+                else tongue_len
+              ) | float %}
               {% set layer_idx = [((pos.layer or 1) | int), 1] | max %}
               {% set x_start_ft = (pos.deck_x_start_ft if pos.deck_x_start_ft is defined else pos.x_ft) | float %}
               {% set x_end_ft = (pos.deck_x_end_ft if pos.deck_x_end_ft is defined else (x_start_ft + deck_len)) | float %}
@@ -518,13 +548,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
               {% endif %}
               {% set x_end_ft = x_start_ft + deck_len %}
               {% set y_surface_ft = (pos.y_surface_ft if pos.y_surface_ft is defined else (lower_surface_ft if zone == 'lower_deck' else upper_surface_ft)) | float %}
-              {% if nested_host %}
-                {% set host_surface_ft = (nested_host.y_surface_ft if nested_host.y_surface_ft is defined else y_surface_ft) | float %}
-                {% set host_body_h_ft = (nested_host.deck_component_height_ft or nested_host.height or 0) | float %}
-                {% set nested_raise_ft = [[host_body_h_ft * 0.26, 1.1] | min, 0.35] | max %}
-                {% set y_surface_ft = host_surface_ft + nested_raise_ft %}
-              {% endif %}
-              {% set y_top_ft = (pos.y_body_top_ft if (pos.y_body_top_ft is defined and not nested_host) else (y_surface_ft + deck_h)) | float %}
+              {% set y_top_ft = (pos.y_body_top_ft if pos.y_body_top_ft is defined else (y_surface_ft + deck_h)) | float %}
               {% set x_start_px = margin_l + x_start_ft * px_per_ft %}
               {% set x_end_px = margin_l + x_end_ft * px_per_ft %}
               {% set body_top_px = (ground_y - (y_top_ft - display_floor_ft) * py_per_ft) %}
@@ -726,7 +750,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                  data-gn-crisscross="{% if pos.gn_crisscross %}1{% else %}0{% endif %}"
                  data-tongue-pill-class="unit-tongue-pill {% if tongue_profile == 'gooseneck' %}gn{% else %}std{% endif %}"
                  data-is-rotated="{% if pos.is_rotated %}1{% else %}0{% endif %}"
-                 data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | Source: {{ pos.add_source_label or 'Unspecified' }} | x={{ '%.2f'|format(x_start_ft) }} ft | Deck (render): {{ '%.1f'|format(deck_len) }} ft | Tongue (render): {{ '%.1f'|format(tongue_len) }} ft | Height (render): {{ '%.1f'|format(deck_h) }} ft{% if pos.gn_crisscross %} | GN crisscross: on{% endif %}">
+                 data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | Source: {{ pos.add_source_label or 'Unspecified' }} | x={{ '%.2f'|format(x_start_ft) }} ft | Deck (render): {{ '%.1f'|format(deck_len) }} ft | Tongue (render): {{ '%.1f'|format(tongue_len) }} ft{% if session.brand == 'bigtex' %} | Tongue (occupied): {{ '%.1f'|format(occupied_tongue_len) }} ft{% endif %} | Height (render): {{ '%.1f'|format(deck_h) }} ft{% if pos.gn_crisscross %} | GN crisscross: on{% endif %}">
                 {% if session.brand == 'pj' %}
                   {% if is_dump_profile %}
                   <rect class="pg-unit-body"
