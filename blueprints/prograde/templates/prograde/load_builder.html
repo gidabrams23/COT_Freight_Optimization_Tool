@@ -51,14 +51,14 @@ body {
   min-width: 0;
 }
 .pg-session-id-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
 .pg-session-id-value {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1;
   font-weight: 800;
   letter-spacing: .04em;
@@ -66,7 +66,7 @@ body {
   color: rgba(224, 242, 254, 0.98);
 }
 .pg-session-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
@@ -142,7 +142,7 @@ body {
   overflow: visible;
 }
 .pg-carrier-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -157,7 +157,7 @@ body {
   border: 1px solid var(--border-subtle);
   background: rgba(2, 6, 23, 0.7);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   font-family: var(--font-mono);
   white-space: nowrap;
@@ -318,14 +318,14 @@ body {
   justify-content: space-between;
 }
 .zone-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .07em;
   color: var(--text-secondary);
 }
 .zone-length-chip {
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
   font-weight: 600;
 }
@@ -465,17 +465,17 @@ body {
 
 .unit-card-id {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 .unit-card-fp {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   margin-top: 1px;
 }
 .unit-card-ht {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-tertiary);
 }
 
@@ -598,7 +598,7 @@ body {
   border-top: 1px solid var(--border-default);
   display: flex;
   gap: var(--space-lg);
-  font-size: 11px;
+  font-size: 12px;
   align-items: center;
 }
 .zone-stat { display: flex; flex-direction: column; align-items: center; }
@@ -607,11 +607,11 @@ body {
   font-weight: 700;
   font-family: var(--font-mono);
 }
-.zone-stat-lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
+.zone-stat-lbl { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; }
 
 /* -- Violation panel ---------------------------- */
 .viol-group-hdr {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .06em;
@@ -623,7 +623,7 @@ body {
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: 13px;
   align-items: flex-start;
   margin-bottom: 2px;
 }
@@ -1784,18 +1784,23 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 /* Category legend */
 .pg-legend {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px 8px;
-  padding: 6px 8px 8px;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 5px 10px;
+  padding: 8px 10px 10px;
 }
 .pg-legend-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 5px;
-  font-size: 10px;
-  line-height: 1.15;
+  font-size: 11px;
+  line-height: 1.24;
   color: var(--text-secondary);
   min-width: 0;
+}
+.pg-legend-item > span:last-child {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .pg-legend-swatch {
   width: 12px;
@@ -1808,16 +1813,19 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 .pg-source-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 10px;
-  padding: 0 8px 8px;
+  gap: 9px 12px;
+  padding: 2px 10px 10px;
   border-top: 1px solid rgba(51, 65, 85, 0.46);
 }
 .pg-source-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 10.8px;
   color: var(--text-secondary);
+}
+.pg-legend-card {
+  overflow: visible;
 }
 .pg-source-swatch {
   width: 12px;
@@ -1920,19 +1928,19 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
   min-width: 100%;
   border-collapse: collapse;
   table-layout: auto;
-  font-size: 10.5px;
-  line-height: 1.28;
+  font-size: 11.5px;
+  line-height: 1.32;
 }
 .manifest-table th,
 .manifest-table td {
   border-bottom: 1px solid var(--border-subtle);
-  padding: 5px 6px;
+  padding: 6px 7px;
   text-align: left;
   vertical-align: middle;
   font-variant-numeric: tabular-nums;
 }
 .manifest-table th {
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: .06em;
   color: rgba(186, 230, 253, 0.9);
@@ -1954,7 +1962,7 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 .manifest-table .manifest-col-num {
   text-align: right;
 }
-.manifest-table .manifest-col-unit { width: 34px; }
+.manifest-table .manifest-col-unit { width: 38px; }
 .manifest-table td.manifest-col-total {
   color: rgba(147, 197, 253, 0.98);
   font-weight: 700;
@@ -2000,7 +2008,7 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
   border-radius: 999px;
   border: 1px solid rgba(56, 189, 248, 0.3);
   background: rgba(15, 23, 42, 0.52);
-  font-size: 10px;
+  font-size: 10.8px;
   font-family: var(--font-mono);
   font-weight: 700;
   color: rgba(191, 219, 254, 0.96);
@@ -2016,18 +2024,18 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 .inventory-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
-  line-height: 1.24;
+  font-size: 12.2px;
+  line-height: 1.28;
 }
 .inventory-table th,
 .inventory-table td {
   border-bottom: 1px solid var(--border-subtle);
-  padding: 6px 7px;
+  padding: 7px 8px;
   text-align: left;
   vertical-align: middle;
 }
 .inventory-table th {
-  font-size: 9.5px;
+  font-size: 10.2px;
   text-transform: uppercase;
   letter-spacing: .06em;
   color: rgba(167, 243, 208, 0.9);
@@ -2049,14 +2057,14 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
   padding: 4px 6px;
 }
 .inventory-stack-card-title {
-  font-size: 9px;
+  font-size: 9.6px;
   font-weight: 800;
   letter-spacing: .04em;
   color: rgba(153, 246, 228, 0.95);
   text-transform: uppercase;
 }
 .inventory-stack-card-metric {
-  font-size: 10px;
+  font-size: 10.8px;
   font-family: var(--font-mono);
   color: rgba(226, 232, 240, 0.96);
   line-height: 1.15;
@@ -2103,13 +2111,13 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
   color: rgba(148, 163, 184, 0.92);
 }
 .inventory-add-btn {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   border: 1px solid rgba(59, 130, 246, 0.56);
   background: linear-gradient(145deg, rgba(30, 58, 138, 0.78), rgba(14, 116, 144, 0.62));
   color: rgba(224, 242, 254, 0.98);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
   padding: 0;
@@ -2220,7 +2228,7 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
   <div class="pg-sidebar">
 
     <!-- SKU Picker -->
-    <div class="card" style="padding:0;overflow:hidden">
+  <div class="card pg-legend-card" style="padding:0;overflow:visible">
       <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
         <div>
           <div class="card-title">Add SKUs</div>
@@ -2827,6 +2835,7 @@ function _pjModelCode(sku) {
 function _normalizePjDumpHeightFt(rawValue, fallback = null) {
   const value = Number(rawValue);
   if (!Number.isFinite(value)) return fallback;
+  if (Math.abs(value - 2.0) <= 0.05) return 2.0;
   if (Math.abs(value - 3.0) <= 0.05) return 3.0;
   if (Math.abs(value - 4.0) <= 0.05) return 4.0;
   return fallback;
@@ -3099,6 +3108,12 @@ function renderSkuTree() {
           syncButtons();
 
           if (isDump) {
+            const btnDump2 = document.createElement("button");
+            btnDump2.type = "button";
+            btnDump2.className = "sku-row-tongue-btn";
+            btnDump2.dataset.mode = "2.0";
+            btnDump2.textContent = "2ft";
+
             const btnDump3 = document.createElement("button");
             btnDump3.type = "button";
             btnDump3.className = "sku-row-tongue-btn";
@@ -3121,16 +3136,22 @@ function renderSkuTree() {
                 fallbackHeight,
               );
               if (selectedHeight !== null) {
+                const stackedHeight =
+                  selectedHeight === 2.0 ? 4.0
+                  : selectedHeight === 3.0 ? 5.0
+                  : selectedHeight === 4.0 ? 6.0
+                  : selectedHeight;
                 row.dataset.selectedDumpHeightFt = String(selectedHeight);
                 _setSkuDumpHeightSelection(item.itemNumber, selectedHeight);
-                itemHeight.textContent = _formatFeet(selectedHeight);
-                row.dataset.length = `L ${_formatFeet(item.deckLength)} x H ${_formatFeet(selectedHeight)}`;
+                itemHeight.textContent = _formatFeet(stackedHeight);
+                row.dataset.length = `L ${_formatFeet(item.deckLength)} x H ${_formatFeet(stackedHeight)}`;
               }
+              btnDump2.classList.toggle("active", selectedHeight === 2.0);
               btnDump3.classList.toggle("active", selectedHeight === 3.0);
               btnDump4.classList.toggle("active", selectedHeight === 4.0);
             };
 
-            [btnDump3, btnDump4].forEach((btn) => {
+            [btnDump2, btnDump3, btnDump4].forEach((btn) => {
               const stop = (evt) => {
                 evt.preventDefault();
                 evt.stopPropagation();
@@ -4900,67 +4921,85 @@ function initSkuDragAndDrop(options = {}) {
     }
   };
 
-  if (!window.__pgGlobalDropBound) {
-    window.__pgGlobalDropBound = true;
-    let globalHoverTarget = null;
-    const setGlobalHoverTarget = (target) => {
-      if (
-        globalHoverTarget === target
-        && globalHoverTarget
-        && globalHoverTarget.classList.contains("drop-target-active")
-      ) {
-        return;
-      }
-      if (globalHoverTarget) {
-        globalHoverTarget.classList.remove("drop-target-active");
-      }
-      globalHoverTarget = target || null;
-      if (globalHoverTarget) {
-        globalHoverTarget.classList.add("drop-target-active");
-      }
-    };
-    const clearGlobalHoverTarget = () => {
-      if (!globalHoverTarget) return;
-      globalHoverTarget.classList.remove("drop-target-active");
-      globalHoverTarget = null;
-    };
-    document.addEventListener("dragover", (evt) => {
-      const payload = getPayload(evt);
-      setSkuDragAffordance(Boolean(payload && payload.type === "sku"));
-      const rawTarget = resolveDropTarget(evt.target);
-      const target = normalizeDropTargetForPayload(rawTarget, payload, evt);
-      if (!target) {
-        clearTransientPlacementHints();
-        clearGlobalHoverTarget();
-        return;
-      }
-      evt.preventDefault();
-      clearTransientPlacementHints();
-      setGlobalHoverTarget(target);
-      setDropPlacementHint(target, payload, evt);
-      if (evt.dataTransfer) {
-        evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
-      }
-    });
-
-    document.addEventListener("drop", async (evt) => {
-      const payload = getPayload(evt);
-      const rawTarget = resolveDropTarget(evt.target);
-      const target = normalizeDropTargetForPayload(rawTarget, payload, evt);
-      if (!target) return;
-      evt.preventDefault();
-      setDragLiveText("");
-      setSkuDragAffordance(false);
-      clearGlobalHoverTarget();
-      clearDropPlacementHints();
-      if (!payload) return;
-      try {
-        await dispatchDrop(target, payload, evt);
-      } catch (e) {
-        showToast(`Drop failed: ${e.message || e}`, "error");
-      }
-    });
+  const prevGlobalHandlers = window.__pgGlobalDropHandlers || null;
+  if (prevGlobalHandlers) {
+    if (prevGlobalHandlers.dragover) {
+      document.removeEventListener("dragover", prevGlobalHandlers.dragover);
+    }
+    if (prevGlobalHandlers.drop) {
+      document.removeEventListener("drop", prevGlobalHandlers.drop);
+    }
   }
+  document.querySelectorAll(".drop-target-active").forEach((el) => {
+    el.classList.remove("drop-target-active");
+  });
+
+  let globalHoverTarget = null;
+  const setGlobalHoverTarget = (target) => {
+    if (
+      globalHoverTarget === target
+      && globalHoverTarget
+      && globalHoverTarget.classList.contains("drop-target-active")
+    ) {
+      return;
+    }
+    if (globalHoverTarget) {
+      globalHoverTarget.classList.remove("drop-target-active");
+    }
+    globalHoverTarget = target || null;
+    if (globalHoverTarget) {
+      globalHoverTarget.classList.add("drop-target-active");
+    }
+  };
+  const clearGlobalHoverTarget = () => {
+    if (!globalHoverTarget) return;
+    globalHoverTarget.classList.remove("drop-target-active");
+    globalHoverTarget = null;
+  };
+
+  const onGlobalDragOver = (evt) => {
+    const payload = getPayload(evt);
+    setSkuDragAffordance(Boolean(payload && payload.type === "sku"));
+    const rawTarget = resolveDropTarget(evt.target);
+    const target = normalizeDropTargetForPayload(rawTarget, payload, evt);
+    if (!target) {
+      clearTransientPlacementHints();
+      clearGlobalHoverTarget();
+      return;
+    }
+    evt.preventDefault();
+    clearTransientPlacementHints();
+    setGlobalHoverTarget(target);
+    setDropPlacementHint(target, payload, evt);
+    if (evt.dataTransfer) {
+      evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
+    }
+  };
+
+  const onGlobalDrop = async (evt) => {
+    const payload = getPayload(evt);
+    const rawTarget = resolveDropTarget(evt.target);
+    const target = normalizeDropTargetForPayload(rawTarget, payload, evt);
+    if (!target) return;
+    evt.preventDefault();
+    setDragLiveText("");
+    setSkuDragAffordance(false);
+    clearGlobalHoverTarget();
+    clearDropPlacementHints();
+    if (!payload) return;
+    try {
+      await dispatchDrop(target, payload, evt);
+    } catch (e) {
+      showToast(`Drop failed: ${e.message || e}`, "error");
+    }
+  };
+
+  document.addEventListener("dragover", onGlobalDragOver);
+  document.addEventListener("drop", onGlobalDrop);
+  window.__pgGlobalDropHandlers = {
+    dragover: onGlobalDragOver,
+    drop: onGlobalDrop,
+  };
 }
 
 function initSchematicHoverTooltips() {

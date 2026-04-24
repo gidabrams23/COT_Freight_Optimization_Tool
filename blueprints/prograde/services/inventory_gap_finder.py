@@ -1206,12 +1206,16 @@ def _pj_render_footprint(sku, tongue_profile):
 
 def _pj_stack_height_hint(sku, tongue_profile, *, pj_height_ref=None):
     category = str(sku.get("pj_category") or "").strip().lower()
-    if category == "utility" and str(tongue_profile) == "standard":
-        return 1.8
     if category in _PJ_DUMP_CATEGORIES:
-        dump_h = _normalize_dump_height(sku.get("dump_side_height_ft"))
-        if dump_h is not None:
-            return dump_h
+        dump_wall = _normalize_dump_height(sku.get("dump_side_height_ft"))
+        if dump_wall is not None:
+            return _dump_stacked_height_from_wall(dump_wall) or dump_wall
+    top_sku = _as_float(sku.get("height_top_ft"), 0.0)
+    if top_sku > _EPS:
+        return top_sku
+    mid_sku = _as_float(sku.get("height_mid_ft"), 0.0)
+    if mid_sku > _EPS:
+        return mid_sku
     ref = dict((pj_height_ref or {}).get(category) or {})
     top_h = _as_float(ref.get("height_top_ft"), 0.0)
     if top_h > _EPS:
@@ -1224,12 +1228,10 @@ def _pj_stack_height_hint(sku, tongue_profile, *, pj_height_ref=None):
 
 def _pj_stack_height_hint_from_values(*, category, tongue_profile, pj_height_ref=None, dump_side_height_ft=None):
     category_key = str(category or "").strip().lower()
-    if category_key == "utility" and str(tongue_profile) == "standard":
-        return 1.8
     if category_key in _PJ_DUMP_CATEGORIES:
-        dump_h = _normalize_dump_height(dump_side_height_ft)
-        if dump_h is not None:
-            return dump_h
+        dump_wall = _normalize_dump_height(dump_side_height_ft)
+        if dump_wall is not None:
+            return _dump_stacked_height_from_wall(dump_wall) or dump_wall
     ref = dict((pj_height_ref or {}).get(category_key) or {})
     top_h = _as_float(ref.get("height_top_ft"), 0.0)
     if top_h > _EPS:
@@ -1265,10 +1267,23 @@ def _normalize_dump_height(value):
         parsed = float(value)
     except (TypeError, ValueError):
         return None
+    if abs(parsed - 2.0) <= 0.05:
+        return 2.0
     if abs(parsed - 3.0) <= 0.05:
         return 3.0
     if abs(parsed - 4.0) <= 0.05:
         return 4.0
+    return None
+
+
+def _dump_stacked_height_from_wall(wall_height_ft):
+    wall = _as_float(wall_height_ft, 0.0)
+    if abs(wall - 2.0) <= 0.05:
+        return 4.0
+    if abs(wall - 3.0) <= 0.05:
+        return 5.0
+    if abs(wall - 4.0) <= 0.05:
+        return 6.0
     return None
 
 

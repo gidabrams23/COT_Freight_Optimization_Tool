@@ -80,6 +80,19 @@ PJ_GOOSENECK_CATEGORY_KEYS = {
     "gooseneck_variants",
     "pintle",
 }
+PJ_GOOSENECK_MODEL_PREFIXES = {"LD", "LQ", "LS", "LX", "LY", "PL"}
+PJ_STACK_HEIGHT_OVERRIDES = {
+    "EV": (2.0, 2.5),
+    "F8": (2.0, 2.5),
+    "H4": (2.0, 2.5),
+    "H5": (2.0, 2.5),
+    "H6": (2.0, 2.5),
+    "H7": (2.0, 2.5),
+    "L6": (2.0, 2.5),
+    "L7": (2.0, 2.5),
+    "P8": (2.9, 2.9),
+    "PL": (2.5, 2.5),
+}
 
 BIGTEX_CATEGORY_ALIASES = {
     "OL CAR HAULER": "CAR HAULER",
@@ -480,6 +493,8 @@ def init_db():
         "ALTER TABLE pj_inventory_upload_log ADD COLUMN matched_rows INTEGER DEFAULT 0",
         "ALTER TABLE pj_inventory_upload_log ADD COLUMN matched_items INTEGER DEFAULT 0",
         "ALTER TABLE pj_inventory_upload_log ADD COLUMN unmatched_items INTEGER DEFAULT 0",
+        "ALTER TABLE pj_skus ADD COLUMN height_mid_ft REAL",
+        "ALTER TABLE pj_skus ADD COLUMN height_top_ft REAL",
     ]
     for m in migrations:
         try:
@@ -539,6 +554,8 @@ def init_db():
         bed_length_measured REAL,
         tongue_group TEXT,
         tongue_feet REAL,
+        height_mid_ft REAL,
+        height_top_ft REAL,
         total_footprint REAL,
         dump_side_height_ft REAL,
         can_nest_inside_dump INTEGER DEFAULT 0,
@@ -975,6 +992,122 @@ def _coerce_int(value, default=None):
         return default
 
 
+def _normalize_model_code(value):
+    return "".join(ch for ch in str(value or "").strip().upper() if ch.isalnum())[:2]
+
+
+def _infer_pj_dump_wall_height_ft(category, model_code=None):
+    category_key = str(category or "").strip().lower()
+    model = _normalize_model_code(model_code)
+    if category_key == "dump_highside_4ft":
+        return 4.0
+    if category_key == "dump_highside_3ft":
+        return 3.0
+    if category_key in {"dump_lowside", "dump_small"}:
+        return 2.0
+    if category_key == "dump_variants":
+        if model == "DX":
+            return 4.0
+        if model == "DV":
+            return 3.0
+        return 3.0
+    if category_key == "dump_gn":
+        return 3.0
+    return None
+
+
+def _dump_stacked_height_from_wall_height(dump_side_height_ft):
+    wall = _coerce_float(dump_side_height_ft, None)
+    if wall is None:
+        return None
+    if abs(wall - 2.0) <= 0.05:
+        return 4.0
+    if abs(wall - 3.0) <= 0.05:
+        return 5.0
+    if abs(wall - 4.0) <= 0.05:
+        return 6.0
+    return None
+
+
+def _default_pj_tongue_profile(model_code, category):
+    category_key = str(category or "").strip().lower()
+    model = _normalize_model_code(model_code)
+    if category_key in PJ_GOOSENECK_CATEGORY_KEYS or model in PJ_GOOSENECK_MODEL_PREFIXES:
+        return "gooseneck"
+    return "standard"
+
+
+def _default_pj_tongue_feet(model_code, category):
+    category_key = str(category or "").strip().lower()
+    model = _normalize_model_code(model_code)
+    if _default_pj_tongue_profile(model, category_key) == "gooseneck":
+        return 9.0
+    if category_key in PJ_DUMP_CATEGORY_KEYS:
+        return 5.5
+    if category_key in {"deck_over", "car_hauler_deckover", "tilt_deckover"}:
+        return 6.0
+    if model in {"F8", "L6", "L7"}:
+        return 6.0
+    return 4.0
+
+
+def _default_pj_stack_heights(model_code, category, dump_side_height_ft=None):
+    category_key = str(category or "").strip().lower()
+    model = _normalize_model_code(model_code)
+    if category_key in PJ_DUMP_CATEGORY_KEYS:
+        wall = _coerce_float(dump_side_height_ft, None)
+        if wall is None:
+            wall = _infer_pj_dump_wall_height_ft(category_key, model)
+        stacked = _dump_stacked_height_from_wall_height(wall)
+        if stacked is None:
+            stacked = 4.0
+        return (stacked, stacked)
+    if model in PJ_STACK_HEIGHT_OVERRIDES:
+        return PJ_STACK_HEIGHT_OVERRIDES[model]
+    if model.startswith("T"):
+        return (2.0, 2.5)
+    if category_key == "utility":
+        return (1.25, 2.0)
+    if category_key in PJ_GOOSENECK_CATEGORY_KEYS:
+        return (2.5, 2.5)
+    if category_key in {"car_hauler", "deck_over", "tilt", "car_hauler_deckover", "tilt_deckover"}:
+        return (2.0, 2.5)
+    return (2.0, 2.5)
+
+
+def _pj_short_item_code(model_code, item_number, category=None):
+    model_prefix = _normalize_model_code(model_code)
+    item = "".join(ch for ch in str(item_number or "").strip().upper() if ch.isalnum())
+    if not item:
+        return ""
+    if not model_prefix:
+        model_prefix = item[:2]
+    tail = item
+    if model_prefix and item.startswith(model_prefix):
+        tail = item[len(model_prefix):]
+    tail = re.sub(r"^[A-Z]+", "", tail)
+    digits = "".join(ch for ch in tail if ch.isdigit())
+    if not digits:
+        digits = "".join(ch for ch in item if ch.isdigit())
+    category_key = str(category or "").strip().lower()
+    if (
+        len(digits) >= 3
+        and digits.startswith("2")
+        and (model_prefix in {"C4", "C5"} or model_prefix.startswith("U"))
+    ):
+        digits = digits[1:]
+    if len(digits) < 2:
+        return item
+    return f"{model_prefix}{digits[:2]}"
+
+
+def _bed_length_from_pj_item_code(model_code, item_number, category=None, fallback=None):
+    short_code = _pj_short_item_code(model_code, item_number, category)
+    if len(short_code) >= 4 and short_code[-2:].isdigit():
+        return float(short_code[-2:])
+    return _coerce_float(fallback, None)
+
+
 def _normalize_header(value):
     return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
 
@@ -1313,10 +1446,29 @@ def update_pj_measurement_offset(rule_key, field, value):
 
 
 def get_pj_height_ref_dict():
-    """Return {category: dict} for use in constraint engine (no inner-loop DB calls)."""
+    """Return {category: dict} derived from PJ SKU cheat-sheet heights."""
     with get_db() as conn:
-        rows = conn.execute("SELECT * FROM pj_height_reference").fetchall()
-    return {r["category"]: dict(r) for r in rows}
+        rows = conn.execute(
+            """
+            SELECT
+                pj_category AS category,
+                MAX(height_mid_ft) AS height_mid_ft,
+                MAX(height_top_ft) AS height_top_ft
+            FROM pj_skus
+            WHERE COALESCE(TRIM(pj_category), '') <> ''
+            GROUP BY pj_category
+            """
+        ).fetchall()
+    return {
+        str(r["category"]): {
+            "category": str(r["category"]),
+            "height_mid_ft": _coerce_float(r["height_mid_ft"], None),
+            "height_top_ft": _coerce_float(r["height_top_ft"], None),
+            "gn_axle_dropped_ft": None,
+        }
+        for r in rows
+        if str(r["category"] or "").strip()
+    }
 
 
 # ── PJ SKUs ──────────────────────────────────────────────────────────────────
@@ -2240,12 +2392,8 @@ def _pj_inventory_stack_height_for_category(category, dump_side_height_ft=None):
     if category_key in PJ_DUMP_CATEGORY_KEYS:
         dump_h = _coerce_float(dump_side_height_ft, None)
         if dump_h is None:
-            return 4.0
-        if abs(dump_h - 3.0) <= 0.05:
-            return 4.0
-        if abs(dump_h - 4.0) <= 0.05:
-            return 6.0
-        return max(dump_h, 3.0)
+            dump_h = _infer_pj_dump_wall_height_ft(category_key)
+        return _dump_stacked_height_from_wall_height(dump_h) or 4.0
     if category_key in PJ_GOOSENECK_CATEGORY_KEYS:
         return 2.5
     if category_key in {"car_hauler", "car_hauler_deckover", "deck_over", "tilt", "tilt_deckover"}:
@@ -2907,24 +3055,11 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
         if not toc_models:
             raise ValueError("No 2-character model codes found in PJ ToC sheet.")
 
-        tongue_group_rows = [dict(r) for r in get_pj_tongue_groups()]
-        group_meta = {str(r["group_id"]).strip(): r for r in tongue_group_rows}
-        direct_model_map = {}
-        for row in tongue_group_rows:
-            gid = str(row["group_id"]).strip()
-            raw_codes = str(row.get("model_codes") or "")
-            for token in raw_codes.split(","):
-                code = token.strip().upper()
-                if code:
-                    direct_model_map[code] = gid
-
         offsets = get_pj_offsets_dict()
         parsed_rows = {}
-        models_without_direct_tongue_group = []
         items_missing_bed_length = []
         toc_models_missing_sheet = []
         duplicate_items = []
-        seen_heuristic_models = set()
 
         for entry in toc_models:
             model_code = entry["model"]
@@ -2954,22 +3089,6 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
                 )
                 continue
 
-            tongue = _infer_tongue_group_for_model(
-                model_code=model_code,
-                section_label=section_label,
-                direct_model_map=direct_model_map,
-                group_meta=group_meta,
-            )
-            if tongue["source"] == "heuristic" and model_code not in seen_heuristic_models:
-                seen_heuristic_models.add(model_code)
-                models_without_direct_tongue_group.append(
-                    {
-                        "model": model_code,
-                        "section": section_label,
-                        "assigned_group": tongue["group_id"],
-                    }
-                )
-
             pj_category = _infer_pj_category(section_label, model_code)
             for row in rows:
                 item_number = str(row["item_number"]).strip().upper()
@@ -2979,6 +3098,14 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
                 bed_stated = _parse_bed_length_ft(description)
                 if bed_stated is None:
                     bed_stated = _parse_bed_length_from_item_number(item_number, model_code)
+                bed_from_item_code = _bed_length_from_pj_item_code(
+                    model_code,
+                    item_number,
+                    pj_category,
+                    fallback=bed_stated,
+                )
+                if bed_from_item_code is not None:
+                    bed_stated = bed_from_item_code
                 if bed_stated is None:
                     items_missing_bed_length.append(
                         {
@@ -2989,8 +3116,15 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
                         }
                     )
                     bed_stated = 0.0
-                tongue_group = tongue.get("group_id")
-                tongue_feet = _coerce_float(tongue.get("tongue_feet"), 0.0) or 0.0
+                tongue_profile = _default_pj_tongue_profile(model_code, pj_category)
+                tongue_group = tongue_profile
+                tongue_feet = _default_pj_tongue_feet(model_code, pj_category)
+                dump_side_height_ft = _infer_pj_dump_wall_height_ft(pj_category, model_code)
+                height_mid_ft, height_top_ft = _default_pj_stack_heights(
+                    model_code,
+                    pj_category,
+                    dump_side_height_ft=dump_side_height_ft,
+                )
 
                 sku_for_calc = {
                     "model": model_code,
@@ -3019,8 +3153,10 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
                     measured["bed_length_measured"],
                     tongue_group,
                     round(tongue_feet, 2),
+                    round(float(height_mid_ft), 2),
+                    round(float(height_top_ft), 2),
                     measured["total_footprint"],
-                    None,
+                    round(float(dump_side_height_ft), 2) if dump_side_height_ft is not None else None,
                     0,
                     0,
                     0,
@@ -3037,8 +3173,8 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
             conn.executemany(
                 """
                 INSERT INTO pj_skus
-                (item_number, model, pj_category, description, gvwr, bed_length_stated, bed_length_measured, tongue_group, tongue_feet, total_footprint, dump_side_height_ft, can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed, pairing_rule, notes, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                (item_number, model, pj_category, description, gvwr, bed_length_stated, bed_length_measured, tongue_group, tongue_feet, height_mid_ft, height_top_ft, total_footprint, dump_side_height_ft, can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed, pairing_rule, notes, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(item_number) DO UPDATE SET
                     model = excluded.model,
                     pj_category = excluded.pj_category,
@@ -3048,6 +3184,8 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
                     bed_length_measured = excluded.bed_length_measured,
                     tongue_group = excluded.tongue_group,
                     tongue_feet = excluded.tongue_feet,
+                    height_mid_ft = excluded.height_mid_ft,
+                    height_top_ft = excluded.height_top_ft,
                     total_footprint = excluded.total_footprint,
                     dump_side_height_ft = excluded.dump_side_height_ft,
                     can_nest_inside_dump = excluded.can_nest_inside_dump,
@@ -3063,7 +3201,7 @@ def import_pj_skus_from_workbook(workbook_path=None, toc_sheet_name="ToC"):
         created_count = max(after_count - before_count, 0)
 
         disconnects = {
-            "models_without_direct_tongue_group": models_without_direct_tongue_group,
+            "models_without_direct_tongue_group": [],
             "items_missing_bed_length": items_missing_bed_length,
             "toc_models_missing_sheet_or_table": toc_models_missing_sheet,
             "duplicate_item_numbers": duplicate_items,

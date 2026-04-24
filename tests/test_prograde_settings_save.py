@@ -85,23 +85,45 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(int(row["is_saved"] or 0), 1)
 
-    def test_height_top_and_mid_save_independently(self):
+    def test_pj_sku_height_top_and_mid_save_independently(self):
         now = datetime.utcnow().isoformat()
         with self.db.get_db() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO pj_height_reference
-                (category, label, height_mid_ft, height_top_ft, gn_axle_dropped_ft, notes, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, description, gvwr, bed_length_stated, bed_length_measured,
+                 tongue_group, tongue_feet, height_mid_ft, height_top_ft, total_footprint, dump_side_height_ft,
+                 can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed, pairing_rule, notes, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                ("utility", "Utility", 2.0, 2.5, 1.5, "", now),
+                (
+                    "TEST-PJ-HEIGHT-1",
+                    "UT",
+                    "utility",
+                    "Utility test SKU",
+                    None,
+                    10.0,
+                    10.0,
+                    "standard",
+                    4.0,
+                    2.0,
+                    2.5,
+                    14.0,
+                    None,
+                    0,
+                    0,
+                    0,
+                    None,
+                    "",
+                    now,
+                ),
             )
 
         resp = self.client.post(
             "/prograde/api/settings/save",
             json={
-                "table": "pj_height_reference",
-                "pk": "utility",
+                "table": "pj_skus",
+                "pk": "TEST-PJ-HEIGHT-1",
                 "field": "height_top_ft",
                 "value": 4.25,
             },
@@ -113,8 +135,8 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         with self.db.get_db() as conn:
             row = dict(
                 conn.execute(
-                    "SELECT * FROM pj_height_reference WHERE category=?",
-                    ("utility",),
+                    "SELECT * FROM pj_skus WHERE item_number=?",
+                    ("TEST-PJ-HEIGHT-1",),
                 ).fetchone()
             )
         self.assertEqual(float(row["height_top_ft"]), 4.25)
@@ -123,8 +145,8 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         resp_mid = self.client.post(
             "/prograde/api/settings/save",
             json={
-                "table": "pj_height_reference",
-                "pk": "utility",
+                "table": "pj_skus",
+                "pk": "TEST-PJ-HEIGHT-1",
                 "field": "height_mid_ft",
                 "value": 3.75,
             },
@@ -136,8 +158,8 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         with self.db.get_db() as conn:
             row_after_mid = dict(
                 conn.execute(
-                    "SELECT * FROM pj_height_reference WHERE category=?",
-                    ("utility",),
+                    "SELECT * FROM pj_skus WHERE item_number=?",
+                    ("TEST-PJ-HEIGHT-1",),
                 ).fetchone()
             )
         self.assertEqual(float(row_after_mid["height_top_ft"]), 4.25)

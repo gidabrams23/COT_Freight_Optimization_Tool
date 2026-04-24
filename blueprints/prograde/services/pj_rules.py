@@ -1,8 +1,4 @@
-"""
-PJ constraint rules - prototype set.
-height_ref is loaded once at the top of check() and passed through;
-no inner-loop DB calls.
-"""
+"""PJ constraint rules."""
 from .models import Violation
 from .. import db
 
@@ -34,6 +30,8 @@ def _normalize_dump_height_ft(value):
         parsed = float(value)
     except (TypeError, ValueError):
         return None
+    if abs(parsed - 2.0) <= 0.05:
+        return 2.0
     if abs(parsed - 3.0) <= 0.05:
         return 3.0
     if abs(parsed - 4.0) <= 0.05:
@@ -46,8 +44,10 @@ def pj_dump_stacked_height_ft(value):
     normalized = _normalize_dump_height_ft(value)
     if normalized is None:
         return None
-    if abs(normalized - 3.0) <= 0.05:
+    if abs(normalized - 2.0) <= 0.05:
         return 4.0
+    if abs(normalized - 3.0) <= 0.05:
+        return 5.0
     if abs(normalized - 4.0) <= 0.05:
         return 6.0
     return None
@@ -246,8 +246,12 @@ def _resolve_non_dump_layer_height_ft(sku, height_ref, *, use_top_height):
     sku_map = _row_to_dict(sku)
     category = str(sku_map.get("pj_category") or "").strip()
     ref = (height_ref or {}).get(category, {})
-    mid_height = ref.get("height_mid_ft")
-    top_height = ref.get("height_top_ft")
+    mid_height = sku_map.get("height_mid_ft")
+    top_height = sku_map.get("height_top_ft")
+    if mid_height is None:
+        mid_height = ref.get("height_mid_ft")
+    if top_height is None:
+        top_height = ref.get("height_top_ft")
     try:
         mid_value = float(mid_height) if mid_height is not None else None
     except (TypeError, ValueError):
@@ -339,15 +343,19 @@ def _position_nominal_height_ft(pos, sku, height_ref, is_top, use_axle_drop=True
         return pj_dump_stacked_height_ft(dump_height_override_ft) or dump_height_override_ft
 
     cat = sku.get("pj_category", "")
-    ref = (height_ref or {}).get(cat)
-    if not ref:
-        return 0.0
+    ref = (height_ref or {}).get(cat) or {}
+    mid_height = sku.get("height_mid_ft")
+    top_height = sku.get("height_top_ft")
+    if mid_height is None and ref:
+        mid_height = ref.get("height_mid_ft")
+    if top_height is None and ref:
+        top_height = ref.get("height_top_ft")
 
     if use_axle_drop and bool(pos.get("gn_axle_dropped")) and ref.get("gn_axle_dropped_ft") is not None:
         return float(ref["gn_axle_dropped_ft"])
     if is_top:
-        return float(ref.get("height_top_ft") or 0.0)
-    return float(ref.get("height_mid_ft") or 0.0)
+        return float(top_height or mid_height or 0.0)
+    return float(mid_height or top_height or 0.0)
 
 
 def _position_deck_length_ft(position, sku):

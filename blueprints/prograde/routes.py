@@ -106,6 +106,8 @@ def _normalize_pj_dump_height_ft(raw_value, *, default=None):
         value = float(raw_value)
     except (TypeError, ValueError):
         return default
+    if abs(value - 2.0) <= 0.05:
+        return 2.0
     if abs(value - 3.0) <= 0.05:
         return 3.0
     if abs(value - 4.0) <= 0.05:
@@ -755,14 +757,16 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["stack_alignment"] = None
         p["column_alignment"] = None
 
-    # Height for display (top height value; axle drop override for GNs)
-    if brand == "pj" and height_ref:
+    # Height for display (PJ SKU cheat sheet is the source of truth).
+    if brand == "pj":
         cat = sku.get("pj_category", "")
         ref = (height_ref or {}).get(cat, {})
+        mid_height = _as_float(sku.get("height_mid_ft"), _as_float(ref.get("height_mid_ft"), 0.0))
+        top_height = _as_float(sku.get("height_top_ft"), _as_float(ref.get("height_top_ft"), mid_height))
         if p["gn_axle_dropped"] and ref.get("gn_axle_dropped_ft") is not None:
-            p["height"] = ref["gn_axle_dropped_ft"]
+            p["height"] = _as_float(ref.get("gn_axle_dropped_ft"), top_height)
         else:
-            p["height"] = ref.get("height_top_ft", 0)
+            p["height"] = top_height if top_height > 0 else mid_height
     elif brand == "bigtex":
         p["height"] = sku.get("stack_height") or 0
     else:
@@ -2209,7 +2213,7 @@ def _pj_picker_short_item_code(sku):
     if (
         len(digits) >= 3
         and digits.startswith("2")
-        and (model_code in {"C4", "C5"} or category == "utility" or model_code.startswith("U"))
+        and (model_code in {"C4", "C5"} or model_code.startswith("U"))
     ):
         digits = digits[1:]
     if len(digits) < 2:
@@ -2224,7 +2228,10 @@ def _build_pj_picker_skus():
         sku = dict(row)
         picker_category = _normalize_pj_picker_category(sku.get("pj_category"))
         cat_ref = height_ref.get(sku.get("pj_category"), {}) if height_ref else {}
-        deck_height = float(cat_ref.get("height_top_ft") or cat_ref.get("height_mid_ft") or 0.0)
+        deck_height = _as_float(
+            sku.get("height_top_ft"),
+            _as_float(sku.get("height_mid_ft"), _as_float(cat_ref.get("height_top_ft"), _as_float(cat_ref.get("height_mid_ft"), 0.0))),
+        )
         deck_length = float(sku.get("bed_length_measured") or sku.get("bed_length_stated") or 0.0)
         deck_profile = _pj_render_deck_profile(sku)
         dump_default_height_ft = _normalize_pj_dump_height_ft(sku.get("dump_side_height_ft"), default=None)
@@ -2308,21 +2315,6 @@ def _recompute_all_pj_skus():
     updated = []
     for sku in db.get_pj_skus():
         sku_d = dict(sku)
-        result = pj_measurement.recompute_sku(sku_d, offsets)
-        db.update_pj_sku_field(sku_d["item_number"], "bed_length_measured", result["bed_length_measured"])
-        db.update_pj_sku_field(sku_d["item_number"], "total_footprint",     result["total_footprint"])
-        updated.append({"item_number": sku_d["item_number"], **result})
-    return updated
-
-
-def _recompute_pj_skus_for_tongue_group(group_id, new_tongue_ft):
-    """When tongue_feet changes for a group, recompute total_footprint for affected SKUs."""
-    offsets = db.get_pj_offsets_dict()
-    updated = []
-    for sku in db.get_pj_skus_for_tongue_group(group_id):
-        sku_d = dict(sku)
-        sku_d["tongue_feet"] = new_tongue_ft
-        db.update_pj_sku_field(sku_d["item_number"], "tongue_feet", new_tongue_ft)
         result = pj_measurement.recompute_sku(sku_d, offsets)
         db.update_pj_sku_field(sku_d["item_number"], "bed_length_measured", result["bed_length_measured"])
         db.update_pj_sku_field(sku_d["item_number"], "total_footprint",     result["total_footprint"])
@@ -3699,8 +3691,6 @@ def settings():
         "gn_neck_descent_ft": _as_float(pj_offset_map.get("gn_neck_descent_ft"), 3.5),
         "gn_coupler_drop_ft": _as_float(pj_offset_map.get("gn_coupler_drop_ft"), 5.0),
     }
-    pj_height_reference = db.get_pj_height_reference()
-    pj_height_map = {row["category"]: dict(row) for row in pj_height_reference}
     pj_skus = [dict(row) for row in db.get_pj_skus()]
     for sku in pj_skus:
         sku["item_code"] = _pj_picker_short_item_code(sku)
@@ -3713,9 +3703,6 @@ def settings():
             gn_neck_geometry={},
             pj_offset_map={},
             advanced_schematic_links=[],
-            pj_tongue_groups=[],
-            pj_height_reference=[],
-            pj_height_map={},
             pj_measurement_offsets=[],
             pj_skus=[],
             bt_skus=[],
@@ -3734,9 +3721,6 @@ def settings():
         gn_neck_geometry       = gn_neck_geometry,
         pj_offset_map          = pj_offset_map,
         advanced_schematic_links = advanced_schematic_links,
-        pj_tongue_groups       = db.get_pj_tongue_groups(),
-        pj_height_reference    = pj_height_reference,
-        pj_height_map          = pj_height_map,
         pj_measurement_offsets = pj_measurement_offsets,
         pj_skus                = pj_skus,
         bt_skus                = db.get_bigtex_skus(),
@@ -3866,13 +3850,11 @@ ALLOWED_FIELDS = {
         "lower_deck_ground_height_ft", "upper_deck_ground_height_ft", "gn_max_lower_deck_ft", "notes",
     },
     "advanced_schematic_links": {"drawing_label", "render_mode", "applies_to_categories", "notes", "display_order"},
-    "pj_tongue_groups":    {"group_label", "tongue_feet", "notes"},
-    "pj_height_reference": {"height_mid_ft", "height_top_ft", "gn_axle_dropped_ft", "notes"},
     "pj_measurement_offsets": {"offset_ft", "notes"},
     "bt_stack_configs":    {"max_length_ft", "max_height_ft", "notes"},
     "bigtex_skus": {"mcat", "tier", "model", "gvwr", "floor_type", "bed_length", "width", "tongue", "stack_height"},
     "pj_skus": {
-        "pj_category", "bed_length_measured", "tongue_feet", "dump_side_height_ft",
+        "pj_category", "bed_length_measured", "tongue_feet", "height_mid_ft", "height_top_ft", "dump_side_height_ft",
         "can_nest_inside_dump", "gn_axle_droppable", "tongue_overlap_allowed", "pairing_rule", "notes",
     },
 }
@@ -3923,10 +3905,6 @@ def api_settings_save():
             db.update_carrier_config(pk, field, value)
         elif table == "advanced_schematic_links":
             db.update_advanced_schematic_link(pk, field, value)
-        elif table == "pj_tongue_groups":
-            db.update_pj_tongue_group(pk, field, value)
-        elif table == "pj_height_reference":
-            db.update_pj_height_reference(pk, field, value)
         elif table == "pj_measurement_offsets":
             db.update_pj_measurement_offset(pk, field, value)
         elif table == "bt_stack_configs":
@@ -3956,8 +3934,6 @@ def api_settings_save():
             needs_pj_recompute = True
         if needs_pj_recompute:
             recomputed = _recompute_all_pj_skus()
-        if table == "pj_tongue_groups" and field == "tongue_feet" and value is not None:
-            recomputed = _recompute_pj_skus_for_tongue_group(pk, float(value))
         if table == "pj_skus" and field in {"bed_length_measured", "tongue_feet"}:
             refreshed = db.recompute_pj_footprint(pk)
             if refreshed:
@@ -4031,7 +4007,7 @@ def api_add_unit(session_id):
     include_state = _api_include_state(data, default=True)
 
     if data.get("pj_dump_height_ft") not in (None, "") and requested_dump_height_ft is None:
-        return _json_error("pj_dump_height_ft must be 3 or 4")
+        return _json_error("pj_dump_height_ft must be 2, 3, or 4")
 
     if not item_number or not deck_zone:
         return _json_error("item_number and deck_zone required")

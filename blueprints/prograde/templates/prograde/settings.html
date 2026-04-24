@@ -96,6 +96,36 @@
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
+.pj-visual-note {
+  margin: 8px 0 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.pj-visual-wrap {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.34);
+  padding: 10px;
+}
+.pj-visual-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.pj-visual-legend {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+.pj-legend-chip {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 6px 9px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(15, 23, 42, 0.42);
+}
 .bt-cheat-controls {
   display: inline-flex;
   align-items: center;
@@ -236,200 +266,69 @@
         <div class="card-title">PJ Standards Focus</div>
       </div>
     </div>
-    <p>The PJ section is the spatial-canvas source of truth: carrier geometry, GN neck constants, nesting offsets, category heights, and tongue groups. Standard tongues render using SKU `tongue_feet`; GN renders at fixed 9.0 ft.</p>
+    <p>The PJ SKU Cheat Sheet is now the single source of truth for PJ dimensions. Standard tongues use SKU tongue length, gooseneck uses fixed 9.0 ft tongue + 6.0 ft vertical envelope, and dump stacked height follows wall-size mapping.</p>
   </div>
 
   <div class="card pg-settings-section hidden" data-settings-tab="pj">
     <div class="card-header">
       <div>
-        <div class="card-title">Carrier Geometry (53 Step Deck)</div>
-        <div class="card-subtitle">Source: <span class="td-mono">carrier_configs</span> where <span class="td-mono">carrier_type='53_step_deck'</span>. Read-only reference for spatial rendering and constraints.</div>
+        <div class="card-title">PJ Dimension Diagram</div>
+        <div class="card-subtitle">Single-view reference for carrier geometry, tongue behavior, and dump wall-size stacking rules.</div>
       </div>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Field</th><th>Value</th><th>Notes</th></tr>
-        </thead>
-        <tbody>
-          {% set cg = carrier_geometry or {} %}
-          {% set total_len = (cg.total_length_ft or 53.0) | float %}
-          {% set lower_len = (cg.lower_deck_length_ft or 41.5) | float %}
-          {% set upper_len = (cg.upper_deck_length_ft or 11.5) | float %}
-          {% set lower_surface = (cg.lower_deck_ground_height_ft or 3.5) | float %}
-          {% set upper_surface = (cg.upper_deck_ground_height_ft or 5.0) | float %}
-          {% set max_h = (cg.max_height_ft or 13.5) | float %}
-          <tr><td>Total length</td><td class="td-mono">{{ '%.2f'|format(total_len) }} ft</td><td>Trailer total usable length</td></tr>
-          <tr><td>Lower deck length</td><td class="td-mono">{{ '%.2f'|format(lower_len) }} ft</td><td>x = 0 to {{ '%.2f'|format(lower_len) }}</td></tr>
-          <tr><td>Upper deck length</td><td class="td-mono">{{ '%.2f'|format(upper_len) }} ft</td><td>x = {{ '%.2f'|format(lower_len) }} to {{ '%.2f'|format(total_len) }}</td></tr>
-          <tr><td>Lower deck surface height</td><td class="td-mono">{{ '%.2f'|format(lower_surface) }} ft</td><td>Above ground</td></tr>
-          <tr><td>Upper deck surface height</td><td class="td-mono">{{ '%.2f'|format(upper_surface) }} ft</td><td>Above ground</td></tr>
-          <tr><td>Step height</td><td class="td-mono">{{ '%.2f'|format(upper_surface - lower_surface) }} ft</td><td>Upper minus lower surface</td></tr>
-          <tr><td>Max legal height</td><td class="td-mono">{{ '%.2f'|format(max_h) }} ft</td><td>Legal envelope</td></tr>
-          <tr><td>Lower deck clearance</td><td class="td-mono">{{ '%.2f'|format(max_h - lower_surface) }} ft</td><td>= max - lower surface</td></tr>
-          <tr><td>Upper deck clearance</td><td class="td-mono">{{ '%.2f'|format(max_h - upper_surface) }} ft</td><td>= max - upper surface</td></tr>
-        </tbody>
-      </table>
+    {% set cg = carrier_geometry or {} %}
+    {% set total_len = (cg.total_length_ft or 53.0) | float %}
+    {% set lower_len = (cg.lower_deck_length_ft or 41.5) | float %}
+    {% set upper_len = (cg.upper_deck_length_ft or 11.5) | float %}
+    {% set lower_surface = (cg.lower_deck_ground_height_ft or 3.5) | float %}
+    {% set upper_surface = (cg.upper_deck_ground_height_ft or 5.0) | float %}
+    {% set max_h = (cg.max_height_ft or 13.5) | float %}
+    <div class="pj-visual-note">
+      Standard tongue uses SKU <span class="td-mono">tongue_feet</span>. Gooseneck render is fixed at <strong>9.0 ft tongue</strong> with <strong>6.0 ft vertical envelope</strong>.
+      Dump stacked height mapping: <strong>2 ft wall - 4 ft stack</strong>, <strong>3 ft wall - 5 ft stack</strong>, <strong>4 ft wall - 6 ft stack</strong>.
     </div>
-  </div>
-
-  <div class="card pg-settings-section hidden" data-settings-tab="pj">
-    <div class="card-header">
-      <div>
-        <div class="card-title">GN Neck Geometry</div>
-        <div class="card-subtitle">Source: computed constants backed by <span class="td-mono">pj_measurement_offsets</span> keys.</div>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Field</th><th>Value</th><th>Notes</th></tr></thead>
-        <tbody>
-          <tr><td>GN neck total length</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_total_ft if gn_neck_geometry else 9.0) | float) }} ft</td><td>Rendered GN tongue length</td></tr>
-          <tr><td>GN neck rise height</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_rise_ft if gn_neck_geometry else 6.0) | float) }} ft</td><td>Crown rise above deck surface</td></tr>
-          <tr><td>GN neck base run</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_base_ft if gn_neck_geometry else 0.5) | float) }} ft</td><td>Short deck-level run before rise</td></tr>
-          <tr><td>GN neck crown span</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_crown_ft if gn_neck_geometry else 5.0) | float) }} ft</td><td>Top horizontal beam</td></tr>
-          <tr><td>GN neck descent run</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_neck_descent_ft if gn_neck_geometry else 3.5) | float) }} ft</td><td>Return run toward coupler</td></tr>
-          <tr><td>GN coupler drop</td><td class="td-mono">{{ '%.2f'|format((gn_neck_geometry.gn_coupler_drop_ft if gn_neck_geometry else 5.0) | float) }} ft</td><td>Vertical drop from crown to coupler tip</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card pg-settings-section hidden" data-settings-tab="pj">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Nesting Offsets</div>
-        <div class="card-subtitle">Source: <span class="td-mono">pj_measurement_offsets</span>.</div>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Key</th><th>Value</th><th>Notes</th></tr></thead>
-        <tbody>
-          <tr><td class="td-mono">gn_in_dump_hidden_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_in_dump_hidden_ft', 7.0) if pj_offset_map else 7.0) | float) }} ft</td><td>GN neck hidden inside dump when nested</td></tr>
-          <tr><td class="td-mono">car_hauler_spare_mount_offset</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('car_hauler_spare_mount_offset', 1.0) if pj_offset_map else 1.0) | float) }} ft</td><td>Spare mount adds to measured bed length</td></tr>
-          <tr><td class="td-mono">dump_tarp_kit_offset</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('dump_tarp_kit_offset', 1.5) if pj_offset_map else 1.5) | float) }} ft</td><td>Tarp kit length impact</td></tr>
-          <tr><td class="td-mono">dtj_cylinder_extra_offset</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('dtj_cylinder_extra_offset', 1.0) if pj_offset_map else 1.0) | float) }} ft</td><td>DTJ extra cylinder offset</td></tr>
-          <tr><td class="td-mono">gn_crisscross_length_save_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_crisscross_length_save_ft', 2.0) if pj_offset_map else 2.0) | float) }} ft</td><td>Placeholder footprint reduction when two stacked GNs crisscross.</td></tr>
-          <tr><td class="td-mono">gn_crisscross_height_save_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_crisscross_height_save_ft', 1.0) if pj_offset_map else 1.0) | float) }} ft</td><td>Placeholder stacked-height reduction for GN crisscross pairing.</td></tr>
-          <tr><td class="td-mono">gn_crisscross_width_save_ft</td><td class="td-mono">{{ '%.2f'|format((pj_offset_map.get('gn_crisscross_width_save_ft', 0.6) if pj_offset_map else 0.6) | float) }} ft</td><td>Placeholder lateral savings for planner reference in interlaced GN pairs.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card pg-settings-section hidden" data-settings-tab="pj">
-    <div class="card-header">
-      <div>
-        <div class="card-title">PJ Component Rendering Rules</div>
-        <div class="card-subtitle">Renderings are now assembled from interchangeable components: one deck body + one tongue profile.</div>
-      </div>
-    </div>
-    <div class="pj-component-rule-note">
-      Rules currently wired in load builder: <strong>Standard tongue = 4.0 ft</strong>, <strong>Gooseneck tongue = 9.0 ft</strong>.
-      Deck length and deck height come from each SKU.
-    </div>
-
-    <div class="pj-component-subhead">Tongue Components (Standalone)</div>
-    <div class="pj-component-grid">
-      <div class="pj-component-card">
-        <div class="pj-component-title">Standard Tongue</div>
-        <div class="pj-component-desc">C-channel profile. Fixed 4.0 ft render length. Attaches to either flat or dump deck body.</div>
-        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
-          <line x1="8" y1="54" x2="172" y2="54" stroke="#60a5fa" stroke-opacity="0.35" stroke-dasharray="4,3"/>
-          <rect x="38" y="34" width="90" height="4" fill="rgba(34,197,94,0.20)" stroke="#22c55e" stroke-width="1"/>
-          <rect x="128" y="35" width="34" height="3" fill="rgba(34,197,94,0.18)" stroke="#22c55e" stroke-width="1"/>
-          <circle cx="164" cy="36.5" r="3.2" fill="none" stroke="#22c55e" stroke-width="1.2"/>
-          <circle cx="164" cy="36.5" r="1.2" fill="#22c55e"/>
-        </svg>
-      </div>
-      <div class="pj-component-card">
-        <div class="pj-component-title">Gooseneck Tongue</div>
-        <div class="pj-component-desc">Rising GN neck with over-cab coupler. Fixed 9.0 ft render length and larger ring coupler profile.</div>
-        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
-          <line x1="8" y1="54" x2="172" y2="54" stroke="#818cf8" stroke-opacity="0.35" stroke-dasharray="4,3"/>
-          <path d="M 34 39 C 52 37 74 24 98 24 L 98 31 C 76 31 54 44 34 45 Z"
-                fill="rgba(99,102,241,0.20)" stroke="#6366f1" stroke-width="1.2"/>
-          <path d="M 38 41 L 46 49 L 52 41" fill="rgba(99,102,241,0.18)" stroke="#6366f1" stroke-width="0.8"/>
-          <circle cx="98" cy="27.5" r="7.2" fill="rgba(99,102,241,0.18)" stroke="#6366f1" stroke-width="1.3"/>
-          <circle cx="98" cy="27.5" r="3.4" fill="rgba(99,102,241,0.32)" stroke="#6366f1" stroke-width="0.9"/>
-          <circle cx="98" cy="27.5" r="1.2" fill="#6366f1"/>
-        </svg>
-      </div>
-    </div>
-
-    <div class="pj-component-subhead">Deck Components (Standalone)</div>
-    <div class="pj-component-grid">
-      <div class="pj-component-card">
-        <div class="pj-component-title">Flat Deck</div>
-        <div class="pj-component-desc">Dual-axle flat body. Length and effective height come from the selected SKU dimensions.</div>
-        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
-          <line x1="8" y1="54" x2="172" y2="54" stroke="#a78bfa" stroke-opacity="0.35" stroke-dasharray="4,3"/>
-          <line x1="26" y1="36" x2="140" y2="36" stroke="#a78bfa" stroke-width="1.3"/>
-          <line x1="26" y1="36" x2="26" y2="54" stroke="#a78bfa" stroke-width="1.2"/>
-          <line x1="140" y1="36" x2="146" y2="38" stroke="#a78bfa" stroke-width="1.2"/>
-          <circle cx="56" cy="47" r="4.8" fill="none" stroke="#a78bfa" stroke-width="1"/>
-          <circle cx="98" cy="47" r="4.8" fill="none" stroke="#a78bfa" stroke-width="1"/>
-        </svg>
-      </div>
-      <div class="pj-component-card">
-        <div class="pj-component-title">Dump Deck</div>
-        <div class="pj-component-desc">Open-top dump body. Closed rear by default; GN pairings render open rear gate to indicate neck insertion path.</div>
-        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
-          <line x1="8" y1="54" x2="172" y2="54" stroke="#f59e0b" stroke-opacity="0.35" stroke-dasharray="4,3"/>
-          <rect x="54" y="20" width="70" height="18" fill="rgba(245,158,11,0.10)" stroke="none" rx="1"/>
-          <line x1="54" y1="20" x2="54" y2="42" stroke="#f59e0b" stroke-width="2.4"/>
-          <line x1="124" y1="20" x2="124" y2="42" stroke="#f59e0b" stroke-width="1.35"/>
-          <line x1="54" y1="38.5" x2="124" y2="38.5" stroke="#f59e0b" stroke-width="1.4"/>
-          <rect x="54" y="38.5" width="70" height="3.5" fill="rgba(245,158,11,0.10)" stroke="#f59e0b" stroke-width="1"/>
-          <circle cx="89" cy="47" r="4.8" fill="none" stroke="#f59e0b" stroke-width="1"/>
-        </svg>
-      </div>
-    </div>
-
-    <div class="pj-component-subhead">Assembled Examples</div>
-    <div class="pj-component-grid">
-      <div class="pj-component-card">
-        <div class="pj-component-title">Flat + Standard</div>
-        <div class="pj-component-desc">Default flat-deck pairing with 4.0 ft tongue.</div>
-        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
-          <line x1="8" y1="54" x2="172" y2="54" stroke="#34d399" stroke-opacity="0.35" stroke-dasharray="4,3"/>
-          <line x1="24" y1="36" x2="124" y2="36" stroke="#34d399" stroke-width="1.2"/>
-          <line x1="24" y1="36" x2="24" y2="54" stroke="#34d399" stroke-width="1.2"/>
-          <circle cx="50" cy="47" r="4.6" fill="none" stroke="#34d399" stroke-width="1"/>
-          <circle cx="90" cy="47" r="4.6" fill="none" stroke="#34d399" stroke-width="1"/>
-          <rect x="124" y="35" width="34" height="3" fill="rgba(52,211,153,0.18)" stroke="#34d399" stroke-width="1"/>
-          <circle cx="160" cy="36.5" r="3.0" fill="none" stroke="#34d399" stroke-width="1.1"/>
-        </svg>
-      </div>
-      <div class="pj-component-card">
-        <div class="pj-component-title">Flat + Gooseneck</div>
-        <div class="pj-component-desc">Same flat deck with GN neck geometry and over-cab coupler.</div>
-        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
-          <line x1="8" y1="54" x2="172" y2="54" stroke="#818cf8" stroke-opacity="0.35" stroke-dasharray="4,3"/>
-          <line x1="20" y1="36" x2="112" y2="36" stroke="#a78bfa" stroke-width="1.2"/>
-          <circle cx="46" cy="47" r="4.6" fill="none" stroke="#a78bfa" stroke-width="1"/>
-          <circle cx="84" cy="47" r="4.6" fill="none" stroke="#a78bfa" stroke-width="1"/>
-          <path d="M 112 38 C 126 36 145 21 162 21 L 162 28 C 145 28 128 43 112 44 Z"
-                fill="rgba(99,102,241,0.18)" stroke="#6366f1" stroke-width="1.2"/>
-          <circle cx="162" cy="24.5" r="6.6" fill="none" stroke="#6366f1" stroke-width="1.2"/>
-          <circle cx="162" cy="24.5" r="3.1" fill="none" stroke="#6366f1" stroke-width="0.9"/>
-        </svg>
-      </div>
-      <div class="pj-component-card">
-        <div class="pj-component-title">Dump + Gooseneck</div>
-        <div class="pj-component-desc">Dump body with open rear marker and GN coupler profile.</div>
-        <svg class="pj-component-svg" viewBox="0 0 180 66" xmlns="http://www.w3.org/2000/svg">
-          <line x1="8" y1="54" x2="172" y2="54" stroke="#f59e0b" stroke-opacity="0.35" stroke-dasharray="4,3"/>
-          <rect x="20" y="20" width="86" height="18" fill="rgba(245,158,11,0.10)" stroke="none" rx="1"/>
-          <line x1="106" y1="20" x2="106" y2="42" stroke="#f59e0b" stroke-width="1.35"/>
-          <line x1="20" y1="38.5" x2="106" y2="38.5" stroke="#f59e0b" stroke-width="1.4"/>
-          <rect x="20" y="38.5" width="86" height="3.5" fill="rgba(245,158,11,0.10)" stroke="#f59e0b" stroke-width="1"/>
-          <circle cx="63" cy="47" r="4.6" fill="none" stroke="#f59e0b" stroke-width="1"/>
-          <path d="M 105 39 C 118 37 140 22 158 22 L 158 29 C 142 29 122 44 105 45 Z"
-                fill="rgba(99,102,241,0.16)" stroke="#6366f1" stroke-width="1.2"/>
-          <circle cx="158" cy="25.5" r="6.6" fill="none" stroke="#6366f1" stroke-width="1.2"/>
-        </svg>
+    <div class="pj-visual-wrap">
+      <svg class="pj-visual-svg" viewBox="0 0 980 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PJ dimension reference diagram">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+          </marker>
+        </defs>
+        <rect x="0" y="0" width="980" height="320" fill="rgba(15,23,42,0.18)"/>
+        <line x1="70" y1="260" x2="920" y2="260" stroke="#475569" stroke-width="1.2" stroke-dasharray="4 4"/>
+        <rect x="120" y="190" width="530" height="34" fill="rgba(59,130,246,0.12)" stroke="#60a5fa" stroke-width="1.4"/>
+        <rect x="650" y="160" width="200" height="34" fill="rgba(99,102,241,0.12)" stroke="#818cf8" stroke-width="1.4"/>
+        <line x1="650" y1="194" x2="650" y2="224" stroke="#818cf8" stroke-width="1.4"/>
+        <line x1="120" y1="246" x2="120" y2="190" stroke="#60a5fa" stroke-width="1.2"/>
+        <line x1="650" y1="246" x2="650" y2="160" stroke="#818cf8" stroke-width="1.2"/>
+        <line x1="850" y1="246" x2="850" y2="160" stroke="#818cf8" stroke-width="1.2"/>
+        <line x1="120" y1="286" x2="850" y2="286" stroke="#94a3b8" stroke-width="1.2" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text x="485" y="303" fill="#cbd5e1" font-size="12" text-anchor="middle">Total {{ '%.1f'|format(total_len) }} ft</text>
+        <line x1="120" y1="150" x2="650" y2="150" stroke="#93c5fd" stroke-width="1.2" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text x="385" y="143" fill="#93c5fd" font-size="11" text-anchor="middle">Lower deck {{ '%.1f'|format(lower_len) }} ft</text>
+        <line x1="650" y1="132" x2="850" y2="132" stroke="#a5b4fc" stroke-width="1.2" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text x="750" y="124" fill="#a5b4fc" font-size="11" text-anchor="middle">Upper deck {{ '%.1f'|format(upper_len) }} ft</text>
+        <line x1="892" y1="260" x2="892" y2="40" stroke="#94a3b8" stroke-width="1.2" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text x="900" y="154" fill="#cbd5e1" font-size="11">Max {{ '%.1f'|format(max_h) }} ft</text>
+        <line x1="720" y1="160" x2="720" y2="75" stroke="#818cf8" stroke-width="1.4"/>
+        <line x1="720" y1="75" x2="840" y2="75" stroke="#818cf8" stroke-width="1.4"/>
+        <line x1="840" y1="75" x2="910" y2="148" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="910" cy="148" r="8" fill="none" stroke="#818cf8" stroke-width="1.4"/>
+        <line x1="705" y1="56" x2="920" y2="56" stroke="#818cf8" stroke-width="1.1" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text x="812" y="48" fill="#a5b4fc" font-size="11" text-anchor="middle">GN tongue fixed 9.0 ft</text>
+        <line x1="915" y1="148" x2="915" y2="76" stroke="#818cf8" stroke-width="1.1" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text x="924" y="113" fill="#a5b4fc" font-size="11">GN envelope 6.0 ft</text>
+        <rect x="160" y="66" width="150" height="58" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.3"/>
+        <text x="235" y="86" fill="#fbbf24" font-size="11" text-anchor="middle">Dump Wall Size</text>
+        <text x="235" y="102" fill="#fde68a" font-size="10" text-anchor="middle">2.0 ft -> 4.0 ft stack</text>
+        <text x="235" y="114" fill="#fde68a" font-size="10" text-anchor="middle">3.0 ft -> 5.0 ft stack</text>
+        <text x="235" y="126" fill="#fde68a" font-size="10" text-anchor="middle">4.0 ft -> 6.0 ft stack</text>
+      </svg>
+      <div class="pj-visual-legend">
+        <div class="pj-legend-chip">Lower deck surface: {{ '%.1f'|format(lower_surface) }} ft above ground</div>
+        <div class="pj-legend-chip">Upper deck surface: {{ '%.1f'|format(upper_surface) }} ft above ground</div>
+        <div class="pj-legend-chip">Step height: {{ '%.1f'|format(upper_surface - lower_surface) }} ft</div>
+        <div class="pj-legend-chip">Standard tongue: pull from each PJ SKU row</div>
       </div>
     </div>
   </div>
@@ -576,119 +475,17 @@
     </div>
   </div>
 
-  <!-- â”€â”€ 2. PJ Tongue Length Groups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div class="card pg-settings-section" data-settings-tab="pj">
     <div class="card-header">
       <div>
-        <div class="card-title">PJ Tongue Length Groups (Advanced)</div>
-        <div class="card-subtitle">Source: <span class="td-mono">pj_tongue_groups</span>. STD tongues render at SKU `tongue_feet`; GN renders fixed at 9.0 ft.</div>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Group ID</th>
-            <th>Label</th>
-            <th>Tongue (ft)</th>
-            <th>Model Codes</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for g in pj_tongue_groups %}
-          <tr>
-            <td class="td-mono">{{ g.group_id }}</td>
-            <td>
-              <input type="text" class="editable-cell"
-                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="group_label"
-                     value="{{ g.group_label }}" />
-            </td>
-            <td>
-              <input type="number" step="0.5" class="editable-cell" style="min-width:70px"
-                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="tongue_feet"
-                     value="{{ g.tongue_feet }}" />
-            </td>
-            <td class="td-label">{{ g.model_codes }}</td>
-            <td>
-              <input type="text" class="editable-cell" style="min-width:160px"
-                     data-table="pj_tongue_groups" data-pk="{{ g.group_id }}" data-field="notes"
-                     value="{{ g.notes or '' }}" />
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card pg-settings-section" data-settings-tab="pj">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Stacking Height Rules</div>
-        <div class="card-subtitle">PJ-only stacked-height overrides used by manifest, schematic rendering, and height checks.</div>
+        <div class="card-title">PJ Source of Truth</div>
+        <div class="card-subtitle">All PJ dimensions now come from the PJ SKU Cheat Sheet rows only.</div>
       </div>
     </div>
     <div class="pj-component-rule-note">
-      <strong>Current PJ framework:</strong>
-      each category has two stacked-height values:
-      <strong>Bottom/Mid</strong> (used through the lower half of a stack) and
-      <strong>Top</strong> (used after crossing that midpoint).
-      Dump profiles keep dump-height behavior; gooseneck riser handling remains separate.
-      These values drive manifest heights, stack-height meters, and schematic rendering heights.
-    </div>
-  </div>
-
-  <!-- â”€â”€ 3. PJ Stack Height Reference â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-  <div class="card pg-settings-section" data-settings-tab="pj">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Height Reference</div>
-        <div class="card-subtitle">Source: <span class="td-mono">pj_height_reference</span> full table.</div>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Label</th>
-            <th>Height Mid (ft)</th>
-            <th>Height Top (ft)</th>
-            <th>GN Axle Dropped (ft)</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for h in pj_height_reference %}
-          <tr>
-            <td class="td-mono">{{ h.category }}</td>
-            <td>{{ h.label }}</td>
-            <td>
-              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
-                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="height_mid_ft"
-                     value="{{ h.height_mid_ft }}" />
-            </td>
-            <td>
-              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
-                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="height_top_ft"
-                     value="{{ h.height_top_ft }}" />
-            </td>
-            <td>
-              <input type="number" step="0.25" class="editable-cell" style="min-width:80px"
-                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="gn_axle_dropped_ft"
-                     value="{{ h.gn_axle_dropped_ft or '' }}"
-                     placeholder="N/A" />
-            </td>
-            <td>
-              <input type="text" class="editable-cell" style="min-width:160px"
-                     data-table="pj_height_reference" data-pk="{{ h.category }}" data-field="notes"
-                     value="{{ h.notes or '' }}" />
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+      Height values are per-SKU: <strong>Bottom/Mid</strong> + <strong>Top</strong>. Dump rows use wall-size selection (2/3/4 ft),
+      then runtime maps to stacked envelope (4/5/6 ft). Tongue behavior is limited to <strong>Standard</strong> (SKU tongue)
+      or <strong>Gooseneck</strong> (fixed 9.0 ft tongue, 6.0 ft vertical envelope).
     </div>
   </div>
 
@@ -738,7 +535,7 @@
     <div class="card-header">
       <div>
         <div class="card-title">PJ SKU Cheat Sheet</div>
-        <div class="card-subtitle">Grouped as identifiers + deck dimensions with dual stacked-height values by category.</div>
+        <div class="card-subtitle">Single source of truth for PJ bed length, tongue, wall size, and stacked heights.</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
         <input type="text" class="form-control" id="sku-search" placeholder="Filter PJ SKUsâ€¦" style="width:200px" />
@@ -751,7 +548,7 @@
         <thead>
           <tr class="pg-group-row">
             <th colspan="4">SKU Identifiers / Name</th>
-            <th colspan="5">Deck Dimensions</th>
+            <th colspan="6">Deck Dimensions</th>
             <th class="pg-group-spacer">Notes</th>
           </tr>
           <tr>
@@ -761,6 +558,7 @@
             <th class="pg-ident-col">Item Code</th>
             <th>Bottom/Mid Height (ft)</th>
             <th>Top Height (ft)</th>
+            <th>Dump Wall (ft)</th>
             <th>Bed Length (ft)</th>
             <th>Tongue (ft)</th>
             <th>Footprint (ft)</th>
@@ -769,7 +567,6 @@
         </thead>
         <tbody>
         {% for s in pj_skus %}
-          {% set h = pj_height_map.get(s.pj_category) if pj_height_map else None %}
           <tr class="pj-sku-row" data-search="{{ s.item_number }} {{ s.item_code or '' }} {{ s.model }} {{ s.pj_category }} {{ s.description or '' }}">
             <td class="pg-ident-cell">
               <select class="editable-select"
@@ -785,18 +582,21 @@
             <td>
               <input type="number" step="0.25"
                      class="editable-cell" style="min-width:90px"
-                     data-height-category-mid="{{ s.pj_category or '' }}"
-                     data-table="pj_height_reference" data-pk="{{ s.pj_category or '' }}" data-field="height_mid_ft"
-                     value="{{ h.get('height_mid_ft') if h else '' }}"
-                     {% if not s.pj_category %}disabled{% endif %} />
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_mid_ft"
+                     value="{{ s.height_mid_ft if s.height_mid_ft is not none else '' }}" />
             </td>
             <td>
               <input type="number" step="0.25"
                      class="editable-cell" style="min-width:90px"
-                     data-height-category-top="{{ s.pj_category or '' }}"
-                     data-table="pj_height_reference" data-pk="{{ s.pj_category or '' }}" data-field="height_top_ft"
-                     value="{{ h.get('height_top_ft') if h else '' }}"
-                     {% if not s.pj_category %}disabled{% endif %} />
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_top_ft"
+                     value="{{ s.height_top_ft if s.height_top_ft is not none else '' }}" />
+            </td>
+            <td>
+              <input type="number" step="0.5"
+                     class="editable-cell" style="min-width:90px"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="dump_side_height_ft"
+                     value="{{ s.dump_side_height_ft if s.dump_side_height_ft is not none else '' }}"
+                     placeholder="2 / 3 / 4" />
             </td>
             <td>
               <input type="number" step="0.25"
@@ -823,6 +623,7 @@
         </tbody>
       </table>
     </div>
+    <div class="pg-small-help">Dump wall-size map used by runtime height checks: 2.0 -> 4.0, 3.0 -> 5.0, 4.0 -> 6.0 (stacked envelope).</div>
   </div>
 
   <!-- â”€â”€ 6. Big Tex SKU Cheat Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
@@ -1055,15 +856,6 @@ async function saveField(table, pk, field, value, triggerRecompute) {
       setStatus('Saved âœ“', 'saved');
       if (data.sessions_flagged) {
         STALE_ALERT.classList.add('visible');
-      }
-      if (table === 'pj_height_reference' && (field === 'height_top_ft' || field === 'height_mid_ft')) {
-        const key = String(pk || '').replace(/"/g, '\\"');
-        const selector = field === 'height_top_ft'
-          ? `[data-height-category-top="${key}"]`
-          : `[data-height-category-mid="${key}"]`;
-        document.querySelectorAll(selector).forEach((input) => {
-          input.value = value ?? '';
-        });
       }
       if (data.recomputed) {
         // Update measured/footprint cells for PJ SKUs

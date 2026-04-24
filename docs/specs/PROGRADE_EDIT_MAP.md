@@ -28,6 +28,9 @@ This is the fastest path for ProGrade edits. It maps common requests to the exac
   - `settings`, `api_settings_save`, `api_bigtex_import`, `api_pj_import`.
 - `blueprints/prograde/db.py`
   - `update_*` field handlers and recompute helpers for PJ/BT SKU metrics.
+- PJ dimension contract (current):
+  - `pj_skus` is the source of truth for PJ dimensions (`bed_length_measured`, `tongue_feet`, `height_mid_ft`, `height_top_ft`, `dump_side_height_ft`).
+  - Legacy `pj_height_reference` and `pj_tongue_groups` are no longer wired to settings save/UI paths.
 - Tests:
   - `tests/test_prograde_settings_save.py`
 

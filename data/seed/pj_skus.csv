@@ -1,236 +1,236 @@
-item_number,model,pj_category,description,gvwr,bed_length_stated,bed_length_measured,tongue_group,tongue_feet,total_footprint,dump_side_height_ft,can_nest_inside_dump,gn_axle_droppable,tongue_overlap_allowed,pairing_rule,notes,updated_at
-B5J1652BSSK,B5,car_hauler,16’x5” Channel Buggy Hauler,,16.0,16.0,c_channel,4.0,20.0,,0,0,0,,,2026-04-02T15:06:07.774608
-B5J1852BSSK,B5,car_hauler,18’x5” Channel Buggy Hauler,,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:07.774643
-B5J2052BSSK,B5,car_hauler,20’x5” Channel Buggy Hauler,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:07.774665
-B5J2252BSSK,B5,car_hauler,22’x5” Channel Buggy Hauler,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:07.774686
-B6J2072BSSK,B6,car_hauler,20’x6” Channel Super-Wide,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:07.877638
-B6J2272BSSK,B6,car_hauler,22’x6” Channel Super-Wide,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:07.877671
-B6J2472BSSK,B6,car_hauler,24’x6” Channel Super-Wide,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:07.877700
-B8J2472BSSK,B8,car_hauler,24’x8” Channel Super-Wide,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:08.058733
-B8J2672BSSK,B8,car_hauler,26’x8” Channel Super-Wide,,26.0,26.0,c_channel,4.0,30.0,,0,0,0,,,2026-04-02T15:06:08.058770
-B8J2872BSSK,B8,car_hauler,28’x8” Channel Super-Wide,,28.0,28.0,c_channel,4.0,32.0,,0,0,0,,,2026-04-02T15:06:08.058796
-B8J3072BSSK,B8,car_hauler,30’x8” Channel Super-Wide,,30.0,30.0,c_channel,4.0,34.0,,0,0,0,,,2026-04-02T15:06:08.058820
-B8J3272BSSK,B8,car_hauler,32’x8” Channel Super-Wide,,32.0,32.0,c_channel,4.0,36.0,,0,0,0,,,2026-04-02T15:06:08.058850
-B8J3472BSSK,B8,car_hauler,34’x8” Channel Super-Wide,,34.0,34.0,c_channel,4.0,38.0,,0,0,0,,,2026-04-02T15:06:08.058875
-B8J3672BSSK,B8,car_hauler,36’x8” Channel Super-Wide,,36.0,36.0,c_channel,4.0,40.0,,0,0,0,,,2026-04-02T15:06:08.058898
-B8J3872BSSK,B8,car_hauler,38’x8” Channel Super-Wide,,38.0,38.0,c_channel,4.0,42.0,,0,0,0,,,2026-04-02T15:06:08.058921
-B8J4072BSSK,B8,car_hauler,40’x8” Channel Super-Wide,,40.0,40.0,c_channel,4.0,44.0,,0,0,0,,,2026-04-02T15:06:08.058948
-C421432CSSK,C4,car_hauler,14’x4” Channel Carhauler,,14.0,14.0,c_channel,4.0,18.0,,0,0,0,,,2026-04-02T15:06:06.361804
-C421632CSSK,C4,car_hauler,16’x4” Channel Carhauler,,16.0,16.0,c_channel,4.0,20.0,,0,0,0,,,2026-04-02T15:06:06.361843
-C421832CSSK,C4,car_hauler,18’x4” Channel Carhauler,,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:06.361867
-C422032CSSK,C4,car_hauler,20’x4” Channel Carhauler,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:06.361891
-C521632CSSK,C5,car_hauler,16’x5” Channel Carhauler,,16.0,16.0,c_channel,4.0,20.0,,0,0,0,,,2026-04-02T15:06:06.461510
-C521832CSSK,C5,car_hauler,18’x5” Channel Carhauler,,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:06.461547
-C522032CSSK,C5,car_hauler,20’x5” Channel Carhauler,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:06.461570
-C522232CSSK,C5,car_hauler,22’x5” Channel Carhauler,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:06.461591
-C8J2082BSSK,C8,car_hauler,20’x8” Channel Equipment,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:07.380017
-C8J2282BSSK,C8,car_hauler,22’x8” Channel Equipment,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:07.380079
-C8J2482BSSK,C8,car_hauler,24’x8” Channel Equipment,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:07.380137
-C8J2682BSSK,C8,car_hauler,26’x8” Channel Equipment,,26.0,26.0,c_channel,4.0,30.0,,0,0,0,,,2026-04-02T15:06:07.380162
-C8J2882BSSK,C8,car_hauler,28’x8” Channel Equipment,,28.0,28.0,c_channel,4.0,32.0,,0,0,0,,,2026-04-02T15:06:07.380185
-C8J3082BSSK,C8,car_hauler,30’x8” Channel Equipment,,30.0,30.0,c_channel,4.0,34.0,,0,0,0,,,2026-04-02T15:06:07.380208
-C8J3282BSSK,C8,car_hauler,32’x8” Channel Equipment,,32.0,32.0,c_channel,4.0,36.0,,0,0,0,,,2026-04-02T15:06:07.380229
-C8J3482BSSK,C8,car_hauler,34’x8” Channel Equipment,,34.0,34.0,c_channel,4.0,38.0,,0,0,0,,,2026-04-02T15:06:07.380254
-C8J3682BSSK,C8,car_hauler,36’x8” Channel Equipment,,36.0,36.0,c_channel,4.0,40.0,,0,0,0,,,2026-04-02T15:06:07.380284
-C8J3882BSSK,C8,car_hauler,38’x8” Channel Equipment,,38.0,38.0,c_channel,4.0,42.0,,0,0,0,,,2026-04-02T15:06:07.380304
-C8J4082BSSK,C8,car_hauler,40’x8” Channel Equipment,,40.0,40.0,c_channel,4.0,44.0,,0,0,0,,,2026-04-02T15:06:07.380324
-CCJ1672BSSK,CC,car_hauler,16’x6” Channel Equipment,,16.0,16.0,c_channel,4.0,20.0,,0,0,0,,,2026-04-02T15:06:07.021406
-CCJ1872BSSK,CC,car_hauler,18’x6” Channel Equipment,,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:07.021438
-CCJ2072BSSK,CC,car_hauler,20’x6” Channel Equipment,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:07.021458
-CCJ2272BSSK,CC,car_hauler,22’x6” Channel Equipment,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:07.021479
-CCJ2472BSSK,CC,car_hauler,24’x6” Channel Equipment,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:07.021498
-CDC1872BSUK,CD,car_hauler,"6"" Channel Equipment",,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:06.880407
-CDC2072BSUK,CD,car_hauler,"6"" Channel Equipment",,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:06.880476
-CDC2272BSUK,CD,car_hauler,"6"" Channel Equipment",,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:06.880514
-CEJ1652BSSK,CE,car_hauler,16’x5” Channel Equipment,,16.0,16.0,c_channel,4.0,20.0,,0,0,0,,,2026-04-02T15:06:06.591285
-CEJ1852BSSK,CE,car_hauler,18’x5” Channel Equipment,,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:06.591319
-CEJ2052BSSK,CE,car_hauler,20’x5” Channel Equipment,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:06.591344
-CEJ2252BSSK,CE,car_hauler,22’x5” Channel Equipment,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:06.591369
-CHJ1832CSPK,CH,car_hauler,18' Steel Deck Car Hauler,,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:06.732623
-CHJ2032CSPK,CH,car_hauler,20' Steel Deck Car Hauler,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:06.732658
-CHJ2232CSPK,CH,car_hauler,22' Steel Deck Car Hauler,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:06.732682
-D3J1052BSSK,D3,dump_variants,10’x72” Tandem Axle Dump,,10.0,10.0,dump_std,5.5,15.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.677185
-D3J1252BSSK,D3,dump_variants,12’x72” Tandem Axle Dump,,12.0,12.0,dump_std,5.5,17.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.677221
-D520851BSSK,D5,dump_small,08’x60” Utility Dump,,20.0,20.0,dump_small,5.5,25.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.582615
-D521051BSSK,D5,dump_small,10’x60” Utility Dump,,21.0,21.0,dump_small,5.5,26.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.582651
-D7C1472BSSK,D7,dump_small,"14'x83"" Channel Dump",,14.0,14.0,dump_small,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.825091
-D8J1472BSSK,D8,dump_variants,14’x96” Deckover Dump,,14.0,14.0,dump_std,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.757178
-D8J1672BSSK,D8,dump_variants,16’x96” Deckover Dump,,16.0,16.0,dump_std,5.5,21.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.757208
-DDR20A2BSBK,DD,dump_variants,20’ Tandem Dual Dump,,20.0,20.0,dump_std,5.5,25.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.873702
-DEB16S2BTSK,DE,dump_variants,16’ HD Low-Pro Dump,,16.0,16.0,dump_std,5.5,21.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.528469
-DLJ1272BSSK,DL,dump_lowside,12’x83” Low Pro Dump,,12.0,12.0,dump_std,5.5,17.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.938592
-DLJ1472BSSK,DL,dump_lowside,14’x83” Low Pro Dump,,14.0,14.0,dump_std,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.938626
-DLJ1672BSSK,DL,dump_lowside,16’x83” Low Pro Dump,,16.0,16.0,dump_std,5.5,21.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.938648
-DMJ1272BSSK,DM,dump_variants,12’x83” Low Pro High Side Dump,,12.0,12.0,dump_std,5.5,17.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.056500
-DMJ1472BSSK,DM,dump_variants,14’x83” Low Pro High Side Dump,,14.0,14.0,dump_std,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.056560
-DMJ1672BSSK,DM,dump_variants,16’x83” Low Pro High Side Dump,,16.0,16.0,dump_std,5.5,21.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.056602
-DRJ1472BSSK,DR,dump_variants,14’ Rollster™ Roll Off Dump,,14.0,14.0,dump_std,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.635322
-DTJ1472BSSK,DT,dump_variants,14’x83” Low Pro Telescopic Dump,,14.0,14.0,dump_std,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.417727
-DTJ1672BSSK,DT,dump_variants,16’x83” Low Pro Telescopic Dump,,16.0,16.0,dump_std,5.5,21.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.417761
-DVJ1492BSSK,DV,dump_highside_3ft,"14'x83"" Voyager Dump",,14.0,14.0,dump_std,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.185181
-DVJ1692BSSK,DV,dump_highside_3ft,"16'x83"" Voyager Dump",,16.0,16.0,dump_std,5.5,21.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.185235
-DXT1282BSSK,DX,dump_highside_4ft,12’x83” Low Pro Dump w/ 8k Axles,,12.0,12.0,dump_std,5.5,17.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.308716
-DXT1482BSSK,DX,dump_highside_4ft,14’x83” Low Pro Dump w/ 8k Axles,,14.0,14.0,dump_std,5.5,19.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.308751
-DXT1682BSSK,DX,dump_highside_4ft,16’x83” Low Pro Dump w/ 8k Axles,,16.0,16.0,dump_std,5.5,21.5,,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.308774
-EVJ1672BSEK,EV,car_hauler,"16'x83"" Voyager Equipment",,16.0,16.0,c_channel,4.0,20.0,,0,0,0,,,2026-04-02T15:06:07.160708
-EVJ1872BSEK,EV,car_hauler,"18'x83"" Voyager Equipment",,18.0,18.0,c_channel,4.0,22.0,,0,0,0,,,2026-04-02T15:06:07.160748
-EVJ2072BSEK,EV,car_hauler,"20'x83"" Voyager Equipment",,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:07.160772
-EVJ2272BSEK,EV,car_hauler,"22'x83"" Voyager Equipment",,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:07.160795
-EVJ2472BSEK,EV,car_hauler,"24'x83"" Voyager Equipment",,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:07.160817
-F8J1672BSSK,F8,deck_over,16’x8” I-Beam Deckover,,16.0,16.0,deck_over,6.0,22.0,,0,0,0,,,2026-04-02T15:06:11.370344
-F8J1872BSSK,F8,deck_over,18’x8” I-Beam Deckover,,18.0,18.0,deck_over,6.0,24.0,,0,0,0,,,2026-04-02T15:06:11.370916
-F8J2072BSSK,F8,deck_over,20’x8” I-Beam Deckover,,20.0,20.0,deck_over,6.0,26.0,,0,0,0,,,2026-04-02T15:06:11.370947
-F8J2272BSSK,F8,deck_over,22’x8” I-Beam Deckover,,22.0,22.0,deck_over,6.0,28.0,,0,0,0,,,2026-04-02T15:06:11.370978
-F8J2472BSSK,F8,deck_over,24’x8” I-Beam Deckover,,24.0,24.0,deck_over,6.0,30.0,,0,0,0,,,2026-04-02T15:06:11.371003
-F8J2672BSSK,F8,deck_over,26’x8” I-Beam Deckover,,26.0,26.0,deck_over,6.0,32.0,,0,0,0,,,2026-04-02T15:06:11.371039
-F8J2872BSSK,F8,deck_over,28’x8” I-Beam Deckover,,28.0,28.0,deck_over,6.0,34.0,,0,0,0,,,2026-04-02T15:06:11.371059
-F8J3072BSSK,F8,deck_over,30’x8” I-Beam Deckover,,30.0,30.0,deck_over,6.0,36.0,,0,0,0,,,2026-04-02T15:06:11.371080
-H4T2082BSSK,H4,car_hauler,20’x8” Pro-Beam Equipment,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:07.508379
-H4T2282BSSK,H4,car_hauler,22’x8” Pro-Beam Equipment,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:07.508463
-H4T2482BSSK,H4,car_hauler,24’x8” Pro-Beam Equipment,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:07.508491
-H4T2682BSSK,H4,car_hauler,26’x8” Pro-Beam Equipment,,26.0,26.0,c_channel,4.0,30.0,,0,0,0,,,2026-04-02T15:06:07.508533
-H5P20S2BTSK,H5,car_hauler,20’x8” Pro-Beam Equipment,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:07.669383
-H5P22S2BTSK,H5,car_hauler,22’x8” Pro-Beam Equipment,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:07.669419
-H5P24S2BTSK,H5,car_hauler,24’x8” Pro-Beam Equipment,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:07.669445
-H5P26S2BTSK,H5,car_hauler,"26'x10"" Pro-Beam Equipment",,26.0,26.0,c_channel,4.0,30.0,,0,0,0,,,2026-04-02T15:06:07.669470
-H6T2082BSSK,H6,car_hauler,20’x8” Pro-Beam Super-Wide Equip,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:08.216791
-H6T2282BSSK,H6,car_hauler,22’x8” Pro-Beam Super-Wide Equip,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:08.216828
-H6T2482BSSK,H6,car_hauler,24’x8” Pro-Beam Super-Wide Equip,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:08.216854
-H6T2682BSSK,H6,car_hauler,26’x8” Pro-Beam Super-Wide Equip,,26.0,26.0,c_channel,4.0,30.0,,0,0,0,,,2026-04-02T15:06:08.216875
-H7P20S2BTSK,H7,car_hauler,20’x10” Pro-Beam Super-Wide Equip,,20.0,20.0,c_channel,4.0,24.0,,0,0,0,,,2026-04-02T15:06:08.398766
-H7P22S2BTSK,H7,car_hauler,22’x10” Pro-Beam Super-Wide Equip,,22.0,22.0,c_channel,4.0,26.0,,0,0,0,,,2026-04-02T15:06:08.398858
-H7P24S2BTSK,H7,car_hauler,24’x10” Pro-Beam Super-Wide Equip,,24.0,24.0,c_channel,4.0,28.0,,0,0,0,,,2026-04-02T15:06:08.399137
-H7P26S2BTSK,H7,car_hauler,26’x10” Pro-Beam Super-Wide Equip,,26.0,26.0,c_channel,4.0,30.0,,0,0,0,,,2026-04-02T15:06:08.399185
-H7P28S2BTSK,H7,car_hauler,28’x10” Pro-Beam Super-Wide Equip,,28.0,28.0,c_channel,4.0,32.0,,0,0,0,,,2026-04-02T15:06:08.400184
-H7P30S2BTSK,H7,car_hauler,30’x10” Pro-Beam Super-Wide Equip,,30.0,30.0,c_channel,4.0,34.0,,0,0,0,,,2026-04-02T15:06:08.400244
-H7P32S2BTSK,H7,car_hauler,32’x10” Pro-Beam Super-Wide Equip,,32.0,32.0,c_channel,4.0,36.0,,0,0,0,,,2026-04-02T15:06:08.400275
-H7P34S2BTSK,H7,car_hauler,34’x10” Pro-Beam Super-Wide Equip,,34.0,34.0,c_channel,4.0,38.0,,0,0,0,,,2026-04-02T15:06:08.400302
-H7P36S2BTSK,H7,car_hauler,36’x10” Pro-Beam Super-Wide Equip,,36.0,36.0,c_channel,4.0,40.0,,0,0,0,,,2026-04-02T15:06:08.400330
-H7P38S2BTSK,H7,car_hauler,38’x10” Pro-Beam Super-Wide Equip,,38.0,38.0,c_channel,4.0,42.0,,0,0,0,,,2026-04-02T15:06:08.400357
-H7P40S2BTSK,H7,car_hauler,40’x10” Pro-Beam Super-Wide Equip,,40.0,40.0,c_channel,4.0,44.0,,0,0,0,,,2026-04-02T15:06:08.400384
-L6J1452BSSK,L6,deck_over,14’ Med. Duty Deckover 6” Channel,,14.0,14.0,deck_over,6.0,20.0,,0,0,0,,,2026-04-02T15:06:11.073213
-L6J1652BSSK,L6,deck_over,16’ Med. Duty Deckover 6” Channel,,16.0,16.0,deck_over,6.0,22.0,,0,0,0,,,2026-04-02T15:06:11.073248
-L6J1852BSSK,L6,deck_over,18’ Med. Duty Deckover 6” Channel,,18.0,18.0,deck_over,6.0,24.0,,0,0,0,,,2026-04-02T15:06:11.073273
-L6J2052BSSK,L6,deck_over,20’ Med. Duty Deckover 6” Channel,,20.0,20.0,deck_over,6.0,26.0,,0,0,0,,,2026-04-02T15:06:11.073295
-L6J2252BSSK,L6,deck_over,22’ Med. Duty Deckover 6” Channel,,22.0,22.0,deck_over,6.0,28.0,,0,0,0,,,2026-04-02T15:06:11.073316
-L6J2452BSSK,L6,deck_over,24’ Med. Duty Deckover 6” Channel,,24.0,24.0,deck_over,6.0,30.0,,0,0,0,,,2026-04-02T15:06:11.073338
-L7C1872BSSK,L7,deck_over,"18'x 6"" 14K  Equipment",,18.0,18.0,deck_over,6.0,24.0,,0,0,0,,,2026-04-02T15:06:11.193331
-L7C2072BSSK,L7,deck_over,"20'x 6"" 14K Equipment",,20.0,20.0,deck_over,6.0,26.0,,0,0,0,,,2026-04-02T15:06:11.193367
-L7C2272BSSK,L7,deck_over,"22'x 6"" 14K Equipment",,22.0,22.0,deck_over,6.0,28.0,,0,0,0,,,2026-04-02T15:06:11.193390
-LDQ20A2BSSK,LD,deck_over,20’ Low-Pro Flatdeck with Duals,,20.0,20.0,deck_over,6.0,26.0,,0,0,0,,,2026-04-02T15:06:12.205672
-LDQ25A2BSSK,LD,deck_over,25’ Low-Pro Flatdeck with Duals,,25.0,25.0,deck_over,6.0,31.0,,0,0,0,,,2026-04-02T15:06:12.205709
-LDQ26A2BSSK,LD,deck_over,26’ Low-Pro Flatdeck with Duals,,26.0,26.0,deck_over,6.0,32.0,,0,0,0,,,2026-04-02T15:06:12.205734
-LDQ28A2BSSK,LD,deck_over,28’ Low-Pro Flatdeck with Duals,,28.0,28.0,deck_over,6.0,34.0,,0,0,0,,,2026-04-02T15:06:12.205759
-LDQ30A2BSSK,LD,deck_over,30’ Low-Pro Flatdeck with Duals,,30.0,30.0,deck_over,6.0,36.0,,0,0,0,,,2026-04-02T15:06:12.206171
-LDQ32A2BSSK,LD,deck_over,32’ Low-Pro Flatdeck with Duals,,32.0,32.0,deck_over,6.0,38.0,,0,0,0,,,2026-04-02T15:06:12.206240
-LDQ34A2BSSK,LD,deck_over,34’ Low-Pro Flatdeck with Duals,,34.0,34.0,deck_over,6.0,40.0,,0,0,0,,,2026-04-02T15:06:12.206284
-LDQ35A2BSSK,LD,deck_over,35’ Low-Pro Flatdeck with Duals,,35.0,35.0,deck_over,6.0,41.0,,0,0,0,,,2026-04-02T15:06:12.206325
-LDQ36A2BSSK,LD,deck_over,36’ Low-Pro Flatdeck with Duals,,36.0,36.0,deck_over,6.0,42.0,,0,0,0,,,2026-04-02T15:06:12.206365
-LDQ38A2BSSK,LD,deck_over,38’ Low-Pro Flatdeck with Duals,,38.0,38.0,deck_over,6.0,44.0,,0,0,0,,,2026-04-02T15:06:12.206406
-LDQ40A2BSSK,LD,deck_over,40’ Low-Pro Flatdeck with Duals,,40.0,40.0,deck_over,6.0,46.0,,0,0,0,,,2026-04-02T15:06:12.206445
-LDQ42A2BSSK,LD,deck_over,42’ Low-Pro Flatdeck with Duals,,42.0,42.0,deck_over,6.0,48.0,,0,0,0,,,2026-04-02T15:06:12.206483
-LDQ44A2BSSK,LD,deck_over,44’ Low-Pro Flatdeck with Duals,,44.0,44.0,deck_over,6.0,50.0,,0,0,0,,,2026-04-02T15:06:12.206537
-LSQ2072BSSK,LS,deck_over,20’ Low-Pro Flatdeck with Singles,,20.0,20.0,deck_over,6.0,26.0,,0,0,0,,,2026-04-02T15:06:11.770391
-LSQ2272BSSK,LS,deck_over,22’ Low-Pro Flatdeck with Singles,,22.0,22.0,deck_over,6.0,28.0,,0,0,0,,,2026-04-02T15:06:11.770425
-LSQ2472BSSK,LS,deck_over,24’ Low-Pro Flatdeck with Singles,,24.0,24.0,deck_over,6.0,30.0,,0,0,0,,,2026-04-02T15:06:11.770448
-LSQ2572BSSK,LS,deck_over,25’ Low-Pro Flatdeck with Singles,,25.0,25.0,deck_over,6.0,31.0,,0,0,0,,,2026-04-02T15:06:11.770469
-LSQ2672BSSK,LS,deck_over,26’ Low-Pro Flatdeck with Singles,,26.0,26.0,deck_over,6.0,32.0,,0,0,0,,,2026-04-02T15:06:11.770489
-LSQ2872BSSK,LS,deck_over,28’ Low-Pro Flatdeck with Singles,,28.0,28.0,deck_over,6.0,34.0,,0,0,0,,,2026-04-02T15:06:11.770509
-LSQ3072BSSK,LS,deck_over,30’ Low-Pro Flatdeck with Singles,,30.0,30.0,deck_over,6.0,36.0,,0,0,0,,,2026-04-02T15:06:11.770527
-LSQ3272BSSK,LS,deck_over,32’ Low-Pro Flatdeck with Singles,,32.0,32.0,deck_over,6.0,38.0,,0,0,0,,,2026-04-02T15:06:11.770547
-LSQ3472BSSK,LS,deck_over,34’ Low-Pro Flatdeck with Singles,,34.0,34.0,deck_over,6.0,40.0,,0,0,0,,,2026-04-02T15:06:11.770566
-LSQ3572BSSK,LS,deck_over,35’ Low-Pro Flatdeck with Singles,,35.0,35.0,deck_over,6.0,41.0,,0,0,0,,,2026-04-02T15:06:11.770586
-LSQ3672BSSK,LS,deck_over,36’ Low-Pro Flatdeck with Singles,,36.0,36.0,deck_over,6.0,42.0,,0,0,0,,,2026-04-02T15:06:11.770806
-LSQ3872BSSK,LS,deck_over,38’ Low-Pro Flatdeck with Singles,,38.0,38.0,deck_over,6.0,44.0,,0,0,0,,,2026-04-02T15:06:11.770846
-LSQ4072BSSK,LS,deck_over,40’ Low-Pro Flatdeck with Singles,,40.0,40.0,deck_over,6.0,46.0,,0,0,0,,,2026-04-02T15:06:11.770867
-LSQ4272BSSK,LS,deck_over,42’ Low-Pro Flatdeck with Singles,,42.0,42.0,deck_over,6.0,48.0,,0,0,0,,,2026-04-02T15:06:11.770887
-LSQ4472BSSK,LS,deck_over,44’ Low-Pro Flatdeck with Singles,,44.0,44.0,deck_over,6.0,50.0,,0,0,0,,,2026-04-02T15:06:11.770907
-LXQ2082BSSK,LX,deck_over,20’ Low-Pro Flatdeck w/8k Axles,,20.0,20.0,deck_over,6.0,26.0,,0,0,0,,,2026-04-02T15:06:11.968763
-LXQ2282BSSK,LX,deck_over,22’ Low-Pro Flatdeck w/8k Axles,,22.0,22.0,deck_over,6.0,28.0,,0,0,0,,,2026-04-02T15:06:11.968818
-LXQ2482BSSK,LX,deck_over,24’ Low-Pro Flatdeck w/8k Axles,,24.0,24.0,deck_over,6.0,30.0,,0,0,0,,,2026-04-02T15:06:11.968859
-LXQ2582BSSK,LX,deck_over,25’ Low-Pro Flatdeck w/8k Axles,,25.0,25.0,deck_over,6.0,31.0,,0,0,0,,,2026-04-02T15:06:11.968898
-LXQ2682BSSK,LX,deck_over,26’ Low-Pro Flatdeck w/8k Axles,,26.0,26.0,deck_over,6.0,32.0,,0,0,0,,,2026-04-02T15:06:11.968938
-LXQ2882BSSK,LX,deck_over,28’ Low-Pro Flatdeck w/8k Axles,,28.0,28.0,deck_over,6.0,34.0,,0,0,0,,,2026-04-02T15:06:11.968973
-LXQ3082BSSK,LX,deck_over,30’ Low-Pro Flatdeck w/8k Axles,,30.0,30.0,deck_over,6.0,36.0,,0,0,0,,,2026-04-02T15:06:11.969010
-LXQ3282BSSK,LX,deck_over,32’ Low-Pro Flatdeck w/8k Axles,,32.0,32.0,deck_over,6.0,38.0,,0,0,0,,,2026-04-02T15:06:11.969047
-LXQ3482BSSK,LX,deck_over,34’ Low-Pro Flatdeck w/8k Axles,,34.0,34.0,deck_over,6.0,40.0,,0,0,0,,,2026-04-02T15:06:11.969107
-LXQ3582BSSK,LX,deck_over,35’ Low-Pro Flatdeck w/8k Axles,,35.0,35.0,deck_over,6.0,41.0,,0,0,0,,,2026-04-02T15:06:11.969227
-LXQ3682BSSK,LX,deck_over,36’ Low-Pro Flatdeck w/8k Axles,,36.0,36.0,deck_over,6.0,42.0,,0,0,0,,,2026-04-02T15:06:11.969260
-LXQ3882BSSK,LX,deck_over,38’ Low-Pro Flatdeck w/8k Axles,,38.0,38.0,deck_over,6.0,44.0,,0,0,0,,,2026-04-02T15:06:11.969281
-LXQ4082BSSK,LX,deck_over,40’ Low-Pro Flatdeck w/8k Axles,,40.0,40.0,deck_over,6.0,46.0,,0,0,0,,,2026-04-02T15:06:11.969300
-LXQ4282BSSK,LX,deck_over,42’ Low-Pro Flatdeck w/8k Axles,,42.0,42.0,deck_over,6.0,48.0,,0,0,0,,,2026-04-02T15:06:11.969318
-LXQ4482BSSK,LX,deck_over,44’ Low-Pro Flatdeck w/8k Axles,,44.0,44.0,deck_over,6.0,50.0,,0,0,0,,,2026-04-02T15:06:11.969336
-LYQ30A2BSSK,LY,deck_over,30’ Low-Pro with Hydraulic Dove,,30.0,30.0,deck_over,6.0,36.0,,0,0,0,,,2026-04-02T15:06:12.362208
-LYQ32A2BSSK,LY,deck_over,32’ Low-Pro with Hydraulic Dove,,32.0,32.0,deck_over,6.0,38.0,,0,0,0,,,2026-04-02T15:06:12.362240
-LYQ34A2BSSK,LY,deck_over,34’ Low-Pro with Hydraulic Dove,,34.0,34.0,deck_over,6.0,40.0,,0,0,0,,,2026-04-02T15:06:12.362262
-LYQ36A2BSSK,LY,deck_over,36’ Low-Pro with Hydraulic Dove,,36.0,36.0,deck_over,6.0,42.0,,0,0,0,,,2026-04-02T15:06:12.362469
-LYQ38A2BSSK,LY,deck_over,38’ Low-Pro with Hydraulic Dove,,38.0,38.0,deck_over,6.0,44.0,,0,0,0,,,2026-04-02T15:06:12.362491
-LYQ40A2BSSK,LY,deck_over,40’ Low-Pro with Hydraulic Dove,,40.0,40.0,deck_over,6.0,46.0,,0,0,0,,,2026-04-02T15:06:12.362511
-P8J1672BSSK,P8,utility,12’x83” Tndm Axle Channel Utility,,16.0,16.0,c_channel,4.5,20.5,,0,0,0,,,2026-04-02T15:06:06.188964
-P8J1872BSSK,P8,utility,14’x83” Tndm Axle Channel Utility,,18.0,18.0,c_channel,4.5,22.5,,0,0,0,,,2026-04-02T15:06:06.189003
-P8J2072BSSK,P8,utility,16’x83” Tndm Axle Channel Utility,,16.0,16.0,c_channel,4.5,20.5,,0,0,0,,,2026-04-02T15:06:06.189030
-P8J2272BSSK,P8,utility,18’x83” Tndm Axle Channel Utility,,27.0,27.0,c_channel,4.5,31.5,,0,0,0,,,2026-04-02T15:06:06.189054
-P8J2472BSSK,P8,utility,20’x83” Tndm Axle Channel Utility,,20.0,20.0,c_channel,4.5,24.5,,0,0,0,,,2026-04-02T15:06:06.189075
-PLP22A2BSSK,PL,pintle,22’ Low-Pro Pintle with Duals,,22.0,22.0,pintle,4.0,26.0,,0,0,0,,,2026-04-02T15:06:11.554900
-PLP24A2BSSK,PL,pintle,24’ Low-Pro Pintle with Duals,,24.0,24.0,pintle,4.0,28.0,,0,0,0,,,2026-04-02T15:06:11.554959
-PLP25A2BSSK,PL,pintle,25’ Low-Pro Pintle with Duals,,25.0,25.0,pintle,4.0,29.0,,0,0,0,,,2026-04-02T15:06:11.554998
-PLP26A2BSSK,PL,pintle,26’ Low-Pro Pintle with Duals,,26.0,26.0,pintle,4.0,30.0,,0,0,0,,,2026-04-02T15:06:11.555036
-PLP28A2BSSK,PL,pintle,28’ Low-Pro Pintle with Duals,,28.0,28.0,pintle,4.0,32.0,,0,0,0,,,2026-04-02T15:06:11.555072
-PLP30A2BSSK,PL,pintle,30’ Low-Pro Pintle with Duals,,30.0,30.0,pintle,4.0,34.0,,0,0,0,,,2026-04-02T15:06:11.555108
-PLP32A2BSSK,PL,pintle,32’ Low-Pro Pintle with Duals,,32.0,32.0,pintle,4.0,36.0,,0,0,0,,,2026-04-02T15:06:11.555143
-PLP34A2BSSK,PL,pintle,34’ Low-Pro Pintle with Duals,,34.0,34.0,pintle,4.0,38.0,,0,0,0,,,2026-04-02T15:06:11.555178
-PLP35A2BSSK,PL,pintle,35’ Low-Pro Pintle with Duals,,35.0,35.0,pintle,4.0,39.0,,0,0,0,,,2026-04-02T15:06:11.555213
-PLP36A2BSSK,PL,pintle,36’ Low-Pro Pintle with Duals,,36.0,36.0,pintle,4.0,40.0,,0,0,0,,,2026-04-02T15:06:11.555247
-PLP38A2BSSK,PL,pintle,38’ Low-Pro Pintle with Duals,,38.0,38.0,pintle,4.0,42.0,,0,0,0,,,2026-04-02T15:06:11.555282
-PLP40A2BSSK,PL,pintle,40’ Low-Pro Pintle with Duals,,40.0,40.0,pintle,4.0,44.0,,0,0,0,,,2026-04-02T15:06:11.555306
-T1J1371BDTK,T1,tilt,13’ Single Axle HD Tilt,,13.0,13.0,c_channel,4.5,17.5,,0,0,0,,,2026-04-02T15:06:08.507672
-T1J1671BDTK,T1,tilt,16’ Single Axle HD Tilt,,16.0,16.0,c_channel,4.5,20.5,,0,0,0,,,2026-04-02T15:06:08.507706
-T6J1672BTTK,T6,tilt,16’x6” Channel Equipment Tilt,,16.0,16.0,c_channel,4.5,20.5,,0,0,0,,,2026-04-02T15:06:08.807194
-T6J1872BTTK,T6,tilt,18’x6” Channel Equipment Tilt,,18.0,18.0,c_channel,4.5,22.5,,0,0,0,,,2026-04-02T15:06:08.807235
-T6J2072BTTK,T6,tilt,20’x6” Channel Equipment Tilt,,20.0,20.0,c_channel,4.5,24.5,,0,0,0,,,2026-04-02T15:06:08.807261
-T6J2272BTTK,T6,tilt,22’x6” Channel Equipment Tilt,,22.0,22.0,c_channel,4.5,26.5,,0,0,0,,,2026-04-02T15:06:08.807286
-T6J2472BTTK,T6,tilt,24’x6” Channel Equipment Tilt,,24.0,24.0,c_channel,4.5,28.5,,0,0,0,,,2026-04-02T15:06:08.807310
-T8J2272BSTK,T8,tilt,22’ Deckover Tilt,,22.0,22.0,c_channel,4.5,26.5,,0,0,0,,,2026-04-02T15:06:09.336949
-T8J2472BSTK,T8,tilt,24’ Deckover Tilt,,24.0,24.0,c_channel,4.5,28.5,,0,0,0,,,2026-04-02T15:06:09.336986
-T8J2672BSTK,T8,tilt,26’ Deckover Tilt,,26.0,26.0,c_channel,4.5,30.5,,0,0,0,,,2026-04-02T15:06:09.337010
-T8J2872BSTK,T8,tilt,28’ Deckover Tilt,,28.0,28.0,c_channel,4.5,32.5,,0,0,0,,,2026-04-02T15:06:09.337035
-T9R2472BSTK,T9,tilt,24’ HD Deckover Tilt,,24.0,24.0,c_channel,4.5,28.5,,0,0,0,,,2026-04-02T15:06:09.471505
-T9R2672BSTK,T9,tilt,26’ HD Deckover Tilt,,26.0,26.0,c_channel,4.5,30.5,,0,0,0,,,2026-04-02T15:06:09.471536
-T9R2872BSTK,T9,tilt,28’ HD Deckover Tilt,,28.0,28.0,c_channel,4.5,32.5,,0,0,0,,,2026-04-02T15:06:09.471560
-T9R3072BSTK,T9,tilt,30’ HD Deckover Tilt,,30.0,30.0,c_channel,4.5,34.5,,0,0,0,,,2026-04-02T15:06:09.471584
-TFJ1872BTTK,TF,tilt,18’ Powered Full Tilt,,18.0,18.0,c_channel,4.5,22.5,,0,0,0,,,2026-04-02T15:06:08.927823
-TFJ2072BTTK,TF,tilt,20’ Powered Full Tilt,,20.0,20.0,c_channel,4.5,24.5,,0,0,0,,,2026-04-02T15:06:08.927877
-TFJ2272BTTK,TF,tilt,22’ Powered Full Tilt,,22.0,22.0,c_channel,4.5,26.5,,0,0,0,,,2026-04-02T15:06:08.927916
-TFJ2472BTTK,TF,tilt,24’ Powered Full Tilt,,24.0,24.0,c_channel,4.5,28.5,,0,0,0,,,2026-04-02T15:06:08.927952
-THJ1852BSTK,TH,tilt,8’x83” Hydraulic Quick Tilt,,18.0,18.0,c_channel,4.5,22.5,,0,0,0,,,2026-04-02T15:06:08.620993
-THJ2052BSTK,TH,tilt,20’x83” Hydraulic Quick Tilt,,20.0,20.0,c_channel,4.5,24.5,,0,0,0,,,2026-04-02T15:06:08.621033
-THJ2252BSTK,TH,tilt,22’x83” Hydraulic Quick Tilt,,22.0,22.0,c_channel,4.5,26.5,,0,0,0,,,2026-04-02T15:06:08.621059
-TJT2082BTTK,TJ,tilt,20’ HD Equipment Tilt 6” Channel,,20.0,20.0,c_channel,4.5,24.5,,0,0,0,,,2026-04-02T15:06:09.201325
-TJT2282BTTK,TJ,tilt,22’ HD Equipment Tilt 6” Channel,,22.0,22.0,c_channel,4.5,26.5,,0,0,0,,,2026-04-02T15:06:09.201359
-TJT2482BTTK,TJ,tilt,24’ HD Equipment Tilt 6” Channel,,24.0,24.0,c_channel,4.5,28.5,,0,0,0,,,2026-04-02T15:06:09.201383
-TSJ2072BTTK,TS,tilt,20’x6” Channel Super-Wide Tilt,,20.0,20.0,c_channel,4.5,24.5,,0,0,0,,,2026-04-02T15:06:09.063992
-TSJ2272BTTK,TS,tilt,22’x6” Channel Super-Wide Tilt,,22.0,22.0,c_channel,4.5,26.5,,0,0,0,,,2026-04-02T15:06:09.064029
-TSJ2472BTTK,TS,tilt,24’x6” Channel Super-Wide Tilt,,24.0,24.0,c_channel,4.5,28.5,,0,0,0,,,2026-04-02T15:06:09.064053
-U221031DSSK,U2,utility,10’x72” Sngl Axle Channel Utility,,10.0,10.0,c_channel,4.5,14.5,,0,0,0,,,2026-04-02T15:06:05.430156
-U221231DSSK,U2,utility,12’x72” Sngl Axle Channel Utility,,12.0,12.0,c_channel,4.5,16.5,,0,0,0,,,2026-04-02T15:06:05.430203
-U221431DSSK,U2,utility,14’x72” Sngl Axle Channel Utility,,14.0,14.0,c_channel,4.5,18.5,,0,0,0,,,2026-04-02T15:06:05.430230
-U620831DSSK,U6,utility,08’x60” Sngl Axle Channel Utility,,8.0,8.0,c_channel,4.5,12.5,,0,0,0,,,2026-04-02T15:06:05.323097
-U621031DSSK,U6,utility,10’x60” Sngl Axle Channel Utility,,10.0,10.0,c_channel,4.5,14.5,,0,0,0,,,2026-04-02T15:06:05.323166
-U721031DSSK,U7,utility,10’x77” Sngl Axle Channel Utility,,10.0,10.0,c_channel,4.5,14.5,,0,0,0,,,2026-04-02T15:06:05.525073
-U721231DSSK,U7,utility,12’x77” Sngl Axle Channel Utility,,12.0,12.0,c_channel,4.5,16.5,,0,0,0,,,2026-04-02T15:06:05.525104
-U721431DSSK,U7,utility,14’x77” Sngl Axle Channel Utility,,14.0,14.0,c_channel,4.5,18.5,,0,0,0,,,2026-04-02T15:06:05.525122
-U821231DSSK,U8,utility,12’x83” Sngl Axle Channel Utility,,12.0,12.0,c_channel,4.5,16.5,,0,0,0,,,2026-04-02T15:06:05.634366
-U821431DSSK,U8,utility,14’x83” Sngl Axle Channel Utility,,14.0,14.0,c_channel,4.5,18.5,,0,0,0,,,2026-04-02T15:06:05.634405
-UC21032CSSK,UC,utility,10’x60” Tndm Axle Channel Utility,,10.0,10.0,c_channel,4.5,14.5,,0,0,0,,,2026-04-02T15:06:05.764651
-UC21232CSSK,UC,utility,12’x60” Tndm Axle Channel Utility,,12.0,12.0,c_channel,4.5,16.5,,0,0,0,,,2026-04-02T15:06:05.764689
-UC21432CSSK,UC,utility,14’x60” Tndm Axle Channel Utility,,14.0,14.0,c_channel,4.5,18.5,,0,0,0,,,2026-04-02T15:06:05.764712
-UK21232CSSK,UK,utility,12’x77” Tndm Axle Channel Utility,,12.0,12.0,c_channel,4.5,16.5,,0,0,0,,,2026-04-02T15:06:05.883454
-UK21432CSSK,UK,utility,14’x77” Tndm Axle Channel Utility,,14.0,14.0,c_channel,4.5,18.5,,0,0,0,,,2026-04-02T15:06:05.883496
-UK21632CSSK,UK,utility,16’x77” Tndm Axle Channel Utility,,16.0,16.0,c_channel,4.5,20.5,,0,0,0,,,2026-04-02T15:06:05.883522
-UK21832CSSK,UK,utility,18’x77” Tndm Axle Channel Utility,,18.0,18.0,c_channel,4.5,22.5,,0,0,0,,,2026-04-02T15:06:05.883545
-UL21232CSSK,UL,utility,12’x83” Tndm Axle Channel Utility,,12.0,12.0,c_channel,4.5,16.5,,0,0,0,,,2026-04-02T15:06:06.035602
-UL21432CSSK,UL,utility,14’x83” Tndm Axle Channel Utility,,14.0,14.0,c_channel,4.5,18.5,,0,0,0,,,2026-04-02T15:06:06.035640
-UL21632CSSK,UL,utility,16’x83” Tndm Axle Channel Utility,,16.0,16.0,c_channel,4.5,20.5,,0,0,0,,,2026-04-02T15:06:06.035664
-UL21832CSSK,UL,utility,18’x83” Tndm Axle Channel Utility,,18.0,18.0,c_channel,4.5,22.5,,0,0,0,,,2026-04-02T15:06:06.035687
-UL22032CSSK,UL,utility,20’x83” Tndm Axle Channel Utility,,20.0,20.0,c_channel,4.5,24.5,,0,0,0,,,2026-04-02T15:06:06.035710
-UL22232CSSK,UL,utility,22’x83” Tndm Axle Channel Utility,,22.0,22.0,c_channel,4.5,26.5,,0,0,0,,,2026-04-02T15:06:06.035736
+item_number,model,pj_category,description,gvwr,bed_length_stated,bed_length_measured,tongue_group,tongue_feet,height_mid_ft,height_top_ft,total_footprint,dump_side_height_ft,can_nest_inside_dump,gn_axle_droppable,tongue_overlap_allowed,pairing_rule,notes,updated_at
+B5J1652BSSK,B5,car_hauler,16’x5” Channel Buggy Hauler,,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:07.774608
+B5J1852BSSK,B5,car_hauler,18’x5” Channel Buggy Hauler,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:07.774643
+B5J2052BSSK,B5,car_hauler,20’x5” Channel Buggy Hauler,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:07.774665
+B5J2252BSSK,B5,car_hauler,22’x5” Channel Buggy Hauler,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:07.774686
+B6J2072BSSK,B6,car_hauler,20’x6” Channel Super-Wide,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:07.877638
+B6J2272BSSK,B6,car_hauler,22’x6” Channel Super-Wide,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:07.877671
+B6J2472BSSK,B6,car_hauler,24’x6” Channel Super-Wide,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:07.877700
+B8J2472BSSK,B8,car_hauler,24’x8” Channel Super-Wide,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:08.058733
+B8J2672BSSK,B8,car_hauler,26’x8” Channel Super-Wide,,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:08.058770
+B8J2872BSSK,B8,car_hauler,28’x8” Channel Super-Wide,,28.0,28.0,standard,4.0,2.0,2.5,32.0,,0,0,0,,,2026-04-02T15:06:08.058796
+B8J3072BSSK,B8,car_hauler,30’x8” Channel Super-Wide,,30.0,30.0,standard,4.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:08.058820
+B8J3272BSSK,B8,car_hauler,32’x8” Channel Super-Wide,,32.0,32.0,standard,4.0,2.0,2.5,36.0,,0,0,0,,,2026-04-02T15:06:08.058850
+B8J3472BSSK,B8,car_hauler,34’x8” Channel Super-Wide,,34.0,34.0,standard,4.0,2.0,2.5,38.0,,0,0,0,,,2026-04-02T15:06:08.058875
+B8J3672BSSK,B8,car_hauler,36’x8” Channel Super-Wide,,36.0,36.0,standard,4.0,2.0,2.5,40.0,,0,0,0,,,2026-04-02T15:06:08.058898
+B8J3872BSSK,B8,car_hauler,38’x8” Channel Super-Wide,,38.0,38.0,standard,4.0,2.0,2.5,42.0,,0,0,0,,,2026-04-02T15:06:08.058921
+B8J4072BSSK,B8,car_hauler,40’x8” Channel Super-Wide,,40.0,40.0,standard,4.0,2.0,2.5,44.0,,0,0,0,,,2026-04-02T15:06:08.058948
+C421432CSSK,C4,car_hauler,14’x4” Channel Carhauler,,14.0,14.0,standard,4.0,2.0,2.5,18.0,,0,0,0,,,2026-04-02T15:06:06.361804
+C421632CSSK,C4,car_hauler,16’x4” Channel Carhauler,,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:06.361843
+C421832CSSK,C4,car_hauler,18’x4” Channel Carhauler,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:06.361867
+C422032CSSK,C4,car_hauler,20’x4” Channel Carhauler,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:06.361891
+C521632CSSK,C5,car_hauler,16’x5” Channel Carhauler,,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:06.461510
+C521832CSSK,C5,car_hauler,18’x5” Channel Carhauler,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:06.461547
+C522032CSSK,C5,car_hauler,20’x5” Channel Carhauler,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:06.461570
+C522232CSSK,C5,car_hauler,22’x5” Channel Carhauler,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:06.461591
+C8J2082BSSK,C8,car_hauler,20’x8” Channel Equipment,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:07.380017
+C8J2282BSSK,C8,car_hauler,22’x8” Channel Equipment,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:07.380079
+C8J2482BSSK,C8,car_hauler,24’x8” Channel Equipment,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:07.380137
+C8J2682BSSK,C8,car_hauler,26’x8” Channel Equipment,,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:07.380162
+C8J2882BSSK,C8,car_hauler,28’x8” Channel Equipment,,28.0,28.0,standard,4.0,2.0,2.5,32.0,,0,0,0,,,2026-04-02T15:06:07.380185
+C8J3082BSSK,C8,car_hauler,30’x8” Channel Equipment,,30.0,30.0,standard,4.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:07.380208
+C8J3282BSSK,C8,car_hauler,32’x8” Channel Equipment,,32.0,32.0,standard,4.0,2.0,2.5,36.0,,0,0,0,,,2026-04-02T15:06:07.380229
+C8J3482BSSK,C8,car_hauler,34’x8” Channel Equipment,,34.0,34.0,standard,4.0,2.0,2.5,38.0,,0,0,0,,,2026-04-02T15:06:07.380254
+C8J3682BSSK,C8,car_hauler,36’x8” Channel Equipment,,36.0,36.0,standard,4.0,2.0,2.5,40.0,,0,0,0,,,2026-04-02T15:06:07.380284
+C8J3882BSSK,C8,car_hauler,38’x8” Channel Equipment,,38.0,38.0,standard,4.0,2.0,2.5,42.0,,0,0,0,,,2026-04-02T15:06:07.380304
+C8J4082BSSK,C8,car_hauler,40’x8” Channel Equipment,,40.0,40.0,standard,4.0,2.0,2.5,44.0,,0,0,0,,,2026-04-02T15:06:07.380324
+CCJ1672BSSK,CC,car_hauler,16’x6” Channel Equipment,,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:07.021406
+CCJ1872BSSK,CC,car_hauler,18’x6” Channel Equipment,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:07.021438
+CCJ2072BSSK,CC,car_hauler,20’x6” Channel Equipment,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:07.021458
+CCJ2272BSSK,CC,car_hauler,22’x6” Channel Equipment,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:07.021479
+CCJ2472BSSK,CC,car_hauler,24’x6” Channel Equipment,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:07.021498
+CDC1872BSUK,CD,car_hauler,"6"" Channel Equipment",,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:06.880407
+CDC2072BSUK,CD,car_hauler,"6"" Channel Equipment",,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:06.880476
+CDC2272BSUK,CD,car_hauler,"6"" Channel Equipment",,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:06.880514
+CEJ1652BSSK,CE,car_hauler,16’x5” Channel Equipment,,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:06.591285
+CEJ1852BSSK,CE,car_hauler,18’x5” Channel Equipment,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:06.591319
+CEJ2052BSSK,CE,car_hauler,20’x5” Channel Equipment,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:06.591344
+CEJ2252BSSK,CE,car_hauler,22’x5” Channel Equipment,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:06.591369
+CHJ1832CSPK,CH,car_hauler,18' Steel Deck Car Hauler,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:06.732623
+CHJ2032CSPK,CH,car_hauler,20' Steel Deck Car Hauler,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:06.732658
+CHJ2232CSPK,CH,car_hauler,22' Steel Deck Car Hauler,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:06.732682
+D3J1052BSSK,D3,dump_variants,10’x72” Tandem Axle Dump,,10.0,10.0,standard,5.5,5.0,5.0,15.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.677185
+D3J1252BSSK,D3,dump_variants,12’x72” Tandem Axle Dump,,12.0,12.0,standard,5.5,5.0,5.0,17.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.677221
+D520851BSSK,D5,dump_small,08’x60” Utility Dump,,20.0,20.0,standard,5.5,4.0,4.0,25.5,2.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.582615
+D521051BSSK,D5,dump_small,10’x60” Utility Dump,,21.0,21.0,standard,5.5,4.0,4.0,26.5,2.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.582651
+D7C1472BSSK,D7,dump_small,"14'x83"" Channel Dump",,14.0,14.0,standard,5.5,4.0,4.0,19.5,2.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.825091
+D8J1472BSSK,D8,dump_variants,14’x96” Deckover Dump,,14.0,14.0,standard,5.5,5.0,5.0,19.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.757178
+D8J1672BSSK,D8,dump_variants,16’x96” Deckover Dump,,16.0,16.0,standard,5.5,5.0,5.0,21.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.757208
+DDR20A2BSBK,DD,dump_variants,20’ Tandem Dual Dump,,20.0,20.0,standard,5.5,5.0,5.0,25.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.873702
+DEB16S2BTSK,DE,dump_variants,16’ HD Low-Pro Dump,,16.0,16.0,standard,5.5,5.0,5.0,21.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.528469
+DLJ1272BSSK,DL,dump_lowside,12’x83” Low Pro Dump,,12.0,12.0,standard,5.5,4.0,4.0,17.5,2.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.938592
+DLJ1472BSSK,DL,dump_lowside,14’x83” Low Pro Dump,,14.0,14.0,standard,5.5,4.0,4.0,19.5,2.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.938626
+DLJ1672BSSK,DL,dump_lowside,16’x83” Low Pro Dump,,16.0,16.0,standard,5.5,4.0,4.0,21.5,2.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:09.938648
+DMJ1272BSSK,DM,dump_variants,12’x83” Low Pro High Side Dump,,12.0,12.0,standard,5.5,5.0,5.0,17.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.056500
+DMJ1472BSSK,DM,dump_variants,14’x83” Low Pro High Side Dump,,14.0,14.0,standard,5.5,5.0,5.0,19.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.056560
+DMJ1672BSSK,DM,dump_variants,16’x83” Low Pro High Side Dump,,16.0,16.0,standard,5.5,5.0,5.0,21.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.056602
+DRJ1472BSSK,DR,dump_variants,14’ Rollster™ Roll Off Dump,,14.0,14.0,standard,5.5,5.0,5.0,19.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.635322
+DTJ1472BSSK,DT,dump_variants,14’x83” Low Pro Telescopic Dump,,14.0,14.0,standard,5.5,5.0,5.0,19.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.417727
+DTJ1672BSSK,DT,dump_variants,16’x83” Low Pro Telescopic Dump,,16.0,16.0,standard,5.5,5.0,5.0,21.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.417761
+DVJ1492BSSK,DV,dump_highside_3ft,"14'x83"" Voyager Dump",,14.0,14.0,standard,5.5,5.0,5.0,19.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.185181
+DVJ1692BSSK,DV,dump_highside_3ft,"16'x83"" Voyager Dump",,16.0,16.0,standard,5.5,5.0,5.0,21.5,3.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.185235
+DXT1282BSSK,DX,dump_highside_4ft,12’x83” Low Pro Dump w/ 8k Axles,,12.0,12.0,standard,5.5,6.0,6.0,17.5,4.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.308716
+DXT1482BSSK,DX,dump_highside_4ft,14’x83” Low Pro Dump w/ 8k Axles,,14.0,14.0,standard,5.5,6.0,6.0,19.5,4.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.308751
+DXT1682BSSK,DX,dump_highside_4ft,16’x83” Low Pro Dump w/ 8k Axles,,16.0,16.0,standard,5.5,6.0,6.0,21.5,4.0,0,0,0,,"Wall-size height map: 2ft=4ft, 3ft=5ft, 4ft=6ft.",2026-04-02T15:06:10.308774
+EVJ1672BSEK,EV,car_hauler,"16'x83"" Voyager Equipment",,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:07.160708
+EVJ1872BSEK,EV,car_hauler,"18'x83"" Voyager Equipment",,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:07.160748
+EVJ2072BSEK,EV,car_hauler,"20'x83"" Voyager Equipment",,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:07.160772
+EVJ2272BSEK,EV,car_hauler,"22'x83"" Voyager Equipment",,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:07.160795
+EVJ2472BSEK,EV,car_hauler,"24'x83"" Voyager Equipment",,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:07.160817
+F8J1672BSSK,F8,deck_over,16’x8” I-Beam Deckover,,16.0,16.0,standard,6.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:11.370344
+F8J1872BSSK,F8,deck_over,18’x8” I-Beam Deckover,,18.0,18.0,standard,6.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:11.370916
+F8J2072BSSK,F8,deck_over,20’x8” I-Beam Deckover,,20.0,20.0,standard,6.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:11.370947
+F8J2272BSSK,F8,deck_over,22’x8” I-Beam Deckover,,22.0,22.0,standard,6.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:11.370978
+F8J2472BSSK,F8,deck_over,24’x8” I-Beam Deckover,,24.0,24.0,standard,6.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:11.371003
+F8J2672BSSK,F8,deck_over,26’x8” I-Beam Deckover,,26.0,26.0,standard,6.0,2.0,2.5,32.0,,0,0,0,,,2026-04-02T15:06:11.371039
+F8J2872BSSK,F8,deck_over,28’x8” I-Beam Deckover,,28.0,28.0,standard,6.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:11.371059
+F8J3072BSSK,F8,deck_over,30’x8” I-Beam Deckover,,30.0,30.0,standard,6.0,2.0,2.5,36.0,,0,0,0,,,2026-04-02T15:06:11.371080
+H4T2082BSSK,H4,car_hauler,20’x8” Pro-Beam Equipment,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:07.508379
+H4T2282BSSK,H4,car_hauler,22’x8” Pro-Beam Equipment,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:07.508463
+H4T2482BSSK,H4,car_hauler,24’x8” Pro-Beam Equipment,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:07.508491
+H4T2682BSSK,H4,car_hauler,26’x8” Pro-Beam Equipment,,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:07.508533
+H5P20S2BTSK,H5,car_hauler,20’x8” Pro-Beam Equipment,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:07.669383
+H5P22S2BTSK,H5,car_hauler,22’x8” Pro-Beam Equipment,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:07.669419
+H5P24S2BTSK,H5,car_hauler,24’x8” Pro-Beam Equipment,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:07.669445
+H5P26S2BTSK,H5,car_hauler,"26'x10"" Pro-Beam Equipment",,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:07.669470
+H6T2082BSSK,H6,car_hauler,20’x8” Pro-Beam Super-Wide Equip,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:08.216791
+H6T2282BSSK,H6,car_hauler,22’x8” Pro-Beam Super-Wide Equip,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:08.216828
+H6T2482BSSK,H6,car_hauler,24’x8” Pro-Beam Super-Wide Equip,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:08.216854
+H6T2682BSSK,H6,car_hauler,26’x8” Pro-Beam Super-Wide Equip,,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:08.216875
+H7P20S2BTSK,H7,car_hauler,20’x10” Pro-Beam Super-Wide Equip,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:08.398766
+H7P22S2BTSK,H7,car_hauler,22’x10” Pro-Beam Super-Wide Equip,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:08.398858
+H7P24S2BTSK,H7,car_hauler,24’x10” Pro-Beam Super-Wide Equip,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:08.399137
+H7P26S2BTSK,H7,car_hauler,26’x10” Pro-Beam Super-Wide Equip,,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:08.399185
+H7P28S2BTSK,H7,car_hauler,28’x10” Pro-Beam Super-Wide Equip,,28.0,28.0,standard,4.0,2.0,2.5,32.0,,0,0,0,,,2026-04-02T15:06:08.400184
+H7P30S2BTSK,H7,car_hauler,30’x10” Pro-Beam Super-Wide Equip,,30.0,30.0,standard,4.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:08.400244
+H7P32S2BTSK,H7,car_hauler,32’x10” Pro-Beam Super-Wide Equip,,32.0,32.0,standard,4.0,2.0,2.5,36.0,,0,0,0,,,2026-04-02T15:06:08.400275
+H7P34S2BTSK,H7,car_hauler,34’x10” Pro-Beam Super-Wide Equip,,34.0,34.0,standard,4.0,2.0,2.5,38.0,,0,0,0,,,2026-04-02T15:06:08.400302
+H7P36S2BTSK,H7,car_hauler,36’x10” Pro-Beam Super-Wide Equip,,36.0,36.0,standard,4.0,2.0,2.5,40.0,,0,0,0,,,2026-04-02T15:06:08.400330
+H7P38S2BTSK,H7,car_hauler,38’x10” Pro-Beam Super-Wide Equip,,38.0,38.0,standard,4.0,2.0,2.5,42.0,,0,0,0,,,2026-04-02T15:06:08.400357
+H7P40S2BTSK,H7,car_hauler,40’x10” Pro-Beam Super-Wide Equip,,40.0,40.0,standard,4.0,2.0,2.5,44.0,,0,0,0,,,2026-04-02T15:06:08.400384
+L6J1452BSSK,L6,deck_over,14’ Med. Duty Deckover 6” Channel,,14.0,14.0,standard,6.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:11.073213
+L6J1652BSSK,L6,deck_over,16’ Med. Duty Deckover 6” Channel,,16.0,16.0,standard,6.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:11.073248
+L6J1852BSSK,L6,deck_over,18’ Med. Duty Deckover 6” Channel,,18.0,18.0,standard,6.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:11.073273
+L6J2052BSSK,L6,deck_over,20’ Med. Duty Deckover 6” Channel,,20.0,20.0,standard,6.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:11.073295
+L6J2252BSSK,L6,deck_over,22’ Med. Duty Deckover 6” Channel,,22.0,22.0,standard,6.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:11.073316
+L6J2452BSSK,L6,deck_over,24’ Med. Duty Deckover 6” Channel,,24.0,24.0,standard,6.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:11.073338
+L7C1872BSSK,L7,deck_over,"18'x 6"" 14K  Equipment",,18.0,18.0,standard,6.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:11.193331
+L7C2072BSSK,L7,deck_over,"20'x 6"" 14K Equipment",,20.0,20.0,standard,6.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:11.193367
+L7C2272BSSK,L7,deck_over,"22'x 6"" 14K Equipment",,22.0,22.0,standard,6.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:11.193390
+LDQ20A2BSSK,LD,deck_over,20’ Low-Pro Flatdeck with Duals,,20.0,20.0,gooseneck,9.0,2.0,2.5,29.0,,0,0,0,,,2026-04-02T15:06:12.205672
+LDQ25A2BSSK,LD,deck_over,25’ Low-Pro Flatdeck with Duals,,25.0,25.0,gooseneck,9.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:12.205709
+LDQ26A2BSSK,LD,deck_over,26’ Low-Pro Flatdeck with Duals,,26.0,26.0,gooseneck,9.0,2.0,2.5,35.0,,0,0,0,,,2026-04-02T15:06:12.205734
+LDQ28A2BSSK,LD,deck_over,28’ Low-Pro Flatdeck with Duals,,28.0,28.0,gooseneck,9.0,2.0,2.5,37.0,,0,0,0,,,2026-04-02T15:06:12.205759
+LDQ30A2BSSK,LD,deck_over,30’ Low-Pro Flatdeck with Duals,,30.0,30.0,gooseneck,9.0,2.0,2.5,39.0,,0,0,0,,,2026-04-02T15:06:12.206171
+LDQ32A2BSSK,LD,deck_over,32’ Low-Pro Flatdeck with Duals,,32.0,32.0,gooseneck,9.0,2.0,2.5,41.0,,0,0,0,,,2026-04-02T15:06:12.206240
+LDQ34A2BSSK,LD,deck_over,34’ Low-Pro Flatdeck with Duals,,34.0,34.0,gooseneck,9.0,2.0,2.5,43.0,,0,0,0,,,2026-04-02T15:06:12.206284
+LDQ35A2BSSK,LD,deck_over,35’ Low-Pro Flatdeck with Duals,,35.0,35.0,gooseneck,9.0,2.0,2.5,44.0,,0,0,0,,,2026-04-02T15:06:12.206325
+LDQ36A2BSSK,LD,deck_over,36’ Low-Pro Flatdeck with Duals,,36.0,36.0,gooseneck,9.0,2.0,2.5,45.0,,0,0,0,,,2026-04-02T15:06:12.206365
+LDQ38A2BSSK,LD,deck_over,38’ Low-Pro Flatdeck with Duals,,38.0,38.0,gooseneck,9.0,2.0,2.5,47.0,,0,0,0,,,2026-04-02T15:06:12.206406
+LDQ40A2BSSK,LD,deck_over,40’ Low-Pro Flatdeck with Duals,,40.0,40.0,gooseneck,9.0,2.0,2.5,49.0,,0,0,0,,,2026-04-02T15:06:12.206445
+LDQ42A2BSSK,LD,deck_over,42’ Low-Pro Flatdeck with Duals,,42.0,42.0,gooseneck,9.0,2.0,2.5,51.0,,0,0,0,,,2026-04-02T15:06:12.206483
+LDQ44A2BSSK,LD,deck_over,44’ Low-Pro Flatdeck with Duals,,44.0,44.0,gooseneck,9.0,2.0,2.5,53.0,,0,0,0,,,2026-04-02T15:06:12.206537
+LSQ2072BSSK,LS,deck_over,20’ Low-Pro Flatdeck with Singles,,20.0,20.0,gooseneck,9.0,2.0,2.5,29.0,,0,0,0,,,2026-04-02T15:06:11.770391
+LSQ2272BSSK,LS,deck_over,22’ Low-Pro Flatdeck with Singles,,22.0,22.0,gooseneck,9.0,2.0,2.5,31.0,,0,0,0,,,2026-04-02T15:06:11.770425
+LSQ2472BSSK,LS,deck_over,24’ Low-Pro Flatdeck with Singles,,24.0,24.0,gooseneck,9.0,2.0,2.5,33.0,,0,0,0,,,2026-04-02T15:06:11.770448
+LSQ2572BSSK,LS,deck_over,25’ Low-Pro Flatdeck with Singles,,25.0,25.0,gooseneck,9.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:11.770469
+LSQ2672BSSK,LS,deck_over,26’ Low-Pro Flatdeck with Singles,,26.0,26.0,gooseneck,9.0,2.0,2.5,35.0,,0,0,0,,,2026-04-02T15:06:11.770489
+LSQ2872BSSK,LS,deck_over,28’ Low-Pro Flatdeck with Singles,,28.0,28.0,gooseneck,9.0,2.0,2.5,37.0,,0,0,0,,,2026-04-02T15:06:11.770509
+LSQ3072BSSK,LS,deck_over,30’ Low-Pro Flatdeck with Singles,,30.0,30.0,gooseneck,9.0,2.0,2.5,39.0,,0,0,0,,,2026-04-02T15:06:11.770527
+LSQ3272BSSK,LS,deck_over,32’ Low-Pro Flatdeck with Singles,,32.0,32.0,gooseneck,9.0,2.0,2.5,41.0,,0,0,0,,,2026-04-02T15:06:11.770547
+LSQ3472BSSK,LS,deck_over,34’ Low-Pro Flatdeck with Singles,,34.0,34.0,gooseneck,9.0,2.0,2.5,43.0,,0,0,0,,,2026-04-02T15:06:11.770566
+LSQ3572BSSK,LS,deck_over,35’ Low-Pro Flatdeck with Singles,,35.0,35.0,gooseneck,9.0,2.0,2.5,44.0,,0,0,0,,,2026-04-02T15:06:11.770586
+LSQ3672BSSK,LS,deck_over,36’ Low-Pro Flatdeck with Singles,,36.0,36.0,gooseneck,9.0,2.0,2.5,45.0,,0,0,0,,,2026-04-02T15:06:11.770806
+LSQ3872BSSK,LS,deck_over,38’ Low-Pro Flatdeck with Singles,,38.0,38.0,gooseneck,9.0,2.0,2.5,47.0,,0,0,0,,,2026-04-02T15:06:11.770846
+LSQ4072BSSK,LS,deck_over,40’ Low-Pro Flatdeck with Singles,,40.0,40.0,gooseneck,9.0,2.0,2.5,49.0,,0,0,0,,,2026-04-02T15:06:11.770867
+LSQ4272BSSK,LS,deck_over,42’ Low-Pro Flatdeck with Singles,,42.0,42.0,gooseneck,9.0,2.0,2.5,51.0,,0,0,0,,,2026-04-02T15:06:11.770887
+LSQ4472BSSK,LS,deck_over,44’ Low-Pro Flatdeck with Singles,,44.0,44.0,gooseneck,9.0,2.0,2.5,53.0,,0,0,0,,,2026-04-02T15:06:11.770907
+LXQ2082BSSK,LX,deck_over,20’ Low-Pro Flatdeck w/8k Axles,,20.0,20.0,gooseneck,9.0,2.0,2.5,29.0,,0,0,0,,,2026-04-02T15:06:11.968763
+LXQ2282BSSK,LX,deck_over,22’ Low-Pro Flatdeck w/8k Axles,,22.0,22.0,gooseneck,9.0,2.0,2.5,31.0,,0,0,0,,,2026-04-02T15:06:11.968818
+LXQ2482BSSK,LX,deck_over,24’ Low-Pro Flatdeck w/8k Axles,,24.0,24.0,gooseneck,9.0,2.0,2.5,33.0,,0,0,0,,,2026-04-02T15:06:11.968859
+LXQ2582BSSK,LX,deck_over,25’ Low-Pro Flatdeck w/8k Axles,,25.0,25.0,gooseneck,9.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:11.968898
+LXQ2682BSSK,LX,deck_over,26’ Low-Pro Flatdeck w/8k Axles,,26.0,26.0,gooseneck,9.0,2.0,2.5,35.0,,0,0,0,,,2026-04-02T15:06:11.968938
+LXQ2882BSSK,LX,deck_over,28’ Low-Pro Flatdeck w/8k Axles,,28.0,28.0,gooseneck,9.0,2.0,2.5,37.0,,0,0,0,,,2026-04-02T15:06:11.968973
+LXQ3082BSSK,LX,deck_over,30’ Low-Pro Flatdeck w/8k Axles,,30.0,30.0,gooseneck,9.0,2.0,2.5,39.0,,0,0,0,,,2026-04-02T15:06:11.969010
+LXQ3282BSSK,LX,deck_over,32’ Low-Pro Flatdeck w/8k Axles,,32.0,32.0,gooseneck,9.0,2.0,2.5,41.0,,0,0,0,,,2026-04-02T15:06:11.969047
+LXQ3482BSSK,LX,deck_over,34’ Low-Pro Flatdeck w/8k Axles,,34.0,34.0,gooseneck,9.0,2.0,2.5,43.0,,0,0,0,,,2026-04-02T15:06:11.969107
+LXQ3582BSSK,LX,deck_over,35’ Low-Pro Flatdeck w/8k Axles,,35.0,35.0,gooseneck,9.0,2.0,2.5,44.0,,0,0,0,,,2026-04-02T15:06:11.969227
+LXQ3682BSSK,LX,deck_over,36’ Low-Pro Flatdeck w/8k Axles,,36.0,36.0,gooseneck,9.0,2.0,2.5,45.0,,0,0,0,,,2026-04-02T15:06:11.969260
+LXQ3882BSSK,LX,deck_over,38’ Low-Pro Flatdeck w/8k Axles,,38.0,38.0,gooseneck,9.0,2.0,2.5,47.0,,0,0,0,,,2026-04-02T15:06:11.969281
+LXQ4082BSSK,LX,deck_over,40’ Low-Pro Flatdeck w/8k Axles,,40.0,40.0,gooseneck,9.0,2.0,2.5,49.0,,0,0,0,,,2026-04-02T15:06:11.969300
+LXQ4282BSSK,LX,deck_over,42’ Low-Pro Flatdeck w/8k Axles,,42.0,42.0,gooseneck,9.0,2.0,2.5,51.0,,0,0,0,,,2026-04-02T15:06:11.969318
+LXQ4482BSSK,LX,deck_over,44’ Low-Pro Flatdeck w/8k Axles,,44.0,44.0,gooseneck,9.0,2.0,2.5,53.0,,0,0,0,,,2026-04-02T15:06:11.969336
+LYQ30A2BSSK,LY,deck_over,30’ Low-Pro with Hydraulic Dove,,30.0,30.0,gooseneck,9.0,2.0,2.5,39.0,,0,0,0,,,2026-04-02T15:06:12.362208
+LYQ32A2BSSK,LY,deck_over,32’ Low-Pro with Hydraulic Dove,,32.0,32.0,gooseneck,9.0,2.0,2.5,41.0,,0,0,0,,,2026-04-02T15:06:12.362240
+LYQ34A2BSSK,LY,deck_over,34’ Low-Pro with Hydraulic Dove,,34.0,34.0,gooseneck,9.0,2.0,2.5,43.0,,0,0,0,,,2026-04-02T15:06:12.362262
+LYQ36A2BSSK,LY,deck_over,36’ Low-Pro with Hydraulic Dove,,36.0,36.0,gooseneck,9.0,2.0,2.5,45.0,,0,0,0,,,2026-04-02T15:06:12.362469
+LYQ38A2BSSK,LY,deck_over,38’ Low-Pro with Hydraulic Dove,,38.0,38.0,gooseneck,9.0,2.0,2.5,47.0,,0,0,0,,,2026-04-02T15:06:12.362491
+LYQ40A2BSSK,LY,deck_over,40’ Low-Pro with Hydraulic Dove,,40.0,40.0,gooseneck,9.0,2.0,2.5,49.0,,0,0,0,,,2026-04-02T15:06:12.362511
+P8J1672BSSK,P8,utility,12’x83” Tndm Axle Channel Utility,,16.0,16.0,standard,4.0,2.9,2.9,20.0,,0,0,0,,,2026-04-02T15:06:06.188964
+P8J1872BSSK,P8,utility,14’x83” Tndm Axle Channel Utility,,18.0,18.0,standard,4.0,2.9,2.9,22.0,,0,0,0,,,2026-04-02T15:06:06.189003
+P8J2072BSSK,P8,utility,16’x83” Tndm Axle Channel Utility,,20.0,20.0,standard,4.0,2.9,2.9,24.0,,0,0,0,,,2026-04-02T15:06:06.189030
+P8J2272BSSK,P8,utility,18’x83” Tndm Axle Channel Utility,,22.0,22.0,standard,4.0,2.9,2.9,26.0,,0,0,0,,,2026-04-02T15:06:06.189054
+P8J2472BSSK,P8,utility,20’x83” Tndm Axle Channel Utility,,24.0,24.0,standard,4.0,2.9,2.9,28.0,,0,0,0,,,2026-04-02T15:06:06.189075
+PLP22A2BSSK,PL,pintle,22’ Low-Pro Pintle with Duals,,22.0,22.0,gooseneck,9.0,2.5,2.5,31.0,,0,0,0,,,2026-04-02T15:06:11.554900
+PLP24A2BSSK,PL,pintle,24’ Low-Pro Pintle with Duals,,24.0,24.0,gooseneck,9.0,2.5,2.5,33.0,,0,0,0,,,2026-04-02T15:06:11.554959
+PLP25A2BSSK,PL,pintle,25’ Low-Pro Pintle with Duals,,25.0,25.0,gooseneck,9.0,2.5,2.5,34.0,,0,0,0,,,2026-04-02T15:06:11.554998
+PLP26A2BSSK,PL,pintle,26’ Low-Pro Pintle with Duals,,26.0,26.0,gooseneck,9.0,2.5,2.5,35.0,,0,0,0,,,2026-04-02T15:06:11.555036
+PLP28A2BSSK,PL,pintle,28’ Low-Pro Pintle with Duals,,28.0,28.0,gooseneck,9.0,2.5,2.5,37.0,,0,0,0,,,2026-04-02T15:06:11.555072
+PLP30A2BSSK,PL,pintle,30’ Low-Pro Pintle with Duals,,30.0,30.0,gooseneck,9.0,2.5,2.5,39.0,,0,0,0,,,2026-04-02T15:06:11.555108
+PLP32A2BSSK,PL,pintle,32’ Low-Pro Pintle with Duals,,32.0,32.0,gooseneck,9.0,2.5,2.5,41.0,,0,0,0,,,2026-04-02T15:06:11.555143
+PLP34A2BSSK,PL,pintle,34’ Low-Pro Pintle with Duals,,34.0,34.0,gooseneck,9.0,2.5,2.5,43.0,,0,0,0,,,2026-04-02T15:06:11.555178
+PLP35A2BSSK,PL,pintle,35’ Low-Pro Pintle with Duals,,35.0,35.0,gooseneck,9.0,2.5,2.5,44.0,,0,0,0,,,2026-04-02T15:06:11.555213
+PLP36A2BSSK,PL,pintle,36’ Low-Pro Pintle with Duals,,36.0,36.0,gooseneck,9.0,2.5,2.5,45.0,,0,0,0,,,2026-04-02T15:06:11.555247
+PLP38A2BSSK,PL,pintle,38’ Low-Pro Pintle with Duals,,38.0,38.0,gooseneck,9.0,2.5,2.5,47.0,,0,0,0,,,2026-04-02T15:06:11.555282
+PLP40A2BSSK,PL,pintle,40’ Low-Pro Pintle with Duals,,40.0,40.0,gooseneck,9.0,2.5,2.5,49.0,,0,0,0,,,2026-04-02T15:06:11.555306
+T1J1371BDTK,T1,tilt,13’ Single Axle HD Tilt,,13.0,13.0,standard,4.0,2.0,2.5,17.0,,0,0,0,,,2026-04-02T15:06:08.507672
+T1J1671BDTK,T1,tilt,16’ Single Axle HD Tilt,,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:08.507706
+T6J1672BTTK,T6,tilt,16’x6” Channel Equipment Tilt,,16.0,16.0,standard,4.0,2.0,2.5,20.0,,0,0,0,,,2026-04-02T15:06:08.807194
+T6J1872BTTK,T6,tilt,18’x6” Channel Equipment Tilt,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:08.807235
+T6J2072BTTK,T6,tilt,20’x6” Channel Equipment Tilt,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:08.807261
+T6J2272BTTK,T6,tilt,22’x6” Channel Equipment Tilt,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:08.807286
+T6J2472BTTK,T6,tilt,24’x6” Channel Equipment Tilt,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:08.807310
+T8J2272BSTK,T8,tilt,22’ Deckover Tilt,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:09.336949
+T8J2472BSTK,T8,tilt,24’ Deckover Tilt,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:09.336986
+T8J2672BSTK,T8,tilt,26’ Deckover Tilt,,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:09.337010
+T8J2872BSTK,T8,tilt,28’ Deckover Tilt,,28.0,28.0,standard,4.0,2.0,2.5,32.0,,0,0,0,,,2026-04-02T15:06:09.337035
+T9R2472BSTK,T9,tilt,24’ HD Deckover Tilt,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:09.471505
+T9R2672BSTK,T9,tilt,26’ HD Deckover Tilt,,26.0,26.0,standard,4.0,2.0,2.5,30.0,,0,0,0,,,2026-04-02T15:06:09.471536
+T9R2872BSTK,T9,tilt,28’ HD Deckover Tilt,,28.0,28.0,standard,4.0,2.0,2.5,32.0,,0,0,0,,,2026-04-02T15:06:09.471560
+T9R3072BSTK,T9,tilt,30’ HD Deckover Tilt,,30.0,30.0,standard,4.0,2.0,2.5,34.0,,0,0,0,,,2026-04-02T15:06:09.471584
+TFJ1872BTTK,TF,tilt,18’ Powered Full Tilt,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:08.927823
+TFJ2072BTTK,TF,tilt,20’ Powered Full Tilt,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:08.927877
+TFJ2272BTTK,TF,tilt,22’ Powered Full Tilt,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:08.927916
+TFJ2472BTTK,TF,tilt,24’ Powered Full Tilt,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:08.927952
+THJ1852BSTK,TH,tilt,8’x83” Hydraulic Quick Tilt,,18.0,18.0,standard,4.0,2.0,2.5,22.0,,0,0,0,,,2026-04-02T15:06:08.620993
+THJ2052BSTK,TH,tilt,20’x83” Hydraulic Quick Tilt,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:08.621033
+THJ2252BSTK,TH,tilt,22’x83” Hydraulic Quick Tilt,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:08.621059
+TJT2082BTTK,TJ,tilt,20’ HD Equipment Tilt 6” Channel,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:09.201325
+TJT2282BTTK,TJ,tilt,22’ HD Equipment Tilt 6” Channel,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:09.201359
+TJT2482BTTK,TJ,tilt,24’ HD Equipment Tilt 6” Channel,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:09.201383
+TSJ2072BTTK,TS,tilt,20’x6” Channel Super-Wide Tilt,,20.0,20.0,standard,4.0,2.0,2.5,24.0,,0,0,0,,,2026-04-02T15:06:09.063992
+TSJ2272BTTK,TS,tilt,22’x6” Channel Super-Wide Tilt,,22.0,22.0,standard,4.0,2.0,2.5,26.0,,0,0,0,,,2026-04-02T15:06:09.064029
+TSJ2472BTTK,TS,tilt,24’x6” Channel Super-Wide Tilt,,24.0,24.0,standard,4.0,2.0,2.5,28.0,,0,0,0,,,2026-04-02T15:06:09.064053
+U221031DSSK,U2,utility,10’x72” Sngl Axle Channel Utility,,10.0,10.0,standard,4.0,1.25,2.0,14.0,,0,0,0,,,2026-04-02T15:06:05.430156
+U221231DSSK,U2,utility,12’x72” Sngl Axle Channel Utility,,12.0,12.0,standard,4.0,1.25,2.0,16.0,,0,0,0,,,2026-04-02T15:06:05.430203
+U221431DSSK,U2,utility,14’x72” Sngl Axle Channel Utility,,14.0,14.0,standard,4.0,1.25,2.0,18.0,,0,0,0,,,2026-04-02T15:06:05.430230
+U620831DSSK,U6,utility,08’x60” Sngl Axle Channel Utility,,8.0,8.0,standard,4.0,1.25,2.0,12.0,,0,0,0,,,2026-04-02T15:06:05.323097
+U621031DSSK,U6,utility,10’x60” Sngl Axle Channel Utility,,10.0,10.0,standard,4.0,1.25,2.0,14.0,,0,0,0,,,2026-04-02T15:06:05.323166
+U721031DSSK,U7,utility,10’x77” Sngl Axle Channel Utility,,10.0,10.0,standard,4.0,1.25,2.0,14.0,,0,0,0,,,2026-04-02T15:06:05.525073
+U721231DSSK,U7,utility,12’x77” Sngl Axle Channel Utility,,12.0,12.0,standard,4.0,1.25,2.0,16.0,,0,0,0,,,2026-04-02T15:06:05.525104
+U721431DSSK,U7,utility,14’x77” Sngl Axle Channel Utility,,14.0,14.0,standard,4.0,1.25,2.0,18.0,,0,0,0,,,2026-04-02T15:06:05.525122
+U821231DSSK,U8,utility,12’x83” Sngl Axle Channel Utility,,12.0,12.0,standard,4.0,1.25,2.0,16.0,,0,0,0,,,2026-04-02T15:06:05.634366
+U821431DSSK,U8,utility,14’x83” Sngl Axle Channel Utility,,14.0,14.0,standard,4.0,1.25,2.0,18.0,,0,0,0,,,2026-04-02T15:06:05.634405
+UC21032CSSK,UC,utility,10’x60” Tndm Axle Channel Utility,,10.0,10.0,standard,4.0,1.25,2.0,14.0,,0,0,0,,,2026-04-02T15:06:05.764651
+UC21232CSSK,UC,utility,12’x60” Tndm Axle Channel Utility,,12.0,12.0,standard,4.0,1.25,2.0,16.0,,0,0,0,,,2026-04-02T15:06:05.764689
+UC21432CSSK,UC,utility,14’x60” Tndm Axle Channel Utility,,14.0,14.0,standard,4.0,1.25,2.0,18.0,,0,0,0,,,2026-04-02T15:06:05.764712
+UK21232CSSK,UK,utility,12’x77” Tndm Axle Channel Utility,,12.0,12.0,standard,4.0,1.25,2.0,16.0,,0,0,0,,,2026-04-02T15:06:05.883454
+UK21432CSSK,UK,utility,14’x77” Tndm Axle Channel Utility,,14.0,14.0,standard,4.0,1.25,2.0,18.0,,0,0,0,,,2026-04-02T15:06:05.883496
+UK21632CSSK,UK,utility,16’x77” Tndm Axle Channel Utility,,16.0,16.0,standard,4.0,1.25,2.0,20.0,,0,0,0,,,2026-04-02T15:06:05.883522
+UK21832CSSK,UK,utility,18’x77” Tndm Axle Channel Utility,,18.0,18.0,standard,4.0,1.25,2.0,22.0,,0,0,0,,,2026-04-02T15:06:05.883545
+UL21232CSSK,UL,utility,12’x83” Tndm Axle Channel Utility,,12.0,12.0,standard,4.0,1.25,2.0,16.0,,0,0,0,,,2026-04-02T15:06:06.035602
+UL21432CSSK,UL,utility,14’x83” Tndm Axle Channel Utility,,14.0,14.0,standard,4.0,1.25,2.0,18.0,,0,0,0,,,2026-04-02T15:06:06.035640
+UL21632CSSK,UL,utility,16’x83” Tndm Axle Channel Utility,,16.0,16.0,standard,4.0,1.25,2.0,20.0,,0,0,0,,,2026-04-02T15:06:06.035664
+UL21832CSSK,UL,utility,18’x83” Tndm Axle Channel Utility,,18.0,18.0,standard,4.0,1.25,2.0,22.0,,0,0,0,,,2026-04-02T15:06:06.035687
+UL22032CSSK,UL,utility,20’x83” Tndm Axle Channel Utility,,20.0,20.0,standard,4.0,1.25,2.0,24.0,,0,0,0,,,2026-04-02T15:06:06.035710
+UL22232CSSK,UL,utility,22’x83” Tndm Axle Channel Utility,,22.0,22.0,standard,4.0,1.25,2.0,26.0,,0,0,0,,,2026-04-02T15:06:06.035736
