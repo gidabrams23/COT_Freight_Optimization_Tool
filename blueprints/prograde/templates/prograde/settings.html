@@ -217,6 +217,31 @@
 .bt-hidden {
   display: none !important;
 }
+#pj-sku-table {
+  font-size: 14px;
+}
+#pj-sku-table th {
+  font-size: 12px;
+  padding: 10px 8px;
+}
+#pj-sku-table td {
+  padding: 9px 8px;
+}
+#pj-sku-table .editable-cell,
+#pj-sku-table .editable-select {
+  font-size: 13px;
+  min-height: 36px;
+  padding: 7px 9px;
+}
+#pj-sku-table .pj-sku-row:nth-child(even) {
+  background: rgba(15, 23, 42, 0.22);
+}
+#pj-sku-table .pj-dump-height-note {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  font-style: italic;
+}
 </style>
 {% endblock %}
 
@@ -269,6 +294,96 @@
     <p>The PJ SKU Cheat Sheet is now the single source of truth for PJ dimensions. Standard tongues use SKU tongue length, gooseneck uses fixed 9.0 ft tongue + 6.0 ft vertical envelope, and dump stacked height follows wall-size mapping.</p>
   </div>
 
+<!-- â”€â”€ 5. PJ SKU Cheat Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="card pg-settings-section hidden" data-settings-tab="pj">
+    <div class="card-header">
+      <div>
+        <div class="card-title">PJ SKU Cheat Sheet</div>
+        <div class="card-subtitle">Single source of truth for PJ bed length, tongue, and stacked heights.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+        <input type="text" class="form-control" id="sku-search" placeholder="Filter PJ SKUsâ€¦" style="width:200px" />
+        <input type="text" id="pj-import-path" class="form-control" value="{{ pj_workbook_path }}" placeholder="PJ workbook path (optional)" style="width:360px" />
+        <button type="button" class="btn btn-secondary btn-sm" id="pj-import-btn">Import PJ Workbook</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="pj-sku-table">
+        <thead>
+          <tr class="pg-group-row">
+            <th colspan="4">SKU Identifiers / Name</th>
+            <th colspan="5">Deck Dimensions</th>
+          </tr>
+          <tr>
+            <th class="pg-ident-col">Category</th>
+            <th class="pg-ident-col">Model</th>
+            <th class="pg-ident-col">Item #</th>
+            <th class="pg-ident-col">Item Code</th>
+            <th>Bottom/Mid Height (ft)</th>
+            <th>Top Height (ft)</th>
+            <th>Bed Length (ft)</th>
+            <th>Tongue (ft)</th>
+            <th>Footprint (ft)</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in pj_skus %}
+          {% set is_dump = 'dump' in (s.pj_category or '') %}
+          <tr class="pj-sku-row" data-search="{{ s.item_number }} {{ s.item_code or '' }} {{ s.model }} {{ s.pj_category }} {{ s.description or '' }}">
+            <td class="pg-ident-cell">
+              <select class="editable-select"
+                      data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="pj_category">
+                {% for val, lbl in pj_categories %}
+                  <option value="{{ val }}" {% if s.pj_category == val %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="td-mono pg-ident-cell">{{ s.model }}</td>
+            <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
+            <td class="td-mono pg-ident-cell">{{ s.item_code or '' }}</td>
+            {% if is_dump %}
+              <td colspan="2" class="pj-dump-height-note">
+                Depends on wall height chosen:
+                2 ft = 4 ft total, 3 ft = 5 ft total, 4 ft = 6 ft total
+              </td>
+            {% else %}
+              <td>
+                <input type="number" step="0.25"
+                       class="editable-cell" style="min-width:90px"
+                       data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_mid_ft"
+                       value="{{ s.height_mid_ft if s.height_mid_ft is not none else '' }}" />
+              </td>
+              <td>
+                <input type="number" step="0.25"
+                       class="editable-cell" style="min-width:90px"
+                       data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_top_ft"
+                       value="{{ s.height_top_ft if s.height_top_ft is not none else '' }}" />
+              </td>
+            {% endif %}
+            <td>
+              <input type="number" step="0.25"
+                     class="editable-cell" style="min-width:90px"
+                     id="measured-input-{{ s.item_number }}"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="bed_length_measured"
+                     value="{{ s.bed_length_measured if s.bed_length_measured is not none else '' }}" />
+            </td>
+            <td>
+              <input type="number" step="0.25"
+                     class="editable-cell" style="min-width:90px"
+                     id="tongue-input-{{ s.item_number }}"
+                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="tongue_feet"
+                     value="{{ s.tongue_feet if s.tongue_feet is not none else '' }}" />
+            </td>
+            <td class="td-mono" id="footprint-{{ s.item_number }}"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pg-small-help">Dump wall-size map used by runtime height checks: 2.0 -> 4.0, 3.0 -> 5.0, 4.0 -> 6.0 (stacked envelope).</div>
+  </div>
+
+  
   <div class="card pg-settings-section hidden" data-settings-tab="pj">
     <div class="card-header">
       <div>
@@ -528,102 +643,6 @@
         </tbody>
       </table>
     </div>
-  </div>
-
-  <!-- â”€â”€ 5. PJ SKU Cheat Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-  <div class="card pg-settings-section" data-settings-tab="pj">
-    <div class="card-header">
-      <div>
-        <div class="card-title">PJ SKU Cheat Sheet</div>
-        <div class="card-subtitle">Single source of truth for PJ bed length, tongue, wall size, and stacked heights.</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-        <input type="text" class="form-control" id="sku-search" placeholder="Filter PJ SKUsâ€¦" style="width:200px" />
-        <input type="text" id="pj-import-path" class="form-control" value="{{ pj_workbook_path }}" placeholder="PJ workbook path (optional)" style="width:360px" />
-        <button type="button" class="btn btn-secondary btn-sm" id="pj-import-btn">Import PJ Workbook</button>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table id="pj-sku-table">
-        <thead>
-          <tr class="pg-group-row">
-            <th colspan="4">SKU Identifiers / Name</th>
-            <th colspan="6">Deck Dimensions</th>
-            <th class="pg-group-spacer">Notes</th>
-          </tr>
-          <tr>
-            <th class="pg-ident-col">Category</th>
-            <th class="pg-ident-col">Model</th>
-            <th class="pg-ident-col">Item #</th>
-            <th class="pg-ident-col">Item Code</th>
-            <th>Bottom/Mid Height (ft)</th>
-            <th>Top Height (ft)</th>
-            <th>Dump Wall (ft)</th>
-            <th>Bed Length (ft)</th>
-            <th>Tongue (ft)</th>
-            <th>Footprint (ft)</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for s in pj_skus %}
-          <tr class="pj-sku-row" data-search="{{ s.item_number }} {{ s.item_code or '' }} {{ s.model }} {{ s.pj_category }} {{ s.description or '' }}">
-            <td class="pg-ident-cell">
-              <select class="editable-select"
-                      data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="pj_category">
-                {% for val, lbl in pj_categories %}
-                  <option value="{{ val }}" {% if s.pj_category == val %}selected{% endif %}>{{ lbl }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td class="td-mono pg-ident-cell">{{ s.model }}</td>
-            <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
-            <td class="td-mono pg-ident-cell">{{ s.item_code or '' }}</td>
-            <td>
-              <input type="number" step="0.25"
-                     class="editable-cell" style="min-width:90px"
-                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_mid_ft"
-                     value="{{ s.height_mid_ft if s.height_mid_ft is not none else '' }}" />
-            </td>
-            <td>
-              <input type="number" step="0.25"
-                     class="editable-cell" style="min-width:90px"
-                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_top_ft"
-                     value="{{ s.height_top_ft if s.height_top_ft is not none else '' }}" />
-            </td>
-            <td>
-              <input type="number" step="0.5"
-                     class="editable-cell" style="min-width:90px"
-                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="dump_side_height_ft"
-                     value="{{ s.dump_side_height_ft if s.dump_side_height_ft is not none else '' }}"
-                     placeholder="2 / 3 / 4" />
-            </td>
-            <td>
-              <input type="number" step="0.25"
-                     class="editable-cell" style="min-width:90px"
-                     id="measured-input-{{ s.item_number }}"
-                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="bed_length_measured"
-                     value="{{ s.bed_length_measured if s.bed_length_measured is not none else '' }}" />
-            </td>
-            <td>
-              <input type="number" step="0.25"
-                     class="editable-cell" style="min-width:90px"
-                     id="tongue-input-{{ s.item_number }}"
-                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="tongue_feet"
-                     value="{{ s.tongue_feet if s.tongue_feet is not none else '' }}" />
-            </td>
-            <td class="td-mono" id="footprint-{{ s.item_number }}"><strong>{{ s.total_footprint or 0 }}'</strong></td>
-            <td>
-              <input type="text" class="editable-cell" style="min-width:140px"
-                     data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="notes"
-                     value="{{ s.notes or '' }}" placeholder="â€”" />
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div class="pg-small-help">Dump wall-size map used by runtime height checks: 2.0 -> 4.0, 3.0 -> 5.0, 4.0 -> 6.0 (stacked envelope).</div>
   </div>
 
   <!-- â”€â”€ 6. Big Tex SKU Cheat Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->

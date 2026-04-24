@@ -1005,23 +1005,64 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
         unit_deck_len_ft = max(_as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)), 0.0)
         unit_is_rotated = bool(unit.get("is_rotated"))
         unit_is_gooseneck = _is_gooseneck_render_profile(unit)
+        explicit_stack_alignment = _normalize_stack_alignment(unit.get("stack_alignment"), default=None)
+        unit_left_tongue_ft = unit_tongue_ft if unit_is_rotated else 0.0
+        unit_right_tongue_ft = 0.0 if unit_is_rotated else unit_tongue_ft
+        align_envelope_left_ft = support_left_ft
+        align_envelope_right_ft = support_right_ft
+        if explicit_stack_alignment and (not unit_is_gooseneck):
+            # Explicit anchoring follows the immediate support deck first.
+            # Only non-gooseneck supports may expand to a wider host below.
+            if not support_is_gooseneck:
+                support_span_ft = max(support_right_ft - support_left_ft, 0.0)
+                unit_occupied_span_ft = max(unit_deck_len_ft + unit_left_tongue_ft + unit_right_tongue_ft, 0.0)
+                needs_wider_host = support_span_ft + 1e-6 < unit_occupied_span_ft
+
+                if needs_wider_host:
+                    wider_support_idx = None
+                    for j in range(support_idx - 1, -1, -1):
+                        cand = sorted_col[j]
+                        cand_deck_len_ft = max(
+                            _as_float(cand.get("deck_length_ft"), _as_float(cand.get("bed_length"), 0.0)),
+                            0.0,
+                        )
+                        if cand_deck_len_ft > support_span_ft + 1e-6:
+                            wider_support_idx = j
+                            break
+                    if wider_support_idx is not None:
+                        wider_support = sorted_col[wider_support_idx]
+                        wider_start_ft = _as_float(offsets[wider_support_idx], 0.0)
+                        wider_len_ft = max(
+                            _as_float(wider_support.get("deck_length_ft"), _as_float(wider_support.get("bed_length"), 0.0)),
+                            0.0,
+                        )
+                        align_envelope_left_ft = wider_start_ft
+                        align_envelope_right_ft = wider_start_ft + wider_len_ft
         # Default support envelope: align deck bodies within the supporting layer
         # (tongues may overhang).
         min_start_ft = support_left_ft
         max_start_ft = support_right_ft - unit_deck_len_ft
         if (not unit_is_gooseneck) and (not support_is_gooseneck):
-            # Utility-over-utility: keep the layer's leftmost occupied edge flush
-            # to the stack wall plane derived from the support layer. This keeps
-            # stack reach stable when upper utility layers are flipped.
-            support_is_rotated = bool(support.get("is_rotated"))
-            support_tongue_ft = max(
-                _unit_tongue_length_ft(support, prefer_occupied=prefer_occupied_tongue),
-                0.0,
-            )
-            wall_plane_ft = support_start_ft - (support_tongue_ft if support_is_rotated else 0.0)
-            flush_start_ft = wall_plane_ft + (unit_tongue_ft if unit_is_rotated else 0.0)
-            min_start_ft = flush_start_ft
-            max_start_ft = flush_start_ft
+            if explicit_stack_alignment:
+                # Explicit stack-side overrides open left/right placement inside
+                # the supporting deck envelope.
+                if anchor_is_gooseneck:
+                    # For explicit lanes above gooseneck anchors, align by occupied
+                    # footprint (deck + tongue) within the anchor deck envelope so
+                    # left/right lanes can compact-fit without tongue overlap.
+                    min_start_ft = align_envelope_left_ft + unit_left_tongue_ft
+                    max_start_ft = align_envelope_right_ft - unit_right_tongue_ft - unit_deck_len_ft
+                else:
+                    min_start_ft = align_envelope_left_ft
+                    max_start_ft = align_envelope_right_ft - unit_deck_len_ft
+            else:
+                # Utility-over-utility without an explicit lane override:
+                # keep the child flush to the support deck's left wall
+                # (not the support tongue tip). This prevents upper utility
+                # layers from sliding into a rotated support tongue pocket.
+                flush_start_ft = support_left_ft + unit_left_tongue_ft
+                min_start_ft = flush_start_ft
+                max_start_ft = flush_start_ft
 
         if support_is_gooseneck and unit_is_gooseneck:
             # Gooseneck-on-gooseneck uses deck-to-deck alignment and allows
@@ -1029,24 +1070,47 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
             min_start_ft = support_left_ft
             max_start_ft = support_right_ft - unit_deck_len_ft
 
-        if anchor_is_gooseneck and (not unit_is_gooseneck):
+        support_gooseneck_explicit_locked = False
+        if explicit_stack_alignment and support_is_gooseneck and (not unit_is_gooseneck):
+            # Explicit left/right above a gooseneck must key off this support deck.
+            # Priority rule: never overlap the support tongue zone; if the unit
+            # cannot fully fit, allow overhang on the opposite side instead.
+            desired_left_start_ft = support_left_ft + unit_left_tongue_ft
+            desired_right_start_ft = support_right_ft - unit_deck_len_ft - unit_right_tongue_ft
+            if explicit_stack_alignment == "right":
+                desired_start_ft = desired_right_start_ft
+            elif explicit_stack_alignment == "center":
+                desired_start_ft = (desired_left_start_ft + desired_right_start_ft) / 2.0
+            else:
+                desired_start_ft = desired_left_start_ft
+
+            if support_wall_side == "left":
+                desired_start_ft = max(desired_start_ft, desired_left_start_ft)
+            elif support_wall_side == "right":
+                desired_start_ft = min(desired_start_ft, desired_right_start_ft)
+
+            min_start_ft = desired_start_ft
+            max_start_ft = desired_start_ft
+            support_gooseneck_explicit_locked = True
+
+        if anchor_is_gooseneck and (not unit_is_gooseneck) and (not support_gooseneck_explicit_locked):
             # Keep child tongue out of the gooseneck tongue zone.
             # Child utility tongues should stop at (touch, not cross) the
             # anchor gooseneck wall plane for this side.
             req_min_start_ft = min_start_ft
             req_max_start_ft = max_start_ft
-            if anchor_wall_side == "left" and unit_is_rotated:
+            if anchor_wall_side == "left":
                 req_min_start_ft = max(
                     req_min_start_ft,
-                    anchor_left_ft + unit_tongue_ft,
+                    anchor_left_ft + unit_left_tongue_ft,
                 )
-            elif anchor_wall_side == "right" and (not unit_is_rotated):
+            elif anchor_wall_side == "right":
                 req_max_start_ft = min(
                     req_max_start_ft,
-                    anchor_right_ft - unit_deck_len_ft - unit_tongue_ft,
+                    anchor_right_ft - unit_deck_len_ft - unit_right_tongue_ft,
                 )
 
-            if (not support_is_gooseneck) and (not unit_is_gooseneck):
+            if (not support_is_gooseneck) and (not unit_is_gooseneck) and not explicit_stack_alignment:
                 # Keep utility-over-utility layers flush when possible, but do not
                 # allow the flush point to violate gooseneck tongue clearance.
                 flush_start_ft = _as_float(support_start_ft, 0.0)
@@ -1081,11 +1145,13 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
                 max_start_ft = anchor_ft
 
         align_mode = "left"
+        if explicit_stack_alignment:
+            align_mode = explicit_stack_alignment
         if anchor_is_gooseneck:
             if unit_is_gooseneck:
                 # Keep gooseneck-on-gooseneck overlap on the anchor tongue side.
                 align_mode = anchor_wall_side
-            else:
+            elif not explicit_stack_alignment:
                 # For non-gooseneck layers above a gooseneck, keep wall-side
                 # anchoring stable across flip direction to avoid re-seating the
                 # whole lower stack during right-pack.
@@ -2996,6 +3062,9 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
             col_right_edge_global_ft = zone_origin + right_edge_ft
 
             y_cursor_ft = zone_surface
+            explicit_lane_active = False
+            explicit_lane_baseline_ft = zone_surface
+            explicit_lane_tops = {"left": None, "right": None}
             sorted_col = sorted(col, key=lambda p: int(p.get("layer") or 0))
             lower_local_offsets = []
             if zone == "lower_deck":
@@ -3029,6 +3098,36 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
 
                 unit_surface_ft = y_cursor_ft
                 unit_top_ft = unit_surface_ft + deck_component_h_ft
+                unit_stack_alignment = _normalize_stack_alignment(unit.get("stack_alignment"), default=None)
+                unit_is_gooseneck_profile = _is_gooseneck_render_profile(unit)
+                explicit_lane_candidate = (
+                    zone == "lower_deck"
+                    and unit_stack_alignment in {"left", "right"}
+                    and not unit_is_gooseneck_profile
+                    and not (bool(unit.get("is_nested")) and unit.get("nested_inside"))
+                )
+                if explicit_lane_candidate:
+                    if not explicit_lane_active:
+                        explicit_lane_active = True
+                        explicit_lane_baseline_ft = y_cursor_ft
+                        explicit_lane_tops = {"left": None, "right": None}
+                    lane_top_ft = explicit_lane_tops.get(unit_stack_alignment)
+                    if lane_top_ft is None:
+                        unit_surface_ft = explicit_lane_baseline_ft
+                    else:
+                        unit_surface_ft = lane_top_ft
+                    unit_top_ft = unit_surface_ft + deck_component_h_ft
+                    explicit_lane_tops[unit_stack_alignment] = unit_top_ft
+                    y_cursor_ft = max(
+                        y_cursor_ft,
+                        max(
+                            (_as_float(explicit_lane_tops.get("left"), 0.0), _as_float(explicit_lane_tops.get("right"), 0.0))
+                        ),
+                    )
+                else:
+                    explicit_lane_active = False
+                    explicit_lane_baseline_ft = y_cursor_ft
+                    explicit_lane_tops = {"left": None, "right": None}
                 nested_host_id = unit.get("nested_inside")
                 if bool(unit.get("is_nested")) and nested_host_id:
                     host_vertical = resolved_vertical_by_position.get(str(nested_host_id))
@@ -4004,6 +4103,7 @@ def api_add_unit(session_id):
     requested_dump_height_ft = _normalize_pj_dump_height_ft(data.get("pj_dump_height_ft"), default=None)
     add_source = _normalize_add_source(data.get("add_source"), default=None)
     column_alignment = _normalize_stack_alignment(data.get("column_alignment"), default=None)
+    stack_alignment = _normalize_stack_alignment(data.get("stack_alignment"), default=None)
     include_state = _api_include_state(data, default=True)
 
     if data.get("pj_dump_height_ft") not in (None, "") and requested_dump_height_ft is None:
@@ -4110,6 +4210,14 @@ def api_add_unit(session_id):
                 # Stacking onto an existing column should keep the column's
                 # established left/right anchor.
                 column_alignment = target_alignment
+            if stack_alignment is None:
+                # When stacking directly onto an existing top unit, inherit that
+                # unit's lane alignment unless the caller explicitly overrides it.
+                inherited_stack_alignment = _extract_stack_alignment_override_reason(
+                    target.get("override_reason")
+                )
+                if inherited_stack_alignment:
+                    stack_alignment = inherited_stack_alignment
 
         position_id = str(uuid.uuid4())
         override_reason = None
@@ -4148,6 +4256,8 @@ def api_add_unit(session_id):
                         "override_reason",
                         updated_target_override_reason,
                     )
+        if stack_alignment and target is not None:
+            override_reason = _build_stack_alignment_override_reason(stack_alignment, override_reason)
 
         # Big Tex rule-of-thumb: add new units with tongues facing left by default.
         default_is_rotated = 1 if brand == "bigtex" else 0
@@ -4485,6 +4595,7 @@ def api_move_position(session_id):
     to_sequence = data.get("to_sequence")
     insert_index = data.get("insert_index")
     to_layer_index = data.get("to_layer_index")
+    stack_alignment = _normalize_stack_alignment(data.get("stack_alignment"), default=None)
 
     if not position_id or not to_zone:
         return _json_error("position_id and to_zone required")
@@ -4523,6 +4634,46 @@ def api_move_position(session_id):
         )
         if not result:
             return _json_error("Position not found", 404)
+        if session["brand"] == "pj":
+            session_positions = [dict(row) for row in db.get_positions(session_id)]
+            moved_row = next(
+                (
+                    row
+                    for row in session_positions
+                    if str(row.get("position_id") or "") == position_id
+                ),
+                None,
+            )
+            if moved_row is not None:
+                resolved_stack_alignment = stack_alignment
+                moved_zone = str(moved_row.get("deck_zone") or "")
+                moved_sequence = int(moved_row.get("sequence") or 0)
+                moved_layer = int(moved_row.get("layer") or 0)
+                if moved_zone != "lower_deck" or moved_layer <= 1:
+                    resolved_stack_alignment = None
+                elif resolved_stack_alignment is None:
+                    support_row = next(
+                        (
+                            row
+                            for row in session_positions
+                            if (
+                                str(row.get("deck_zone") or "") == moved_zone
+                                and int(row.get("sequence") or 0) == moved_sequence
+                                and int(row.get("layer") or 0) == moved_layer - 1
+                            )
+                        ),
+                        None,
+                    )
+                    if support_row is not None:
+                        resolved_stack_alignment = _extract_stack_alignment_override_reason(
+                            support_row.get("override_reason")
+                        )
+                updated_override = _build_stack_alignment_override_reason(
+                    resolved_stack_alignment,
+                    moved_row.get("override_reason"),
+                )
+                if updated_override != moved_row.get("override_reason"):
+                    db.update_position_field(position_id, "override_reason", updated_override)
         gn_crisscross_applied = False
         if (
             session["brand"] == "pj"

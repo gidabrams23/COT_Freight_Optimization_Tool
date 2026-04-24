@@ -56,10 +56,12 @@
 {% set gn_tip_surface_ft = 1.0 %}
 {% set wheel_r_px = wheel_r_ft * py_per_ft %}
 {% set wheel_hub_r_px = [wheel_r_px * 0.34, 1.2] | max %}
-{% set lower_bar_h_px = [lower_y_px - guide_line_y, 1] | max %}
-{% set upper_bar_h_px = [upper_y_px - guide_line_y, 1] | max %}
-{% set lower_fill_h_px = ([lower_used_ft * py_per_ft, lower_bar_h_px] | min) if lower_bar_h_px > 0 else 0 %}
-{% set upper_fill_h_px = ([upper_used_ft * py_per_ft, upper_bar_h_px] | min) if upper_bar_h_px > 0 else 0 %}
+{% set lower_bar_h_px = [lower_cap_ft * py_per_ft, 1] | max %}
+{% set upper_bar_h_px = [upper_cap_ft * py_per_ft, 1] | max %}
+{% set lower_bar_top_px = lower_y_px - lower_bar_h_px %}
+{% set upper_bar_top_px = upper_y_px - upper_bar_h_px %}
+{% set lower_fill_h_px = ([([lower_used_ft, lower_cap_ft] | min) * py_per_ft, lower_bar_h_px] | min) if lower_bar_h_px > 0 else 0 %}
+{% set upper_fill_h_px = ([([upper_used_ft, upper_cap_ft] | min) * py_per_ft, upper_bar_h_px] | min) if upper_bar_h_px > 0 else 0 %}
 {% set lower_used_pct = ((lower_used_ft / lower_cap_ft) * 100) if lower_cap_ft > 0 else 0 %}
 {% set upper_used_pct = ((upper_used_ft / upper_cap_ft) * 100) if upper_cap_ft > 0 else 0 %}
 {% set render_mode_class = 'render-mode-advanced' if session.brand == 'pj' else 'render-mode-standard' %}
@@ -108,7 +110,7 @@
   position: absolute;
   top: 8px;
   z-index: 8;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 800;
@@ -116,17 +118,17 @@
   background: rgba(19, 127, 236, 0.12);
   border: 1px solid rgba(19, 127, 236, 0.45);
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 3px 7px;
   pointer-events: none;
 }
 .pg-zone-chip.lower { left: 24px; }
 .pg-zone-chip.upper { right: 24px; }
 .pg-lower-side-label {
   pointer-events: none;
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
   font-weight: 800;
-  letter-spacing: 0.10em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   fill: rgba(191, 219, 254, 0.88);
 }
@@ -171,7 +173,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--font-mono);
   font-weight: 800;
   color: rgba(191, 219, 254, 0.95);
@@ -205,7 +207,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
 .pg-side-fill.warn { background: linear-gradient(0deg, rgba(234,179,8,0.95), rgba(250,204,21,0.72)); }
 .pg-side-fill.over { background: linear-gradient(0deg, rgba(239,68,68,0.95), rgba(248,113,113,0.78)); }
 .pg-side-fill-value {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   font-family: var(--font-mono);
   font-weight: 800;
@@ -218,7 +220,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
   right: 0;
   bottom: 2px;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   font-family: var(--font-mono);
   font-weight: 800;
@@ -262,7 +264,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
   border: 1px dashed rgba(147, 197, 253, 0.48);
   border-radius: 6px;
   background: rgba(30, 64, 175, 0.10);
-  height: 66px;
+  height: 72px;
   overflow: hidden;
 }
 .pg-measure-row {
@@ -278,7 +280,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
   left: 6px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--font-mono);
   font-weight: 700;
   color: rgba(191, 219, 254, 0.9);
@@ -292,7 +294,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--font-mono);
   font-weight: 700;
   color: rgba(224, 242, 254, 0.88);
@@ -313,7 +315,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
 .pg-measure-seg.stack { background: rgba(56,189,248,0.16); }
 .pg-measure-seg.gap { background: rgba(34,197,94,0.12); border-style: dashed; }
 .pg-measure-seg-label {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   font-family: var(--font-mono);
   font-weight: 700;
@@ -339,8 +341,6 @@ body.pg-sku-drag-active .pg-lower-side-label {
       {% else %}
         {% set upper_gauge_class = 'ok' %}
       {% endif %}
-      {% set lower_bar_top_px = guide_line_y %}
-      {% set upper_bar_top_px = guide_line_y %}
       {% set meter_w = 30 %}
       {% set meter_inset = 8 %}
       {% set meter_rx = 12 %}
@@ -351,6 +351,17 @@ body.pg-sku-drag-active .pg-lower-side-label {
       {% set upper_fill_y = upper_y_px - upper_fill_h_px %}
       {% set lower_fill_text_y = [lower_y_px - 6, [lower_fill_y + (lower_fill_h_px / 2) + 3, guide_line_y + 11] | max] | min %}
       {% set upper_fill_text_y = [upper_y_px - 6, [upper_fill_y + (upper_fill_h_px / 2) + 3, guide_line_y + 11] | max] | min %}
+      {% set lower_overflow_ft = [lower_used_ft - lower_cap_ft, 0] | max %}
+      {% set upper_overflow_ft = [upper_used_ft - upper_cap_ft, 0] | max %}
+      {% set overflow_top_min_y = 4 %}
+      {% set lower_overflow_h_px_raw = lower_overflow_ft * py_per_ft %}
+      {% set upper_overflow_h_px_raw = upper_overflow_ft * py_per_ft %}
+      {% set lower_overflow_y = [lower_bar_top_px - lower_overflow_h_px_raw, overflow_top_min_y] | max %}
+      {% set upper_overflow_y = [upper_bar_top_px - upper_overflow_h_px_raw, overflow_top_min_y] | max %}
+      {% set lower_overflow_h_px = [lower_bar_top_px - lower_overflow_y, 0] | max %}
+      {% set upper_overflow_h_px = [upper_bar_top_px - upper_overflow_y, 0] | max %}
+      {% set lower_overflow_text_y = [lower_overflow_y - 4, 11] | max %}
+      {% set upper_overflow_text_y = [upper_overflow_y - 4, 11] | max %}
       {% if lower_gauge_class == 'over' %}
         {% set lower_fill_color = '#ef4444' %}
       {% elif lower_gauge_class == 'warn' %}
@@ -402,20 +413,38 @@ body.pg-sku-drag-active .pg-lower-side-label {
         {% endif %}
         {# Height meters rendered in the SAME SVG coordinate system as the deck/units. #}
         <g class="pg-height-meter-svg">
-          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(lower_cap_ft) }} ft</text>
+          {% if lower_overflow_h_px <= 0.5 %}
+          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="13" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(lower_cap_ft) }} ft</text>
+          {% endif %}
           <rect x="{{ left_meter_x }}" y="{{ lower_bar_top_px }}" width="{{ meter_w }}" height="{{ lower_bar_h_px }}" rx="{{ meter_rx }}" fill="rgba(15, 23, 42, 0.28)" stroke="rgba(125, 211, 252, 0.72)" stroke-width="1"/>
           {% if lower_fill_h_px > 0 %}
             <rect x="{{ left_meter_x + 1 }}" y="{{ lower_fill_y }}" width="{{ meter_w - 2 }}" height="{{ lower_fill_h_px }}" rx="{{ meter_rx - 1 }}" fill="{{ lower_fill_color }}" fill-opacity="0.92"/>
           {% endif %}
-          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(lower_used_ft) }}</text>
+          {% if lower_overflow_h_px > 0.5 %}
+            <rect x="{{ left_meter_x + 1 }}" y="{{ lower_overflow_y }}" width="{{ meter_w - 2 }}" height="{{ lower_overflow_h_px }}" rx="{{ meter_rx - 2 }}" fill="#ef4444" fill-opacity="0.95" stroke="#fca5a5" stroke-width="0.9"/>
+            <line x1="{{ left_meter_x + 2 }}" y1="{{ lower_bar_top_px }}" x2="{{ left_meter_x + meter_w - 2 }}" y2="{{ lower_bar_top_px }}" stroke="#fca5a5" stroke-width="1.1"/>
+            <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_overflow_text_y }}" text-anchor="middle" font-size="11" font-family="var(--font-mono)" font-weight="800" fill="#fecaca">{{ '%.1f'|format(lower_used_ft) }} ft</text>
+            <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="10.5" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">MAX</text>
+          {% else %}
+            <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ lower_fill_text_y }}" text-anchor="middle" font-size="13" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(lower_used_ft) }}</text>
+          {% endif %}
 
           {% if show_upper_zone %}
-          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(upper_cap_ft) }} ft</text>
+          {% if upper_overflow_h_px <= 0.5 %}
+          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="13" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(upper_cap_ft) }} ft</text>
+          {% endif %}
           <rect x="{{ right_meter_x }}" y="{{ upper_bar_top_px }}" width="{{ meter_w }}" height="{{ upper_bar_h_px }}" rx="{{ meter_rx }}" fill="rgba(15, 23, 42, 0.28)" stroke="rgba(125, 211, 252, 0.72)" stroke-width="1"/>
           {% if upper_fill_h_px > 0 %}
             <rect x="{{ right_meter_x + 1 }}" y="{{ upper_fill_y }}" width="{{ meter_w - 2 }}" height="{{ upper_fill_h_px }}" rx="{{ meter_rx - 1 }}" fill="{{ upper_fill_color }}" fill-opacity="0.92"/>
           {% endif %}
-          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(upper_used_ft) }}</text>
+          {% if upper_overflow_h_px > 0.5 %}
+            <rect x="{{ right_meter_x + 1 }}" y="{{ upper_overflow_y }}" width="{{ meter_w - 2 }}" height="{{ upper_overflow_h_px }}" rx="{{ meter_rx - 2 }}" fill="#ef4444" fill-opacity="0.95" stroke="#fca5a5" stroke-width="0.9"/>
+            <line x1="{{ right_meter_x + 2 }}" y1="{{ upper_bar_top_px }}" x2="{{ right_meter_x + meter_w - 2 }}" y2="{{ upper_bar_top_px }}" stroke="#fca5a5" stroke-width="1.1"/>
+            <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_overflow_text_y }}" text-anchor="middle" font-size="11" font-family="var(--font-mono)" font-weight="800" fill="#fecaca">{{ '%.1f'|format(upper_used_ft) }} ft</text>
+            <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="10.5" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">MAX</text>
+          {% else %}
+            <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ upper_fill_text_y }}" text-anchor="middle" font-size="13" font-family="var(--font-mono)" font-weight="800" fill="rgba(2, 6, 23, 0.92)">{{ '%.1f'|format(upper_used_ft) }}</text>
+          {% endif %}
           {% endif %}
         </g>
         {# Structural deck line for step deck/flatbed carriers. Ground Pull draws no deck. #}
@@ -579,14 +608,17 @@ body.pg-sku-drag-active .pg-lower-side-label {
               {% endif %}
               {% set item_code_len = item_code | length %}
               {% if item_code_len > 12 %}
-                {% set item_code_font = 8.6 %}
+                {% set item_code_font = 9.2 %}
               {% elif item_code_len > 9 %}
-                {% set item_code_font = 9.4 %}
+                {% set item_code_font = 10.1 %}
               {% elif item_code_len > 6 %}
-                {% set item_code_font = 10.6 %}
+                {% set item_code_font = 11.2 %}
               {% else %}
-                {% set item_code_font = 13.2 %}
+                {% set item_code_font = 14.2 %}
               {% endif %}
+              {% set item_code_fit_font = (body_w_px - 6) / (([item_code_len, 1] | max) * 0.62) %}
+              {% set item_code_font = [item_code_font, item_code_fit_font, 14.2] | min %}
+              {% set item_code_font = [item_code_font, 7.4] | max %}
               {% set item_text_y = body_top_px + ([body_h_px * 0.64, 12] | max) %}
               {% set is_dump_profile = ((pos.deck_profile or 'flat') == 'dump') %}
               {% set dump_inset_px = [body_w_px * 0.035, 1.8] | max %}
@@ -746,12 +778,15 @@ body.pg-sku-drag-active .pg-lower-side-label {
                  data-zone="{{ zone }}"
                  data-seq="{{ seq }}"
                  data-layer="{{ pos.layer }}"
+                 data-stack-alignment="{{ pos.stack_alignment or '' }}"
+                 data-deck-x0="{{ x_start_px }}"
+                 data-deck-x1="{{ x_end_px }}"
                  data-tongue-profile="{{ tongue_profile }}"
                  data-gn-crisscross="{% if pos.gn_crisscross %}1{% else %}0{% endif %}"
                  data-tongue-pill-class="unit-tongue-pill {% if tongue_profile == 'gooseneck' %}gn{% else %}std{% endif %}"
                  data-is-rotated="{% if pos.is_rotated %}1{% else %}0{% endif %}"
                  data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | Source: {{ pos.add_source_label or 'Unspecified' }} | x={{ '%.2f'|format(x_start_ft) }} ft | Deck (render): {{ '%.1f'|format(deck_len) }} ft | Tongue (render): {{ '%.1f'|format(tongue_len) }} ft{% if session.brand == 'bigtex' %} | Tongue (occupied): {{ '%.1f'|format(occupied_tongue_len) }} ft{% endif %} | Height (render): {{ '%.1f'|format(deck_h) }} ft{% if pos.gn_crisscross %} | GN crisscross: on{% endif %}">
-                {% if session.brand == 'pj' %}
+                {% if session.brand in ['pj', 'bigtex'] %}
                   {% if is_dump_profile %}
                   <rect class="pg-unit-body"
                         x="{{ dump_body_x0 }}"
@@ -992,9 +1027,9 @@ body.pg-sku-drag-active .pg-lower-side-label {
                 stroke="rgba(148,163,184,.18)" stroke-dasharray="3,3"/>
           {# Row labels #}
           <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + measure_row_h + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(148,163,184,0.75)">Upper</text>
+                font-size="11" font-family="var(--font-mono)" font-weight="700" fill="rgba(148,163,184,0.75)">Upper</text>
           <text x="{{ margin_l - 6 }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="end"
-                font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(148,163,184,0.75)">Lower</text>
+                font-size="11" font-family="var(--font-mono)" font-weight="700" fill="rgba(148,163,184,0.75)">Lower</text>
 
           {# ── TOP ROW: positional span overview ───────────────────────────── #}
 
@@ -1005,7 +1040,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                   fill="rgba(251,146,60,0.22)" stroke="rgba(251,146,60,0.72)" stroke-width="1"/>
             {% if left_overhang_seg_w > 44 %}
               <text x="{{ left_overhang_seg_x + (left_overhang_seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}"
-                    text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="700"
+                    text-anchor="middle" font-size="11" font-family="var(--font-mono)" font-weight="700"
                     fill="rgba(254,215,170,0.95)">+{{ '%.1f'|format(left_overhang_seg_ft) }} ft</text>
             {% endif %}
           {% endif %}
@@ -1018,7 +1053,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                   fill="rgba(56,189,248,0.18)" stroke="rgba(56,189,248,0.52)" stroke-width="1"/>
             {% if total_seg_w > 60 %}
               <text x="{{ total_seg_x + (total_seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}"
-                    text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="700"
+                    text-anchor="middle" font-size="11" font-family="var(--font-mono)" font-weight="700"
                     fill="rgba(186,230,253,0.95)">{{ '%.1f'|format(total_used_ft) }} / {{ '%.1f'|format(total_len_ft) }} ft</text>
             {% endif %}
           {% endif %}
@@ -1032,7 +1067,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                   fill="rgba(34,197,94,0.09)" stroke="rgba(34,197,94,0.42)" stroke-width="1" stroke-dasharray="3,2"/>
             {% if remaining_seg_w > 52 %}
               <text x="{{ remaining_seg_x + 1 + ((remaining_seg_w - 1) / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}"
-                    text-anchor="middle" font-size="10" font-family="var(--font-mono)" font-weight="700"
+                    text-anchor="middle" font-size="11" font-family="var(--font-mono)" font-weight="700"
                     fill="rgba(134,239,172,0.90)">{{ '%.1f'|format(remaining_ft) }} ft rem</text>
             {% endif %}
           {% endif %}
@@ -1061,7 +1096,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                     fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" stroke-width="1" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
               {% if seg_w > 50 %}
                 <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + measure_row_h + (measure_row_h / 2) + 3 }}" text-anchor="middle"
-                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
+                      font-size="11" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
               {% endif %}
             {% endif %}
           {% endfor %}
@@ -1090,7 +1125,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                     fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" stroke-width="1" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
               {% if seg_w > 50 %}
                 <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="middle"
-                      font-size="10" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
+                      font-size="11" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
               {% endif %}
             {% endif %}
           {% endfor %}

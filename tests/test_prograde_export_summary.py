@@ -100,6 +100,36 @@ class ProgradeExportSummaryTests(unittest.TestCase):
         self.assertIn("Download PDF", html)
         self.assertIn("Inventory Gap source (+)", html)
         self.assertNotIn("Add SKUs source", html)
+        self.assertIn("pg-legend-card", html)
+        self.assertIn("window.__pgGlobalDropHandlers", html)
+
+    def test_load_builder_renders_bigtex_dump_with_shared_dump_geometry(self):
+        profile_id = self._create_active_profile("BT Dump Geometry Tester")
+        session_id = self._create_bigtex_session(profile_id)
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-DUMP-GEO", "DUMP", 1, "DM", 14.0, 5.0, 3.0, 19.0, "hydraulic"),
+            )
+
+        add_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "BT-DUMP-GEO", "deck_zone": "lower_deck"},
+        )
+        self.assertEqual(add_resp.status_code, 200)
+        self.assertTrue((add_resp.get_json() or {}).get("ok"))
+
+        resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+
+        self.assertIn("BT-DUMP-GEO", html)
+        self.assertIn("pg-dump-rear-wall", html)
 
     def test_load_builder_shows_bt_nest_control_for_dump_stack_candidate(self):
         profile_id = self._create_active_profile("BT Nest Control Tester")

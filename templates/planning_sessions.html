@@ -49,17 +49,15 @@
           {% endfor %}
         </select>
       </label>
-      {% if can_manage_sessions %}
-        <label class="inline-select">
-          <span class="meta-label">Planner</span>
-          <select name="planner">
-            <option value="">All</option>
-            {% for planner in planner_options %}
-              <option value="{{ planner }}" {% if filters.planner == planner %}selected{% endif %}>{{ planner }}</option>
-            {% endfor %}
-          </select>
-        </label>
-      {% endif %}
+      <label class="inline-select">
+        <span class="meta-label">Planner</span>
+        <select name="planner">
+          <option value="">All</option>
+          {% for planner in planner_options %}
+            <option value="{{ planner }}" {% if filters.planner == planner %}selected{% endif %}>{{ planner }}</option>
+          {% endfor %}
+        </select>
+      </label>
       <label class="inline-select">
         <span class="meta-label">Start</span>
         <input class="select-field" type="date" name="start" value="{{ filters.start }}">
@@ -74,21 +72,10 @@
     <div class="session-toolbar">
       <div class="session-search">
         <span class="material-symbols-outlined">search</span>
-        <input type="text" id="session-search-input" placeholder="Search sessions, planners, plants...">
+        <input type="text" id="session-search-input" placeholder="Search sessions, planners, load #, or SO #...">
       </div>
       <div class="session-toolbar-actions">
         <div class="session-toolbar-meta">All timestamps shown in ET.</div>
-        <form
-          method="post"
-          action="{{ url_for('planning_sessions_archive_all') }}"
-          onsubmit="return confirm('Archive all sessions in this filtered view, release their orders back to the pool, and keep their history?');"
-        >
-          <input type="hidden" name="plant" value="{{ filters.plant }}">
-          <input type="hidden" name="planner" value="{{ filters.planner }}">
-          <input type="hidden" name="start" value="{{ filters.start }}">
-          <input type="hidden" name="end" value="{{ filters.end }}">
-          <button class="btn-warning btn-xs" type="submit">Archive All Filtered</button>
-        </form>
       </div>
     </div>
 
@@ -127,6 +114,9 @@
                     data-session-loads="{{ session.load_count or 0 }}"
                     data-session-orders="{{ session.order_count or 0 }}"
                     data-session-util="{{ (session.avg_utilization or 0) | round(1) }}"
+                    data-session-load-search="{{ session.load_numbers_search or '' }}"
+                    data-session-order-search="{{ session.order_numbers_search or '' }}"
+                    data-session-search="{{ session.search_blob or '' }}"
                     data-summary-url="{{ url_for('planning_session_summary', session_id=session.id) }}"
                     data-resume-url="{{ url_for('planning_session_resume', session_id=session.id) }}"
                     data-report-url="{{ url_for('load_report', session_id=session.id) }}"
@@ -266,10 +256,11 @@
                     <th>Stops</th>
                     <th>Miles</th>
                     <th>Cost</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="preview-load-summary-body">
-                  <tr><td colspan="8">Select a session to view included loads.</td></tr>
+                  <tr><td colspan="9">Select a session to view included loads.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -283,6 +274,7 @@
     const sessionSearchInput = document.getElementById('session-search-input');
     const sessionRows = Array.from(document.querySelectorAll('[data-session-row]'));
     const summaryCache = new Map();
+    let activeSearchQuery = '';
 
     function escapeHtml(value) {
       return String(value == null ? '' : value)
@@ -312,18 +304,30 @@
       if (actions) actions.hidden = !show;
     }
 
-    function setPreviewSummary(payload) {
-      const loads = payload.loads || [];
+    function setPreviewSummary(payload, row) {
+      const loads = Array.isArray(payload.loads) ? payload.loads : [];
       const loadBody = document.getElementById('preview-load-summary-body');
-      const loadFallback = '<tr><td colspan="8">No loads in this session.</td></tr>';
+      const query = (activeSearchQuery || '').trim().toLowerCase();
+      const loadFallback = '<tr><td colspan="9">No loads in this session.</td></tr>';
 
       document.getElementById('preview-loads').textContent = String(payload.load_count || 0);
       document.getElementById('preview-orders').textContent = String(payload.order_count || 0);
       document.getElementById('preview-util').textContent = `${formatFloat(payload.avg_utilization || 0)}%`;
       document.getElementById('preview-cost').textContent = formatCurrency(payload.total_cost || 0);
 
+      const matchesLoadOrOrder = (load, filterQuery) => {
+        if (!filterQuery) return true;
+        const loadNumber = String(load.load_number || '').toLowerCase();
+        if (loadNumber.includes(filterQuery)) return true;
+        const orders = Array.isArray(load.orders) ? load.orders : [];
+        return orders.some((entry) => String((entry && entry.so_num) || '').toLowerCase().includes(filterQuery));
+      };
+      const filteredLoads = query ? loads.filter((load) => matchesLoadOrOrder(load, query)) : loads;
+      const loadsToRender = (query && filteredLoads.length) ? filteredLoads : loads;
+      const showFilteredRows = Boolean(query && filteredLoads.length);
+
       if (loadBody) {
-        if (!loads.length) {
+        if (!loadsToRender.length) {
           loadBody.innerHTML = loadFallback;
         } else {
           const statusClass = (status) => {
@@ -333,7 +337,35 @@
             if (token === 'PROPOSED') return 'proposed';
             return 'neutral';
           };
-          loadBody.innerHTML = loads.slice(0, 20).map((load) => `
+          const escapeAttr = (value) => escapeHtml(value).replace(/"/g, '&quot;');
+          const buildOrderCell = (load) => {
+            const orders = Array.isArray(load.orders) ? load.orders : [];
+            const soNums = orders
+              .map((entry) => String((entry && entry.so_num) || '').trim())
+              .filter((value) => value);
+            if (!soNums.length) {
+              return '<span class="muted">--</span>';
+            }
+            const visible = query
+              ? soNums.filter((value) => value.toLowerCase().includes(query))
+              : soNums;
+            const displayValues = (visible.length ? visible : soNums).slice(0, 50);
+            const summaryLabel = `${visible.length || soNums.length} SO${(visible.length || soNums.length) === 1 ? '' : 's'}`;
+            const chips = displayValues
+              .map((value) => `<span class="session-order-chip">${escapeHtml(value)}</span>`)
+              .join('');
+            return `
+              <details class="session-load-orders"${showFilteredRows ? ' open' : ''}>
+                <summary>${escapeHtml(summaryLabel)}</summary>
+                <div class="session-load-order-chips">${chips}</div>
+              </details>
+            `;
+          };
+          loadBody.innerHTML = loadsToRender.slice(0, 50).map((load) => {
+            const statusToken = String(load.status || '').toUpperCase();
+            const tab = statusToken === 'APPROVED' ? 'final' : 'draft';
+            const loadUrl = `/loads?session_id=${encodeURIComponent(payload.session_id || '')}&selected_load=${encodeURIComponent(load.id || '')}&tab=${encodeURIComponent(tab)}`;
+            return `
             <tr>
               <td>${escapeHtml(load.load_number || '')}</td>
               <td><span class="session-load-status status-${statusClass(load.status)}">${escapeHtml(load.status || '')}</span></td>
@@ -346,12 +378,21 @@
                   <strong>${formatFloat(load.utilization_pct || 0)}%</strong>
                 </div>
               </td>
-              <td>${escapeHtml(load.order_count || 0)}</td>
+              <td>
+                <div class="session-load-order-cell">
+                  <strong>${escapeHtml(load.order_count || 0)}</strong>
+                  ${buildOrderCell(load)}
+                </div>
+              </td>
               <td>${escapeHtml(load.stop_count || 0)}</td>
               <td>${formatFloat(load.estimated_miles || 0)}</td>
               <td>${formatCurrency(load.estimated_cost || 0)}</td>
+              <td>
+                <a class="btn-ghost btn-xs session-inline-view-btn" href="${escapeAttr(loadUrl)}">View Load</a>
+              </td>
             </tr>
-          `).join('');
+          `;
+          }).join('');
         }
       }
     }
@@ -375,11 +416,10 @@
       const sessionId = row.dataset.sessionRow;
       if (!sessionId) return;
       if (summaryCache.has(sessionId)) {
-        setPreviewSummary(summaryCache.get(sessionId));
-        return;
+        return summaryCache.get(sessionId);
       }
       const summaryUrl = row.dataset.summaryUrl || '';
-      if (!summaryUrl) return;
+      if (!summaryUrl) return null;
 
       const response = await fetch(summaryUrl, { headers: { Accept: 'application/json' } });
       if (!response.ok) {
@@ -387,12 +427,15 @@
       }
       const payload = await response.json();
       summaryCache.set(sessionId, payload);
-      setPreviewSummary(payload);
+      return payload;
     }
 
-    async function selectSessionRow(row) {
+    async function selectSessionRow(row, options = {}) {
       if (!row) return;
-      sessionRows.forEach((entry) => entry.classList.remove('is-active'));
+      const keepSelection = Boolean(options.keepSelection);
+      if (!keepSelection) {
+        sessionRows.forEach((entry) => entry.classList.remove('is-active'));
+      }
       row.classList.add('is-active');
       setPreviewVisibility(true);
 
@@ -410,25 +453,31 @@
       document.getElementById('preview-cost').textContent = '$0';
 
       try {
-        await loadSessionSummary(row);
+        const payload = await loadSessionSummary(row);
+        if (payload) {
+          setPreviewSummary(payload, row);
+        }
       } catch (err) {
         const loadBody = document.getElementById('preview-load-summary-body');
-        if (loadBody) loadBody.innerHTML = `<tr><td colspan="8">${escapeHtml(err.message || 'Unable to load details.')}</td></tr>`;
+        if (loadBody) loadBody.innerHTML = `<tr><td colspan="9">${escapeHtml(err.message || 'Unable to load details.')}</td></tr>`;
       }
     }
 
     function applySessionFilter() {
       const query = sessionSearchInput ? sessionSearchInput.value.trim().toLowerCase() : '';
+      activeSearchQuery = query;
       let firstVisible = null;
       sessionRows.forEach((row) => {
-        const text = row.textContent.toLowerCase();
+        const text = (row.dataset.sessionSearch || row.textContent || '').toLowerCase();
         const match = !query || text.includes(query);
         row.style.display = match ? '' : 'none';
         if (match && !firstVisible) firstVisible = row;
       });
 
       const selected = sessionRows.find((row) => row.classList.contains('is-active') && row.style.display !== 'none');
-      if (!selected) {
+      if (selected) {
+        selectSessionRow(selected, { keepSelection: true });
+      } else if (!selected) {
         if (firstVisible) {
           selectSessionRow(firstVisible);
         } else {

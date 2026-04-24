@@ -236,6 +236,11 @@
                       <td class="settings-default-note">Maximum distance for order consolidation.</td>
                     </tr>
                     <tr>
+                      <td>Outlier Stop Leg Warning (mi)</td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="stop_warning_leg_miles" value="{{ optimizer_defaults.stop_warning_leg_miles or 250 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                      <td class="settings-default-note">Flag manifest/map stops when leg distance from previous stop meets or exceeds this threshold (0 disables).</td>
+                    </tr>
+                    <tr>
                       <td>Max Detour (%)</td>
                       <td><input class="select-field settings-default-input" type="number" min="0" step="1" name="max_detour_pct" value="{{ optimizer_defaults.max_detour_pct }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">Route compatibility tolerance.</td>
@@ -1273,6 +1278,11 @@
                       <td>Geo Radius (mi)</td>
                       <td>{{ optimizer_defaults.geo_radius or 100 }}</td>
                       <td>Controls geographic clustering of stops.</td>
+                    </tr>
+                    <tr>
+                      <td>Outlier Stop Leg Warning (mi)</td>
+                      <td>{{ optimizer_defaults.stop_warning_leg_miles or 250 }}</td>
+                      <td>Flags stops when the previous-stop leg distance meets or exceeds this threshold.</td>
                     </tr>
                     <tr>
                       <td>Max Detour (%)</td>

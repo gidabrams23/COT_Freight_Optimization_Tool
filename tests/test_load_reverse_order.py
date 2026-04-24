@@ -50,6 +50,83 @@ def test_load_route_display_metrics_skips_cached_values_when_requested():
     assert metrics["route_distance"] == round(sum(metrics["route_legs"]))
 
 
+def test_route_geometry_endpoint_refreshes_stale_cached_geometry(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 42,
+        "origin_plant": "ATL",
+        "status": "DRAFT",
+        "route_reversed": 0,
+        # Stale geometry: skips waypoint B and would draw an out-of-sequence path.
+        "route_geometry": [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+        "route_fallback": 0,
+        "route_provider": "ors",
+        "route_profile": "driving-hgv",
+        "route_total_miles": 100.0,
+        "estimated_miles": 100.0,
+    }
+    ordered_stops = [
+        {"coords": (1.0, 0.0), "zip": "11111", "state": "AA"},
+        {"coords": (1.0, 1.0), "zip": "22222", "state": "BB"},
+        {"coords": (0.0, 1.0), "zip": "33333", "state": "CC"},
+    ]
+    captured = {"directions_calls": 0, "update_payload": None}
+
+    class _Provider:
+        def directions(self, coords_latlng, objective="distance"):
+            captured["directions_calls"] += 1
+            return {
+                "leg_miles": [10.0, 20.0, 30.0],
+                "total_miles": 60.0,
+                "geometry_latlng": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+            }
+
+    class _Service:
+        routing_enabled = True
+        provider = _Provider()
+        provider_name = "ors"
+        profile = "driving-hgv"
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: dict(load) if load_id == 42 else None)
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: [{"so_num": "SO-1"}])
+    monkeypatch.setattr(app_module.db, "update_load_route_data", lambda _load_id, payload: captured.update({"update_payload": dict(payload)}))
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module.geo_utils, "load_zip_coordinates", lambda: {})
+    monkeypatch.setattr(app_module.geo_utils, "plant_coords_for_code", lambda _plant: (0.0, 0.0))
+    monkeypatch.setattr(app_module, "_build_load_carrier_pricing_context", lambda: {})
+    monkeypatch.setattr(app_module, "_requires_return_to_origin", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_alternate_requires_return_hint", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(app_module, "_load_has_lowes_order", lambda _lines: False)
+    monkeypatch.setattr(app_module, "_ordered_stops_for_lines", lambda *_args, **_kwargs: list(ordered_stops))
+    monkeypatch.setattr(app_module, "_apply_route_stop_order", lambda ordered_stops, load=None: list(ordered_stops))
+    monkeypatch.setattr(app_module, "_apply_load_route_direction", lambda ordered_stops, load=None, reverse_route=None: list(ordered_stops))
+    monkeypatch.setattr(
+        app_module,
+        "_load_route_display_metrics",
+        lambda *_args, **_kwargs: {
+            "route_legs": [10.0, 20.0, 30.0],
+            "route_distance": 60,
+            "route_total_miles": 60.0,
+            "route_geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+        },
+    )
+    monkeypatch.setattr(app_module.routing_service, "get_routing_service", lambda: _Service())
+
+    response = client.get(
+        "/api/loads/42/route-geometry",
+        headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert captured["directions_calls"] == 1
+    assert payload["route_geometry"] == [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+    assert captured["update_payload"] is not None
+    assert captured["update_payload"]["route_geometry"] == payload["route_geometry"]
+
+
 def test_reverse_load_order_endpoint_toggles_route_flag(monkeypatch):
     client = app_module.app.test_client()
     _set_authenticated_session(client)
@@ -168,7 +245,7 @@ def test_apply_route_stop_order_reorders_and_keeps_unlisted_stops():
 
     reordered = app_module._apply_route_stop_order(
         stops,
-        stop_order=["VA|23456", "VA|23061"],
+        stop_order=["VA|23456", "VA|23061", "VA|20190"],
     )
 
     assert [app_module._line_stop_key(stop["state"], stop["zip"]) for stop in reordered] == [
@@ -224,11 +301,6 @@ def test_save_manifest_sequence_endpoint_persists_stop_order(monkeypatch):
             {"route_reversed": (load_id, route_reversed)}
         ),
     )
-    monkeypatch.setattr(
-        app_module.db,
-        "delete_load_schematic_override",
-        lambda load_id: captured.update({"override_deleted": load_id}),
-    )
 
     response = client.post(
         "/loads/42/manifest-sequence",
@@ -245,7 +317,66 @@ def test_save_manifest_sequence_endpoint_persists_stop_order(monkeypatch):
     assert captured["load_id"] == 42
     assert captured["stop_order"] == ["VA|23456", "VA|23061"]
     assert captured["route_reversed"] == (42, False)
-    assert captured["override_deleted"] == 42
+
+
+def test_orientation_tie_break_prefers_closer_first_stop(monkeypatch):
+    origin = (30.0, -97.0)
+    stops = [
+        {"zip": "A", "coords": (33.0, -97.0)},
+        {"zip": "B", "coords": (31.0, -97.0)},
+        {"zip": "C", "coords": (30.2, -97.0)},
+    ]
+
+    monkeypatch.setattr(
+        app_module.geo_utils,
+        "haversine_distance_coords",
+        lambda p1, p2: abs(float(p1[0]) - float(p2[0])) * 100,
+    )
+
+    reordered = app_module._prefer_closest_endpoint_when_route_orientation_tied(
+        origin,
+        stops,
+        return_to_origin=False,
+    )
+
+    assert [stop.get("zip") for stop in reordered] == ["C", "B", "A"]
+
+
+def test_orientation_prefers_lower_total_miles_over_closer_first_stop(monkeypatch):
+    origin = (0.0, 0.0)
+    stops = [
+        {"zip": "A", "coords": (10.0, 0.0)},
+        {"zip": "B", "coords": (11.0, 0.0)},
+        {"zip": "C", "coords": (1.0, 0.0)},
+    ]
+    distance_lookup = {
+        ((0.0, 0.0), (10.0, 0.0)): 2.0,
+        ((10.0, 0.0), (11.0, 0.0)): 1.0,
+        ((11.0, 0.0), (1.0, 0.0)): 1.0,
+        ((0.0, 0.0), (1.0, 0.0)): 9.0,
+        ((1.0, 0.0), (11.0, 0.0)): 9.0,
+        ((11.0, 0.0), (10.0, 0.0)): 9.0,
+    }
+
+    def _fake_distance(p1, p2):
+        key = ((float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])))
+        if key in distance_lookup:
+            return distance_lookup[key]
+        reverse = (key[1], key[0])
+        if reverse in distance_lookup:
+            return distance_lookup[reverse]
+        raise AssertionError(f"Unexpected distance request: {key}")
+
+    monkeypatch.setattr(app_module.geo_utils, "haversine_distance_coords", _fake_distance)
+
+    reordered = app_module._prefer_closest_endpoint_when_route_orientation_tied(
+        origin,
+        stops,
+        return_to_origin=False,
+    )
+
+    # Although C is closer to origin, forward orientation has lower total miles.
+    assert [stop.get("zip") for stop in reordered] == ["A", "B", "C"]
 
 
 def test_approve_lock_status_update_dedupes_orders_from_unapproved_loads(monkeypatch):

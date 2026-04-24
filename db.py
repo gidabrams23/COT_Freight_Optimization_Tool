@@ -3617,7 +3617,13 @@ def list_planning_sessions(filters=None):
                 COUNT(DISTINCT l.id) AS load_count,
                 AVG(l.utilization_pct) AS avg_utilization,
                 COUNT(DISTINCT ol.so_num) AS order_count,
-                SUM(l.estimated_cost) AS total_spend
+                SUM(l.estimated_cost) AS total_spend,
+                GROUP_CONCAT(
+                    DISTINCT NULLIF(TRIM(COALESCE(l.load_number, '')), '')
+                ) AS load_numbers,
+                GROUP_CONCAT(
+                    DISTINCT NULLIF(TRIM(COALESCE(ol.so_num, '')), '')
+                ) AS order_numbers
             FROM planning_sessions ps
             LEFT JOIN loads l ON l.planning_session_id = ps.id
             LEFT JOIN load_lines ll ON ll.load_id = l.id

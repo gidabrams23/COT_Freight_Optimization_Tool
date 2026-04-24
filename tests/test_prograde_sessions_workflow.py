@@ -1,5 +1,6 @@
 import importlib
 import os
+import re
 import tempfile
 import unittest
 import uuid
@@ -1251,6 +1252,1088 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         rows = [dict(r) for r in self.db.get_positions(session_id)]
         self.assertEqual(len(rows), 2)
         self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2})
+
+    def test_pj_add_on_stack_persists_stack_alignment_override(self):
+        profile_id = self.db.create_access_profile("PJ Stack Alignment Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Stack Alignment Tester",
+            "PJ Stack Alignment Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Stack Alignment Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-STACK-ALIGN", "UT", "utility", 16.0, 16.0, 4.0, 20.0),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-STACK-ALIGN", "deck_zone": "lower_deck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json() or {}
+        self.assertTrue(base_payload.get("ok"))
+        base_position_id = str(base_payload.get("position_id") or "")
+
+        add_stacked = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-STACK-ALIGN",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "stack_alignment": "right",
+            },
+        )
+        self.assertEqual(add_stacked.status_code, 200)
+        self.assertTrue((add_stacked.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        stacked = next((row for row in rows if int(row.get("layer") or 0) == 2), None)
+        self.assertIsNotNone(stacked)
+        self.assertIn("stack_alignment:right", str((stacked or {}).get("override_reason") or ""))
+
+    def test_pj_stack_on_aligned_top_unit_inherits_stack_alignment(self):
+        profile_id = self.db.create_access_profile("PJ Stack Alignment Inherit Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Stack Alignment Inherit Tester",
+            "PJ Stack Alignment Inherit Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Stack Alignment Inherit Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN40-INHERIT", "PL", "gooseneck", 40.0, 40.0, 9.0, 49.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-SUP32-INHERIT", "U3", "utility", 32.0, 32.0, 0.0, 32.0, 3.0, 3.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-CH20-INHERIT", "U2", "utility", 20.0, 20.0, 0.0, 20.0, 2.5, 2.5),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-GN40-INHERIT", "deck_zone": "lower_deck", "pj_tongue_profile": "gooseneck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json() or {}
+        self.assertTrue(base_payload.get("ok"))
+        base_position_id = str(base_payload.get("position_id") or "")
+
+        add_support = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-SUP32-INHERIT",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "stack_alignment": "right",
+            },
+        )
+        self.assertEqual(add_support.status_code, 200)
+        support_payload = add_support.get_json() or {}
+        self.assertTrue(support_payload.get("ok"))
+        support_position_id = str(support_payload.get("position_id") or "")
+
+        add_child = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-CH20-INHERIT",
+                "deck_zone": "lower_deck",
+                "stack_on": support_position_id,
+            },
+        )
+        self.assertEqual(add_child.status_code, 200)
+        child_payload = add_child.get_json() or {}
+        self.assertTrue(child_payload.get("ok"))
+        child_position_id = str(child_payload.get("position_id") or "")
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        child_row = next((row for row in rows if str(row.get("position_id") or "") == child_position_id), None)
+        self.assertIsNotNone(child_row)
+        self.assertIn("stack_alignment:right", str((child_row or {}).get("override_reason") or ""))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        support = next((row for row in enriched if str(row.get("position_id") or "") == support_position_id), None)
+        child = next((row for row in enriched if str(row.get("position_id") or "") == child_position_id), None)
+        self.assertIsNotNone(support)
+        self.assertIsNotNone(child)
+
+        support_end_ft = float((support or {}).get("deck_x_end_ft") or 0.0)
+        child_start_ft = float((child or {}).get("deck_x_start_ft") or 0.0)
+        self.assertAlmostEqual(child_start_ft, support_end_ft - 20.0, places=3)
+
+    def test_pj_move_to_stack_persists_stack_alignment_for_top_support_reference(self):
+        profile_id = self.db.create_access_profile("PJ Move Stack Alignment Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Move Stack Alignment Tester",
+            "PJ Move Stack Alignment Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Move Stack Alignment Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PL40", "PL", "gooseneck", 40.0, 40.0, 9.0, 49.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("B516", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.6, 2.9),
+            )
+
+        pl1 = str(uuid.uuid4())
+        pl2 = str(uuid.uuid4())
+        pl3 = str(uuid.uuid4())
+        b516 = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=pl1,
+            session_id=session_id,
+            brand="pj",
+            item_number="PL40",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=pl2,
+            session_id=session_id,
+            brand="pj",
+            item_number="PL40",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=pl3,
+            session_id=session_id,
+            brand="pj",
+            item_number="PL40",
+            deck_zone="lower_deck",
+            layer=3,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=b516,
+            session_id=session_id,
+            brand="pj",
+            item_number="B516",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+
+        move_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/position/move",
+            json={
+                "position_id": b516,
+                "to_zone": "lower_deck",
+                "to_sequence": 1,
+                "to_layer_index": 4,
+                "stack_alignment": "left",
+            },
+        )
+        self.assertEqual(move_resp.status_code, 200)
+        self.assertTrue((move_resp.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        moved_row = next((row for row in rows if str(row.get("position_id") or "") == b516), None)
+        self.assertIsNotNone(moved_row)
+        self.assertIn("stack_alignment:left", str((moved_row or {}).get("override_reason") or ""))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        top_pl40 = next((row for row in enriched if str(row.get("position_id") or "") == pl3), None)
+        base_pl40 = next((row for row in enriched if str(row.get("position_id") or "") == pl1), None)
+        moved_unit = next((row for row in enriched if str(row.get("position_id") or "") == b516), None)
+        self.assertIsNotNone(top_pl40)
+        self.assertIsNotNone(base_pl40)
+        self.assertIsNotNone(moved_unit)
+
+        moved_start = float((moved_unit or {}).get("deck_x_start_ft") or 0.0)
+        top_start = float((top_pl40 or {}).get("deck_x_start_ft") or 0.0)
+        base_start = float((base_pl40 or {}).get("deck_x_start_ft") or 0.0)
+        self.assertAlmostEqual(moved_start, top_start, places=3)
+        self.assertNotAlmostEqual(moved_start, base_start, places=3)
+
+    def test_pj_implicit_stack_above_rotated_utility_anchors_to_support_deck_wall(self):
+        profile_id = self.db.create_access_profile("PJ Implicit Utility Anchor Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Implicit Utility Anchor Tester",
+            "PJ Implicit Utility Anchor Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Implicit Utility Anchor Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-PL40-IMPLICIT", "PL", "gooseneck", 40.0, 40.0, 9.0, 49.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-B516-IMPLICIT", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.9, 2.9),
+            )
+
+        pl1 = str(uuid.uuid4())
+        pl2 = str(uuid.uuid4())
+        pl3 = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=pl1,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-PL40-IMPLICIT",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=pl2,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-PL40-IMPLICIT",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=pl3,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-PL40-IMPLICIT",
+            deck_zone="lower_deck",
+            layer=3,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=1,
+        )
+
+        add_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-B516-IMPLICIT",
+                "deck_zone": "lower_deck",
+                "stack_on": pl3,
+            },
+        )
+        self.assertEqual(add_resp.status_code, 200)
+        self.assertTrue((add_resp.get_json() or {}).get("ok"))
+        b516_id = str((add_resp.get_json() or {}).get("position_id") or "")
+        self.assertTrue(b516_id)
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        added_row = next((row for row in rows if str(row.get("position_id") or "") == b516_id), None)
+        self.assertIsNotNone(added_row)
+        self.assertNotIn("stack_alignment:", str((added_row or {}).get("override_reason") or ""))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        top_pl40 = next((row for row in enriched if str(row.get("position_id") or "") == pl3), None)
+        added_unit = next((row for row in enriched if str(row.get("position_id") or "") == b516_id), None)
+        self.assertIsNotNone(top_pl40)
+        self.assertIsNotNone(added_unit)
+
+        added_start_ft = float((added_unit or {}).get("deck_x_start_ft") or 0.0)
+        top_start_ft = float((top_pl40 or {}).get("deck_x_start_ft") or 0.0)
+        top_tongue_start = float((top_pl40 or {}).get("tongue_x_start_ft") or top_start_ft)
+        top_tongue_end = float((top_pl40 or {}).get("tongue_x_end_ft") or top_start_ft)
+        top_tongue_left_ft = min(top_tongue_start, top_tongue_end)
+
+        self.assertAlmostEqual(added_start_ft, top_start_ft, places=3)
+        self.assertGreater(added_start_ft, top_tongue_left_ft + 0.001)
+
+    def test_pj_non_gooseneck_stack_layer_does_not_overlap_gooseneck_tongue(self):
+        profile_id = self.db.create_access_profile("PJ Tongue Clearance Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Tongue Clearance Tester",
+            "PJ Tongue Clearance Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Tongue Clearance Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-CLEAR", "LS", "gooseneck", 32.0, 32.0, 9.0, 41.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-TOP-CLEAR", "CC", "utility", 24.0, 24.0, 4.0, 28.0),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN-CLEAR",
+                "deck_zone": "lower_deck",
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json() or {}
+        self.assertTrue(base_payload.get("ok"))
+        base_position_id = str(base_payload.get("position_id") or "")
+
+        add_top = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-TOP-CLEAR",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "stack_alignment": "right",
+            },
+        )
+        self.assertEqual(add_top.status_code, 200)
+        self.assertTrue((add_top.get_json() or {}).get("ok"))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        self.assertEqual(len(enriched), 2)
+        base = next((row for row in enriched if str(row.get("item_number")) == "PJ-GN-CLEAR"), None)
+        top = next((row for row in enriched if str(row.get("item_number")) == "PJ-TOP-CLEAR"), None)
+        self.assertIsNotNone(base)
+        self.assertIsNotNone(top)
+        self.assertEqual(str((base or {}).get("render_tongue_profile") or ""), "gooseneck")
+
+        anchor_wall_ft = float((base or {}).get("deck_x_end_ft") or 0.0)
+        top_is_rotated = bool((top or {}).get("is_rotated"))
+        top_right_edge_ft = (
+            float((top or {}).get("deck_x_end_ft") or 0.0)
+            if top_is_rotated
+            else float((top or {}).get("tongue_x_end_ft") or (top or {}).get("deck_x_end_ft") or 0.0)
+        )
+        self.assertLessEqual(top_right_edge_ft, anchor_wall_ft + 0.001)
+
+    def test_pj_left_stack_alignment_on_rotated_gooseneck_anchors_to_left_safe_wall(self):
+        profile_id = self.db.create_access_profile("PJ Left Safe Stack Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Left Safe Stack Tester",
+            "PJ Left Safe Stack Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Left Safe Stack Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-LEFT", "LS", "gooseneck", 32.0, 32.0, 9.0, 41.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-TOP-LEFT", "CC", "utility", 24.0, 24.0, 4.0, 28.0),
+            )
+
+        base_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=base_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-GN-LEFT",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:gooseneck",
+            is_rotated=1,
+        )
+        add_top = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-TOP-LEFT",
+                "deck_zone": "lower_deck",
+                "stack_on": base_id,
+                "stack_alignment": "left",
+            },
+        )
+        self.assertEqual(add_top.status_code, 200)
+        self.assertTrue((add_top.get_json() or {}).get("ok"))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        base = next((row for row in enriched if str(row.get("position_id") or "") == base_id), None)
+        top = next((row for row in enriched if str(row.get("item_number") or "") == "PJ-TOP-LEFT"), None)
+        self.assertIsNotNone(base)
+        self.assertIsNotNone(top)
+
+        anchor_left_wall_ft = float((base or {}).get("deck_x_start_ft") or 0.0)
+        top_left_edge_ft = float((top or {}).get("deck_x_start_ft") or 0.0)
+        self.assertGreaterEqual(top_left_edge_ft, anchor_left_wall_ft - 0.001)
+        self.assertLessEqual(top_left_edge_ft, anchor_left_wall_ft + 0.001)
+
+    def test_pj_explicit_top_stack_anchors_to_shifted_support_not_whole_column(self):
+        profile_id = self.db.create_access_profile("PJ Shifted Support Anchor Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Shifted Support Anchor Tester",
+            "PJ Shifted Support Anchor Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Shifted Support Anchor Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN53-ANCHOR", "PL", "gooseneck", 53.0, 53.0, 9.0, 62.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN40-NEST", "PL", "gooseneck", 40.0, 40.0, 9.0, 49.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-SUP32-ANCHOR", "U3", "utility", 32.0, 32.0, 0.0, 32.0, 3.0, 3.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-CH20-ANCHOR", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.9, 2.9),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-GN53-ANCHOR", "deck_zone": "lower_deck", "pj_tongue_profile": "gooseneck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json() or {}
+        self.assertTrue(base_payload.get("ok"))
+        base_position_id = str(base_payload.get("position_id") or "")
+
+        add_nested = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN40-NEST",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_nested.status_code, 200)
+        nested_payload = add_nested.get_json() or {}
+        self.assertTrue(nested_payload.get("ok"))
+        nested_position_id = str(nested_payload.get("position_id") or "")
+
+        add_support = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-SUP32-ANCHOR",
+                "deck_zone": "lower_deck",
+                "stack_on": nested_position_id,
+                "stack_alignment": "right",
+            },
+        )
+        self.assertEqual(add_support.status_code, 200)
+        support_payload = add_support.get_json() or {}
+        self.assertTrue(support_payload.get("ok"))
+        support_position_id = str(support_payload.get("position_id") or "")
+
+        add_child = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-CH20-ANCHOR",
+                "deck_zone": "lower_deck",
+                "stack_on": support_position_id,
+                "stack_alignment": "left",
+            },
+        )
+        self.assertEqual(add_child.status_code, 200)
+        self.assertTrue((add_child.get_json() or {}).get("ok"))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        rows = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        nested = next((row for row in rows if str(row.get("position_id") or "") == nested_position_id), None)
+        support = next((row for row in rows if str(row.get("position_id") or "") == support_position_id), None)
+        child = next((row for row in rows if str(row.get("item_number") or "") == "PJ-CH20-ANCHOR"), None)
+        self.assertIsNotNone(nested)
+        self.assertIsNotNone(support)
+        self.assertIsNotNone(child)
+
+        nested_start_ft = float((nested or {}).get("deck_x_start_ft") or 0.0)
+        support_start_ft = float((support or {}).get("deck_x_start_ft") or 0.0)
+        support_end_ft = float((support or {}).get("deck_x_end_ft") or support_start_ft)
+        child_start_ft = float((child or {}).get("deck_x_start_ft") or 0.0)
+        child_end_ft = float((child or {}).get("deck_x_end_ft") or child_start_ft)
+        child_tongue_end_ft = float((child or {}).get("tongue_x_end_ft") or child_end_ft)
+
+        self.assertGreater(support_start_ft, nested_start_ft + 0.25)
+        self.assertAlmostEqual(child_start_ft, support_start_ft, places=3)
+        self.assertLessEqual(max(child_end_ft, child_tongue_end_ft), support_end_ft + 0.001)
+
+    def test_pj_top_stack_lanes_align_to_top_gooseneck_not_wider_lower_gooseneck(self):
+        profile_id = self.db.create_access_profile("PJ Top Gooseneck Lane Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Top Gooseneck Lane Tester",
+            "PJ Top Gooseneck Lane Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Top Gooseneck Lane Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN53-TOPLANE", "PL", "gooseneck", 53.0, 53.0, 9.0, 62.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN40-TOPLANE", "PL", "gooseneck", 40.0, 40.0, 9.0, 49.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-B516-TOPLANE", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.9, 2.9),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-GN53-TOPLANE", "deck_zone": "lower_deck", "pj_tongue_profile": "gooseneck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json() or {}
+        self.assertTrue(base_payload.get("ok"))
+        base_position_id = str(base_payload.get("position_id") or "")
+
+        add_top_gn = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN40-TOPLANE",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_top_gn.status_code, 200)
+        top_payload = add_top_gn.get_json() or {}
+        self.assertTrue(top_payload.get("ok"))
+        top_position_id = str(top_payload.get("position_id") or "")
+
+        add_left = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-B516-TOPLANE",
+                "deck_zone": "lower_deck",
+                "stack_on": top_position_id,
+                "stack_alignment": "left",
+            },
+        )
+        self.assertEqual(add_left.status_code, 200)
+        self.assertTrue((add_left.get_json() or {}).get("ok"))
+        left_position_id = str((add_left.get_json() or {}).get("position_id") or "")
+
+        add_right = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-B516-TOPLANE",
+                "deck_zone": "lower_deck",
+                "stack_on": left_position_id,
+                "stack_alignment": "right",
+            },
+        )
+        self.assertEqual(add_right.status_code, 200)
+        self.assertTrue((add_right.get_json() or {}).get("ok"))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        rows = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        base_gn = next((row for row in rows if str(row.get("position_id") or "") == base_position_id), None)
+        top_gn = next((row for row in rows if str(row.get("position_id") or "") == top_position_id), None)
+        left_lane = next(
+            (
+                row for row in rows
+                if str(row.get("item_number") or "") == "PJ-B516-TOPLANE"
+                and str(row.get("stack_alignment") or "") == "left"
+            ),
+            None,
+        )
+        right_lane = next(
+            (
+                row for row in rows
+                if str(row.get("item_number") or "") == "PJ-B516-TOPLANE"
+                and str(row.get("stack_alignment") or "") == "right"
+            ),
+            None,
+        )
+        self.assertIsNotNone(base_gn)
+        self.assertIsNotNone(top_gn)
+        self.assertIsNotNone(left_lane)
+        self.assertIsNotNone(right_lane)
+
+        base_start_ft = float((base_gn or {}).get("deck_x_start_ft") or 0.0)
+        top_start_ft = float((top_gn or {}).get("deck_x_start_ft") or 0.0)
+        top_end_ft = float((top_gn or {}).get("deck_x_end_ft") or top_start_ft)
+        self.assertGreater(top_start_ft, base_start_ft + 0.25)
+
+        def occupied_edges(unit):
+            deck_x0 = float((unit or {}).get("deck_x_start_ft") or 0.0)
+            deck_x1 = float((unit or {}).get("deck_x_end_ft") or deck_x0)
+            tongue_x0 = float((unit or {}).get("tongue_x_start_ft") or deck_x1)
+            tongue_x1 = float((unit or {}).get("tongue_x_end_ft") or tongue_x0)
+            return min(deck_x0, deck_x1, tongue_x0, tongue_x1), max(deck_x0, deck_x1, tongue_x0, tongue_x1)
+
+        left_occ_left_ft, left_occ_right_ft = occupied_edges(left_lane)
+        right_occ_left_ft, right_occ_right_ft = occupied_edges(right_lane)
+        self.assertGreaterEqual(left_occ_left_ft, top_start_ft - 0.001)
+        self.assertLessEqual(right_occ_right_ft, top_end_ft + 0.001)
+        self.assertAlmostEqual(left_occ_right_ft, right_occ_left_ft, places=3)
+        self.assertAlmostEqual(left_occ_left_ft, top_start_ft, places=3)
+        self.assertAlmostEqual(right_occ_right_ft, top_end_ft, places=3)
+
+    def test_pj_left_right_top_lanes_render_as_side_by_side_without_tongue_overlap(self):
+        profile_id = self.db.create_access_profile("PJ Side-by-Side Lane Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Side-by-Side Lane Tester",
+            "PJ Side-by-Side Lane Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Side-by-Side Lane Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-PL40-LANE", "PL", "gooseneck", 40.0, 40.0, 9.0, 49.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-B516-LANE", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.9, 2.9),
+            )
+
+        base_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=base_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-PL40-LANE",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:gooseneck",
+            is_rotated=1,
+        )
+        add_left = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-B516-LANE",
+                "deck_zone": "lower_deck",
+                "stack_on": base_id,
+                "stack_alignment": "left",
+            },
+        )
+        self.assertEqual(add_left.status_code, 200)
+        self.assertTrue((add_left.get_json() or {}).get("ok"))
+        add_right = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-B516-LANE",
+                "deck_zone": "lower_deck",
+                "stack_on": base_id,
+                "stack_alignment": "right",
+            },
+        )
+        self.assertEqual(add_right.status_code, 200)
+        self.assertTrue((add_right.get_json() or {}).get("ok"))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        rows = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        base = next((row for row in rows if str(row.get("position_id") or "") == base_id), None)
+        left_lane = next(
+            (
+                row for row in rows
+                if str(row.get("item_number") or "") == "PJ-B516-LANE"
+                and str(row.get("stack_alignment") or "") == "left"
+            ),
+            None,
+        )
+        right_lane = next(
+            (
+                row for row in rows
+                if str(row.get("item_number") or "") == "PJ-B516-LANE"
+                and str(row.get("stack_alignment") or "") == "right"
+            ),
+            None,
+        )
+        self.assertIsNotNone(base)
+        self.assertIsNotNone(left_lane)
+        self.assertIsNotNone(right_lane)
+
+        left_start_ft = float((left_lane or {}).get("deck_x_start_ft") or 0.0)
+        right_start_ft = float((right_lane or {}).get("deck_x_start_ft") or 0.0)
+        self.assertGreater(right_start_ft, left_start_ft + 0.25)
+        self.assertAlmostEqual(
+            float((left_lane or {}).get("y_surface_ft") or 0.0),
+            float((right_lane or {}).get("y_surface_ft") or 0.0),
+            places=3,
+        )
+
+        anchor_left_wall_ft = float((base or {}).get("deck_x_start_ft") or 0.0)
+        anchor_right_wall_ft = float((base or {}).get("deck_x_end_ft") or 0.0)
+        left_left_edge_ft = float((left_lane or {}).get("deck_x_start_ft") or 0.0)
+        right_left_edge_ft = float((right_lane or {}).get("deck_x_start_ft") or 0.0)
+        self.assertGreaterEqual(left_left_edge_ft, anchor_left_wall_ft - 0.001)
+        self.assertGreaterEqual(right_left_edge_ft, anchor_left_wall_ft - 0.001)
+
+        def occupied_edges(unit):
+            deck_x0 = float((unit or {}).get("deck_x_start_ft") or 0.0)
+            deck_x1 = float((unit or {}).get("deck_x_end_ft") or deck_x0)
+            tongue_x0 = float((unit or {}).get("tongue_x_start_ft") or deck_x1)
+            tongue_x1 = float((unit or {}).get("tongue_x_end_ft") or tongue_x0)
+            left_edge = min(deck_x0, deck_x1, tongue_x0, tongue_x1)
+            right_edge = max(deck_x0, deck_x1, tongue_x0, tongue_x1)
+            return left_edge, right_edge
+
+        left_occ_left_ft, left_occ_right_ft = occupied_edges(left_lane)
+        right_occ_left_ft, right_occ_right_ft = occupied_edges(right_lane)
+        self.assertGreaterEqual(left_occ_left_ft, anchor_left_wall_ft - 0.001)
+        self.assertLessEqual(right_occ_right_ft, anchor_right_wall_ft + 0.001)
+        self.assertAlmostEqual(left_occ_right_ft, right_occ_left_ft, places=3)
+
+    def test_pj_height_meter_core_cap_matches_10ft_scale_and_overflow_extends_above(self):
+        profile_id = self.db.create_access_profile("PJ Meter Overflow Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Meter Overflow Tester",
+            "PJ Meter Overflow Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Meter Overflow Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-PL40-METER", "PL", "gooseneck", 40.0, 40.0, 9.0, 49.0, 6.0, 6.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-B516-METER", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.9, 2.9),
+            )
+
+        base_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=base_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-PL40-METER",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:gooseneck",
+            is_rotated=1,
+        )
+        for _ in range(2):
+            add_resp = self.client.post(
+                f"/prograde/api/session/{session_id}/add",
+                json={
+                    "item_number": "PJ-B516-METER",
+                    "deck_zone": "lower_deck",
+                    "stack_on": base_id,
+                    "stack_alignment": "left",
+                },
+            )
+            self.assertEqual(add_resp.status_code, 200)
+            self.assertTrue((add_resp.get_json() or {}).get("ok"))
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+
+        trailer_geometry = dict(canvas.get("trailer_geometry") or {})
+        clearances = dict(canvas.get("clearances") or {})
+        max_outline = dict(canvas.get("max_rendered_outline_ft_by_zone") or {})
+        max_stacked = dict(canvas.get("max_stacked_ft_by_zone") or {})
+        lower_cap_ft = float(clearances.get("lower_deck") or 10.0)
+        upper_cap_ft = float(clearances.get("upper_deck") or 8.5)
+        lower_used_ft = float(max_outline.get("lower_deck", max_stacked.get("lower_deck") or 0.0) or 0.0)
+        upper_used_ft = float(max_outline.get("upper_deck", max_stacked.get("upper_deck") or 0.0) or 0.0)
+        lower_surface_ft = float(trailer_geometry.get("lower_deck_surface_ft") or 0.0)
+        upper_surface_ft = float(trailer_geometry.get("upper_deck_surface_ft") or 0.0)
+        show_upper_zone = bool(trailer_geometry.get("show_upper_zone", True))
+        step_height_ft = max(upper_surface_ft - lower_surface_ft, 0.0)
+
+        margin_t = 14.0
+        margin_b = 8.0
+        measure_gap_px = 8.0
+        measure_h_px = 84.0
+        plot_h = 392.0 - margin_t - margin_b - measure_gap_px - measure_h_px
+        ground_y = margin_t + plot_h
+        guide_line_y = margin_t + 28.0
+        if show_upper_zone:
+            required_span_ft = max(
+                lower_cap_ft,
+                upper_cap_ft + step_height_ft,
+                lower_used_ft * 1.10,
+                (upper_used_ft + step_height_ft) * 1.10,
+            )
+        else:
+            required_span_ft = max(lower_cap_ft, lower_used_ft * 1.10)
+        py_per_ft = ((ground_y - guide_line_y) / required_span_ft) if required_span_ft > 0 else 1.0
+
+        expected_bar_h = lower_cap_ft * py_per_ft
+        expected_bar_top = ground_y - expected_bar_h
+        expected_overflow_h = max(lower_used_ft - lower_cap_ft, 0.0) * py_per_ft
+
+        load_resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(load_resp.status_code, 200)
+        html = load_resp.get_data(as_text=True)
+
+        base_rect_match = re.search(
+            r'<rect x="8" y="(?P<y>-?\d+(?:\.\d+)?)" width="30" height="(?P<h>-?\d+(?:\.\d+)?)" rx="12" fill="rgba\(15, 23, 42, 0\.28\)" stroke="rgba\(125, 211, 252, 0\.72\)" stroke-width="1"/>',
+            html,
+        )
+        self.assertIsNotNone(base_rect_match)
+        bar_y = float(base_rect_match.group("y")) if base_rect_match else 0.0
+        bar_h = float(base_rect_match.group("h")) if base_rect_match else 0.0
+
+        overflow_rect_match = re.search(
+            r'<rect x="9" y="(?P<y>-?\d+(?:\.\d+)?)" width="28" height="(?P<h>-?\d+(?:\.\d+)?)" rx="10" fill="#ef4444" fill-opacity="0.95" stroke="#fca5a5" stroke-width="0.9"/>',
+            html,
+        )
+        self.assertIsNotNone(overflow_rect_match)
+        overflow_y = float(overflow_rect_match.group("y")) if overflow_rect_match else 0.0
+        overflow_h = float(overflow_rect_match.group("h")) if overflow_rect_match else 0.0
+
+        self.assertAlmostEqual(bar_h, expected_bar_h, places=2)
+        self.assertAlmostEqual(bar_y, expected_bar_top, places=2)
+        self.assertAlmostEqual(overflow_h, expected_overflow_h, places=2)
+        self.assertAlmostEqual(overflow_y + overflow_h, bar_y, places=2)
 
     def test_pj_left_aligned_lower_stack_with_upper_overhang_snaps_right(self):
         profile_id = self.db.create_access_profile("PJ Overhang Snap Tester")

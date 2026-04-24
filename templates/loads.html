@@ -792,8 +792,8 @@
                                     {% if group.is_rescue_stop and not group.is_terminal_stop and not prev_same_stop %}
                                       <span
                                         class="manifest-dist-rescue"
-                                        title="Radius outlier: this stop is beyond the default geo radius from its nearest routed stop. Review before approval."
-                                        aria-label="Radius outlier stop"
+                                        title="{{ group.rescue_tooltip or 'Outlier stop warning. Review before approval.' }}"
+                                        aria-label="{{ group.rescue_tooltip or 'Outlier stop warning' }}"
                                       >!</span>
                                     {% endif %}
                                   </td>
@@ -1352,13 +1352,17 @@
       const sequence = stop.sequence || '';
       const color = (typeof stop.color === 'string' && stop.color.trim()) ? stop.color.trim() : '#38bdf8';
       const rescueClass = stop.is_rescue_stop ? ' rescue' : '';
+      const rescueTooltip = stop.is_rescue_stop ? String(stop.rescue_tooltip || 'Outlier stop warning').trim() : '';
+      const rescueTitle = rescueTooltip
+        ? ` title="${rescueTooltip.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}"`
+        : '';
       let html = '';
       if (type === 'origin') {
-        html = `<div class="stop-marker origin${rescueClass}" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">home</span></div>`;
+        html = `<div class="stop-marker origin${rescueClass}"${rescueTitle} style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">home</span></div>`;
       } else if (type === 'final') {
-        html = `<div class="stop-marker final${rescueClass}" style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">flag</span><span class="stop-num">${sequence}</span></div>`;
+        html = `<div class="stop-marker final${rescueClass}"${rescueTitle} style="background:${color}; border-color:#0f172a;"><span class="material-symbols-outlined">flag</span><span class="stop-num">${sequence}</span></div>`;
       } else {
-        html = `<div class="stop-marker${rescueClass}" style="background:${color}; border-color:#0f172a;"><span class="stop-num">${sequence}</span></div>`;
+        html = `<div class="stop-marker${rescueClass}"${rescueTitle} style="background:${color}; border-color:#0f172a;"><span class="stop-num">${sequence}</span></div>`;
       }
       return L.divIcon({
         className: 'stop-marker-wrapper',
@@ -1579,50 +1583,64 @@
           const legLabel = `${Math.round(legMiles).toLocaleString()} mi`;
           popupLabel = `${label} - ${isReturnLeg ? 'Return leg' : 'Next leg'} ${legLabel}`;
         }
+        if (stop.is_rescue_stop && stop.rescue_tooltip) {
+          popupLabel = `${popupLabel} - ${stop.rescue_tooltip}`;
+        }
         marker.bindPopup(popupLabel);
       });
 
       map.__routeStops = validStops;
       mapInstances.set(container.id, map);
 
-      if (!hasDetailedRoadGeometry) {
-        if (routeReversed) {
+      if (routeReversed) {
+        if (!hasDetailedRoadGeometry) {
           drawRoutePolyline(lineCoords, true);
+        }
+        return;
+      }
+
+      const loadId = container.dataset.loadId;
+      const drawFallbackGeometry = () => {
+        if (hasDetailedRoadGeometry) {
+          drawRoutePolyline(routeCoords, true);
           return;
         }
-        const loadId = container.dataset.loadId;
-        if (loadId) {
-          fetch(`/api/loads/${encodeURIComponent(loadId)}/route-geometry`)
-            .then((response) => response.ok ? response.json() : null)
-            .then((payload) => {
-              if (!payload) {
-                drawRoutePolyline(lineCoords, true);
-                return;
-              }
-              const fetched = (Array.isArray(payload.route_geometry) ? payload.route_geometry : [])
-                .map((point) => [Number(point[0]), Number(point[1])])
-                .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-              const fetchedLegs = (Array.isArray(payload.route_legs) ? payload.route_legs : [])
-                .map((value) => Number(value))
-                .map((value) => (Number.isFinite(value) ? Math.max(value, 0) : 0));
-              if (fetchedLegs.length) {
-                routeLegMiles = fetchedLegs;
-                container.dataset.routeLegs = JSON.stringify(payload.route_legs || []);
-              }
-              if (fetched.length > 1) {
-                const alignedFetched = alignGeometryToStopSequence(fetched);
-                container.dataset.route = JSON.stringify(alignedFetched);
-                drawRoutePolyline(alignedFetched, true);
-                return;
-              }
-              drawRoutePolyline(lineCoords, true);
-            })
-            .catch(() => {
-              // Fallback: keep map functional with straight-line geometry.
-              drawRoutePolyline(lineCoords, true);
-            });
-          return;
-        }
+        drawRoutePolyline(lineCoords, true);
+      };
+
+      if (loadId) {
+        fetch(`/api/loads/${encodeURIComponent(loadId)}/route-geometry`)
+          .then((response) => response.ok ? response.json() : null)
+          .then((payload) => {
+            if (!payload) {
+              drawFallbackGeometry();
+              return;
+            }
+            const fetched = (Array.isArray(payload.route_geometry) ? payload.route_geometry : [])
+              .map((point) => [Number(point[0]), Number(point[1])])
+              .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+            const fetchedLegs = (Array.isArray(payload.route_legs) ? payload.route_legs : [])
+              .map((value) => Number(value))
+              .map((value) => (Number.isFinite(value) ? Math.max(value, 0) : 0));
+            if (fetchedLegs.length) {
+              routeLegMiles = fetchedLegs;
+              container.dataset.routeLegs = JSON.stringify(payload.route_legs || []);
+            }
+            if (fetched.length > 1) {
+              const alignedFetched = alignGeometryToStopSequence(fetched);
+              container.dataset.route = JSON.stringify(alignedFetched);
+              drawRoutePolyline(alignedFetched, true);
+              return;
+            }
+            drawFallbackGeometry();
+          })
+          .catch(() => {
+            // Fallback: keep map functional with straight-line geometry.
+            drawFallbackGeometry();
+          });
+        return;
+      }
+      if (!hasDetailedRoadGeometry) {
         drawRoutePolyline(lineCoords, true);
       }
     }
@@ -4694,12 +4712,13 @@
 
       const insertUnitInPosition = (unitId, positionId, index) => {
         const pos = findPosition(positionId);
-        if (!pos) return;
+        if (!pos) return false;
         const list = pos.unit_ids || [];
         const targetIndex = Math.max(0, Math.min(Number(index || 0), list.length));
         list.splice(targetIndex, 0, unitId);
         pos.unit_ids = list;
         if (pos.allow_empty) pos.allow_empty = false;
+        return true;
       };
 
       const unitStopSequenceValue = (unitId) => {
@@ -4753,8 +4772,44 @@
 
       const moveUnitToPosition = (unitId, positionId, index, options = {}) => {
         if (!unitId || !positionId) return;
+        const sourcePosition = (state.layout.positions || []).find((pos) => (pos.unit_ids || []).includes(unitId));
+        const sourcePositionId = sourcePosition ? (sourcePosition.position_id || '') : '';
+        if (sourcePosition && sourcePositionId === positionId) {
+          const current = [...(sourcePosition.unit_ids || [])];
+          const sourceIndex = current.indexOf(unitId);
+          if (sourceIndex < 0) return;
+          current.splice(sourceIndex, 1);
+          let targetIndex = Math.max(0, Math.min(Number(index || 0), current.length + 1));
+          if (targetIndex > sourceIndex) targetIndex -= 1;
+          targetIndex = Math.max(0, Math.min(targetIndex, current.length));
+          current.splice(targetIndex, 0, unitId);
+          sourcePosition.unit_ids = current;
+          ensurePositionIds();
+          computeClientPreview();
+          render();
+          return;
+        }
         const source = removeUnitFromLayout(unitId);
-        insertUnitInPosition(unitId, positionId, index);
+        const inserted = insertUnitInPosition(unitId, positionId, index);
+        if (!inserted) {
+          if (source.removed && source.fromPositionId) {
+            const restored = findPosition(source.fromPositionId);
+            if (restored) {
+              const fallbackIndex = source.fromIndex >= 0 ? source.fromIndex : (restored.unit_ids || []).length;
+              insertUnitInPosition(unitId, source.fromPositionId, fallbackIndex);
+            } else {
+              state.layout.positions.push({
+                position_id: source.fromPositionId,
+                deck: (sourcePosition && sourcePosition.deck) || 'lower',
+                unit_ids: [unitId],
+              });
+            }
+          }
+          ensurePositionIds();
+          computeClientPreview();
+          render();
+          return;
+        }
         const isManualReorder = !!options.manualReorder;
         const movedAcrossStacks = !source.removed || source.fromPositionId !== positionId;
         if (!isManualReorder && movedAcrossStacks) {
@@ -5800,6 +5855,77 @@
       window.setTimeout(poll, 1200);
     }
 
+    function initDraftSessionReleaseOnExit() {
+      const activeSessionId = Number({{ active_session_id or 0 }});
+      const activeSessionStatus = String({{ ((active_session.status if active_session else '') or '') | tojson }}).toUpperCase();
+      const replayMode = {{ (is_replay | default(false)) | tojson }};
+      if (!activeSessionId || replayMode || activeSessionStatus !== 'DRAFT') return;
+
+      const isLoadsPath = (pathname) => String(pathname || '').replace(/\/+$/, '') === '/loads';
+      const releaseUrl = `/planning-sessions/${encodeURIComponent(activeSessionId)}/release-draft-loads`;
+      let releaseCompleted = false;
+      let releaseInFlight = false;
+
+      const releaseDraftLoads = async () => {
+        if (releaseCompleted || releaseInFlight) return true;
+        releaseInFlight = true;
+        try {
+          const response = await fetch(releaseUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+          });
+          let payload = null;
+          try {
+            payload = await response.json();
+          } catch (_error) {
+            payload = null;
+          }
+          if (!response.ok || (payload && payload.error)) {
+            throw new Error((payload && payload.error) || `Failed to release draft loads (${response.status}).`);
+          }
+          releaseCompleted = true;
+          return true;
+        } finally {
+          releaseInFlight = false;
+        }
+      };
+
+      document.addEventListener('click', async (event) => {
+        const anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+        if (!anchor) return;
+        if (anchor.dataset.skipReleaseConfirm === '1') return;
+        if (anchor.target && anchor.target !== '_self') return;
+        const href = (anchor.getAttribute('href') || '').trim();
+        if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+
+        let nextUrl;
+        try {
+          nextUrl = new URL(anchor.href, window.location.origin);
+        } catch (_error) {
+          return;
+        }
+        if (nextUrl.origin !== window.location.origin) return;
+        if (isLoadsPath(nextUrl.pathname)) return;
+        if (releaseCompleted) return;
+
+        event.preventDefault();
+        const confirmed = window.confirm('Release all non-finalized draft loads in this session before leaving the Loads page?');
+        if (!confirmed) return;
+
+        try {
+          await releaseDraftLoads();
+        } catch (error) {
+          const proceed = window.confirm(`${(error && error.message) || 'Unable to release draft loads.'} Continue navigation anyway?`);
+          if (!proceed) return;
+        }
+        window.location.assign(nextUrl.toString());
+      }, true);
+    }
+
     initFreightBreakdownModal();
     initManualLoadModal();
     initManualAddModal();
@@ -5809,6 +5935,7 @@
     bindSchematicEditButtons();
     initReoptStatusPolling();
     initSessionStopwatch();
+    initDraftSessionReleaseOnExit();
 
     function initSchematicHoverTooltips() {
       if (window.__schematicHoverTooltipsBound) return;

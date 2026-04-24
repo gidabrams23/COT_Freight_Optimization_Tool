@@ -405,6 +405,7 @@ DEFAULT_TRAILER_ASSIGNMENT_RULES = {
     "livestock_wedge_enabled": True,
     "livestock_category_tokens": ["LIVESTOCK"],
 }
+DEFAULT_STOP_WARNING_LEG_MILES = 250.0
 DEFAULT_TRACTOR_SUPPLY_CARGO_WEDGE_MIN_ITEM_LENGTH_FT = 20.0
 DEFAULT_TRACTOR_SUPPLY_UTA_WEDGE_MIN_ITEM_LENGTH_FT = 22.0
 DEFAULT_RATE_TABLE_CONTEXTS = {
@@ -878,6 +879,11 @@ def session_setup():
 
 @cot_bp.route("/session/reset")
 def session_reset():
+    active_session_id = _get_active_planning_session_id()
+    if active_session_id:
+        planning_session = db.get_planning_session(active_session_id)
+        if planning_session and _can_access_planning_session(planning_session):
+            _release_draft_loads_for_session(active_session_id)
     session.clear()
     return redirect(url_for("login"))
 
@@ -2011,6 +2017,9 @@ def _default_optimize_form(plant_code=None):
     form_data["max_detour_pct"] = str(optimizer_defaults["max_detour_pct"])
     form_data["time_window_days"] = str(optimizer_defaults["time_window_days"])
     form_data["geo_radius"] = str(optimizer_defaults["geo_radius"])
+    form_data["stop_warning_leg_miles"] = str(
+        optimizer_defaults.get("stop_warning_leg_miles", DEFAULT_STOP_WARNING_LEG_MILES)
+    )
     form_data["stack_overflow_max_height"] = str(
         optimizer_defaults["stack_overflow_max_height"]
     )
@@ -3453,6 +3462,10 @@ def _get_optimizer_default_settings():
         "max_detour_pct": _coerce_non_negative_float(load_builder.DEFAULT_BUILD_PARAMS.get("max_detour_pct"), 15),
         "time_window_days": _coerce_non_negative_int(load_builder.DEFAULT_BUILD_PARAMS.get("time_window_days"), 7),
         "geo_radius": _coerce_non_negative_float(load_builder.DEFAULT_BUILD_PARAMS.get("geo_radius"), 100),
+        "stop_warning_leg_miles": _coerce_non_negative_float(
+            load_builder.DEFAULT_BUILD_PARAMS.get("stop_warning_leg_miles"),
+            DEFAULT_STOP_WARNING_LEG_MILES,
+        ),
         "stack_overflow_max_height": _coerce_non_negative_int(
             load_builder.DEFAULT_BUILD_PARAMS.get("stack_overflow_max_height"),
             DEFAULT_STACK_OVERFLOW_MAX_HEIGHT,
@@ -3502,6 +3515,10 @@ def _get_optimizer_default_settings():
                 defaults["time_window_days"],
             )
             defaults["geo_radius"] = _coerce_non_negative_float(parsed.get("geo_radius"), defaults["geo_radius"])
+            defaults["stop_warning_leg_miles"] = _coerce_non_negative_float(
+                parsed.get("stop_warning_leg_miles"),
+                defaults["stop_warning_leg_miles"],
+            )
             defaults["stack_overflow_max_height"] = _coerce_non_negative_int(
                 parsed.get("stack_overflow_max_height"),
                 defaults["stack_overflow_max_height"],
@@ -3532,6 +3549,13 @@ def _get_optimizer_default_settings():
                 else bool(defaults["equal_length_deck_length_order_enabled"])
             )
     defaults["max_back_overhang_ft"] = round(defaults["max_back_overhang_ft"], 2)
+    defaults["stop_warning_leg_miles"] = round(
+        _coerce_non_negative_float(
+            defaults.get("stop_warning_leg_miles"),
+            DEFAULT_STOP_WARNING_LEG_MILES,
+        ),
+        2,
+    )
     defaults["upper_two_across_max_length_ft"] = round(defaults["upper_two_across_max_length_ft"], 2)
     defaults["upper_deck_exception_max_length_ft"] = round(
         defaults["upper_deck_exception_max_length_ft"],
@@ -5593,15 +5617,90 @@ def _requires_return_to_origin(lines):
     )
 
 
+def _route_path_distance_miles(origin_coords, ordered_stops, return_to_origin=False):
+    stops = list(ordered_stops or [])
+    if not origin_coords or not stops:
+        return 0.0
+
+    total = 0.0
+    current_coords = origin_coords
+    for stop in stops:
+        coords = stop.get("coords")
+        if not coords or not current_coords:
+            continue
+        try:
+            miles = float(geo_utils.haversine_distance_coords(current_coords, coords))
+        except (TypeError, ValueError):
+            continue
+        total += miles
+        current_coords = coords
+
+    if return_to_origin and current_coords and origin_coords:
+        try:
+            total += float(geo_utils.haversine_distance_coords(current_coords, origin_coords))
+        except (TypeError, ValueError):
+            pass
+
+    return float(total)
+
+
+def _prefer_closest_endpoint_when_route_orientation_tied(
+    origin_coords,
+    ordered_stops,
+    return_to_origin=False,
+):
+    stops = list(ordered_stops or [])
+    if not origin_coords or len(stops) <= 1:
+        return stops
+
+    reverse_stops = list(reversed(stops))
+    forward_miles = _route_path_distance_miles(
+        origin_coords,
+        stops,
+        return_to_origin=bool(return_to_origin),
+    )
+    reverse_miles = _route_path_distance_miles(
+        origin_coords,
+        reverse_stops,
+        return_to_origin=bool(return_to_origin),
+    )
+
+    # Primary rule: minimize total miles.
+    tie_tolerance_miles = 0.01
+    if reverse_miles + tie_tolerance_miles < forward_miles:
+        return reverse_stops
+    if forward_miles + tie_tolerance_miles < reverse_miles:
+        return stops
+
+    # Tie-break only: prefer orientation whose first stop is closer to origin.
+    first_forward = stops[0].get("coords")
+    first_reverse = reverse_stops[0].get("coords")
+    if not first_forward or not first_reverse:
+        return stops
+    try:
+        first_forward_miles = float(geo_utils.haversine_distance_coords(origin_coords, first_forward))
+        first_reverse_miles = float(geo_utils.haversine_distance_coords(origin_coords, first_reverse))
+    except (TypeError, ValueError):
+        return stops
+    if first_reverse_miles + tie_tolerance_miles < first_forward_miles:
+        return reverse_stops
+    return stops
+
+
 def _ordered_stops_for_lines(lines, origin_plant, zip_coords, return_to_origin=None):
     stops = _build_route_stops_for_lines(lines, zip_coords)
     origin_coords = geo_utils.plant_coords_for_code(origin_plant)
     if return_to_origin is None:
         return_to_origin = _requires_return_to_origin(lines)
     if origin_coords:
-        return tsp_solver.solve_route(
+        ordered = tsp_solver.solve_route(
             origin_coords,
             stops,
+            return_to_origin=bool(return_to_origin),
+        )
+        return _prefer_closest_endpoint_when_route_orientation_tied(
+            origin_coords,
+            ordered,
             return_to_origin=bool(return_to_origin),
         )
     return stops
@@ -6042,15 +6141,22 @@ def _normalize_edit_layout(layout, units_by_id, trailer_type):
             )
 
     expected_ids = set(units_by_id.keys())
-    if expected_ids != seen:
-        missing = sorted(expected_ids - seen)
-        extra = sorted(seen - expected_ids)
-        details = []
-        if missing:
-            details.append(f"missing units: {', '.join(missing[:5])}")
-        if extra:
-            details.append(f"unknown units: {', '.join(extra[:5])}")
-        raise ValueError("Invalid layout payload (" + "; ".join(details) + ")")
+    extra = sorted(seen - expected_ids)
+    if extra:
+        raise ValueError("Invalid layout payload (unknown units: " + ", ".join(extra[:5]) + ")")
+
+    missing = sorted(expected_ids - seen)
+    # Defensive repair: preserve all load units even when a transient drag/drop payload
+    # omits one or more ids. Missing units are added back as single-unit lower stacks.
+    for unit_id in missing:
+        normalized_positions.append(
+            {
+                "position_id": "",
+                "deck": "lower",
+                "unit_ids": [unit_id],
+            }
+        )
+        seen.add(unit_id)
 
     for idx, pos in enumerate(normalized_positions, start=1):
         pos["position_id"] = f"p{idx}"
@@ -6734,6 +6840,72 @@ def _build_schematic_from_layout(layout, units_by_id, trailer_type, assumptions=
     )
 
 
+def _calculate_load_schematic_with_override(
+    load_id,
+    lines,
+    sku_specs,
+    trailer_type,
+    stop_sequence_map=None,
+    assumptions=None,
+    order_colors=None,
+):
+    assumptions = assumptions or _get_stack_capacity_assumptions()
+    schematic, line_items, order_numbers = _calculate_load_schematic(
+        lines,
+        sku_specs,
+        trailer_type,
+        stop_sequence_map=stop_sequence_map,
+        assumptions=assumptions,
+    )
+    schematic_warnings = list(schematic.get("warnings") or [])
+    has_custom_schematic = False
+    override = db.get_load_schematic_override(load_id)
+    if override and (override.get("trailer_type") or "").strip().upper() == trailer_type:
+        units = _build_schematic_units(
+            lines,
+            sku_specs,
+            trailer_type,
+            stop_sequence_map=stop_sequence_map,
+            order_colors=order_colors,
+        )
+        units_by_id = {unit["unit_id"]: unit for unit in units}
+        try:
+            override_layout = json.loads(override.get("layout_json") or "{}")
+            normalized_layout = _normalize_edit_layout(override_layout, units_by_id, trailer_type)
+            schematic, schematic_warnings = _build_schematic_from_layout(
+                normalized_layout,
+                units_by_id,
+                trailer_type,
+                assumptions=assumptions,
+            )
+            has_custom_schematic = True
+        except (json.JSONDecodeError, ValueError):
+            has_custom_schematic = False
+            schematic_warnings = []
+
+    if (
+        not schematic_warnings
+        and override
+        and (override.get("trailer_type") or "").strip().upper() == trailer_type
+        and override.get("warnings_json")
+    ):
+        try:
+            parsed_warnings = json.loads(override.get("warnings_json") or "[]")
+        except json.JSONDecodeError:
+            parsed_warnings = []
+        if isinstance(parsed_warnings, list):
+            schematic_warnings = parsed_warnings
+
+    return {
+        "schematic": schematic,
+        "line_items": line_items,
+        "order_numbers": order_numbers,
+        "warnings": schematic_warnings,
+        "has_custom_schematic": has_custom_schematic,
+        "override": override,
+    }
+
+
 
 
 def _build_schematic_fragment_payload(load_data, status=None, tab=None):
@@ -7012,12 +7184,7 @@ def _can_access_planning_session(planning_session):
 
     if bool(planning_session.get("is_sandbox")) != bool(_is_session_sandbox()):
         return False
-
-    profile_name = (_get_session_profile_name() or "").strip()
-    created_by = (planning_session.get("created_by") or "").strip()
-    if not profile_name:
-        return False
-    return created_by.casefold() == profile_name.casefold()
+    return True
 
 
 def _load_access_failure_reason(load):
@@ -10033,6 +10200,12 @@ def loads():
     strategic_setting = _get_effective_planning_setting(STRATEGIC_CUSTOMERS_SETTING_KEY)
     strategic_customers = _parse_strategic_customers(strategic_setting.get("value_text") or "")
     carrier_pricing_context = _build_load_carrier_pricing_context()
+    optimizer_defaults = _get_optimizer_default_settings()
+    stop_warning_leg_miles_threshold = _coerce_non_negative_float(
+        optimizer_defaults.get("stop_warning_leg_miles"),
+        DEFAULT_STOP_WARNING_LEG_MILES,
+    )
+    stack_assumptions = _get_stack_capacity_assumptions()
 
     for load in loads_data:
         lines = load.get("lines", [])
@@ -10166,14 +10339,11 @@ def loads():
         if _load_has_lowes_order(lines):
             requires_return_to_origin = True
         reverse_route = _is_load_route_reversed(load)
-        ordered_stops = (
-            tsp_solver.solve_route(
-                origin_coords,
-                stops,
-                return_to_origin=requires_return_to_origin,
-            )
-            if origin_coords
-            else list(stops)
+        ordered_stops = _ordered_stops_for_lines(
+            lines,
+            origin_code,
+            zip_coords,
+            return_to_origin=requires_return_to_origin,
         )
         ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
         ordered_stops = _apply_load_route_direction(ordered_stops, reverse_route=reverse_route)
@@ -10183,11 +10353,13 @@ def loads():
         )
         if optimizer_radius_miles is None:
             optimizer_radius_miles = _coerce_optional_non_negative_float(
-                _get_optimizer_default_settings().get("geo_radius")
+                optimizer_defaults.get("geo_radius")
             )
         optimizer_radius_miles = float(optimizer_radius_miles or 0.0)
 
         rescue_stop_sequences = set()
+        rescue_stop_reasons = {}
+        rescue_leg_miles = {}
         stop_coords_by_sequence = {}
         for idx, stop in enumerate(ordered_stops, start=1):
             coords = stop.get("coords")
@@ -10217,6 +10389,7 @@ def loads():
                         nearest_miles = miles
                 if nearest_miles is not None and nearest_miles > optimizer_radius_miles:
                     rescue_stop_sequences.add(seq)
+                    rescue_stop_reasons.setdefault(seq, set()).add("radius")
 
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         order_colors = _build_order_colors_for_lines(
@@ -10229,16 +10402,16 @@ def loads():
 
         for group in manifest_groups:
             group["stop_key"] = _line_stop_key(group.get("state"), group.get("zip"))
-            group["stop_sequence"] = stop_sequence_map.get(
+            stop_sequence = stop_sequence_map.get(
                 _line_stop_key(group.get("state"), group.get("zip"))
             )
+            group["stop_sequence"] = stop_sequence
             group["color"] = order_colors.get(
                 group["order_id"],
                 _color_for_stop_sequence(group.get("stop_sequence"), stop_color_palette),
             )
-            group["is_rescue_stop"] = bool(
-                _coerce_int_value(group.get("stop_sequence"), 0) in rescue_stop_sequences
-            )
+            group["is_rescue_stop"] = False
+            group["rescue_tooltip"] = ""
         manifest_groups.sort(
             key=lambda group: (
                 int(group.get("stop_sequence") or 999),
@@ -10246,6 +10419,57 @@ def loads():
                 group.get("order_id") or "",
             )
         )
+
+        def _stop_warning_threshold_label():
+            threshold_value = _coerce_non_negative_float(
+                stop_warning_leg_miles_threshold,
+                DEFAULT_STOP_WARNING_LEG_MILES,
+            )
+            rounded = round(threshold_value, 1)
+            if float(rounded).is_integer():
+                return str(int(rounded))
+            return f"{rounded:.1f}"
+
+        def _rescue_tooltip_for_sequence(stop_sequence_value):
+            reasons = set(rescue_stop_reasons.get(stop_sequence_value) or set())
+            if not reasons:
+                return ""
+            threshold_label = _stop_warning_threshold_label()
+            leg_value = rescue_leg_miles.get(stop_sequence_value)
+            if "long_leg" in reasons and "radius" in reasons:
+                if leg_value is not None:
+                    return (
+                        f"Long-leg + radius outlier: {leg_value} mi from previous stop "
+                        f"(threshold: {threshold_label} mi)."
+                    )
+                return (
+                    "Long-leg + radius outlier stop "
+                    f"(long-leg threshold: {threshold_label} mi)."
+                )
+            if "long_leg" in reasons:
+                if leg_value is not None:
+                    return (
+                        f"Long-leg warning: {leg_value} mi from previous stop "
+                        f"(threshold: {threshold_label} mi)."
+                    )
+                return f"Long-leg warning (threshold: {threshold_label} mi)."
+            if "radius" in reasons:
+                return (
+                    "Radius outlier: this stop is beyond the geo radius from its nearest routed stop."
+                )
+            return ""
+
+        def _apply_manifest_rescue_annotations():
+            for entry in manifest_groups:
+                if entry.get("is_terminal_stop"):
+                    entry["is_rescue_stop"] = False
+                    entry["rescue_tooltip"] = ""
+                    continue
+                stop_sequence_value = _coerce_int_value(entry.get("stop_sequence"), 0)
+                entry["is_rescue_stop"] = bool(stop_sequence_value in rescue_stop_sequences)
+                entry["rescue_tooltip"] = _rescue_tooltip_for_sequence(stop_sequence_value)
+
+        _apply_manifest_rescue_annotations()
         origin_name = plant_names.get(origin_code, PLANT_NAMES.get(origin_code, origin_code))
         if requires_return_to_origin and ordered_stops:
             return_stop_sequence = len(ordered_stops) + 1
@@ -10269,6 +10493,7 @@ def loads():
                     "is_terminal_stop": True,
                     "terminal_label": "Return to Plant",
                     "is_rescue_stop": False,
+                    "rescue_tooltip": "",
                 }
             )
         route_nodes = [
@@ -10341,6 +10566,21 @@ def loads():
         route_geometry = route_metrics["route_geometry"]
         load["estimated_miles"] = total_route_distance
 
+        if stop_warning_leg_miles_threshold > 0:
+            for stop_sequence in range(1, len(ordered_stops) + 1):
+                leg_index = stop_sequence - 1
+                if leg_index < 0 or leg_index >= len(route_legs):
+                    continue
+                try:
+                    leg_miles = float(route_legs[leg_index] or 0)
+                except (TypeError, ValueError):
+                    leg_miles = 0.0
+                if leg_miles >= stop_warning_leg_miles_threshold:
+                    rescue_stop_sequences.add(stop_sequence)
+                    rescue_stop_reasons.setdefault(stop_sequence, set()).add("long_leg")
+                    rescue_leg_miles[stop_sequence] = round(leg_miles)
+        _apply_manifest_rescue_annotations()
+
         # Surface per-stop connector mileage for the manifest timeline.
         # route_legs index 0 is origin->stop1, index 1 is stop1->stop2, etc.
         group_count = len(manifest_groups)
@@ -10371,11 +10611,24 @@ def loads():
 
         load["manifest_groups"] = manifest_groups
 
-        schematic, line_items, order_numbers = _calculate_load_schematic(
+        schematic_result = _calculate_load_schematic_with_override(
+            load.get("id"),
             lines,
             sku_specs,
             trailer_type,
             stop_sequence_map=stop_sequence_map,
+            assumptions=stack_assumptions,
+            order_colors=order_colors,
+        )
+        schematic = schematic_result["schematic"]
+        line_items = schematic_result["line_items"]
+        order_numbers = schematic_result["order_numbers"]
+        schematic_warnings = list(schematic_result["warnings"] or [])
+        load["has_custom_schematic"] = bool(schematic_result["has_custom_schematic"])
+        load["schematic_warnings"] = schematic_warnings
+        load["schematic_warning_count"] = len(schematic_warnings)
+        load["schematic_is_invalid"] = bool(
+            (schematic_result.get("override") or {}).get("is_invalid")
         )
         if origin_code not in hotshot_enabled_by_plant:
             hotshot_enabled_by_plant[origin_code] = _resolve_auto_hotshot_enabled_for_plant(
@@ -10469,6 +10722,7 @@ def loads():
             )
         for idx, stop in enumerate(ordered_stops, start=1):
             stop_color = route_nodes[idx]["color"] if idx < len(route_nodes) else "#f59e0b"
+            rescue_tooltip = _rescue_tooltip_for_sequence(idx)
             map_stops.append(
                 {
                     "type": "stop",
@@ -10478,6 +10732,7 @@ def loads():
                     "sequence": idx,
                     "color": stop_color,
                     "is_rescue_stop": bool(idx in rescue_stop_sequences),
+                    "rescue_tooltip": rescue_tooltip,
                 }
             )
         if requires_return_to_origin and origin_coords and map_stops:
@@ -10866,8 +11121,16 @@ def planning_sessions():
     role = _get_session_role()
     can_manage_sessions = role == ROLE_ADMIN
     allowed_plants = set(_get_allowed_plants())
-    profile_name = (_get_session_profile_name() or "").strip()
-    scoped_planner = planner if can_manage_sessions else profile_name
+
+    active_session_id = _get_active_planning_session_id()
+    if active_session_id:
+        active_session = db.get_planning_session(active_session_id)
+        if (
+            active_session
+            and _can_access_planning_session(active_session)
+            and _normalize_session_status(active_session.get("status")) == "DRAFT"
+        ):
+            _release_draft_loads_for_session(active_session_id)
 
     if plant_code and plant_code not in allowed_plants:
         abort(403)
@@ -10886,7 +11149,7 @@ def planning_sessions():
     sessions = db.list_planning_sessions(
         {
             "plant_code": plant_code or None,
-            "created_by": scoped_planner or None,
+            "created_by": planner or None,
             "start_date": start_date or None,
             "end_date": end_date or None,
         }
@@ -10908,6 +11171,37 @@ def planning_sessions():
         session["config"] = config
         session["status"] = _normalize_session_status(session.get("status"))
         session["created_at_label"] = _format_est_datetime_label(session.get("created_at"))
+        load_numbers_search = " ".join(
+            sorted(
+                {
+                    token.strip()
+                    for token in str(session.get("load_numbers") or "").split(",")
+                    if token and token.strip()
+                }
+            )
+        )
+        order_numbers_search = " ".join(
+            sorted(
+                {
+                    token.strip()
+                    for token in str(session.get("order_numbers") or "").split(",")
+                    if token and token.strip()
+                }
+            )
+        )
+        search_parts = [
+            session.get("session_code") or "",
+            session.get("plant_code") or "",
+            session.get("created_by") or "",
+            session.get("created_at_label") or "",
+            load_numbers_search,
+            order_numbers_search,
+        ]
+        session["load_numbers_search"] = load_numbers_search
+        session["order_numbers_search"] = order_numbers_search
+        session["search_blob"] = " ".join(
+            part.strip() for part in search_parts if str(part or "").strip()
+        ).lower()
         visible_sessions.append(session)
 
     sessions = visible_sessions
@@ -10915,7 +11209,6 @@ def planning_sessions():
     total_sessions = len(sessions)
     avg_efficiency = 0.0
     loads_optimized = 0
-    active_session_id = _get_active_planning_session_id()
     active_session_label = None
     if sessions:
         util_values = [
@@ -10931,10 +11224,8 @@ def planning_sessions():
         if active and _can_access_planning_session(active):
             active_session_label = f"{active.get('plant_code') or ''} - {active.get('session_code') or ''}".strip(" -")
 
-    planner_options = (
-        sorted({session.get("created_by") for session in sessions if session.get("created_by")})
-        if can_manage_sessions
-        else ([profile_name] if profile_name else [])
+    planner_options = sorted(
+        {session.get("created_by") for session in sessions if session.get("created_by")}
     )
     plant_options = sorted({session.get("plant_code") for session in sessions if session.get("plant_code")})
 
@@ -10953,7 +11244,7 @@ def planning_sessions():
         can_manage_sessions=can_manage_sessions,
         filters={
             "plant": plant_code,
-            "planner": planner if can_manage_sessions else profile_name,
+            "planner": planner,
             "start": start_date,
             "end": end_date,
         },
@@ -11327,6 +11618,23 @@ def _archive_session_and_release_loads(session_id):
     if _get_active_planning_session_id() == session_id:
         _set_active_planning_session_id(None)
     return True
+
+
+def _release_draft_loads_for_session(session_id):
+    if not session_id:
+        return []
+    released_ids = []
+    for load in db.list_loads(None, session_id=session_id):
+        load_id = _coerce_int_value(load.get("id"))
+        if not load_id:
+            continue
+        status = (load.get("status") or STATUS_PROPOSED).strip().upper()
+        if status == STATUS_APPROVED:
+            continue
+        db.delete_load(load_id)
+        released_ids.append(load_id)
+    _sync_planning_session_status(session_id)
+    return released_ids
 
 
 def _build_planning_session_rollup(loads):
@@ -12642,6 +12950,43 @@ def planning_session_archive(session_id):
     return redirect(url_for("planning_sessions", **redirect_args))
 
 
+@cot_bp.route("/planning-sessions/<int:session_id>/release-draft-loads", methods=["POST"])
+def planning_session_release_drafts(session_id):
+    session_redirect = _require_session()
+    if session_redirect:
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": "Session expired"}), 401
+        return session_redirect
+
+    planning_session = _get_scoped_planning_session_or_404(session_id)
+    if _normalize_session_status(planning_session.get("status")) == "ARCHIVED":
+        message = "Archived sessions cannot release draft loads."
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": message}), 400
+        next_url = _safe_next_url(request.form.get("next") or request.args.get("next"))
+        return redirect(next_url or url_for("planning_sessions"))
+
+    released_ids = _release_draft_loads_for_session(session_id)
+    released_count = len(released_ids)
+    message = f"Released {released_count} draft load{'s' if released_count != 1 else ''} back to the pool."
+
+    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "released_count": released_count,
+                "released_load_ids": released_ids,
+                "message": message,
+            }
+        )
+
+    next_url = _safe_next_url(request.form.get("next") or request.args.get("next"))
+    if next_url:
+        return redirect(next_url)
+    return redirect(url_for("planning_sessions"))
+
+
 @cot_bp.route("/planning-sessions/archive-all", methods=["POST"])
 def planning_sessions_archive_all():
     session_redirect = _require_session()
@@ -12699,7 +13044,24 @@ def planning_session_resume(session_id):
         return session_redirect
     _get_scoped_planning_session_or_404(session_id)
     _set_active_planning_session_id(session_id)
-    return redirect(url_for("loads", session_id=session_id))
+    selected_load_raw = (request.args.get("selected_load") or "").strip()
+    selected_load = None
+    if selected_load_raw:
+        try:
+            selected_load = int(selected_load_raw)
+        except (TypeError, ValueError):
+            selected_load = None
+    tab = (request.args.get("tab") or "").strip().lower()
+    if tab not in {"draft", "final"}:
+        tab = None
+    return redirect(
+        url_for(
+            "loads",
+            session_id=session_id,
+            selected_load=selected_load,
+            tab=tab,
+        )
+    )
 
 
 @cot_bp.route("/loads/manual/search")
@@ -13468,19 +13830,32 @@ def load_detail(load_id):
     origin_code = load_data.get("origin_plant")
     origin_coords = geo_utils.plant_coords_for_code(origin_code)
     requires_return_to_origin = _requires_return_to_origin(lines)
+    carrier_pricing_context = _build_load_carrier_pricing_context()
+    if _alternate_requires_return_hint(
+        lines,
+        trailer_type,
+        origin_code,
+        carrier_pricing_context,
+    ):
+        requires_return_to_origin = True
+    if _load_has_lowes_order(lines):
+        requires_return_to_origin = True
     reverse_route = _is_load_route_reversed(load_data)
-    ordered_stops = (
-        tsp_solver.solve_route(
-            origin_coords,
-            stops,
-            return_to_origin=requires_return_to_origin,
-        )
-        if origin_coords
-        else list(stops)
+    ordered_stops = _ordered_stops_for_lines(
+        lines,
+        origin_code,
+        zip_coords,
+        return_to_origin=requires_return_to_origin,
     )
     ordered_stops = _apply_route_stop_order(ordered_stops, load=load_data)
     ordered_stops = _apply_load_route_direction(ordered_stops, reverse_route=reverse_route)
     stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
+    assumptions = _get_stack_capacity_assumptions()
+    order_colors = _build_order_colors_for_lines(
+        lines,
+        stop_sequence_map=stop_sequence_map,
+        stop_palette=stop_color_palette,
+    )
 
     origin_name = plant_names.get(origin_code, PLANT_NAMES.get(origin_code, origin_code))
     route_nodes = [
@@ -13580,12 +13955,18 @@ def load_detail(load_id):
             }
         )
 
-    schematic, line_items, order_numbers = _calculate_load_schematic(
+    schematic_result = _calculate_load_schematic_with_override(
+        load_id,
         lines,
         sku_specs,
         trailer_type,
         stop_sequence_map=stop_sequence_map,
+        assumptions=assumptions,
+        order_colors=order_colors,
     )
+    schematic = schematic_result["schematic"]
+    line_items = schematic_result["line_items"]
+    order_numbers = schematic_result["order_numbers"]
     utilization_pct = schematic.get("utilization_pct", load_data.get("utilization_pct", 0)) or 0
     exceeds_capacity = schematic.get("exceeds_capacity", False)
     over_capacity = exceeds_capacity and len(order_numbers) <= 1
@@ -13707,85 +14088,11 @@ def load_route_geometry(load_id):
                 "route_geometry": [],
             }
         )
-
-    custom_route_stop_order = _load_route_stop_order(load)
-    if custom_route_stop_order:
-        lines = db.list_load_lines(load_id)
-        zip_coords = geo_utils.load_zip_coordinates()
-        trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
-        carrier_pricing_context = _build_load_carrier_pricing_context()
-        requires_return_to_origin = _requires_return_to_origin(lines)
-        if _alternate_requires_return_hint(
-            lines,
-            trailer_type,
-            load.get("origin_plant"),
-            carrier_pricing_context,
-        ):
-            requires_return_to_origin = True
-        if _load_has_lowes_order(lines):
-            requires_return_to_origin = True
-        ordered_stops = _ordered_stops_for_lines(
-            lines,
-            load.get("origin_plant"),
-            zip_coords,
-            return_to_origin=requires_return_to_origin,
-        )
-        if _is_custom_route_stop_order_applicable(custom_route_stop_order, ordered_stops):
-            ordered_stops = _apply_route_stop_order(
-                ordered_stops,
-                stop_order=custom_route_stop_order,
-            )
-            ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
-            origin_code = load.get("origin_plant")
-            origin_coords = geo_utils.plant_coords_for_code(origin_code)
-            route_nodes = []
-            if origin_coords:
-                route_nodes.append({"coords": origin_coords, "type": "origin"})
-            for stop in ordered_stops:
-                route_nodes.append({"coords": stop.get("coords"), "type": "stop"})
-            if requires_return_to_origin and origin_coords and len(route_nodes) > 1:
-                route_nodes.append({"coords": origin_coords, "type": "final"})
-
-            metrics = _load_route_display_metrics(load, route_nodes, use_cached_route=False)
-            return jsonify(
-                {
-                    "load_id": load_id,
-                    "route_provider": "manual",
-                    "route_profile": "",
-                    "route_fallback": True,
-                    "route_total_miles": metrics["route_distance"],
-                    "route_legs": metrics["route_legs"],
-                    "route_geometry": metrics["route_geometry"],
-                }
-            )
-
-    existing_geometry = load.get("route_geometry") or []
-    existing_provider = (load.get("route_provider") or "").strip().lower()
-    has_cached_road_geometry = bool(existing_geometry) and not bool(load.get("route_fallback")) and existing_provider not in {
-        "",
-        "none",
-        "haversine",
-    }
-    force_refresh = _coerce_bool_value(request.args.get("force"))
-    if has_cached_road_geometry and not force_refresh:
-        return jsonify(
-            {
-                "load_id": load_id,
-                "route_provider": load.get("route_provider"),
-                "route_profile": load.get("route_profile"),
-                "route_fallback": bool(load.get("route_fallback")),
-                "route_total_miles": load.get("route_total_miles"),
-                "route_legs": load.get("route_legs") or [],
-                "route_geometry": existing_geometry,
-            }
-        )
-
     lines = db.list_load_lines(load_id)
     zip_coords = geo_utils.load_zip_coordinates()
-    stops = _build_route_stops_for_lines(lines, zip_coords)
     origin_code = load.get("origin_plant")
     origin_coords = geo_utils.plant_coords_for_code(origin_code)
-    if not origin_coords or not stops:
+    if not origin_coords:
         return jsonify(
             {
                 "load_id": load_id,
@@ -13798,14 +14105,40 @@ def load_route_geometry(load_id):
             }
         )
 
+    trailer_type = stack_calculator.normalize_trailer_type(load.get("trailer_type"), default="STEP_DECK")
+    carrier_pricing_context = _build_load_carrier_pricing_context()
     requires_return_to_origin = _requires_return_to_origin(lines)
-    route_result = routing_service.get_routing_service().build_route(
-        origin_coords,
-        stops,
+    if _alternate_requires_return_hint(
+        lines,
+        trailer_type,
+        origin_code,
+        carrier_pricing_context,
+    ):
+        requires_return_to_origin = True
+    if _load_has_lowes_order(lines):
+        requires_return_to_origin = True
+
+    ordered_stops = _ordered_stops_for_lines(
+        lines,
+        origin_code,
+        zip_coords,
         return_to_origin=requires_return_to_origin,
-        objective="distance",
-        include_geometry=True,
     )
+    ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
+    ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
+
+    route_nodes = [{"coords": origin_coords, "type": "origin"}]
+    for stop in ordered_stops:
+        route_nodes.append({"coords": stop.get("coords"), "type": "stop"})
+    if requires_return_to_origin and origin_coords and len(route_nodes) > 1:
+        route_nodes.append({"coords": origin_coords, "type": "final"})
+
+    metrics = _load_route_display_metrics(load, route_nodes, use_cached_route=False)
+    route_points = [
+        (float(node["coords"][0]), float(node["coords"][1]))
+        for node in route_nodes
+        if node.get("coords")
+    ]
 
     existing_total_miles = load.get("route_total_miles")
     if existing_total_miles is None:
@@ -13814,14 +14147,108 @@ def load_route_geometry(load_id):
         existing_total_miles = float(existing_total_miles or 0.0)
     except (TypeError, ValueError):
         existing_total_miles = 0.0
+
+    def _normalize_geometry(raw_geometry):
+        normalized = []
+        for point in raw_geometry or []:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                continue
+            try:
+                lat = float(point[0])
+                lng = float(point[1])
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(lat) and math.isfinite(lng):
+                normalized.append([lat, lng])
+        return normalized
+
+    def _nearest_geometry_index(geometry, target, start_idx=0):
+        best_idx = -1
+        best_distance = None
+        start = max(_coerce_int_value(start_idx, 0), 0)
+        for idx in range(start, len(geometry)):
+            point = geometry[idx]
+            delta_lat = float(point[0]) - float(target[0])
+            delta_lng = float(point[1]) - float(target[1])
+            distance_sq = (delta_lat * delta_lat) + (delta_lng * delta_lng)
+            if best_distance is None or distance_sq < best_distance:
+                best_distance = distance_sq
+                best_idx = idx
+        return best_idx
+
+    def _geometry_matches_sequence(geometry, points):
+        if len(geometry) < 2 or len(points) < 2:
+            return False
+        prev_idx = -1
+        # Require each routed waypoint to be reasonably close to the cached geometry.
+        # This prevents stale/cross-sequence cached polylines from being reused.
+        waypoint_snap_tolerance_miles = 12.0
+        for point in points:
+            idx = _nearest_geometry_index(geometry, point, start_idx=max(prev_idx, 0))
+            if idx < 0 or idx < prev_idx:
+                return False
+            snap_miles = geo_utils.haversine_distance_coords(point, geometry[idx])
+            if snap_miles > waypoint_snap_tolerance_miles:
+                return False
+            prev_idx = idx
+        start_miles = geo_utils.haversine_distance_coords(points[0], geometry[0])
+        end_miles = geo_utils.haversine_distance_coords(points[-1], geometry[-1])
+        return bool(start_miles <= 45 and end_miles <= 45)
+
+    existing_geometry = _normalize_geometry(load.get("route_geometry") or [])
+    existing_provider = (load.get("route_provider") or "").strip().lower()
+    has_cached_road_geometry = bool(existing_geometry) and not bool(load.get("route_fallback")) and existing_provider not in {
+        "",
+        "none",
+        "haversine",
+    }
+    force_refresh = _coerce_bool_value(request.args.get("force"))
+    if has_cached_road_geometry and not force_refresh and _geometry_matches_sequence(existing_geometry, route_points):
+        return jsonify(
+            {
+                "load_id": load_id,
+                "route_provider": load.get("route_provider"),
+                "route_profile": load.get("route_profile"),
+                "route_fallback": bool(load.get("route_fallback")),
+                "route_total_miles": existing_total_miles,
+                "route_legs": metrics["route_legs"],
+                "route_geometry": existing_geometry,
+            }
+        )
+
+    service = routing_service.get_routing_service()
+    route_geometry = []
+    route_provider = "haversine"
+    route_profile = ""
+    route_fallback = True
+    if (
+        service
+        and getattr(service, "routing_enabled", False)
+        and getattr(service, "provider", None)
+        and len(route_points) >= 2
+    ):
+        try:
+            directions = service.provider.directions(route_points, objective="distance")
+            route_geometry = _normalize_geometry(directions.get("geometry_latlng") or [])
+            route_provider = service.provider_name
+            route_profile = service.profile
+            route_fallback = False if route_geometry else True
+        except Exception:
+            route_geometry = []
+            route_provider = "haversine"
+            route_profile = ""
+            route_fallback = True
+    if len(route_geometry) <= 1:
+        route_geometry = _normalize_geometry(metrics["route_geometry"])
+
     route_payload = {
-        "route_provider": route_result.get("provider"),
-        "route_profile": route_result.get("profile"),
+        "route_provider": route_provider,
+        "route_profile": route_profile,
         # Preserve optimization/cost miles from load build (haversine mode).
         "route_total_miles": existing_total_miles,
-        "route_legs": load.get("route_legs") or [],
-        "route_geometry": route_result.get("geometry_latlng") or [],
-        "route_fallback": bool(route_result.get("used_fallback")),
+        "route_legs": metrics["route_legs"],
+        "route_geometry": route_geometry,
+        "route_fallback": bool(route_fallback),
     }
     db.update_load_route_data(load_id, route_payload)
 
@@ -14277,7 +14704,6 @@ def save_manifest_sequence(load_id):
 
     db.update_load_route_stop_order(load_id, merged_stop_order)
     db.update_load_route_reversed(load_id, False)
-    db.delete_load_schematic_override(load_id)
 
     redirect_url = url_for(
         "loads",
@@ -14361,51 +14787,20 @@ def _build_load_schematic_payload(load_id):
         stop_sequence_map=stop_sequence_map,
         stop_palette=_get_stop_color_palette(),
     )
-    schematic, _, order_numbers = _calculate_load_schematic(
+    schematic_result = _calculate_load_schematic_with_override(
+        load_id,
         lines,
         sku_specs,
         trailer_type,
         stop_sequence_map=stop_sequence_map,
         assumptions=assumptions,
+        order_colors=order_colors,
     )
-    schematic_warnings = list(schematic.get("warnings") or [])
-    has_custom_schematic = False
-    override = db.get_load_schematic_override(load_id)
-    if override and (override.get("trailer_type") or "").strip().upper() == trailer_type:
-        units = _build_schematic_units(
-            lines,
-            sku_specs,
-            trailer_type,
-            stop_sequence_map=stop_sequence_map,
-            order_colors=order_colors,
-        )
-        units_by_id = {unit["unit_id"]: unit for unit in units}
-        try:
-            override_layout = json.loads(override.get("layout_json") or "{}")
-            normalized_layout = _normalize_edit_layout(override_layout, units_by_id, trailer_type)
-            schematic, schematic_warnings = _build_schematic_from_layout(
-                normalized_layout,
-                units_by_id,
-                trailer_type,
-                assumptions=assumptions,
-            )
-            has_custom_schematic = True
-        except (json.JSONDecodeError, ValueError):
-            has_custom_schematic = False
-            schematic_warnings = []
-
-    if (
-        not schematic_warnings
-        and override
-        and (override.get("trailer_type") or "").strip().upper() == trailer_type
-        and override.get("warnings_json")
-    ):
-        try:
-            parsed_warnings = json.loads(override.get("warnings_json") or "[]")
-        except json.JSONDecodeError:
-            parsed_warnings = []
-        if isinstance(parsed_warnings, list):
-            schematic_warnings = parsed_warnings
+    schematic = schematic_result["schematic"]
+    order_numbers = schematic_result["order_numbers"]
+    schematic_warnings = list(schematic_result["warnings"] or [])
+    has_custom_schematic = bool(schematic_result["has_custom_schematic"])
+    override = schematic_result.get("override")
 
     trailer_assignment_rules = _get_effective_trailer_assignment_rules()
     origin_code = _normalize_plant_code(load.get("origin_plant") or load.get("plant"))
@@ -16233,6 +16628,13 @@ def save_optimizer_defaults():
         ),
         "geo_radius": round(
             _coerce_non_negative_float(payload.get("geo_radius"), current["geo_radius"]),
+            2,
+        ),
+        "stop_warning_leg_miles": round(
+            _coerce_non_negative_float(
+                payload.get("stop_warning_leg_miles"),
+                current.get("stop_warning_leg_miles", DEFAULT_STOP_WARNING_LEG_MILES),
+            ),
             2,
         ),
         "stack_overflow_max_height": _coerce_non_negative_int(
