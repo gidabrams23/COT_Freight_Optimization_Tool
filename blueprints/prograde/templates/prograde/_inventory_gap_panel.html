@@ -91,6 +91,7 @@
                   type="button"
                   class="inventory-add-btn inventory-pick-item inventory-stack-add-btn"
                   data-item="{{ row.item_number }}"
+                  data-total-length-ft="{{ row.footprint_each or 0 }}"
                   data-pj-tongue-mode="{{ row.default_tongue_profile or 'standard' }}"
                   data-stack-target="{{ fit.stack_on_position_id }}"
                   data-stack-zone="{{ fit.target_zone }}"

@@ -61,6 +61,7 @@ _REAR_POCKET_HEIGHT_FT = 0.5
 _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT = 1.0
 _GOOSENECK_WALL_CLEARANCE_FT = 0.08
 _GOOSENECK_RENDER_RISE_FT = 6.0
+_GOOSENECK_FLUSH_DUMP_STACK_HEIGHT_FT = 6.0
 SESSION_PROFILE_ID_KEY = "prograde_profile_id"
 SESSION_PROFILE_NAME_KEY = "prograde_profile_name"
 SESSION_PROFILE_IS_ADMIN_KEY = "prograde_profile_is_admin"
@@ -950,7 +951,25 @@ def _is_gooseneck_render_profile(unit):
     return str(unit.get("render_tongue_profile") or "").strip().lower() == "gooseneck"
 
 
-def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
+def _is_gooseneck_flush_dump_layer(unit):
+    deck_profile = str(unit.get("deck_profile") or "").strip().lower()
+    if deck_profile != "dump":
+        return False
+    stack_height_ft = _as_float(
+        unit.get("stacking_height_ft"),
+        _as_float(
+            unit.get("deck_component_height_ft"),
+            _as_float(unit.get("height"), 0.0),
+        ),
+    )
+    return stack_height_ft >= (_GOOSENECK_FLUSH_DUMP_STACK_HEIGHT_FT - 1e-6)
+
+
+def _lower_column_layer_start_offsets(
+    sorted_col,
+    prefer_occupied_tongue=True,
+    uniform_non_gooseneck_lane=False,
+):
     """
     Return per-layer local deck starts (ft) for lower-deck stacked rendering.
 
@@ -1005,7 +1024,13 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
         unit_deck_len_ft = max(_as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)), 0.0)
         unit_is_rotated = bool(unit.get("is_rotated"))
         unit_is_gooseneck = _is_gooseneck_render_profile(unit)
+        unit_is_flush_dump_layer = _is_gooseneck_flush_dump_layer(unit)
+        unit_is_dump_layer = str(unit.get("deck_profile") or "").strip().lower() == "dump"
         explicit_stack_alignment = _normalize_stack_alignment(unit.get("stack_alignment"), default=None)
+        if unit_is_dump_layer and (support_is_gooseneck or anchor_is_gooseneck):
+            # Dump-on-gooseneck stack layers should not inherit right-lane
+            # anchoring from prior drag/drop tokens; keep them deck-flush.
+            explicit_stack_alignment = "left"
         unit_left_tongue_ft = unit_tongue_ft if unit_is_rotated else 0.0
         unit_right_tongue_ft = 0.0 if unit_is_rotated else unit_tongue_ft
         align_envelope_left_ft = support_left_ft
@@ -1057,10 +1082,23 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
                     max_start_ft = align_envelope_right_ft - unit_deck_len_ft
             else:
                 # Utility-over-utility without an explicit lane override:
-                # keep the child flush to the support deck's left wall
-                # (not the support tongue tip). This prevents upper utility
-                # layers from sliding into a rotated support tongue pocket.
-                flush_start_ft = support_left_ft + unit_left_tongue_ft
+                # keep an implicit lane anchored to the first non-gooseneck
+                # support in this contiguous stack chain. Rebasing this flush
+                # point on each immediate support layer causes cumulative
+                # tongue-length drift (visual stair-step).
+                lane_anchor_idx = support_idx
+                for j in range(support_idx, -1, -1):
+                    if _is_gooseneck_render_profile(sorted_col[j]):
+                        lane_anchor_idx = min(j + 1, support_idx)
+                        break
+                    lane_anchor_idx = j
+                lane_anchor_start_ft = _as_float(offsets[lane_anchor_idx], 0.0)
+                if uniform_non_gooseneck_lane:
+                    # BT visual contract: keep base and stacked utility units
+                    # in one aligned deck-start lane.
+                    flush_start_ft = lane_anchor_start_ft
+                else:
+                    flush_start_ft = lane_anchor_start_ft + unit_left_tongue_ft
                 min_start_ft = flush_start_ft
                 max_start_ft = flush_start_ft
 
@@ -1075,8 +1113,12 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
             # Explicit left/right above a gooseneck must key off this support deck.
             # Priority rule: never overlap the support tongue zone; if the unit
             # cannot fully fit, allow overhang on the opposite side instead.
-            desired_left_start_ft = support_left_ft + unit_left_tongue_ft
-            desired_right_start_ft = support_right_ft - unit_deck_len_ft - unit_right_tongue_ft
+            if unit_is_flush_dump_layer:
+                desired_left_start_ft = support_left_ft
+                desired_right_start_ft = support_right_ft - unit_deck_len_ft
+            else:
+                desired_left_start_ft = support_left_ft + unit_left_tongue_ft
+                desired_right_start_ft = support_right_ft - unit_deck_len_ft - unit_right_tongue_ft
             if explicit_stack_alignment == "right":
                 desired_start_ft = desired_right_start_ft
             elif explicit_stack_alignment == "center":
@@ -1093,7 +1135,12 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
             max_start_ft = desired_start_ft
             support_gooseneck_explicit_locked = True
 
-        if anchor_is_gooseneck and (not unit_is_gooseneck) and (not support_gooseneck_explicit_locked):
+        if (
+            anchor_is_gooseneck
+            and (not unit_is_gooseneck)
+            and (not support_gooseneck_explicit_locked)
+            and (not unit_is_flush_dump_layer)
+        ):
             # Keep child tongue out of the gooseneck tongue zone.
             # Child utility tongues should stop at (touch, not cross) the
             # anchor gooseneck wall plane for this side.
@@ -1127,6 +1174,13 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
                 min_start_ft = req_min_start_ft
                 max_start_ft = req_max_start_ft
 
+        if unit_is_dump_layer and (support_is_gooseneck or anchor_is_gooseneck):
+            # 6' dump stack layers should sit flush on their support deck in
+            # gooseneck columns so the child deck body is not derailed by
+            # gooseneck tongue clearance constraints.
+            min_start_ft = support_left_ft
+            max_start_ft = support_left_ft
+
         if max_start_ft < min_start_ft:
             if anchor_is_gooseneck and (not unit_is_gooseneck):
                 # When clearance and support envelope conflict, prioritize
@@ -1145,17 +1199,20 @@ def _lower_column_layer_start_offsets(sorted_col, prefer_occupied_tongue=True):
                 max_start_ft = anchor_ft
 
         align_mode = "left"
-        if explicit_stack_alignment:
-            align_mode = explicit_stack_alignment
-        if anchor_is_gooseneck:
-            if unit_is_gooseneck:
-                # Keep gooseneck-on-gooseneck overlap on the anchor tongue side.
-                align_mode = anchor_wall_side
-            elif not explicit_stack_alignment:
-                # For non-gooseneck layers above a gooseneck, keep wall-side
-                # anchoring stable across flip direction to avoid re-seating the
-                # whole lower stack during right-pack.
-                align_mode = anchor_wall_side
+        if unit_is_dump_layer and (support_is_gooseneck or anchor_is_gooseneck):
+            align_mode = "left"
+        else:
+            if explicit_stack_alignment:
+                align_mode = explicit_stack_alignment
+            if anchor_is_gooseneck:
+                if unit_is_gooseneck:
+                    # Keep gooseneck-on-gooseneck overlap on the anchor tongue side.
+                    align_mode = anchor_wall_side
+                elif not explicit_stack_alignment:
+                    # For non-gooseneck layers above a gooseneck, keep wall-side
+                    # anchoring stable across flip direction to avoid re-seating the
+                    # whole lower stack during right-pack.
+                    align_mode = anchor_wall_side
 
         if align_mode == "right":
             aligned_start_ft = max_start_ft
@@ -1189,7 +1246,7 @@ def _column_gooseneck_wall_x_local(col, start_local_ft):
     return _as_float(start_local_ft, 0.0) + deck_len_ft
 
 
-def _column_render_envelope_dims(col, zone=None):
+def _column_render_envelope_dims(col, zone=None, uniform_non_gooseneck_lane=False):
     """
     Return rendered envelope dims across all units in a stacked column.
 
@@ -1208,6 +1265,7 @@ def _column_render_envelope_dims(col, zone=None):
         local_starts = _lower_column_layer_start_offsets(
             sorted_col,
             prefer_occupied_tongue=True,
+            uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
         )
 
     min_left_ft = 0.0
@@ -1536,44 +1594,86 @@ def _apply_dump_door_tongue_stuffing(
 
     Rendering keeps full tongue length; this only changes packing/counted length.
     """
+    def _cap_forward_tongues_to_min_exposed(col):
+        capped = False
+        for unit in (col or []):
+            if bool(unit.get("is_rotated")):
+                continue
+            original_tongue_ft = _as_float(
+                unit.get("render_tongue_length_ft"),
+                _as_float(unit.get("tongue_length"), 0.0),
+            )
+            stuffed_tongue_ft = min(original_tongue_ft, _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT)
+            deck_len_ft = _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0))
+            prev_occupied_tongue = _as_float(unit.get("occupied_tongue_length_ft"), original_tongue_ft)
+            prev_occupied_footprint = _as_float(unit.get("occupied_footprint_ft"), deck_len_ft + original_tongue_ft)
+            unit["occupied_tongue_length_ft"] = round(stuffed_tongue_ft, 2)
+            unit["occupied_footprint_ft"] = round(deck_len_ft + stuffed_tongue_ft, 2)
+            if (
+                abs(prev_occupied_tongue - stuffed_tongue_ft) > 1e-9
+                or abs(prev_occupied_footprint - (deck_len_ft + stuffed_tongue_ft)) > 1e-9
+            ):
+                capped = True
+        return capped
+
     lower_cols = (zone_cols or {}).get(lower_zone) or {}
     upper_cols = (zone_cols or {}).get(upper_zone) or {}
-    if not lower_cols or not upper_cols:
-        return False
-
-    lower_seq = max(lower_cols.keys())
-    upper_seq = min(upper_cols.keys())
-    lower_col = lower_cols.get(lower_seq) or []
-    upper_col = upper_cols.get(upper_seq) or []
-    if not lower_col or not upper_col:
-        return False
-
-    upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
-    upper_is_dump = str(upper_base.get("deck_profile") or "").strip().lower() == "dump"
-    upper_door_removed = bool(upper_base.get("dump_door_removed"))
-    upper_rear_faces_seam = not bool(upper_base.get("is_rotated"))
-    if not (upper_is_dump and upper_door_removed and upper_rear_faces_seam):
-        return False
-
     applied = False
-    for unit in lower_col:
-        if bool(unit.get("is_rotated")):
+
+    if lower_cols and upper_cols:
+        lower_seq = max(lower_cols.keys())
+        upper_seq = min(upper_cols.keys())
+        lower_col = lower_cols.get(lower_seq) or []
+        upper_col = upper_cols.get(upper_seq) or []
+        if lower_col and upper_col:
+            upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
+            upper_is_dump = str(upper_base.get("deck_profile") or "").strip().lower() == "dump"
+            upper_door_removed = bool(upper_base.get("dump_door_removed"))
+            upper_rear_faces_seam = not bool(upper_base.get("is_rotated"))
+            if upper_is_dump and upper_door_removed and upper_rear_faces_seam:
+                applied = _cap_forward_tongues_to_min_exposed(lower_col) or applied
+
+    # Same-deck adjacency: allow stack N tongues to insert into stack N+1
+    # when the right stack is a rear-facing dump with door removed.
+    lower_seqs = sorted(lower_cols.keys())
+    for idx in range(len(lower_seqs) - 1):
+        left_seq = int(lower_seqs[idx])
+        right_seq = int(lower_seqs[idx + 1])
+        left_col = lower_cols.get(left_seq) or []
+        right_col = lower_cols.get(right_seq) or []
+        if not left_col or not right_col:
             continue
-        original_tongue_ft = _as_float(
-            unit.get("render_tongue_length_ft"),
-            _as_float(unit.get("tongue_length"), 0.0),
+
+        left_base = next((p for p in left_col if int(p.get("layer") or 0) == 1), left_col[0])
+        right_base = next((p for p in right_col if int(p.get("layer") or 0) == 1), right_col[0])
+        right_is_dump = str(right_base.get("deck_profile") or "").strip().lower() == "dump"
+        right_door_removed = bool(right_base.get("dump_door_removed"))
+        right_rear_faces_left = not bool(right_base.get("is_rotated"))
+        if not (right_is_dump and right_door_removed and right_rear_faces_left):
+            continue
+
+        if bool(left_base.get("is_rotated")):
+            continue
+
+        left_tongue_toward_right_ft = _as_float(
+            left_base.get("render_tongue_length_ft"),
+            _as_float(left_base.get("tongue_length"), 0.0),
         )
-        stuffed_tongue_ft = min(original_tongue_ft, _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT)
-        deck_len_ft = _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0))
-        prev_occupied_tongue = _as_float(unit.get("occupied_tongue_length_ft"), original_tongue_ft)
-        prev_occupied_footprint = _as_float(unit.get("occupied_footprint_ft"), deck_len_ft + original_tongue_ft)
-        unit["occupied_tongue_length_ft"] = round(stuffed_tongue_ft, 2)
-        unit["occupied_footprint_ft"] = round(deck_len_ft + stuffed_tongue_ft, 2)
-        if (
-            abs(prev_occupied_tongue - stuffed_tongue_ft) > 1e-9
-            or abs(prev_occupied_footprint - (deck_len_ft + stuffed_tongue_ft)) > 1e-9
-        ):
-            applied = True
+        right_deck_len_ft = _as_float(
+            right_base.get("deck_length_ft"),
+            _as_float(right_base.get("bed_length"), 0.0),
+        )
+        insertion_window_ft = min(max(right_deck_len_ft, 0.0), _REAR_POCKET_LEN_FT)
+        insertable_left_tongue_ft = max(
+            max(left_tongue_toward_right_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
+            0.0,
+        )
+        allowance_ft = min(insertable_left_tongue_ft, max(insertion_window_ft, 0.0))
+        if allowance_ft <= 1e-9:
+            continue
+
+        applied = _cap_forward_tongues_to_min_exposed(left_col) or applied
+
     return applied
 
 
@@ -2390,6 +2490,7 @@ def _recompute_all_pj_skus():
 
 def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *, include_violations=True):
     """Build all zone/column data needed for the load canvas."""
+    uniform_non_gooseneck_lane = brand == "bigtex"
     carrier_map = dict(carrier) if carrier else {}
     carrier_type = str(
         carrier_map.get("carrier_type")
@@ -2690,7 +2791,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 current_start -= (overlap_left_tongue + overlap_prev_tongue)
                 x_positions[lower_zone][int(seq)] = round(current_start, 3)
 
-            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+            render_dims = _column_render_envelope_dims(
+                col,
+                zone=lower_zone,
+                uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+            )
             prev_right_edge = current_start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
             prev_dims = dims
             prev_stuffed = cur_stuffed
@@ -2728,7 +2833,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
         next_start_limit = max(lower_cap_local - 0.08, 0.0)
         for seq in sorted((zone_cols.get(lower_zone) or {}).keys(), reverse=True):
             col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+            render_dims = _column_render_envelope_dims(
+                col,
+                zone=lower_zone,
+                uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+            )
             col_right_extent = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
 
             current_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
@@ -2760,13 +2869,21 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 desired_start = prev_right_edge + max(dims.get("left_tongue_ft", 0.0), 0.0)
                 desired_start -= (overlap_left_tongue + overlap_prev_tongue)
 
-                render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+                render_dims = _column_render_envelope_dims(
+                    col,
+                    zone=lower_zone,
+                    uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                )
                 col_right_extent = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
                 max_start = max((lower_cap_local - 0.08) - col_right_extent, 0.0)
                 current_start = min(desired_start, max_start)
                 x_positions[lower_zone][int(seq)] = round(current_start, 3)
 
-            render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+            render_dims = _column_render_envelope_dims(
+                col,
+                zone=lower_zone,
+                uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+            )
             prev_right_edge = current_start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
             prev_dims = dims
             prev_stuffed = cur_stuffed
@@ -2806,7 +2923,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
             lower_max_right = 0.0
             for seq in lower_seqs_sorted:
                 col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-                render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+                render_dims = _column_render_envelope_dims(
+                    col,
+                    zone=lower_zone,
+                    uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                )
                 start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
                 right = start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
                 if right > lower_max_right:
@@ -2820,7 +2941,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
         if ground_pull_mode and len(lower_seqs_sorted) == 1:
             centered_seq = int(lower_seqs_sorted[0])
             centered_col = (zone_cols.get(lower_zone) or {}).get(centered_seq) or []
-            centered_dims = _column_render_envelope_dims(centered_col, zone=lower_zone)
+            centered_dims = _column_render_envelope_dims(
+                centered_col,
+                zone=lower_zone,
+                uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+            )
             centered_span_ft = max(_as_float(centered_dims.get("full_span_ft"), 0.0), 0.0)
             centered_left_tongue_ft = max(_as_float(centered_dims.get("left_tongue_ft"), 0.0), 0.0)
             if centered_span_ft > 1e-9 and lower_cap_local > 0:
@@ -2847,7 +2972,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                     continue
 
                 left_start = _as_float(x_positions[lower_zone].get(left_seq), 0.0)
-                left_dims = _column_render_envelope_dims(left_col, zone=lower_zone)
+                left_dims = _column_render_envelope_dims(
+                    left_col,
+                    zone=lower_zone,
+                    uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                )
                 left_right_reach_ft = max(_as_float(left_dims.get("right_reach_ft"), 0.0), 0.0)
                 left_right_x = left_start + left_right_reach_ft
                 target_left_right_x = right_gn_wall_x - _GOOSENECK_WALL_CLEARANCE_FT
@@ -2932,7 +3061,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                             + max(_as_float(base_dims.get("right_tongue_ft"), 0.0), 0.0)
                         )
                     else:
-                        dims = _column_render_envelope_dims(col, zone=lower_zone)
+                        dims = _column_render_envelope_dims(
+                            col,
+                            zone=lower_zone,
+                            uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                        )
                         right = start + max(_as_float(dims.get("right_reach_ft"), 0.0), 0.0)
                     if right > lower_max_right:
                         lower_max_right = right
@@ -2972,7 +3105,11 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
             next_start_limit = None
             for seq in sorted((zone_cols.get(lower_zone) or {}).keys(), reverse=True):
                 col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-                render_dims = _column_render_envelope_dims(col, zone=lower_zone)
+                render_dims = _column_render_envelope_dims(
+                    col,
+                    zone=lower_zone,
+                    uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                )
                 col_right_reach_ft = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
                 col_left_tongue_ft = max(_as_float(render_dims.get("left_tongue_ft"), 0.0), 0.0)
                 cur_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
@@ -3017,6 +3154,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
         local_offsets = _lower_column_layer_start_offsets(
             sorted_col,
             prefer_occupied_tongue=False,
+            uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
         )
         for idx, unit in enumerate(sorted_col):
             deck_len_ft = _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0))
@@ -3071,6 +3209,7 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 lower_local_offsets = _lower_column_layer_start_offsets(
                     sorted_col,
                     prefer_occupied_tongue=False,
+                    uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
                 )
             resolved_vertical_by_position = {}
             for idx, unit in enumerate(sorted_col):

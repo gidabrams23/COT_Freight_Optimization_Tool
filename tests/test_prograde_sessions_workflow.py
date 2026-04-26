@@ -605,6 +605,86 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertAlmostEqual(float(right_unit.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
         self.assertTrue(bool(right_unit.get("bt_half_tongue_stuffed")))
 
+    def test_bigtex_rotated_stack_layers_share_aligned_deck_start(self):
+        profile_id = self.db.create_access_profile("BT Stack Anchor Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Stack Anchor Tester",
+            "BT Stable Stack Anchor Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Stack Anchor Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-STAIR-REG", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        for layer in (1, 2, 3, 4):
+            self.db.add_position(
+                position_id=str(uuid.uuid4()),
+                session_id=session_id,
+                brand="bigtex",
+                item_number="BT-STAIR-REG",
+                deck_zone="lower_deck",
+                layer=layer,
+                sequence=1,
+                is_rotated=1,
+            )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+
+        stack_rows = sorted(
+            [
+                row
+                for row in (canvas.get("enriched_positions") or [])
+                if row.get("deck_zone") == "lower_deck" and int(row.get("sequence") or 0) == 1
+            ],
+            key=lambda row: int(row.get("layer") or 0),
+        )
+        self.assertEqual(len(stack_rows), 4)
+
+        layer_1_start = float(stack_rows[0].get("deck_x_start_ft") or 0.0)
+        layer_2_start = float(stack_rows[1].get("deck_x_start_ft") or 0.0)
+        layer_3_start = float(stack_rows[2].get("deck_x_start_ft") or 0.0)
+        layer_4_start = float(stack_rows[3].get("deck_x_start_ft") or 0.0)
+
+        self.assertAlmostEqual(layer_2_start, layer_1_start, places=3)
+        self.assertAlmostEqual(layer_3_start, layer_1_start, places=3)
+        self.assertAlmostEqual(layer_4_start, layer_1_start, places=3)
+
     def test_bigtex_half_tongue_rule_applies_to_consecutive_stacks(self):
         profile_id = self.db.create_access_profile("BT Tongue Chain Tester")
         self._set_active_profile(profile_id)

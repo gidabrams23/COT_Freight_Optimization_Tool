@@ -13,24 +13,29 @@ body {
   overflow: hidden;
 }
 .canvas-top-bar {
-  background: linear-gradient(120deg, rgba(12, 22, 38, 0.96), rgba(12, 27, 46, 0.94));
-  border-bottom: 1px solid rgba(56, 189, 248, 0.28);
-  box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.08);
-  padding: 10px var(--space-xl) 8px;
+  background: linear-gradient(180deg, rgba(8, 19, 33, 0.98), rgba(6, 16, 28, 0.97));
+  border-bottom: 1px solid rgba(51, 65, 85, 0.62);
+  box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.04);
+  padding: 8px 14px 7px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
   position: relative;
   z-index: 30;
   overflow: visible;
 }
-.pg-top-left {
-  flex: 1 1 360px;
-  min-width: 280px;
-  display: flex;
+.pg-top-row {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) auto auto;
   align-items: center;
+  gap: 10px;
+}
+.pg-top-meta-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .pg-session-chip {
   display: flex;
@@ -38,10 +43,10 @@ body {
   gap: 5px;
   min-width: 0;
   width: 100%;
-  border: 1px solid var(--border-default);
+  border: none;
   border-radius: var(--radius-lg);
-  background: linear-gradient(120deg, rgba(6, 17, 34, 0.95), rgba(13, 37, 60, 0.84));
-  padding: 9px 12px;
+  background: rgba(2, 6, 23, 0.34);
+  padding: 7px 10px;
 }
 .pg-session-id-row {
   display: flex;
@@ -51,17 +56,17 @@ body {
   min-width: 0;
 }
 .pg-session-id-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
 .pg-session-id-value {
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
   font-weight: 800;
-  letter-spacing: .04em;
+  letter-spacing: .03em;
   font-family: var(--font-mono);
   color: rgba(224, 242, 254, 0.98);
 }
@@ -83,39 +88,39 @@ body {
 .pg-session-sep {
   color: var(--text-tertiary);
 }
-.pg-top-middle {
-  flex: 1 1 460px;
-  min-width: 360px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  position: relative;
-  z-index: 31;
-  overflow: visible;
-}
-.pg-top-meta-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  position: relative;
-  z-index: 32;
-  overflow: visible;
-}
 .pg-top-actions {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px;
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(71, 85, 105, 0.72);
-  background: rgba(2, 6, 23, 0.55);
+  gap: 6px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+}
+.pg-top-actions-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.pg-top-actions .btn {
+  border-color: transparent;
+  box-shadow: none;
+}
+.pg-top-actions .btn-secondary {
+  background: rgba(51, 65, 85, 0.72);
+}
+.pg-top-actions .btn-ghost {
+  background: transparent;
+}
+.pg-top-actions .btn-ghost:hover {
+  background: rgba(30, 41, 59, 0.58);
 }
 .pg-action-btn {
-  min-height: 30px;
-  border-radius: var(--radius-md);
+  min-height: 31px;
+  border-radius: var(--radius-lg);
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: .01em;
 }
@@ -123,26 +128,42 @@ body {
   background: linear-gradient(135deg, #2563eb, #0ea5e9);
   border-color: rgba(125, 211, 252, 0.52);
   color: #f8fafc;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 .pg-action-save:hover {
   background: linear-gradient(135deg, #1d4ed8, #0284c7);
   border-color: rgba(147, 197, 253, 0.72);
 }
+.pg-violation-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 1px 0;
+}
+.pg-violation-summary-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
 .pg-carrier-group {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 5px 8px;
+  padding: 4px 7px;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-default);
-  background: rgba(15, 23, 42, 0.55);
+  border: none;
+  background: rgba(15, 23, 42, 0.36);
   position: relative;
   z-index: 35;
   overflow: visible;
 }
 .pg-carrier-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -150,14 +171,14 @@ body {
   white-space: nowrap;
 }
 .pg-carrier-select {
-  min-width: 180px;
+  min-width: 176px;
   height: 30px;
   padding: 4px 8px 4px 9px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: rgba(2, 6, 23, 0.7);
+  border: 1px solid rgba(71, 85, 105, 0.62);
+  background: rgba(2, 6, 23, 0.58);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   font-family: var(--font-mono);
   white-space: nowrap;
@@ -171,6 +192,21 @@ body {
 .pg-carrier-select:focus {
   border-color: rgba(59, 130, 246, 0.75);
   outline: none;
+}
+.pg-drag-hint-row {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 0 2px 1px;
+}
+.pg-drag-hint-row > span:first-child {
+  min-width: 0;
+}
+body.pg-sku-drag-active .pg-drag-hint-row {
+  display: flex;
 }
 .pg-layout {
   display: flex;
@@ -197,15 +233,78 @@ body {
   min-height: 320px;
 }
 .pg-sidebar {
-  flex: 0 0 clamp(316px, 24vw, 372px);
-  width: clamp(316px, 24vw, 372px);
-  min-width: 300px;
+  flex: 0 0 clamp(332px, 24vw, 396px);
+  width: clamp(332px, 24vw, 396px);
+  min-width: 312px;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  overflow: auto;
-  padding-right: 2px;
+  gap: var(--space-sm);
+  overflow: hidden;
+}
+.pg-sidebar-tools {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border-color: rgba(71, 85, 105, 0.78);
+  background: linear-gradient(180deg, rgba(9, 17, 32, 0.94), rgba(7, 14, 27, 0.95));
+}
+.pg-sidebar-tools-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.7);
+  background: rgba(15, 23, 42, 0.34);
+}
+.pg-sidebar-tools-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pg-sidebar-tools-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(71, 85, 105, 0.72);
+  background: rgba(15, 23, 42, 0.7);
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.pg-sidebar-tools-subtitle {
+  margin-top: 4px;
+  line-height: 1.35;
+}
+.pg-sidebar-tools-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pg-sidebar-sku-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pg-sidebar-key-block {
+  border-top: 1px solid rgba(71, 85, 105, 0.62);
+  background: rgba(2, 6, 23, 0.44);
+}
+.pg-sidebar-key-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 9px 12px 8px;
+}
+.pg-key-divider {
+  border-top: 1px solid rgba(71, 85, 105, 0.56);
 }
 .deck-total {
   display: flex;
@@ -232,10 +331,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px;
+  padding: 4px 7px;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-default);
-  background: rgba(15, 23, 42, 0.55);
+  border: none;
+  background: rgba(15, 23, 42, 0.36);
 }
 .brand-path-label {
   font-size: 10px;
@@ -246,22 +345,22 @@ body {
   margin-right: 2px;
 }
 .brand-path-btn {
-  padding: 6px 10px;
+  padding: 6px 8px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: transparent;
+  border: 1px solid transparent;
+  background: rgba(2, 6, 23, 0.54);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
 }
 .brand-path-btn:hover {
-  border-color: var(--accent-primary);
+  border-color: rgba(96, 165, 250, 0.48);
   color: var(--text-primary);
-  background: var(--status-info-bg);
+  background: rgba(30, 58, 138, 0.28);
 }
 .brand-path-btn.active {
-  border-color: var(--accent-primary);
+  border-color: transparent;
   background: var(--accent-primary);
   color: #fff;
 }
@@ -660,8 +759,9 @@ body {
 
 /* -- Picker panel ------------------------------- */
 .picker-search {
-  padding: var(--space-sm);
-  border-bottom: 1px solid var(--border-default);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.62);
+  background: rgba(15, 23, 42, 0.3);
 }
 .picker-search-row {
   display: flex;
@@ -695,15 +795,18 @@ body {
   color: var(--accent-primary);
 }
 .sku-list {
-  max-height: 360px;
+  flex: 1 1 auto;
+  min-height: 220px;
+  max-height: none;
   overflow-y: auto;
   padding: 4px 0 6px;
-  background: linear-gradient(180deg, rgba(3, 10, 24, 0.94), rgba(2, 6, 23, 0.9));
+  background: linear-gradient(180deg, rgba(3, 10, 24, 0.96), rgba(2, 6, 23, 0.92));
 }
 .sku-empty {
-  padding: 10px 12px;
+  padding: 10px 12px 12px;
   font-size: 12px;
   color: var(--text-secondary);
+  border-top: 1px solid rgba(71, 85, 105, 0.4);
 }
 .sku-empty.hidden {
   display: none;
@@ -810,6 +913,9 @@ body {
   padding: 7px 12px 7px 26px;
   border-top: 1px solid rgba(51, 65, 85, 0.45);
   background: rgba(15, 23, 42, 0.2);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
 }
 .sku-list-item:hover {
   background: rgba(30, 58, 138, 0.2);
@@ -827,6 +933,8 @@ body {
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--text-primary);
+  user-select: none;
+  -webkit-user-select: none;
 }
 .sku-item-desc {
   font-size: 11px;
@@ -841,6 +949,8 @@ body {
   font-weight: 700;
   color: rgba(186, 230, 253, 0.96);
   justify-self: end;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .sku-item-height {
   font-family: var(--font-mono);
@@ -848,6 +958,8 @@ body {
   font-weight: 700;
   color: rgba(186, 230, 253, 0.96);
   justify-self: end;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .sku-item-head.with-desc,
 .sku-list-item.with-desc {
@@ -1087,16 +1199,6 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 .prograde-schematic .unit-card.drop-after .pg-unit-insert-line.after {
   display: block;
 }
-.pg-drag-hint-row {
-  flex: 1 1 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding: 2px 4px 0;
-}
 .stack-drag-live-indicator {
   font-family: var(--font-mono);
   color: var(--text-secondary);
@@ -1124,22 +1226,60 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 }
 .pg-stack-drop-preview {
   position: fixed;
-  border-radius: 8px;
-  border: 1.4px solid rgba(186, 230, 253, 0.96);
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.28), rgba(56, 189, 248, 0.16));
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.42);
+  border-radius: 10px;
+  border: 2px solid rgba(186, 230, 253, 0.98);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.38), rgba(56, 189, 248, 0.20));
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.5);
   z-index: 4198;
   pointer-events: none;
   display: none;
 }
 .pg-stack-drop-preview.active {
   display: block;
+  animation: pgStackPreviewPulse 0.95s ease-in-out infinite alternate;
 }
 .pg-stack-drop-preview.side-left {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.32), rgba(14, 116, 144, 0.18));
+  background:
+    repeating-linear-gradient(135deg, rgba(186, 230, 253, 0.16) 0 8px, rgba(14, 116, 144, 0.14) 8px 16px),
+    linear-gradient(180deg, rgba(56, 189, 248, 0.46), rgba(14, 116, 144, 0.26));
 }
 .pg-stack-drop-preview.side-right {
-  background: linear-gradient(180deg, rgba(125, 211, 252, 0.32), rgba(8, 47, 73, 0.20));
+  background:
+    repeating-linear-gradient(45deg, rgba(186, 230, 253, 0.16) 0 8px, rgba(8, 47, 73, 0.14) 8px 16px),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.46), rgba(8, 47, 73, 0.26));
+}
+.pg-stack-drop-preview::after {
+  content: attr(data-side-label);
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(191, 219, 254, 0.85);
+  background: rgba(2, 6, 23, 0.86);
+  color: rgba(224, 242, 254, 0.96);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  display: none;
+}
+.pg-stack-drop-preview.side-left::after,
+.pg-stack-drop-preview.side-right::after {
+  display: block;
+}
+@keyframes pgStackPreviewPulse {
+  from {
+    transform: translateY(0);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+  }
+  to {
+    transform: translateY(-1px);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.62);
+  }
 }
 
 /* -- Zone picker modal -------------------------- */
@@ -1803,15 +1943,15 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 /* Category legend */
 .pg-legend {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 5px 10px;
-  padding: 8px 10px 10px;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 6px 10px;
+  padding: 0 12px 10px;
 }
 .pg-legend-item {
   display: flex;
   align-items: flex-start;
-  gap: 5px;
-  font-size: 11px;
+  gap: 6px;
+  font-size: 12px;
   line-height: 1.24;
   color: var(--text-secondary);
   min-width: 0;
@@ -1832,19 +1972,18 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 .pg-source-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px 12px;
-  padding: 2px 10px 10px;
-  border-top: 1px solid rgba(51, 65, 85, 0.46);
+  gap: 8px 12px;
+  padding: 8px 12px 12px;
 }
 .pg-source-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.8px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 .pg-legend-card {
-  overflow: visible;
+  overflow: hidden;
 }
 .pg-source-swatch {
   width: 12px;
@@ -2192,17 +2331,24 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
     overflow: visible;
   }
   .canvas-top-bar {
-    align-items: stretch;
+    gap: 10px;
   }
-  .pg-top-left,
-  .pg-top-middle,
+  .pg-top-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .pg-top-actions-wrap {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
   .pg-top-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .pg-top-meta-group,
+  .pg-violation-summary {
     flex: 1 1 100%;
     min-width: 0;
-  }
-  .pg-top-actions {
-    justify-content: flex-end;
-    margin-left: 0;
   }
   .pg-layout {
     height: auto;
@@ -2245,57 +2391,55 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 
   <!-- -- Sidebar ------------------------------- -->
   <div class="pg-sidebar">
-
-    <!-- SKU Picker -->
-  <div class="card pg-legend-card" style="padding:0;overflow:visible">
-      <div class="card-header" style="padding:10px 12px;margin:0;border-radius:0">
-        <div>
+    <section class="card pg-sidebar-tools" aria-label="SKU tools">
+      <div class="pg-sidebar-tools-header">
+        <div class="pg-sidebar-tools-title-row">
           <div class="card-title">Add SKUs</div>
-          <div class="card-subtitle" style="margin-top:2px;">
-            {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as Category -&gt; Model -&gt; Item. Sections auto-collapse while browsing.
+          <span class="pg-sidebar-tools-count">{{ category_legend|length }} cats</span>
+        </div>
+        <div class="card-subtitle pg-sidebar-tools-subtitle">
+          {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as Category -&gt; Model -&gt; Item. Sections auto-collapse while browsing.
+        </div>
+      </div>
+      <div class="pg-sidebar-tools-body">
+        <div class="pg-sidebar-sku-block">
+          <div class="picker-search">
+            <div class="picker-search-row">
+              <input type="text" id="sku-filter" class="form-control"
+                     placeholder="Filter by category, model, item, or deck dimensions..." />
+              {% if session.brand == 'bigtex' %}
+              <div class="sku-view-controls" aria-label="SKU hierarchy view">
+                <button type="button" class="sku-view-btn" id="sku-collapse-models-btn">Models</button>
+                <button type="button" class="sku-view-btn" id="sku-expand-items-btn">Items</button>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="sku-list" id="sku-list"></div>
+          <div class="sku-empty hidden" id="sku-empty">No SKUs match this filter.</div>
+        </div>
+
+        <div class="pg-sidebar-key-block">
+          <div class="pg-sidebar-key-title">SKU Visual Key</div>
+          <div class="pg-legend">
+            {% for cat_key, cat_label in category_legend %}
+            <div class="pg-legend-item">
+              <span class="pg-legend-swatch" style="--accent: {{ category_palette.get(cat_key, '#137fec') }}"></span>
+              <span>{{ cat_label }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="pg-key-divider"></div>
+          <div class="pg-source-legend" aria-label="Unit add source markers">
+            <span class="pg-source-legend-item">
+              <span class="pg-source-swatch inventory-gap"></span>
+              <span class="pg-source-marker inventory-gap">+</span>
+              <span>Inventory Gap source (+)</span>
+            </span>
           </div>
         </div>
       </div>
-      <div class="picker-search">
-        <div class="picker-search-row">
-          <input type="text" id="sku-filter" class="form-control"
-                 placeholder="Filter by category, model, item, or deck dimensions..." style="font-size:12px" />
-          {% if session.brand == 'bigtex' %}
-          <div class="sku-view-controls" aria-label="SKU hierarchy view">
-            <button type="button" class="sku-view-btn" id="sku-collapse-models-btn">Models</button>
-            <button type="button" class="sku-view-btn" id="sku-expand-items-btn">Items</button>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      <div class="sku-list" id="sku-list"></div>
-      <div class="sku-empty hidden" id="sku-empty">No SKUs match this filter.</div>
-    </div>
-
-    <div class="card pg-legend-card" style="padding:0;overflow:visible">
-      <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
-        <div class="card-title">SKU Visual Key</div>
-      </div>
-      <div class="pg-legend">
-        {% for cat_key, cat_label in category_legend %}
-        <div class="pg-legend-item">
-          <span class="pg-legend-swatch" style="--accent: {{ category_palette.get(cat_key, '#137fec') }}"></span>
-          <span>{{ cat_label }}</span>
-        </div>
-        {% endfor %}
-      </div>
-      <div class="pg-source-legend" aria-label="Unit add source markers">
-        <span class="pg-source-legend-item">
-          <span class="pg-source-swatch inventory-gap"></span>
-          <span class="pg-source-marker inventory-gap">+</span>
-          <span>Inventory Gap source (+)</span>
-        </span>
-      </div>
-    </div>
-
-    <!-- Violation Panel -->
-    {% include "prograde/_load_builder_violation_panel.html" %}
-
+    </section>
   </div><!-- /sidebar -->
 </div><!-- /page-body -->
 
@@ -2760,6 +2904,20 @@ function _skuTotalLength(sku) {
   return bed + tongue;
 }
 
+const SKU_TOTAL_LENGTH_BY_ITEM = (() => {
+  const map = new Map();
+  (SKU_RAW || []).forEach((raw) => {
+    const sku = raw || {};
+    const itemNumber = String(_skuItemNumber(sku) || "").trim().toUpperCase();
+    if (!itemNumber) return;
+    const totalLengthFt = Number(_skuTotalLength(sku));
+    if (Number.isFinite(totalLengthFt) && totalLengthFt > 0) {
+      map.set(itemNumber, totalLengthFt);
+    }
+  });
+  return map;
+})();
+
 function updateSkuHierarchyButtons() {
   if (!SKU_COLLAPSE_MODELS_BTN || !SKU_EXPAND_ITEMS_BTN) return;
   SKU_COLLAPSE_MODELS_BTN.classList.toggle("active", skuHierarchyMode === "models");
@@ -3049,6 +3207,12 @@ function renderSkuTree() {
         row.dataset.item = item.itemNumber;
         row.dataset.itemLabel = SESSION_BRAND === "pj" ? item.itemDisplay : item.itemNumber;
         row.dataset.search = item.search;
+        row.dataset.totalLengthFt = Number.isFinite(item.totalLength) && item.totalLength > 0
+          ? String(item.totalLength)
+          : "";
+        row.dataset.deckLengthFt = Number.isFinite(item.deckLength) && item.deckLength > 0
+          ? String(item.deckLength)
+          : "";
         row.dataset.length = SESSION_BRAND === "pj"
           ? `L ${_formatFeet(item.deckLength)} x H ${_formatFeet(item.deckHeight)}`
           : _formatFeet(item.totalLength);
@@ -3110,13 +3274,16 @@ function renderSkuTree() {
           };
 
           [btnStandard, btnGn].forEach((btn) => {
-            const stop = (evt) => {
+            const stopMouseDown = (evt) => {
+              evt.stopPropagation();
+            };
+            const stopClick = (evt) => {
               evt.preventDefault();
               evt.stopPropagation();
             };
-            btn.addEventListener("mousedown", stop);
+            btn.addEventListener("mousedown", stopMouseDown);
             btn.addEventListener("click", (evt) => {
-              stop(evt);
+              stopClick(evt);
               const selected = _pjTongueMode(btn.dataset.mode || "standard");
               row.dataset.selectedTongue = selected;
               _setSkuTongueSelection(item.itemNumber, selected);
@@ -3171,13 +3338,16 @@ function renderSkuTree() {
             };
 
             [btnDump2, btnDump3, btnDump4].forEach((btn) => {
-              const stop = (evt) => {
+              const stopMouseDown = (evt) => {
+                evt.stopPropagation();
+              };
+              const stopClick = (evt) => {
                 evt.preventDefault();
                 evt.stopPropagation();
               };
-              btn.addEventListener("mousedown", stop);
+              btn.addEventListener("mousedown", stopMouseDown);
               btn.addEventListener("click", (evt) => {
-                stop(evt);
+                stopClick(evt);
                 const selectedHeight = _normalizePjDumpHeightFt(btn.dataset.mode, null);
                 if (selectedHeight === null) return;
                 row.dataset.selectedDumpHeightFt = String(selectedHeight);
@@ -3967,20 +4137,30 @@ function initSkuDragAndDrop(options = {}) {
       || height <= 0
     ) {
       preview.classList.remove("active", "side-left", "side-right");
+      preview.removeAttribute("data-side-label");
       return;
     }
+    const normalizedSide = _normalizeDropSide(side);
     preview.style.left = `${Math.round(left)}px`;
     preview.style.top = `${Math.round(top)}px`;
     preview.style.width = `${Math.max(24, Math.round(width))}px`;
     preview.style.height = `${Math.max(24, Math.round(height))}px`;
-    preview.classList.toggle("side-left", side === "left");
-    preview.classList.toggle("side-right", side === "right");
+    preview.classList.toggle("side-left", normalizedSide === "left");
+    preview.classList.toggle("side-right", normalizedSide === "right");
+    if (normalizedSide === "left") {
+      preview.setAttribute("data-side-label", "LEFT STACK");
+    } else if (normalizedSide === "right") {
+      preview.setAttribute("data-side-label", "RIGHT STACK");
+    } else {
+      preview.removeAttribute("data-side-label");
+    }
     preview.classList.add("active");
   };
 
   const hideDropPreview = () => {
     const preview = document.getElementById("pg-stack-drop-preview");
     if (!preview) return;
+    preview.removeAttribute("data-side-label");
     preview.classList.remove("active", "side-left", "side-right");
   };
 
@@ -4064,6 +4244,7 @@ function initSkuDragAndDrop(options = {}) {
     const skuRaw = transfer ? transfer.getData("application/x-prograde-sku") : "";
     const skuModeRaw = transfer ? transfer.getData("application/x-prograde-sku-mode") : "";
     const skuDumpHeightRaw = transfer ? transfer.getData("application/x-prograde-sku-dump-height") : "";
+    const skuLengthRaw = transfer ? transfer.getData("application/x-prograde-sku-length-ft") : "";
     const skuSourceRaw = transfer ? transfer.getData("application/x-prograde-sku-source") : "";
     const plainRaw = transfer ? transfer.getData("text/plain") : "";
 
@@ -4087,6 +4268,7 @@ function initSkuDragAndDrop(options = {}) {
         itemNumber: skuItem,
         tongueMode: _pjTongueMode(skuModeRaw || "standard"),
         dumpHeightFt: _normalizePjDumpHeightFt(skuDumpHeightRaw, null),
+        totalLengthFt: _parsePositiveFeet(skuLengthRaw) ?? _parsePositiveFeet(activeDrag && activeDrag.totalLengthFt),
         addSource: _normalizeAddSource(skuSourceRaw || (activeDrag && activeDrag.addSource), ADD_SOURCE_SKU_PICKER),
       };
     }
@@ -4099,8 +4281,9 @@ function initSkuDragAndDrop(options = {}) {
       draggedSkuItem = item.dataset.item || null;
       const tongueMode = _pjTongueMode(item.dataset.selectedTongue || item.dataset.defaultTongue || "standard");
       const dumpHeightFt = _normalizePjDumpHeightFt(item.dataset.selectedDumpHeightFt || item.dataset.defaultDumpHeightFt, null);
+      const totalLengthFt = _parsePositiveFeet(item.dataset.totalLengthFt);
       activeDrag = draggedSkuItem
-        ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt, addSource: ADD_SOURCE_SKU_PICKER }
+        ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt, totalLengthFt, addSource: ADD_SOURCE_SKU_PICKER }
         : null;
       setSkuDragAffordance(Boolean(activeDrag && activeDrag.type === "sku"));
       item.classList.add("dragging");
@@ -4109,6 +4292,7 @@ function initSkuDragAndDrop(options = {}) {
         evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
         evt.dataTransfer.setData("application/x-prograde-sku-mode", tongueMode);
         evt.dataTransfer.setData("application/x-prograde-sku-dump-height", dumpHeightFt == null ? "" : String(dumpHeightFt));
+        evt.dataTransfer.setData("application/x-prograde-sku-length-ft", totalLengthFt == null ? "" : String(totalLengthFt));
         evt.dataTransfer.setData("application/x-prograde-sku-source", ADD_SOURCE_SKU_PICKER);
         evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
       }
@@ -4151,12 +4335,14 @@ function initSkuDragAndDrop(options = {}) {
       }
       draggedSkuItem = item.dataset.item || null;
       const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
+      const totalLengthFt = _parsePositiveFeet(item.dataset.totalLengthFt);
       activeDrag = draggedSkuItem
         ? {
             type: "sku",
             itemNumber: draggedSkuItem,
             tongueMode: inventoryTongueMode,
             dumpHeightFt: null,
+            totalLengthFt,
             addSource: ADD_SOURCE_INVENTORY_GAP,
           }
         : null;
@@ -4167,6 +4353,7 @@ function initSkuDragAndDrop(options = {}) {
         evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
         evt.dataTransfer.setData("application/x-prograde-sku-mode", inventoryTongueMode);
         evt.dataTransfer.setData("application/x-prograde-sku-dump-height", "");
+        evt.dataTransfer.setData("application/x-prograde-sku-length-ft", totalLengthFt == null ? "" : String(totalLengthFt));
         evt.dataTransfer.setData("application/x-prograde-sku-source", ADD_SOURCE_INVENTORY_GAP);
         evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
       }
@@ -4425,6 +4612,12 @@ function initSkuDragAndDrop(options = {}) {
         seq: Number(el.dataset.targetSeq || 0),
         target: String(el.dataset.target || "").trim(),
         columnAlignment: _normalizeDropSide(el.dataset.columnAlignment || ""),
+        stackAlignment: (() => {
+          const targetId = String(el.dataset.target || "").trim();
+          if (!targetId) return "";
+          const topCard = document.querySelector(`.unit-card[data-pos-id="${targetId}"]`);
+          return _normalizeDropSide(topCard && topCard.dataset ? topCard.dataset.stackAlignment : "");
+        })(),
         visualLeft: (() => {
           const targetId = String(el.dataset.target || "").trim();
           if (targetId) {
@@ -4519,6 +4712,24 @@ function initSkuDragAndDrop(options = {}) {
   const normalizeDropTargetForPayload = (target, payload, evt = null) => {
     if (!target || !payload) return target;
     if (payload.type !== "sku") return target;
+    const zone = getDropTargetZone(target);
+    if (
+      zone === LOWER_DECK_ZONE
+      && ["bigtex", "pj"].includes(SESSION_BRAND)
+      && target.matches
+      && (
+        target.matches("[data-stack-drop]")
+        || target.matches(".unit-card[data-pos-id]")
+      )
+    ) {
+      const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
+      if (lowerDeckTarget) {
+        const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
+        if (lowerDeckPlan && !lowerDeckPlan.stackTarget) {
+          return lowerDeckTarget;
+        }
+      }
+    }
     if (
       target.matches
       && (
@@ -4532,9 +4743,9 @@ function initSkuDragAndDrop(options = {}) {
     if (!(target.matches && target.matches("[data-column-slot]"))) {
       return target;
     }
-    const zone = getDropTargetZone(target);
-    if (!zone) return target;
-    return resolveDeckDropTargetForZone(zone, evt) || target;
+    const normalizedZone = zone;
+    if (!normalizedZone) return target;
+    return resolveDeckDropTargetForZone(normalizedZone, evt) || target;
   };
 
   let lowerDeckSideTargetCache = null;
@@ -4606,6 +4817,120 @@ function initSkuDragAndDrop(options = {}) {
     return document.querySelector(`.unit-card[data-pos-id="${topTargetId}"]`);
   };
 
+  const _parsePositiveFeet = (rawValue) => {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value;
+  };
+
+  const _readDatasetFeet = (node, key) => {
+    if (!node || !node.dataset) return null;
+    return _parsePositiveFeet(node.dataset[key]);
+  };
+
+  const resolveStackSupportUnitCard = (target) => {
+    if (!target || !target.matches) return null;
+    if (target.matches(".unit-card[data-pos-id]")) return target;
+    if (target.matches("[data-stack-drop]")) return resolveStackTargetUnitCard(target);
+    return null;
+  };
+
+  const resolveStackSupportDeckLengthFt = (target) => {
+    const supportCard = resolveStackSupportUnitCard(target);
+    return _readDatasetFeet(supportCard, "deckLengthFt");
+  };
+
+  const _readDatasetLayer = (node) => {
+    if (!node || !node.dataset) return null;
+    const layer = Number(node.dataset.layer || 0);
+    if (!Number.isInteger(layer) || layer <= 0) return null;
+    return layer;
+  };
+
+  const resolveImmediateSupportBelowCard = (unitCard) => {
+    if (!unitCard || !unitCard.dataset) return null;
+    const zone = String(unitCard.dataset.zone || "").trim();
+    const seq = Number(unitCard.dataset.seq || 0);
+    const layer = _readDatasetLayer(unitCard);
+    if (!zone || !Number.isInteger(seq) || seq <= 0 || !layer || layer <= 1) return null;
+    const targetLayer = layer - 1;
+    return Array.from(document.querySelectorAll(`.unit-card[data-zone="${zone}"][data-seq="${seq}"]`))
+      .find((card) => _readDatasetLayer(card) === targetLayer) || null;
+  };
+
+  const columnHasOppositeLane = (unitCard, oppositeSide) => {
+    if (!unitCard || !unitCard.dataset) return false;
+    const zone = String(unitCard.dataset.zone || "").trim();
+    const seq = Number(unitCard.dataset.seq || 0);
+    const currentPosId = String(unitCard.dataset.posId || "").trim();
+    if (!zone || !Number.isInteger(seq) || seq <= 0) return false;
+    return Array.from(document.querySelectorAll(`.unit-card[data-zone="${zone}"][data-seq="${seq}"]`))
+      .some((card) => {
+        const cardPosId = String(card.dataset.posId || "").trim();
+        if (cardPosId && currentPosId && cardPosId === currentPosId) return false;
+        return _normalizeDropSide(card.dataset.stackAlignment || "") === oppositeSide;
+      });
+  };
+
+  const resolvePayloadTotalLengthFt = (payload) => {
+    if (!payload) return null;
+    const payloadLength = _parsePositiveFeet(payload.totalLengthFt);
+    if (payloadLength !== null) return payloadLength;
+
+    if (payload.type === "sku") {
+      const itemKey = String(payload.itemNumber || "").trim().toUpperCase();
+      if (!itemKey) return null;
+      if (SKU_TOTAL_LENGTH_BY_ITEM.has(itemKey)) {
+        return _parsePositiveFeet(SKU_TOTAL_LENGTH_BY_ITEM.get(itemKey));
+      }
+      const pickNode = Array.from(document.querySelectorAll(".sku-pick-item[data-item], .inventory-pick-item[data-item]"))
+        .find((el) => String(el.dataset.item || "").trim().toUpperCase() === itemKey);
+      return _readDatasetFeet(pickNode, "totalLengthFt");
+    }
+
+    if (payload.type === "unit") {
+      const positionId = String(payload.positionId || "").trim();
+      if (!positionId) return null;
+      const card = document.querySelector(`.unit-card[data-pos-id="${positionId}"]`);
+      if (!card) return null;
+      return _readDatasetFeet(card, "totalLengthFt");
+    }
+
+    return null;
+  };
+
+  const canOfferStackSideAlignment = (payload, target) => {
+    if (SESSION_BRAND !== "pj") return true;
+    if (!payload || !target) return true;
+    if (payload.type !== "sku" && payload.type !== "unit") return true;
+    const supportCard = resolveStackSupportUnitCard(target);
+    const supportDeckLengthFt = _readDatasetFeet(supportCard, "deckLengthFt");
+    const payloadTotalLengthFt = resolvePayloadTotalLengthFt(payload);
+    if (supportDeckLengthFt === null || payloadTotalLengthFt === null) return true;
+    if (payloadTotalLengthFt < (supportDeckLengthFt - 1e-6)) {
+      return true;
+    }
+
+    const supportSide = _normalizeDropSide(supportCard && supportCard.dataset ? supportCard.dataset.stackAlignment : "");
+    if (supportCard && supportSide) {
+      // If this top card is already lane-anchored, allow one sibling-lane creation
+      // using its immediate support deck only when the opposite lane doesn't exist yet.
+      const oppositeSide = supportSide === "left" ? "right" : "left";
+      if (!columnHasOppositeLane(supportCard, oppositeSide)) {
+        const belowCard = resolveImmediateSupportBelowCard(supportCard);
+        const belowDeckLengthFt = _readDatasetFeet(belowCard, "deckLengthFt");
+        if (
+          belowDeckLengthFt !== null
+          && payloadTotalLengthFt < (belowDeckLengthFt - 1e-6)
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
   const resolveUnitDeckReferenceRect = (unitCard) => {
     if (!unitCard) return null;
     const bounds = unitCard.getBoundingClientRect ? unitCard.getBoundingClientRect() : null;
@@ -4654,29 +4979,41 @@ function initSkuDragAndDrop(options = {}) {
     };
   };
 
-  const resolveStackSideReferenceRect = (target) => {
+  const resolveStackSideReferenceRect = (target, payload = null) => {
     if (!target) return null;
-    if (target.matches && target.matches(".unit-card[data-pos-id]")) {
-      return resolveUnitDeckReferenceRect(target);
-    }
-    if (target.matches && target.matches("[data-stack-drop]")) {
-      const topUnitCard = resolveStackTargetUnitCard(target);
-      const topRect = resolveUnitDeckReferenceRect(topUnitCard);
-      if (topRect && Number.isFinite(topRect.left) && Number.isFinite(topRect.width) && topRect.width > 0) {
-        return topRect;
+    const supportCard = resolveStackSupportUnitCard(target);
+    if (supportCard) {
+      let referenceCard = supportCard;
+      if (
+        SESSION_BRAND === "pj"
+        && payload
+        && canOfferStackSideAlignment(payload, target)
+      ) {
+        const supportSide = _normalizeDropSide(supportCard.dataset && supportCard.dataset.stackAlignment);
+        if (supportSide) {
+          const belowCard = resolveImmediateSupportBelowCard(supportCard);
+          if (belowCard) {
+            referenceCard = belowCard;
+          }
+        }
+      }
+      const referenceRect = resolveUnitDeckReferenceRect(referenceCard);
+      if (referenceRect && Number.isFinite(referenceRect.left) && Number.isFinite(referenceRect.width) && referenceRect.width > 0) {
+        return referenceRect;
       }
     }
     return target.getBoundingClientRect ? target.getBoundingClientRect() : null;
   };
 
-  const resolveStackTopDropSide = (target, evt = null) => {
+  const resolveStackTopDropSide = (target, evt = null, payload = null) => {
     if (!target) return "";
-    if (target.matches && target.matches(".unit-card[data-pos-id]")) {
+    if (!canOfferStackSideAlignment(payload, target)) return "";
+    if (payload && payload.type !== "sku" && target.matches && target.matches(".unit-card[data-pos-id]")) {
       const inherited = _normalizeDropSide(target.dataset && target.dataset.stackAlignment);
       if (inherited) return inherited;
     }
     if (!evt) return "";
-    const rect = resolveStackSideReferenceRect(target);
+    const rect = resolveStackSideReferenceRect(target, payload);
     if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) return "";
     return Number(evt.clientX || 0) >= (rect.left + (rect.width / 2)) ? "right" : "left";
   };
@@ -4698,8 +5035,8 @@ function initSkuDragAndDrop(options = {}) {
     return null;
   };
 
-  const showStackTopDropPreview = (target, side = "") => {
-    const rect = resolveStackSideReferenceRect(target);
+  const showStackTopDropPreview = (target, side = "", payload = null) => {
+    const rect = resolveStackSideReferenceRect(target, payload);
     if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
       hideDropPreview();
       return;
@@ -4729,6 +5066,23 @@ function initSkuDragAndDrop(options = {}) {
     }
     if (rightRect && Number.isFinite(rightRect.left) && Number.isFinite(rightRect.width) && rightRect.width > 0) {
       return x >= (rightRect.left + (rightRect.width / 2)) ? "right" : "left";
+    }
+    return "";
+  };
+
+  const inferSingleStackSide = (stackEntry) => {
+    if (!stackEntry || !Number.isFinite(Number(stackEntry.visualLeft))) return "";
+    const stackLeft = Number(stackEntry.visualLeft);
+    const { left, right } = getLowerDeckSideDropTargets();
+    const leftRect = left && left.getBoundingClientRect ? left.getBoundingClientRect() : null;
+    const rightRect = right && right.getBoundingClientRect ? right.getBoundingClientRect() : null;
+    if (leftRect && rightRect && Number.isFinite(leftRect.left) && Number.isFinite(rightRect.right)) {
+      const midpoint = leftRect.right + ((rightRect.left - leftRect.right) / 2);
+      return stackLeft >= midpoint ? "right" : "left";
+    }
+    if (leftRect && Number.isFinite(leftRect.left) && Number.isFinite(leftRect.width) && leftRect.width > 0) {
+      const midpoint = leftRect.left + (leftRect.width / 2);
+      return stackLeft >= midpoint ? "right" : "left";
     }
     return "";
   };
@@ -4773,7 +5127,8 @@ function initSkuDragAndDrop(options = {}) {
     }
     if (stacks.length === 1) {
       const lone = stacks[0];
-      const loneAlignment = _normalizeDropSide(lone.columnAlignment || "");
+      const inferredAlignment = inferSingleStackSide(lone);
+      const loneAlignment = _normalizeDropSide(lone.columnAlignment || lone.stackAlignment || inferredAlignment || "");
       if (payloadType === "sku" && loneAlignment && side !== loneAlignment) {
         return {
           side,
@@ -4870,8 +5225,22 @@ function initSkuDragAndDrop(options = {}) {
   };
 
   const setDropPlacementHint = (target, payload, evt) => {
-    if (!target || !payload || !evt) return;
+    if (!target || !payload || !evt) return target;
     if (payload.type === "sku") {
+      if (SESSION_BRAND === "pj") {
+        const zone = getDropTargetZone(target);
+        if (zone === LOWER_DECK_ZONE) {
+          const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
+          const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
+          if (lowerDeckPlan && lowerDeckPlan.side && !lowerDeckPlan.stackTarget) {
+            const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
+            const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
+            hideDropPreview();
+            setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(LOWER_DECK_ZONE)}.`);
+            return sideTarget || lowerDeckTarget || target;
+          }
+        }
+      }
       if (target.matches(".unit-card[data-pos-id]")) {
         const zone = String(target.dataset.zone || "").trim();
         const stackSequence = Number(target.dataset.seq || 0);
@@ -4880,8 +5249,8 @@ function initSkuDragAndDrop(options = {}) {
           stackSequence,
           String(target.dataset.posId || "")
         );
-        const dropSide = resolveStackTopDropSide(target, evt);
-        showStackTopDropPreview(target, dropSide);
+        const dropSide = resolveStackTopDropSide(target, evt, payload);
+        showStackTopDropPreview(target, dropSide, payload);
         const sideHint = dropSide ? ` (${dropSide} side)` : "";
         const stackLabel = Number.isInteger(visualStackNumber) && visualStackNumber > 0
           ? visualStackNumber
@@ -4891,7 +5260,7 @@ function initSkuDragAndDrop(options = {}) {
             ? `Adding unit. Drop to stack on top of stack ${stackLabel} on ${zoneLabel(zone)}${sideHint}.`
             : `Adding unit. Drop to stack on this stack on ${zoneLabel(zone)}${sideHint}.`
         );
-        return;
+        return target;
       }
       if (target.matches("[data-stack-drop]")) {
         const zone = String(target.dataset.zone || "").trim();
@@ -4901,8 +5270,8 @@ function initSkuDragAndDrop(options = {}) {
           stackSequence,
           String(target.dataset.target || "")
         );
-        const dropSide = resolveStackTopDropSide(target, evt);
-        showStackTopDropPreview(target, dropSide);
+        const dropSide = resolveStackTopDropSide(target, evt, payload);
+        showStackTopDropPreview(target, dropSide, payload);
         const sideHint = dropSide ? ` (${dropSide} side)` : "";
         const stackLabel = Number.isInteger(visualStackNumber) && visualStackNumber > 0
           ? visualStackNumber
@@ -4912,32 +5281,47 @@ function initSkuDragAndDrop(options = {}) {
             ? `Adding unit. Drop to stack on top of stack ${stackLabel} on ${zoneLabel(zone)}${sideHint}.`
             : `Adding unit. Drop to stack on this stack on ${zoneLabel(zone)}${sideHint}.`
         );
-        return;
+        return target;
       }
       const zone = getDropTargetZone(target);
       const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "sku");
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
-        setLowerDeckSideHighlight(lowerDeckPlan.side);
+        const highlightedSideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
         if (lowerDeckPlan.stackTarget) {
           const stackPreviewTarget = resolveStackDropTargetElement(
             zone,
             lowerDeckPlan.stackTarget,
             lowerDeckPlan.targetSeq
           );
-          showStackTopDropPreview(stackPreviewTarget || target, lowerDeckPlan.side);
-        } else {
-          hideDropPreview();
+          const previewTarget = stackPreviewTarget || target;
+          const showSideSplit = canOfferStackSideAlignment(payload, previewTarget);
+          showStackTopDropPreview(previewTarget, showSideSplit ? lowerDeckPlan.side : "", payload);
+
+          const stackLabel = getVisualStackNumber(
+            zone,
+            lowerDeckPlan.targetSeq,
+            lowerDeckPlan.stackTarget
+          );
+          if (showSideSplit) {
+            setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(zone)}.`);
+          } else if (Number.isInteger(stackLabel) && stackLabel > 0) {
+            setDragLiveText(`Adding unit. Drop to stack on top of stack ${stackLabel} on ${zoneLabel(zone)}.`);
+          } else {
+            setDragLiveText(`Adding unit. Drop to stack on this stack on ${zoneLabel(zone)}.`);
+          }
+          return previewTarget;
         }
+        hideDropPreview();
         setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(zone)}.`);
-        return;
+        return highlightedSideTarget || target;
       }
       clearLowerDeckSideHighlights();
       hideDropPreview();
       if (zone) {
         setDragLiveText(`Adding unit. Drop directly on a stack to add on top, or drop in deck box to start a new stack.`);
       }
-      return;
+      return target;
     }
     hideDropPreview();
     if (payload.type === "unit") {
@@ -4950,36 +5334,36 @@ function initSkuDragAndDrop(options = {}) {
         setDragLiveText(
           `Moving unit. Drop to place ${placement.placeAfter ? "after" : "before"} selected unit on ${zoneLabel(zone)}.`
         );
-        return;
+        return target;
       }
       if (target.matches("[data-stack-drop]")) {
         const zone = String(target.dataset.zone || "").trim();
         setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
-        return;
+        return target;
       }
       if (target.matches("[data-column-slot]")) {
         const zone = String(target.dataset.zone || "").trim();
         setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
-        return;
+        return target;
       }
       if (target.matches("[data-drop-zone]")) {
         const zone = String(target.dataset.dropZone || "").trim();
         const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "unit");
         if (lowerDeckPlan && lowerDeckPlan.side) {
           const sideLabel = lowerDeckPlan.side === "right" ? "right stack" : "left stack";
-          setLowerDeckSideHighlight(lowerDeckPlan.side);
+          const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
           setDragLiveText(`Moving unit. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
-        } else {
-          clearLowerDeckSideHighlights();
-          setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
+          return sideTarget || target;
         }
+        clearLowerDeckSideHighlights();
+        setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
       }
-      return;
+      return target;
     }
-    if (payload.type !== "stack") return;
+    if (payload.type !== "stack") return target;
     if (target.matches("[data-stack-drop]") || target.matches(".unit-card[data-pos-id]")) {
       const rect = target.getBoundingClientRect ? target.getBoundingClientRect() : null;
-      if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) return;
+      if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) return target;
       const placeAfter = Number(evt.clientX || 0) >= (rect.left + (rect.width / 2));
       const targetSeq = Number(target.dataset.targetSeq || target.dataset.seq || 0);
       const zone = String(target.dataset.zone || "").trim();
@@ -4990,7 +5374,7 @@ function initSkuDragAndDrop(options = {}) {
       if (Number.isInteger(targetSeq) && targetSeq > 0) {
         setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
       }
-      return;
+      return target;
     }
     if (target.matches("[data-column-slot]")) {
       const zone = String(target.dataset.zone || "").trim();
@@ -5000,22 +5384,24 @@ function initSkuDragAndDrop(options = {}) {
         showDropMarker(rect.left + (rect.width / 2), rect.top, rect.height, false);
       }
       setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
-      return;
+      return target;
     }
     if (target.matches("[data-drop-zone]")) {
       const zone = String(target.dataset.dropZone || "").trim();
       const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "stack");
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "right side" : "left side";
-        setLowerDeckSideHighlight(lowerDeckPlan.side);
+        const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
         setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
-        return;
+        return sideTarget || target;
       }
       clearLowerDeckSideHighlights();
       const insertIndex = getInsertIndexFromDeckPointer(zone, evt);
       showDeckInsertMarker(zone, insertIndex, target);
       setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${zoneLabel(zone)}.`);
+      return target;
     }
+    return target;
   };
 
   const dispatchDrop = async (target, payload, evt = null) => {
@@ -5025,7 +5411,16 @@ function initSkuDragAndDrop(options = {}) {
       : null;
     if (lowerDeckSkuPlan) {
       const dropSideAlignment = lowerDeckSkuPlan.side || null;
-      const stackSideAlignment = lowerDeckSkuPlan.stackTarget ? dropSideAlignment : null;
+      const lowerDeckStackTarget = lowerDeckSkuPlan.stackTarget
+        ? resolveStackDropTargetElement(LOWER_DECK_ZONE, lowerDeckSkuPlan.stackTarget, lowerDeckSkuPlan.targetSeq)
+        : null;
+      const stackSideAlignment = (
+        lowerDeckSkuPlan.stackTarget
+        && dropSideAlignment
+        && canOfferStackSideAlignment(payload, lowerDeckStackTarget || target)
+      )
+        ? dropSideAlignment
+        : null;
       if (lowerDeckSkuPlan.stackTarget) {
         await addUnit(
           payload.itemNumber,
@@ -5073,9 +5468,28 @@ function initSkuDragAndDrop(options = {}) {
       const stackTarget = target.dataset.target;
       const targetSeq = Number(target.dataset.targetSeq || 0);
       if (!zone) return;
+      if (payload.type === "sku" && zone === LOWER_DECK_ZONE && ["bigtex", "pj"].includes(SESSION_BRAND)) {
+        const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
+        const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
+        if (lowerDeckPlan && !lowerDeckPlan.stackTarget) {
+          const dropSideAlignment = lowerDeckPlan.side || null;
+          await addUnit(
+            payload.itemNumber,
+            LOWER_DECK_ZONE,
+            null,
+            lowerDeckPlan.insertIndex,
+            payload.tongueMode,
+            payload.dumpHeightFt,
+            false,
+            payload.addSource,
+            dropSideAlignment
+          );
+          return;
+        }
+      }
       const enableGnCrisscross = _shouldEnableGnCrisscrossOnDrop(payload, target);
       if (payload.type === "sku") {
-        const stackSideAlignment = resolveStackTopDropSide(target, evt) || null;
+        const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
         await addUnit(
           payload.itemNumber,
           zone,
@@ -5090,7 +5504,7 @@ function initSkuDragAndDrop(options = {}) {
         );
       } else if (payload.type === "unit") {
         const placement = evt ? getUnitDropPlacement(target, evt) : { toLayerIndex: null };
-        const stackSideAlignment = resolveStackTopDropSide(target, evt) || null;
+        const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
         await moveUnit(
           payload.positionId,
           zone,
@@ -5112,9 +5526,28 @@ function initSkuDragAndDrop(options = {}) {
       const posId = target.dataset.posId;
       const targetSeq = Number(target.dataset.seq || 0);
       if (!zone || !posId) return;
+      if (payload.type === "sku" && zone === LOWER_DECK_ZONE && ["bigtex", "pj"].includes(SESSION_BRAND)) {
+        const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
+        const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
+        if (lowerDeckPlan && !lowerDeckPlan.stackTarget) {
+          const dropSideAlignment = lowerDeckPlan.side || null;
+          await addUnit(
+            payload.itemNumber,
+            LOWER_DECK_ZONE,
+            null,
+            lowerDeckPlan.insertIndex,
+            payload.tongueMode,
+            payload.dumpHeightFt,
+            false,
+            payload.addSource,
+            dropSideAlignment
+          );
+          return;
+        }
+      }
       const enableGnCrisscross = _shouldEnableGnCrisscrossOnDrop(payload, target);
       if (payload.type === "sku") {
-        const stackSideAlignment = resolveStackTopDropSide(target, evt) || null;
+        const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
         await addUnit(
           payload.itemNumber,
           zone,
@@ -5132,7 +5565,7 @@ function initSkuDragAndDrop(options = {}) {
           return;
         }
         const placement = evt ? getUnitDropPlacement(target, evt) : { toLayerIndex: null };
-        const stackSideAlignment = resolveStackTopDropSide(target, evt) || null;
+        const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
         await moveUnit(
           payload.positionId,
           zone,
@@ -5157,7 +5590,17 @@ function initSkuDragAndDrop(options = {}) {
       const dropSideAlignment = (lowerDeckPlan && lowerDeckPlan.side) ? lowerDeckPlan.side : null;
       if (payload.type === "sku") {
         if (lowerDeckPlan && lowerDeckPlan.stackTarget) {
-          const stackSideAlignment = dropSideAlignment;
+          const lowerDeckStackTarget = resolveStackDropTargetElement(
+            zone,
+            lowerDeckPlan.stackTarget,
+            lowerDeckPlan.targetSeq
+          );
+          const stackSideAlignment = (
+            dropSideAlignment
+            && canOfferStackSideAlignment(payload, lowerDeckStackTarget || target)
+          )
+            ? dropSideAlignment
+            : null;
           await addUnit(
             payload.itemNumber,
             zone,
@@ -5234,8 +5677,8 @@ function initSkuDragAndDrop(options = {}) {
     }
     evt.preventDefault();
     clearTransientPlacementHints();
-    setGlobalHoverTarget(target);
-    setDropPlacementHint(target, payload, evt);
+    const hintedTarget = setDropPlacementHint(target, payload, evt) || target;
+    setGlobalHoverTarget(hintedTarget);
     if (evt.dataTransfer) {
       evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
     }

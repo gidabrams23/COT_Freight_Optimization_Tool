@@ -1,11 +1,11 @@
 {% if session.status == 'stale' %}
 <div class="stale-banner" id="pg-stale-banner">
-  Warning: settings changed since last validation. Constraint check below uses current assumptions.
+  Warning: settings changed since last validation. Continue building, then re-validate before export.
 </div>
 {% endif %}
 
 <div class="canvas-top-bar" id="pg-top-bar">
-  <div class="pg-top-left">
+  <div class="pg-top-row">
     <div class="pg-session-chip">
       <div class="pg-session-id-row">
         <span class="pg-session-id-label">Session ID</span>
@@ -27,9 +27,6 @@
         <span>{{ session.builder_name or session.planner_name or 'Planner Unassigned' }}</span>
       </div>
     </div>
-  </div>
-
-  <div class="pg-top-middle">
     <div class="pg-top-meta-group">
       <div class="brand-path-group" aria-label="Create load">
         <span class="brand-path-label">Brand</span>
@@ -48,25 +45,29 @@
         </select>
       </div>
     </div>
-    <div id="violation-summary">
-      {% if violations_error > 0 %}
-        <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
-      {% endif %}
-      {% if violations_warning > 0 %}
-        <span class="badge badge-warning" style="margin-left:4px">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
-      {% endif %}
-      {% if violations_error == 0 and violations_warning == 0 %}
-        <span class="badge badge-success">Clear</span>
-      {% endif %}
-    </div>
-  </div>
 
-  <div class="pg-top-actions">
-    <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
-    <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
-    <a href="{{ url_for('prograde.export_load_pdf', session_id=session.session_id, brand=selected_brand) }}"
-       class="btn btn-secondary btn-sm pg-action-btn">Download PDF</a>
-    <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
+    <div class="pg-top-actions-wrap">
+      <div id="violation-summary" class="pg-violation-summary" aria-live="polite">
+        <span class="pg-violation-summary-label">Load Check</span>
+        {% if violations_error > 0 %}
+          <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
+        {% endif %}
+        {% if violations_warning > 0 %}
+          <span class="badge badge-warning">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
+        {% endif %}
+        {% if violations_error == 0 and violations_warning == 0 %}
+          <span class="badge badge-success">Clear</span>
+        {% endif %}
+      </div>
+
+      <div class="pg-top-actions">
+        <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
+        <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
+        <a href="{{ url_for('prograde.export_load_pdf', session_id=session.session_id, brand=selected_brand) }}"
+           class="btn btn-secondary btn-sm pg-action-btn">Download PDF</a>
+        <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
+      </div>
+    </div>
   </div>
   <div class="pg-drag-hint-row">
     <span>Drag unit body to move entire stack. Drag unit number badge to move only that unit. For Big Tex SKU drops: drop directly on a stack to add on top; drop in LEFT/RIGHT lower-deck box to place into that side's stack lane.</span>

@@ -575,6 +575,34 @@ body.pg-sku-drag-active .pg-lower-side-label {
                 {% set gn_backshift_ft = (-3.0 if not pos.is_rotated else 3.0) * gn_pair.backshift_steps %}
                 {% set x_start_ft = x_start_ft + gn_backshift_ft %}
               {% endif %}
+              {# Non-gooseneck units above a crisscross-stacked GN support inherit that
+                 support's visual backshift so they stay aligned with the visually shifted
+                 GN deck zone and don't render over the top GN unit's tongue. #}
+              {% if (pos.render_tongue_profile or 'standard') != 'gooseneck' %}
+                {% set inh = namespace(found=false, support_layer=0, support_rotated=false, steps=0) %}
+                {% for peer in col_sorted %}
+                  {% set peer_layer_n = [((peer.layer or 1) | int), 1] | max %}
+                  {% if peer_layer_n < layer_idx and (peer.render_tongue_profile or 'standard') == 'gooseneck' and peer.gn_crisscross %}
+                    {% if not inh.found or peer_layer_n > inh.support_layer %}
+                      {% set inh.found = true %}
+                      {% set inh.support_layer = peer_layer_n %}
+                      {% set inh.support_rotated = peer.is_rotated %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {% if inh.found %}
+                  {% for peer in col_sorted %}
+                    {% set peer_layer_n = [((peer.layer or 1) | int), 1] | max %}
+                    {% if peer_layer_n < inh.support_layer and (peer.render_tongue_profile or 'standard') == 'gooseneck' %}
+                      {% if (peer.is_rotated and inh.support_rotated) or ((not peer.is_rotated) and (not inh.support_rotated)) %}
+                        {% set inh.steps = inh.steps + 1 %}
+                      {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                  {% set inh_backshift_ft = (-3.0 if not inh.support_rotated else 3.0) * inh.steps %}
+                  {% set x_start_ft = x_start_ft + inh_backshift_ft %}
+                {% endif %}
+              {% endif %}
               {% set x_end_ft = x_start_ft + deck_len %}
               {% set y_surface_ft = (pos.y_surface_ft if pos.y_surface_ft is defined else (lower_surface_ft if zone == 'lower_deck' else upper_surface_ft)) | float %}
               {% set y_top_ft = (pos.y_body_top_ft if pos.y_body_top_ft is defined else (y_surface_ft + deck_h)) | float %}
@@ -779,6 +807,8 @@ body.pg-sku-drag-active .pg-lower-side-label {
                  data-seq="{{ seq }}"
                  data-layer="{{ pos.layer }}"
                  data-stack-alignment="{{ pos.stack_alignment or '' }}"
+                 data-deck-length-ft="{{ deck_len }}"
+                 data-total-length-ft="{{ (pos.render_footprint_ft if pos.render_footprint_ft is defined else (deck_len + tongue_len)) | float }}"
                  data-deck-x0="{{ x_start_px }}"
                  data-deck-x1="{{ x_end_px }}"
                  data-tongue-profile="{{ tongue_profile }}"

@@ -335,6 +335,39 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             places=3,
         )
 
+    def test_lower_stack_six_foot_dump_layer_stays_flush_on_gooseneck_support(self):
+        col = [
+            {
+                "position_id": "base",
+                "layer": 1,
+                "deck_length_ft": 17.5,
+                "tongue_length": 6.0,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "deck_profile": "dump",
+                "stacking_height_ft": 6.0,
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:gooseneck",
+            },
+            {
+                "position_id": "top",
+                "layer": 2,
+                "deck_length_ft": 14.0,
+                "tongue_length": 6.0,
+                "render_tongue_length_ft": 6.0,
+                "render_tongue_profile": "standard",
+                "deck_profile": "dump",
+                "stacking_height_ft": 6.0,
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": "right",
+            },
+        ]
+
+        offsets = prograde_routes._lower_column_layer_start_offsets(col)
+        self.assertAlmostEqual(float(offsets[0]), 0.0, places=3)
+        self.assertAlmostEqual(float(offsets[1]), 0.0, places=3)
+
     def test_canvas_uses_utility_stack_heights_and_right_aligns_upper_stack(self):
         session = {"brand": "pj", "carrier_type": "53_step_deck"}
         carrier = {
@@ -1330,6 +1363,139 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
                 )
         self.assertIsNotNone(seam_gap_ft)
         self.assertAlmostEqual(seam_gap_ft, 1.0, places=2)
+
+    def test_canvas_adjacent_lower_dump_door_off_caps_left_stack_tongues(self):
+        session = {"brand": "pj", "carrier_type": "53_step_deck"}
+        carrier = {
+            "total_length_ft": 53.0,
+            "lower_deck_length_ft": 41.5,
+            "upper_deck_length_ft": 11.5,
+            "lower_deck_ground_height_ft": 3.5,
+            "upper_deck_ground_height_ft": 5.0,
+            "max_height_ft": 13.5,
+            "gn_max_lower_deck_ft": 32.0,
+        }
+        base_positions = [
+            {
+                "position_id": "l1a",
+                "item_number": "D716",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:00",
+            },
+            {
+                "position_id": "l1b",
+                "item_number": "D714",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 2,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:01",
+            },
+            {
+                "position_id": "l2a",
+                "item_number": "D714",
+                "deck_zone": "lower_deck",
+                "sequence": 2,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:02",
+            },
+        ]
+        sku_map = {
+            "D716": {
+                "item_number": "D716",
+                "model": "DM",
+                "description": "Dump 16",
+                "pj_category": "dump_lowside",
+                "bed_length_measured": 16.0,
+                "bed_length_stated": 16.0,
+                "tongue_feet": 6.0,
+                "total_footprint": 22.0,
+                "dump_side_height_ft": 3.0,
+            },
+            "D714": {
+                "item_number": "D714",
+                "model": "D7",
+                "description": "Dump 14",
+                "pj_category": "dump_lowside",
+                "bed_length_measured": 14.0,
+                "bed_length_stated": 14.0,
+                "tongue_feet": 5.0,
+                "total_footprint": 19.0,
+                "dump_side_height_ft": 3.0,
+            },
+        }
+        height_ref = {
+            "dump_lowside": {
+                "height_mid_ft": 3.0,
+                "height_top_ft": 3.0,
+                "gn_axle_dropped_ft": None,
+            }
+        }
+
+        def _build_canvas(right_door_off):
+            positions = [dict(p) for p in base_positions]
+            if right_door_off:
+                for p in positions:
+                    if p["position_id"] == "l2a":
+                        p["override_reason"] = "dump_door_removed:1"
+            with (
+                patch.object(prograde_routes.db, "get_pj_height_ref_dict", return_value=height_ref),
+                patch.object(prograde_routes.db, "get_pj_sku", side_effect=lambda item_number: sku_map[item_number]),
+                patch.object(prograde_routes.db, "get_pj_offsets_dict", return_value={"gn_in_dump_hidden_ft": 7.0}),
+                patch.object(prograde_routes.db, "mark_session_active", return_value=None),
+                patch.object(prograde_routes.db, "get_acknowledged_violations", return_value=[]),
+                patch.object(prograde_routes, "check_load", return_value=[]),
+            ):
+                return prograde_routes._build_canvas_data(
+                    "session-lower-adjacent-door-overlap",
+                    session,
+                    carrier,
+                    ["lower_deck", "upper_deck"],
+                    positions,
+                    "pj",
+                )
+
+        canvas_on = _build_canvas(False)
+        canvas_off = _build_canvas(True)
+
+        left_col_on = {
+            row["position_id"]: float(row.get("occupied_tongue_length_ft") or row.get("render_tongue_length_ft") or 0.0)
+            for row in (canvas_on["zone_cols"]["lower_deck"][1] or [])
+        }
+        left_col_off = {
+            row["position_id"]: float(row.get("occupied_tongue_length_ft") or row.get("render_tongue_length_ft") or 0.0)
+            for row in (canvas_off["zone_cols"]["lower_deck"][1] or [])
+        }
+        self.assertAlmostEqual(left_col_on["l1a"], 6.0, places=2)
+        self.assertAlmostEqual(left_col_on["l1b"], 5.0, places=2)
+        self.assertAlmostEqual(left_col_off["l1a"], 1.0, places=2)
+        self.assertAlmostEqual(left_col_off["l1b"], 1.0, places=2)
+
+        stack_on = next(
+            seg for seg in (canvas_on["measure_segments_by_zone"]["lower_deck"] or [])
+            if seg.get("kind") == "stack" and int(seg.get("sequence") or 0) == 1
+        )
+        stack_off = next(
+            seg for seg in (canvas_off["measure_segments_by_zone"]["lower_deck"] or [])
+            if seg.get("kind") == "stack" and int(seg.get("sequence") or 0) == 1
+        )
+        self.assertAlmostEqual(float(stack_on["length_ft"]) - float(stack_off["length_ft"]), 5.0, places=3)
 
     def test_canvas_non_dump_door_override_token_does_not_shift_utility_layout(self):
         session = {"brand": "pj", "carrier_type": "53_step_deck"}
