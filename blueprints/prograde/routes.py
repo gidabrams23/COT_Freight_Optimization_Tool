@@ -244,6 +244,21 @@ def _extract_gn_crisscross_override_reason(override_reason):
     )
 
 
+def _build_gn_upside_down_override_reason(enabled, base_override_reason=None):
+    return _set_override_reason_token(
+        base_override_reason,
+        "gn_upside_down",
+        "1" if bool(enabled) else None,
+    )
+
+
+def _extract_gn_upside_down_override_reason(override_reason):
+    return _normalize_optional_bool(
+        _get_override_reason_token(override_reason, "gn_upside_down"),
+        default=False,
+    )
+
+
 def _build_stack_alignment_override_reason(stack_alignment, base_override_reason=None):
     normalized = _normalize_stack_alignment(stack_alignment, default=None)
     return _set_override_reason_token(base_override_reason, "stack_alignment", normalized)
@@ -717,6 +732,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["render_footprint_ft"] = render_footprint_ft
         p["dump_door_removed"] = _extract_dump_door_removed_reason(p.get("override_reason"))
         p["gn_crisscross"] = _extract_gn_crisscross_override_reason(p.get("override_reason"))
+        p["gn_upside_down"] = _extract_gn_upside_down_override_reason(p.get("override_reason"))
         p["stack_alignment"] = _extract_stack_alignment_override_reason(p.get("override_reason"))
         p["column_alignment"] = _extract_column_alignment_override_reason(p.get("override_reason"))
     elif brand == "bigtex":
@@ -736,6 +752,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["render_footprint_ft"] = p["footprint"]
         p["dump_door_removed"] = False
         p["gn_crisscross"] = False
+        p["gn_upside_down"] = False
         p["stack_alignment"] = None
         p["column_alignment"] = _extract_column_alignment_override_reason(p.get("override_reason"))
         # BT nesting rule: any unit can be nested into a dump host when length-fit allows.
@@ -755,6 +772,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["render_footprint_ft"] = 0
         p["dump_door_removed"] = False
         p["gn_crisscross"] = False
+        p["gn_upside_down"] = False
         p["stack_alignment"] = None
         p["column_alignment"] = None
 
@@ -1024,6 +1042,7 @@ def _lower_column_layer_start_offsets(
         unit_deck_len_ft = max(_as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)), 0.0)
         unit_is_rotated = bool(unit.get("is_rotated"))
         unit_is_gooseneck = _is_gooseneck_render_profile(unit)
+        unit_is_upside_down = bool(unit.get("gn_upside_down"))
         unit_is_flush_dump_layer = _is_gooseneck_flush_dump_layer(unit)
         unit_is_dump_layer = str(unit.get("deck_profile") or "").strip().lower() == "dump"
         explicit_stack_alignment = _normalize_stack_alignment(unit.get("stack_alignment"), default=None)
@@ -1107,6 +1126,18 @@ def _lower_column_layer_start_offsets(
             # tongues to overlap horizontally.
             min_start_ft = support_left_ft
             max_start_ft = support_right_ft - unit_deck_len_ft
+            if unit_is_upside_down:
+                # Inverted GN rule: anchor the unit's deck-back face (the side
+                # opposite its tongue) flush to the host GN wall plane.
+                support_wall_x_ft = support_left_ft if support_wall_side == "left" else support_right_ft
+                if unit_is_rotated:
+                    # Rotated => tongue on left, back-of-deck is right edge.
+                    desired_start_ft = support_wall_x_ft - unit_deck_len_ft
+                else:
+                    # Non-rotated => tongue on right, back-of-deck is left edge.
+                    desired_start_ft = support_wall_x_ft
+                min_start_ft = desired_start_ft
+                max_start_ft = desired_start_ft
 
         support_gooseneck_explicit_locked = False
         if explicit_stack_alignment and support_is_gooseneck and (not unit_is_gooseneck):
@@ -1274,6 +1305,10 @@ def _column_render_envelope_dims(col, zone=None, uniform_non_gooseneck_lane=Fals
         start_ft = _as_float(local_starts[idx], 0.0)
         deck_len_ft = max(_as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)), 0.0)
         tongue_len_ft = max(_unit_tongue_length_ft(unit, prefer_occupied=True), 0.0)
+        if bool(unit.get("gn_upside_down")) and _is_gooseneck_render_profile(unit):
+            # Inverted 4th-layer GN nests into the host GN and should not expand
+            # the column envelope used for lower-deck right-pack/reseating.
+            tongue_len_ft = 0.0
         is_rotated = bool(unit.get("is_rotated"))
 
         left_edge_ft = start_ft - (tongue_len_ft if is_rotated else 0.0)
@@ -2264,6 +2299,83 @@ def _position_uses_pj_gooseneck(position, sku=None):
     return _pj_picker_tongue_profile(sku or {}) == "gooseneck"
 
 
+def _pj_gooseneck_stack_orientation(base_is_rotated, gooseneck_ordinal):
+    ordinal = max(int(gooseneck_ordinal or 0), 1)
+    # PJ nesting rule:
+    # - 1st/2nd/3rd GN: match the base GN facing.
+    # - 4th GN: flip facing and mark as upside-down.
+    if ordinal == 4:
+        return (not bool(base_is_rotated), True)
+    return (bool(base_is_rotated), False)
+
+
+def _apply_pj_gooseneck_stack_pattern_for_column(session_id, deck_zone, sequence):
+    if not session_id or not deck_zone or sequence is None:
+        return False
+    try:
+        target_sequence = int(sequence)
+    except (TypeError, ValueError):
+        return False
+
+    rows = []
+    for row in db.get_positions(session_id):
+        pos = _row_to_dict(row)
+        if pos.get("deck_zone") != deck_zone:
+            continue
+        if int(pos.get("sequence") or 0) != target_sequence:
+            continue
+        rows.append(pos)
+    if not rows:
+        return False
+    rows.sort(key=lambda row: int(row.get("layer") or 0))
+
+    sku_cache = {}
+
+    def _sku_for(position):
+        item_number = str(position.get("item_number") or "").strip()
+        if not item_number:
+            return {}
+        if item_number not in sku_cache:
+            sku_cache[item_number] = dict(db.get_pj_sku(item_number) or {})
+        return sku_cache[item_number]
+
+    def _is_gn(position):
+        return _position_uses_pj_gooseneck(position, _sku_for(position))
+
+    gooseneck_rows = [row for row in rows if _is_gn(row)]
+    if not gooseneck_rows:
+        return False
+
+    applied = False
+    base_is_rotated = bool(gooseneck_rows[0].get("is_rotated"))
+    for ordinal, row in enumerate(gooseneck_rows, start=1):
+        expected_is_rotated, expected_upside_down = _pj_gooseneck_stack_orientation(
+            base_is_rotated,
+            ordinal,
+        )
+        position_id = row.get("position_id")
+        if not position_id:
+            continue
+
+        current_is_rotated = bool(row.get("is_rotated"))
+        if current_is_rotated != expected_is_rotated:
+            db.update_position_field(position_id, "is_rotated", 1 if expected_is_rotated else 0)
+            row["is_rotated"] = expected_is_rotated
+            applied = True
+
+        existing_override = row.get("override_reason")
+        updated_override = _build_gn_upside_down_override_reason(
+            expected_upside_down,
+            existing_override,
+        )
+        if updated_override != existing_override:
+            db.update_position_field(position_id, "override_reason", updated_override)
+            row["override_reason"] = updated_override
+            applied = True
+
+    return applied
+
+
 def _apply_pj_gn_crisscross_for_column(session_id, deck_zone, sequence, preferred_position_id=None):
     if not session_id or not deck_zone or sequence is None:
         return False
@@ -2569,6 +2681,33 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                     )
 
                 if brand == "pj":
+                    base_gn_rotated = None
+                    for idx, p in enumerate(col_rows):
+                        is_gooseneck = gooseneck_flags[idx] if idx < len(gooseneck_flags) else False
+                        if is_gooseneck:
+                            base_gn_rotated = bool(p.get("is_rotated"))
+                            break
+
+                    if base_gn_rotated is not None:
+                        gn_ordinal = 0
+                        for idx, p in enumerate(col_rows):
+                            is_gooseneck = gooseneck_flags[idx] if idx < len(gooseneck_flags) else False
+                            if not is_gooseneck:
+                                p["gn_upside_down"] = False
+                                continue
+                            gn_ordinal += 1
+                            expected_rotated, expected_upside_down = _pj_gooseneck_stack_orientation(
+                                base_gn_rotated,
+                                gn_ordinal,
+                            )
+                            # Keep canvas rendering deterministic with current PJ GN stack contract,
+                            # even when legacy/session rows predate this rule.
+                            p["is_rotated"] = bool(expected_rotated)
+                            p["gn_upside_down"] = bool(expected_upside_down)
+                    else:
+                        for p in col_rows:
+                            p["gn_upside_down"] = False
+
                     for idx, p in enumerate(col_rows):
                         sku = pj_sku_map.get(p.get("item_number")) or {}
                         stacked_height_ft = None
@@ -2980,6 +3119,12 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
                 left_right_reach_ft = max(_as_float(left_dims.get("right_reach_ft"), 0.0), 0.0)
                 left_right_x = left_start + left_right_reach_ft
                 target_left_right_x = right_gn_wall_x - _GOOSENECK_WALL_CLEARANCE_FT
+                # Guard against visual lane inversion: never pull the left column
+                # past the adjacent right column's start boundary.
+                target_left_right_x = min(
+                    target_left_right_x,
+                    right_start - _GOOSENECK_WALL_CLEARANCE_FT,
+                )
                 if left_right_x + 1e-9 >= target_left_right_x:
                     continue
 
@@ -4338,8 +4483,70 @@ def api_add_unit(session_id):
                         seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
                         layer = 1
                 else:
-                    seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
-                    layer = 1
+                    forced_seq = None
+                    if (
+                        brand == "pj"
+                        and insert_idx is not None
+                        and column_alignment in {"left", "right"}
+                    ):
+                        matching_sequences = []
+                        for existing_seq in existing_zone_sequences:
+                            base_row = next(
+                                (
+                                    p
+                                    for p in zone_positions
+                                    if int(p["sequence"]) == int(existing_seq) and int(p.get("layer") or 0) == 1
+                                ),
+                                None,
+                            )
+                            base_alignment = _extract_column_alignment_override_reason(
+                                (base_row or {}).get("override_reason")
+                            )
+                            if base_alignment == column_alignment:
+                                matching_sequences.append(int(existing_seq))
+
+                        if matching_sequences:
+                            forced_seq = (
+                                min(matching_sequences)
+                                if column_alignment == "left"
+                                else max(matching_sequences)
+                            )
+                        elif len(existing_zone_sequences) >= 2:
+                            # Legacy sessions may have missing side metadata on base rows.
+                            # In that case, keep side-intent inserts on the corresponding
+                            # edge stack rather than creating a new column.
+                            forced_seq = (
+                                min(existing_zone_sequences)
+                                if column_alignment == "left"
+                                else max(existing_zone_sequences)
+                            )
+
+                    if forced_seq is not None:
+                        seq = int(forced_seq)
+                        layer = max(
+                            (
+                                int(p["layer"])
+                                for p in zone_positions
+                                if int(p["sequence"]) == seq
+                            ),
+                            default=0,
+                        ) + 1
+                        insert_idx = None
+                        target = next(
+                            (
+                                p
+                                for p in sorted(
+                                    zone_positions,
+                                    key=lambda row: int(row.get("layer") or 0),
+                                    reverse=True,
+                                )
+                                if int(p.get("sequence") or 0) == seq
+                            ),
+                            None,
+                        )
+                    else:
+                        seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
+                        layer = 1
             else:
                 seq = max((int(p["sequence"]) for p in zone_positions), default=0) + 1
                 layer = 1
@@ -4413,6 +4620,8 @@ def api_add_unit(session_id):
         )
         if insert_idx is not None:
             db.move_position(session_id, position_id, deck_zone, to_sequence=None, insert_index=insert_idx)
+        if brand == "pj":
+            _apply_pj_gooseneck_stack_pattern_for_column(session_id, deck_zone, seq)
         gn_crisscross_applied = False
         if brand == "pj" and stack_on:
             gn_crisscross_applied = _apply_pj_gn_crisscross_for_column(
@@ -4436,7 +4645,7 @@ def api_add_unit(session_id):
 
 @prograde_bp.route("/api/session/<session_id>/remove", methods=["POST"])
 def api_remove_unit(session_id):
-    _session, err = _session_or_404(session_id)
+    session_row, err = _session_or_404(session_id)
     if err:
         return err
 
@@ -4451,7 +4660,16 @@ def api_remove_unit(session_id):
         return _json_error("Position not found", 404)
 
     try:
+        pos_map = _row_to_dict(pos)
+        removed_zone = str(pos_map.get("deck_zone") or "")
+        removed_sequence = int(pos_map.get("sequence") or 0)
         db.remove_position(position_id)
+        if (session_row["brand"] or "").strip().lower() == "pj" and removed_zone and removed_sequence > 0:
+            _apply_pj_gooseneck_stack_pattern_for_column(
+                session_id,
+                removed_zone,
+                removed_sequence,
+            )
         payload = {"ok": True}
         if include_state:
             payload["state"] = _build_session_api_state(session_id)
@@ -4491,7 +4709,7 @@ def api_toggle_axle_drop(session_id):
 
 @prograde_bp.route("/api/session/<session_id>/rotate", methods=["POST"])
 def api_rotate_unit(session_id):
-    _session, err = _session_or_404(session_id)
+    session_row, err = _session_or_404(session_id)
     if err:
         return err
 
@@ -4506,8 +4724,18 @@ def api_rotate_unit(session_id):
         return _json_error("Position not found", 404)
 
     try:
+        pos_map = _row_to_dict(pos)
         new_val = 0 if int(pos["is_rotated"] or 0) else 1
         db.update_position_field(position_id, "is_rotated", new_val)
+        if (session_row["brand"] or "").strip().lower() == "pj":
+            rotated_zone = str(pos_map.get("deck_zone") or "")
+            rotated_sequence = int(pos_map.get("sequence") or 0)
+            if rotated_zone and rotated_sequence > 0:
+                _apply_pj_gooseneck_stack_pattern_for_column(
+                    session_id,
+                    rotated_zone,
+                    rotated_sequence,
+                )
         payload = {"ok": True, "is_rotated": new_val}
         if include_state:
             payload["state"] = _build_session_api_state(session_id)
@@ -4763,6 +4991,9 @@ def api_move_position(session_id):
             return _json_error("to_layer_index must be an integer")
 
     try:
+        pre_move = dict(db.get_position(position_id) or {})
+        from_zone_before = str(pre_move.get("deck_zone") or "")
+        from_sequence_before = int(pre_move.get("sequence") or 0)
         result = db.move_position(
             session_id,
             position_id=position_id,
@@ -4813,6 +5044,27 @@ def api_move_position(session_id):
                 )
                 if updated_override != moved_row.get("override_reason"):
                     db.update_position_field(position_id, "override_reason", updated_override)
+            moved_zone = str(result.get("to_zone") or "")
+            moved_sequence = int(result.get("sequence") or 0)
+            if moved_zone and moved_sequence > 0:
+                _apply_pj_gooseneck_stack_pattern_for_column(
+                    session_id,
+                    moved_zone,
+                    moved_sequence,
+                )
+            if (
+                from_zone_before
+                and from_sequence_before > 0
+                and not (
+                    from_zone_before == moved_zone
+                    and from_sequence_before == moved_sequence
+                )
+            ):
+                _apply_pj_gooseneck_stack_pattern_for_column(
+                    session_id,
+                    from_zone_before,
+                    from_sequence_before,
+                )
         gn_crisscross_applied = False
         if (
             session["brand"] == "pj"

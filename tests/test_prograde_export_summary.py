@@ -87,6 +87,20 @@ class ProgradeExportSummaryTests(unittest.TestCase):
         )
         return session_id
 
+    def _create_pj_session(self, profile_id, planner_name="Export Tester"):
+        self._seed_stepdeck_carrier()
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id=session_id,
+            brand="pj",
+            carrier_type="53_step_deck",
+            planner_name=planner_name,
+            session_label="export-summary-pj",
+            created_by_profile_id=profile_id,
+            created_by_name=planner_name,
+        )
+        return session_id
+
     def test_load_builder_shows_lower_left_right_drop_targets_and_pdf_export_label(self):
         profile_id = self._create_active_profile()
         session_id = self._create_bigtex_session(profile_id)
@@ -102,6 +116,21 @@ class ProgradeExportSummaryTests(unittest.TestCase):
         self.assertNotIn("Add SKUs source", html)
         self.assertIn("pg-legend-card", html)
         self.assertIn("window.__pgGlobalDropHandlers", html)
+
+    def test_load_builder_hides_left_right_stack_visual_labels_for_pj(self):
+        profile_id = self._create_active_profile("PJ Export Tester")
+        session_id = self._create_pj_session(profile_id, planner_name="PJ Export Tester")
+
+        resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+
+        self.assertIn('data-drop-zone="lower_deck" data-drop-side="left"', html)
+        self.assertIn('data-drop-zone="lower_deck" data-drop-side="right"', html)
+        self.assertNotIn('id="pg-lower-side-label-left"', html)
+        self.assertNotIn('id="pg-lower-side-label-right"', html)
+        self.assertNotIn(">Left Stack<", html)
+        self.assertNotIn(">Right Stack<", html)
 
     def test_load_builder_renders_bigtex_dump_with_shared_dump_geometry(self):
         profile_id = self._create_active_profile("BT Dump Geometry Tester")

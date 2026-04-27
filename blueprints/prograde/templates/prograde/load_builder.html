@@ -927,6 +927,35 @@ body.pg-sku-drag-active .pg-drag-hint-row {
   opacity: 0.55;
   border-left: 3px solid var(--accent-primary);
 }
+.sku-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9999;
+  pointer-events: none;
+  transform: translate(-9999px, -9999px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(420px, 72vw);
+  padding: 7px 10px;
+  border: 1px solid rgba(125, 211, 252, 0.65);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.48);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  line-height: 1.25;
+}
+.sku-drag-ghost .ghost-item {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.sku-drag-ghost .ghost-meta {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
 .sku-item-id {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -1162,6 +1191,13 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
   stroke-width: 2.4;
   stroke-dasharray: none;
   filter: drop-shadow(0 0 7px rgba(56, 189, 248, 0.55));
+}
+/* PJ keeps left/right split hit-zones, but hides static side-box framing. */
+.page-body.brand-pj .prograde-schematic [data-drop-zone][data-drop-side] {
+  fill: rgba(59, 130, 246, 0.001);
+  stroke: transparent;
+  stroke-width: 0;
+  stroke-dasharray: none;
 }
 .prograde-schematic .pg-spatial-unit.stack-dragging .pg-unit-body {
   stroke: rgba(125, 211, 252, 0.72) !important;
@@ -2384,7 +2420,7 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
 {% include "prograde/_load_builder_top_bar.html" %}
 
 <!-- -- Main Canvas + Sidebar ---------------------- -->
-<div class="page-body pg-layout">
+<div class="page-body pg-layout brand-{{ session.brand }}">
 
   <!-- Canvas -->
   {% include "prograde/_load_canvas.html" %}
@@ -2398,7 +2434,7 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
           <span class="pg-sidebar-tools-count">{{ category_legend|length }} cats</span>
         </div>
         <div class="card-subtitle pg-sidebar-tools-subtitle">
-          {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as Category -&gt; Model -&gt; Item. Sections auto-collapse while browsing.
+          {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as Category -&gt; Model -&gt; Item. Drag any row onto the schematic to place.
         </div>
       </div>
       <div class="pg-sidebar-tools-body">
@@ -2497,6 +2533,8 @@ let skuHierarchyMode = "models";
 let suppressSkuAutoCollapse = false;
 const pjSkuTongueSelection = new Map();
 const pjSkuDumpHeightSelection = new Map();
+window.__pgManualDragPrimed = false;
+window.__pgManualDragActive = false;
 
 function getRenderModeInputs() {
   return Array.from(document.querySelectorAll('input[name="render-mode"]'));
@@ -3203,7 +3241,7 @@ function renderSkuTree() {
         if (SESSION_BRAND === "pj") {
           row.classList.add(modelHasDumpProfile ? "pj-table" : "pj-table-no-dump");
         }
-        row.draggable = true;
+        row.draggable = false;
         row.dataset.item = item.itemNumber;
         row.dataset.itemLabel = SESSION_BRAND === "pj" ? item.itemDisplay : item.itemNumber;
         row.dataset.search = item.search;
@@ -3274,16 +3312,10 @@ function renderSkuTree() {
           };
 
           [btnStandard, btnGn].forEach((btn) => {
-            const stopMouseDown = (evt) => {
-              evt.stopPropagation();
-            };
-            const stopClick = (evt) => {
+            btn.addEventListener("mousedown", (evt) => { evt.preventDefault(); });
+            btn.addEventListener("click", (evt) => {
               evt.preventDefault();
               evt.stopPropagation();
-            };
-            btn.addEventListener("mousedown", stopMouseDown);
-            btn.addEventListener("click", (evt) => {
-              stopClick(evt);
               const selected = _pjTongueMode(btn.dataset.mode || "standard");
               row.dataset.selectedTongue = selected;
               _setSkuTongueSelection(item.itemNumber, selected);
@@ -3338,16 +3370,10 @@ function renderSkuTree() {
             };
 
             [btnDump2, btnDump3, btnDump4].forEach((btn) => {
-              const stopMouseDown = (evt) => {
-                evt.stopPropagation();
-              };
-              const stopClick = (evt) => {
+              btn.addEventListener("mousedown", (evt) => { evt.preventDefault(); });
+              btn.addEventListener("click", (evt) => {
                 evt.preventDefault();
                 evt.stopPropagation();
-              };
-              btn.addEventListener("mousedown", stopMouseDown);
-              btn.addEventListener("click", (evt) => {
-                stopClick(evt);
                 const selectedHeight = _normalizePjDumpHeightFt(btn.dataset.mode, null);
                 if (selectedHeight === null) return;
                 row.dataset.selectedDumpHeightFt = String(selectedHeight);
@@ -3805,9 +3831,22 @@ async function refreshBuilderFast() {
   if (window.__pgDeferredStatusRefreshTimer) {
     window.clearTimeout(window.__pgDeferredStatusRefreshTimer);
   }
+  const runDeferredInventoryRefresh = (attempt = 0) => {
+    const isGrabBusy = document.body.classList.contains("pg-sku-drag-active")
+      || Boolean(window.__pgManualDragPrimed)
+      || Boolean(window.__pgManualDragActive);
+    if (isGrabBusy && attempt < 20) {
+      window.__pgDeferredStatusRefreshTimer = window.setTimeout(() => {
+        runDeferredInventoryRefresh(attempt + 1);
+      }, 120);
+      return;
+    }
+    refreshBuilderFragments({ refreshInventory: true }).catch(() => {}).finally(() => {
+      window.__pgDeferredStatusRefreshTimer = null;
+    });
+  };
   window.__pgDeferredStatusRefreshTimer = window.setTimeout(() => {
-    refreshBuilderFragments({ refreshInventory: true }).catch(() => {});
-    window.__pgDeferredStatusRefreshTimer = null;
+    runDeferredInventoryRefresh(0);
   }, 320);
 }
 
@@ -4225,6 +4264,15 @@ function initSkuDragAndDrop(options = {}) {
     mouseUnitDrag.hoverTarget = null;
   };
 
+  const shouldCancelManualDragOnMove = (evt) => {
+    // Some browsers/trackpads intermittently report buttons=0 during an active drag.
+    // Treat that as indeterminate and let mouseup end the drag, but still cancel on
+    // explicit non-primary-button states.
+    const buttons = Number(evt && evt.buttons);
+    if (!Number.isFinite(buttons) || buttons === 0) return false;
+    return (buttons & 1) !== 1;
+  };
+
   const parseStackPayload = (raw) => {
     if (!raw) return null;
     const parts = String(raw).split("|");
@@ -4275,35 +4323,163 @@ function initSkuDragAndDrop(options = {}) {
     return null;
   };
 
-  skuItems.forEach((item) => {
-    if (!bindOnce(item, "dragBound")) return;
-    item.addEventListener("dragstart", (evt) => {
-      draggedSkuItem = item.dataset.item || null;
-      const tongueMode = _pjTongueMode(item.dataset.selectedTongue || item.dataset.defaultTongue || "standard");
-      const dumpHeightFt = _normalizePjDumpHeightFt(item.dataset.selectedDumpHeightFt || item.dataset.defaultDumpHeightFt, null);
-      const totalLengthFt = _parsePositiveFeet(item.dataset.totalLengthFt);
-      activeDrag = draggedSkuItem
-        ? { type: "sku", itemNumber: draggedSkuItem, tongueMode, dumpHeightFt, totalLengthFt, addSource: ADD_SOURCE_SKU_PICKER }
-        : null;
-      setSkuDragAffordance(Boolean(activeDrag && activeDrag.type === "sku"));
-      item.classList.add("dragging");
-      if (evt.dataTransfer) {
-        evt.dataTransfer.effectAllowed = "copy";
-        evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
-        evt.dataTransfer.setData("application/x-prograde-sku-mode", tongueMode);
-        evt.dataTransfer.setData("application/x-prograde-sku-dump-height", dumpHeightFt == null ? "" : String(dumpHeightFt));
-        evt.dataTransfer.setData("application/x-prograde-sku-length-ft", totalLengthFt == null ? "" : String(totalLengthFt));
-        evt.dataTransfer.setData("application/x-prograde-sku-source", ADD_SOURCE_SKU_PICKER);
-        evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
+  let mouseSkuDrag = null;
+  let skuDragGhost = null;
+
+  const clearMouseSkuHover = () => {
+    if (!mouseSkuDrag || !mouseSkuDrag.hoverTarget) return;
+    mouseSkuDrag.hoverTarget.classList.remove("drop-target-active", "drop-before", "drop-after");
+    mouseSkuDrag.hoverTarget = null;
+  };
+
+  const removeSkuDragGhost = () => {
+    if (!skuDragGhost) return;
+    skuDragGhost.remove();
+    skuDragGhost = null;
+  };
+
+  const updateSkuDragGhostPosition = (evt) => {
+    if (!skuDragGhost || !evt) return;
+    const x = Number(evt.clientX || 0) + 12;
+    const y = Number(evt.clientY || 0) + 12;
+    skuDragGhost.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  };
+
+  const createSkuDragGhost = (state, evt) => {
+    removeSkuDragGhost();
+    const ghost = document.createElement("div");
+    ghost.className = "sku-drag-ghost";
+    const itemLabel = String((state && state.sourceRow && state.sourceRow.dataset && state.sourceRow.dataset.itemLabel) || state.itemNumber || "").trim();
+    const metaLabel = String((state && state.sourceRow && state.sourceRow.dataset && state.sourceRow.dataset.length) || "").trim();
+    const itemNode = document.createElement("span");
+    itemNode.className = "ghost-item";
+    itemNode.textContent = itemLabel || state.itemNumber || "";
+    const metaNode = document.createElement("span");
+    metaNode.className = "ghost-meta";
+    metaNode.textContent = metaLabel;
+    ghost.appendChild(itemNode);
+    if (metaLabel) {
+      ghost.appendChild(metaNode);
+    }
+    document.body.appendChild(ghost);
+    skuDragGhost = ghost;
+    updateSkuDragGhostPosition(evt);
+  };
+
+  const stopManualSkuDrag = () => {
+    if (!mouseSkuDrag) return;
+    if (mouseSkuDrag.started && mouseSkuDrag.sourceRow) {
+      mouseSkuDrag.sourceRow.classList.remove("dragging");
+    }
+    clearMouseSkuHover();
+    removeSkuDragGhost();
+    mouseSkuDrag = null;
+    draggedSkuItem = null;
+    activeDrag = null;
+    window.__pgManualDragPrimed = false;
+    window.__pgManualDragActive = false;
+    setSkuDragAffordance(false);
+    clearHighlights();
+    setDragLiveText("");
+    document.removeEventListener("mousemove", onManualSkuMouseMove);
+    document.removeEventListener("mouseup", onManualSkuMouseUp, true);
+  };
+
+  function onManualSkuMouseMove(evt) {
+    if (!mouseSkuDrag) return;
+    if (shouldCancelManualDragOnMove(evt)) {
+      stopManualSkuDrag();
+      return;
+    }
+    if (!mouseSkuDrag.started) {
+      const dx = Math.abs(Number(evt.clientX || 0) - mouseSkuDrag.originX);
+      const dy = Math.abs(Number(evt.clientY || 0) - mouseSkuDrag.originY);
+      if ((dx + dy) < 2) return;
+      mouseSkuDrag.started = true;
+      window.__pgManualDragActive = true;
+      draggedSkuItem = mouseSkuDrag.itemNumber;
+      activeDrag = {
+        type: "sku",
+        itemNumber: mouseSkuDrag.itemNumber,
+        tongueMode: mouseSkuDrag.tongueMode,
+        dumpHeightFt: mouseSkuDrag.dumpHeightFt,
+        totalLengthFt: mouseSkuDrag.totalLengthFt,
+        addSource: ADD_SOURCE_SKU_PICKER,
+      };
+      setSkuDragAffordance(true);
+      if (mouseSkuDrag.sourceRow) {
+        mouseSkuDrag.sourceRow.classList.add("dragging");
       }
-    });
-    item.addEventListener("dragend", () => {
-      draggedSkuItem = null;
-      activeDrag = null;
-      setSkuDragAffordance(false);
-      item.classList.remove("dragging");
-      clearHighlights();
-      setDragLiveText("");
+      createSkuDragGhost(mouseSkuDrag, evt);
+      setDragLiveText("Drag to a deck zone to place.");
+    } else {
+      updateSkuDragGhostPosition(evt);
+    }
+    evt.preventDefault();
+    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
+    const rawTarget = resolveDropTarget(probeNode);
+    const target = normalizeDropTargetForPayload(rawTarget, activeDrag, evt);
+    clearTransientPlacementHints();
+    clearMouseSkuHover();
+    if (!target) return;
+    const hintedTarget = setDropPlacementHint(target, activeDrag, evt) || target;
+    hintedTarget.classList.add("drop-target-active");
+    mouseSkuDrag.hoverTarget = hintedTarget;
+  }
+
+  async function onManualSkuMouseUp(evt) {
+    if (!mouseSkuDrag) return;
+    const state = mouseSkuDrag;
+    document.removeEventListener("mousemove", onManualSkuMouseMove);
+    document.removeEventListener("mouseup", onManualSkuMouseUp, true);
+    if (!state.started) {
+      stopManualSkuDrag();
+      return;
+    }
+    const payload = {
+      type: "sku",
+      itemNumber: state.itemNumber,
+      tongueMode: state.tongueMode,
+      dumpHeightFt: state.dumpHeightFt,
+      totalLengthFt: state.totalLengthFt,
+      addSource: ADD_SOURCE_SKU_PICKER,
+    };
+    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
+    const rawTarget = resolveDropTarget(probeNode) || state.hoverTarget;
+    const target = normalizeDropTargetForPayload(rawTarget, payload, evt) || state.hoverTarget;
+    stopManualSkuDrag();
+    if (!target) return;
+    try {
+      await dispatchDrop(target, payload, evt);
+    } catch (e) {
+      showToast(`Drop failed: ${e.message || e}`, "error");
+    }
+  }
+
+  skuItems.forEach((item) => {
+    item.draggable = false;
+    if (!bindOnce(item, "skuMouseBound")) return;
+    item.addEventListener("mousedown", (evt) => {
+      if (evt.button !== 0) return;
+      if (evt.target && evt.target.closest && evt.target.closest("button")) return;
+      const itemNumber = String(item.dataset.item || "").trim();
+      if (!itemNumber) return;
+      stopManualSkuDrag();
+      mouseSkuDrag = {
+        itemNumber,
+        tongueMode: _pjTongueMode(item.dataset.selectedTongue || item.dataset.defaultTongue || "standard"),
+        dumpHeightFt: _normalizePjDumpHeightFt(item.dataset.selectedDumpHeightFt || item.dataset.defaultDumpHeightFt, null),
+        totalLengthFt: _parsePositiveFeet(item.dataset.totalLengthFt),
+        originX: Number(evt.clientX || 0),
+        originY: Number(evt.clientY || 0),
+        sourceRow: item,
+        started: false,
+        hoverTarget: null,
+      };
+      window.__pgManualDragPrimed = true;
+      document.addEventListener("mousemove", onManualSkuMouseMove);
+      document.addEventListener("mouseup", onManualSkuMouseUp, true);
+      evt.preventDefault();
     });
   });
 
@@ -4333,6 +4509,7 @@ function initSkuDragAndDrop(options = {}) {
         evt.preventDefault();
         return;
       }
+      window.__pgManualDragActive = true;
       draggedSkuItem = item.dataset.item || null;
       const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
       const totalLengthFt = _parsePositiveFeet(item.dataset.totalLengthFt);
@@ -4361,6 +4538,7 @@ function initSkuDragAndDrop(options = {}) {
     item.addEventListener("dragend", () => {
       draggedSkuItem = null;
       activeDrag = null;
+      window.__pgManualDragActive = false;
       setSkuDragAffordance(false);
       item.classList.remove("dragging");
       clearHighlights();
@@ -4377,6 +4555,8 @@ function initSkuDragAndDrop(options = {}) {
     mouseUnitDrag = null;
     draggedUnitId = null;
     activeDrag = null;
+    window.__pgManualDragPrimed = false;
+    window.__pgManualDragActive = false;
     clearHighlights();
     setDragLiveText("");
     document.removeEventListener("mousemove", onManualUnitMouseMove);
@@ -4389,6 +4569,7 @@ function initSkuDragAndDrop(options = {}) {
     const dy = Math.abs(Number(evt.clientY || 0) - mouseUnitDrag.originY);
     if ((dx + dy) < 4) return;
     mouseUnitDrag.started = true;
+    window.__pgManualDragActive = true;
     draggedStack = null;
     draggedUnitId = mouseUnitDrag.positionId;
     activeDrag = { type: "unit", positionId: mouseUnitDrag.positionId };
@@ -4400,7 +4581,7 @@ function initSkuDragAndDrop(options = {}) {
 
   function onManualUnitMouseMove(evt) {
     if (!mouseUnitDrag) return;
-    if ((evt.buttons & 1) !== 1) {
+    if (shouldCancelManualDragOnMove(evt)) {
       stopManualUnitDrag();
       return;
     }
@@ -4452,6 +4633,8 @@ function initSkuDragAndDrop(options = {}) {
     draggedUnitId = null;
     draggedStack = null;
     activeDrag = null;
+    window.__pgManualDragPrimed = false;
+    window.__pgManualDragActive = false;
     clearHighlights();
     setDragLiveText("");
     document.removeEventListener("mousemove", onManualStackMouseMove);
@@ -4464,6 +4647,7 @@ function initSkuDragAndDrop(options = {}) {
     const dy = Math.abs(Number(evt.clientY || 0) - mouseStackDrag.originY);
     if ((dx + dy) < 4) return;
     mouseStackDrag.started = true;
+    window.__pgManualDragActive = true;
     draggedUnitId = null;
     draggedStack = { zone: mouseStackDrag.zone, sequence: mouseStackDrag.sequence };
     activeDrag = { type: "stack", zone: mouseStackDrag.zone, sequence: mouseStackDrag.sequence };
@@ -4476,7 +4660,7 @@ function initSkuDragAndDrop(options = {}) {
 
   function onManualStackMouseMove(evt) {
     if (!mouseStackDrag) return;
-    if ((evt.buttons & 1) !== 1) {
+    if (shouldCancelManualDragOnMove(evt)) {
       stopManualStackDrag();
       return;
     }
@@ -4539,6 +4723,7 @@ function initSkuDragAndDrop(options = {}) {
           started: false,
           hoverTarget: null,
         };
+        window.__pgManualDragPrimed = true;
         document.addEventListener("mousemove", onManualUnitMouseMove);
         document.addEventListener("mouseup", onManualUnitMouseUp, true);
         return;
@@ -4557,6 +4742,7 @@ function initSkuDragAndDrop(options = {}) {
         started: false,
         hoverTarget: null,
       };
+      window.__pgManualDragPrimed = true;
       document.addEventListener("mousemove", onManualStackMouseMove);
       document.addEventListener("mouseup", onManualStackMouseUp, true);
     });
@@ -4572,6 +4758,7 @@ function initSkuDragAndDrop(options = {}) {
         evt.preventDefault();
         return;
       }
+      window.__pgManualDragActive = true;
       draggedUnitId = null;
       draggedStack = { zone, sequence };
       activeDrag = { type: "stack", zone, sequence };
@@ -4590,6 +4777,7 @@ function initSkuDragAndDrop(options = {}) {
       draggedUnitId = null;
       draggedStack = null;
       activeDrag = null;
+      window.__pgManualDragActive = false;
       card.classList.remove("dragging");
       clearHighlights();
       setDragLiveText("");
@@ -4713,23 +4901,6 @@ function initSkuDragAndDrop(options = {}) {
     if (!target || !payload) return target;
     if (payload.type !== "sku") return target;
     const zone = getDropTargetZone(target);
-    if (
-      zone === LOWER_DECK_ZONE
-      && ["bigtex", "pj"].includes(SESSION_BRAND)
-      && target.matches
-      && (
-        target.matches("[data-stack-drop]")
-        || target.matches(".unit-card[data-pos-id]")
-      )
-    ) {
-      const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
-      if (lowerDeckTarget) {
-        const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
-        if (lowerDeckPlan && !lowerDeckPlan.stackTarget) {
-          return lowerDeckTarget;
-        }
-      }
-    }
     if (
       target.matches
       && (
@@ -5127,8 +5298,7 @@ function initSkuDragAndDrop(options = {}) {
     }
     if (stacks.length === 1) {
       const lone = stacks[0];
-      const inferredAlignment = inferSingleStackSide(lone);
-      const loneAlignment = _normalizeDropSide(lone.columnAlignment || lone.stackAlignment || inferredAlignment || "");
+      const loneAlignment = _normalizeDropSide(lone.columnAlignment || "");
       if (payloadType === "sku" && loneAlignment && side !== loneAlignment) {
         return {
           side,
@@ -5431,7 +5601,7 @@ function initSkuDragAndDrop(options = {}) {
           payload.dumpHeightFt,
           false,
           payload.addSource,
-          dropSideAlignment,
+          null,
           stackSideAlignment
         );
       } else {
@@ -5468,25 +5638,6 @@ function initSkuDragAndDrop(options = {}) {
       const stackTarget = target.dataset.target;
       const targetSeq = Number(target.dataset.targetSeq || 0);
       if (!zone) return;
-      if (payload.type === "sku" && zone === LOWER_DECK_ZONE && ["bigtex", "pj"].includes(SESSION_BRAND)) {
-        const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
-        const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
-        if (lowerDeckPlan && !lowerDeckPlan.stackTarget) {
-          const dropSideAlignment = lowerDeckPlan.side || null;
-          await addUnit(
-            payload.itemNumber,
-            LOWER_DECK_ZONE,
-            null,
-            lowerDeckPlan.insertIndex,
-            payload.tongueMode,
-            payload.dumpHeightFt,
-            false,
-            payload.addSource,
-            dropSideAlignment
-          );
-          return;
-        }
-      }
       const enableGnCrisscross = _shouldEnableGnCrisscrossOnDrop(payload, target);
       if (payload.type === "sku") {
         const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
@@ -5526,25 +5677,6 @@ function initSkuDragAndDrop(options = {}) {
       const posId = target.dataset.posId;
       const targetSeq = Number(target.dataset.seq || 0);
       if (!zone || !posId) return;
-      if (payload.type === "sku" && zone === LOWER_DECK_ZONE && ["bigtex", "pj"].includes(SESSION_BRAND)) {
-        const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
-        const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
-        if (lowerDeckPlan && !lowerDeckPlan.stackTarget) {
-          const dropSideAlignment = lowerDeckPlan.side || null;
-          await addUnit(
-            payload.itemNumber,
-            LOWER_DECK_ZONE,
-            null,
-            lowerDeckPlan.insertIndex,
-            payload.tongueMode,
-            payload.dumpHeightFt,
-            false,
-            payload.addSource,
-            dropSideAlignment
-          );
-          return;
-        }
-      }
       const enableGnCrisscross = _shouldEnableGnCrisscrossOnDrop(payload, target);
       if (payload.type === "sku") {
         const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
@@ -5610,7 +5742,7 @@ function initSkuDragAndDrop(options = {}) {
             payload.dumpHeightFt,
             false,
             payload.addSource,
-            dropSideAlignment,
+            null,
             stackSideAlignment
           );
         } else {

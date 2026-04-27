@@ -32,6 +32,7 @@ OPTIONAL_COLUMNS = [
     "address1",
     "address2",
     "city",
+    "store",
     "createdate",
     "shipdate",
     "duedate",
@@ -194,6 +195,7 @@ class OrderImporter:
             "city": self._clean_value(row.get("city")),
             "state": self._clean_value(row.get("state")),
             "zip": zip_code,
+            "store": self._clean_value(row.get("store")),
             "created_date": created_date,
             "ship_date": ship_date,
             "sku": sku,
@@ -237,6 +239,7 @@ class OrderImporter:
             cust_name = self._most_common(lines, "cust_name")
             state = self._most_common(lines, "state")
             zip_code = self._most_common(lines, "zip")
+            store = self._most_common(lines, "store")
             address1 = self._most_common(lines, "address1")
             address2 = self._most_common(lines, "address2")
             city = self._most_common(lines, "city")
@@ -255,6 +258,7 @@ class OrderImporter:
                     "city": city,
                     "state": state,
                     "zip": zip_code,
+                    "store": store,
                     "total_qty": total_qty,
                     "total_sales": total_sales,
                     "total_length_ft": total_length,

@@ -86,7 +86,7 @@
             </td>
             {% for fit in (row.stack_fits or []) %}
             <td class="inventory-stack-fit-cell {% if fit.fits %}inventory-fit-yes{% else %}inventory-fit-no{% endif %}">
-              {% if fit.fits and can_add and fit.stack_on_position_id and fit.target_zone %}
+              {% if fit.fits and can_add and fit.stack_on_position_id and fit.target_zone and row.sku_in_db %}
                 <button
                   type="button"
                   class="inventory-add-btn inventory-pick-item inventory-stack-add-btn"

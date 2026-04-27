@@ -68,6 +68,7 @@ ORDER_LINES_COLUMNS = [
     "city",
     "state",
     "zip",
+    "store",
     "created_date",
     "ship_date",
     "sku",
@@ -188,6 +189,7 @@ def _rebuild_order_lines_if_needed(connection):
             city TEXT,
             state TEXT NOT NULL,
             zip TEXT NOT NULL,
+            store TEXT,
             created_date TEXT,
             ship_date TEXT,
             sku TEXT,
@@ -1352,6 +1354,7 @@ def init_db():
         _ensure_column(connection, "order_lines", "city", "city TEXT")
         _ensure_column(connection, "order_lines", "state", "state TEXT")
         _ensure_column(connection, "order_lines", "zip", "zip TEXT")
+        _ensure_column(connection, "order_lines", "store", "store TEXT")
         _ensure_column(connection, "order_lines", "created_date", "created_date TEXT")
         _ensure_column(connection, "order_lines", "ship_date", "ship_date TEXT")
         _ensure_column(connection, "order_lines", "sku", "sku TEXT")
@@ -1651,6 +1654,7 @@ def upsert_order_lines(order_lines):
                         order.get("city"),
                         order.get("state"),
                         order.get("zip"),
+                        order.get("store"),
                         order.get("created_date"),
                         order.get("ship_date"),
                         order.get("sku"),
@@ -1687,6 +1691,7 @@ def upsert_order_lines(order_lines):
                         order.get("city"),
                         order.get("state"),
                         order.get("zip"),
+                        order.get("store"),
                         order.get("created_date"),
                         order.get("ship_date"),
                         order.get("sku"),
@@ -1725,6 +1730,7 @@ def upsert_order_lines(order_lines):
                     city = ?,
                     state = ?,
                     zip = ?,
+                    store = ?,
                     created_date = ?,
                     ship_date = ?,
                     sku = ?,
@@ -1764,6 +1770,7 @@ def upsert_order_lines(order_lines):
                     city,
                     state,
                     zip,
+                    store,
                     created_date,
                     ship_date,
                     sku,
@@ -1775,7 +1782,7 @@ def upsert_order_lines(order_lines):
                     is_excluded,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 insert_rows,
             )

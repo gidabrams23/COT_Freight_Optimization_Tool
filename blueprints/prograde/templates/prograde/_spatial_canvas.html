@@ -460,14 +460,16 @@ body.pg-sku-drag-active .pg-lower-side-label {
         {% endif %}
 
         {% set lower_drop_w = step_x_ft * px_per_ft %}
-        {% if session.brand == 'bigtex' %}
+        {% if session.brand in ['bigtex', 'pj'] %}
           {% set lower_half_w = lower_drop_w / 2 %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="left"/>
           <rect x="{{ margin_l + lower_half_w }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="right"/>
+          {% if session.brand == 'bigtex' %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" class="pg-lower-side-guide"/>
           <rect x="{{ margin_l + lower_half_w }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" class="pg-lower-side-guide"/>
           <text id="pg-lower-side-label-left" class="pg-lower-side-label" x="{{ margin_l + (lower_half_w / 2) }}" y="{{ stack_plot_y + 14 }}" text-anchor="middle">Left Stack</text>
           <text id="pg-lower-side-label-right" class="pg-lower-side-label" x="{{ margin_l + lower_half_w + (lower_half_w / 2) }}" y="{{ stack_plot_y + 14 }}" text-anchor="middle">Right Stack</text>
+          {% endif %}
         {% else %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_drop_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck"/>
         {% endif %}
@@ -577,8 +579,10 @@ body.pg-sku-drag-active .pg-lower-side-label {
               {% endif %}
               {# Non-gooseneck units above a crisscross-stacked GN support inherit that
                  support's visual backshift so they stay aligned with the visually shifted
-                 GN deck zone and don't render over the top GN unit's tongue. #}
-              {% if (pos.render_tongue_profile or 'standard') != 'gooseneck' %}
+                 GN deck zone and don't render over the top GN unit's tongue.
+                 Upside-down GNs (4th layer rule) also inherit that host backshift so
+                 their inverted deck aligns to the visual host GN, not the base GN. #}
+              {% if (pos.render_tongue_profile or 'standard') != 'gooseneck' or (pos.gn_upside_down and not pos.gn_crisscross) %}
                 {% set inh = namespace(found=false, support_layer=0, support_rotated=false, steps=0) %}
                 {% for peer in col_sorted %}
                   {% set peer_layer_n = [((peer.layer or 1) | int), 1] | max %}
@@ -797,8 +801,9 @@ body.pg-sku-drag-active .pg-lower-side-label {
               {% set drag_hit_bottom = drag_bound_y1 + drag_pad_bottom %}
               {% set drag_hit_w = [drag_bound_x1 - drag_bound_x0 + (drag_pad_x * 2), 18] | max %}
               {% set drag_hit_h = [[drag_hit_bottom - drag_hit_y, 14] | max, 240] | min %}
+              {% set geometry_flip_translate_y = render_top_y + render_bottom_y %}
 
-              <g class="unit-card pg-spatial-unit {{ source_class }} {% if pos.is_nested %}nested{% endif %}"
+              <g class="unit-card pg-spatial-unit {{ source_class }} {% if pos.is_nested %}nested{% endif %} {% if pos.gn_upside_down %}gn-upside-down{% endif %}"
                  id="pos-{{ pos.position_id }}"
                  draggable="true"
                  data-pos-id="{{ pos.position_id }}"
@@ -813,9 +818,11 @@ body.pg-sku-drag-active .pg-lower-side-label {
                  data-deck-x1="{{ x_end_px }}"
                  data-tongue-profile="{{ tongue_profile }}"
                  data-gn-crisscross="{% if pos.gn_crisscross %}1{% else %}0{% endif %}"
+                 data-gn-upside-down="{% if pos.gn_upside_down %}1{% else %}0{% endif %}"
                  data-tongue-pill-class="unit-tongue-pill {% if tongue_profile == 'gooseneck' %}gn{% else %}std{% endif %}"
                  data-is-rotated="{% if pos.is_rotated %}1{% else %}0{% endif %}"
-                 data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | Source: {{ pos.add_source_label or 'Unspecified' }} | x={{ '%.2f'|format(x_start_ft) }} ft | Deck (render): {{ '%.1f'|format(deck_len) }} ft | Tongue (render): {{ '%.1f'|format(tongue_len) }} ft{% if session.brand == 'bigtex' %} | Tongue (occupied): {{ '%.1f'|format(occupied_tongue_len) }} ft{% endif %} | Height (render): {{ '%.1f'|format(deck_h) }} ft{% if pos.gn_crisscross %} | GN crisscross: on{% endif %}">
+                 data-tooltip="{{ pos.item_number }} | {{ pos.model or 'N/A' }} | {{ pos.pj_category or pos.mcat or 'Unmapped' }} | Source: {{ pos.add_source_label or 'Unspecified' }} | x={{ '%.2f'|format(x_start_ft) }} ft | Deck (render): {{ '%.1f'|format(deck_len) }} ft | Tongue (render): {{ '%.1f'|format(tongue_len) }} ft{% if session.brand == 'bigtex' %} | Tongue (occupied): {{ '%.1f'|format(occupied_tongue_len) }} ft{% endif %} | Height (render): {{ '%.1f'|format(deck_h) }} ft{% if pos.gn_crisscross %} | GN crisscross: on{% endif %}{% if pos.gn_upside_down %} | GN upside-down: on{% endif %}">
+                <g class="pg-unit-geometry{% if pos.gn_upside_down %} gn-upside-down{% endif %}"{% if pos.gn_upside_down %} transform="translate(0 {{ '%.3f'|format(geometry_flip_translate_y) }}) scale(1 -1)"{% endif %}>
                 {% if session.brand in ['pj', 'bigtex'] %}
                   {% if is_dump_profile %}
                   <rect class="pg-unit-body"
@@ -951,6 +958,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                     <circle cx="{{ tongue_tip_px - 3 }}" cy="{{ tongue_y_px + 1.2 }}" r="1.4" fill="{{ accent }}" clip-path="url(#pg-clip-cab)"/>
                   {% endif %}
                 {% endif %}
+                </g>
 
                 <g class="pg-unit-drag-handle">
                   <circle class="pg-unit-badge-core" cx="{{ unit_badge_cx }}" cy="{{ unit_badge_cy }}" r="{{ unit_badge_r }}" fill="rgba(2,6,23,0.88)" stroke="{{ accent }}" stroke-width="1"/>

@@ -5498,12 +5498,33 @@ def _normalize_order_identifier(value, fallback=""):
     return text if text else str(fallback or "").strip()
 
 
+def _stop_key_for_stop(stop):
+    state = (stop.get("state") or "").strip().upper()
+    raw_zip = (stop.get("zip") or "").strip()
+    normalized_zip = geo_utils.normalize_zip(raw_zip)
+    zip_value = normalized_zip or raw_zip
+    store = (stop.get("store") or "").strip()
+    if store:
+        return f"{state}|{zip_value}|{store}"
+    return f"{state}|{zip_value}"
+
+
+def _stop_key_for_line(line):
+    store = (line.get("store") or "").strip()
+    if store:
+        return _line_stop_key(line.get("state"), line.get("zip")) + f"|{store}"
+    return _line_stop_key(line.get("state"), line.get("zip"))
+
+
 def _stop_sequence_map_from_ordered_stops(ordered_stops):
     sequence = {}
     for idx, stop in enumerate(ordered_stops or [], start=1):
-        key = _line_stop_key(stop.get("state"), stop.get("zip"))
+        key = _stop_key_for_stop(stop)
         if key and key not in sequence:
             sequence[key] = idx
+        fallback = _line_stop_key(stop.get("state"), stop.get("zip"))
+        if fallback and fallback not in sequence:
+            sequence[fallback] = idx
     return sequence
 
 
@@ -5574,7 +5595,7 @@ def _build_order_colors_for_lines(lines, stop_sequence_map=None, stop_palette=No
         stop_sequence = None
         if stop_sequence_map:
             stop_sequence = stop_sequence_map.get(
-                _line_stop_key(line.get("state"), line.get("zip"))
+                _stop_key_for_line(line)
             )
         stop_value = _coerce_int_value(stop_sequence, 0)
         if stop_value <= 0:
@@ -5785,12 +5806,14 @@ def _build_route_stops_for_lines(lines, zip_coords):
     for line in lines or []:
         zip_code = geo_utils.normalize_zip(line.get("zip"))
         state = (line.get("state") or "").strip().upper()
-        key = f"{zip_code}|{state}"
+        store = (line.get("store") or "").strip()
+        key = f"{zip_code}|{state}|{store}" if store else f"{zip_code}|{state}"
         if key not in stop_map:
             coords = zip_coords.get(zip_code) if zip_code else None
             stop_map[key] = {
                 "zip": zip_code,
                 "state": state,
+                "store": store,
                 "lat": coords[0] if coords else None,
                 "lng": coords[1] if coords else None,
                 "coords": coords,
@@ -5805,6 +5828,7 @@ def _build_route_stops_for_lines(lines, zip_coords):
             {
                 "zip": stop.get("zip"),
                 "state": stop.get("state"),
+                "store": stop.get("store") or "",
                 "city": stop.get("city") or "",
                 "customers": sorted(stop.get("customers") or []),
                 "lat": stop.get("lat"),
@@ -5830,7 +5854,7 @@ def _build_schematic_line_items(lines, sku_specs, trailer_type, stop_sequence_ma
             upper_max_stack = max_stack
         stop_sequence = None
         if stop_sequence_map:
-            stop_sequence = stop_sequence_map.get(_line_stop_key(line.get("state"), line.get("zip")))
+            stop_sequence = stop_sequence_map.get(_stop_key_for_line(line))
         line_items.append(
             {
                 "item": line.get("item"),
@@ -5973,7 +5997,7 @@ def _build_schematic_units(lines, sku_specs, trailer_type, stop_sequence_map=Non
         order_id = _normalize_order_identifier(line.get("so_num"))
         stop_sequence = None
         if stop_sequence_map:
-            stop_sequence = stop_sequence_map.get(_line_stop_key(line.get("state"), line.get("zip")))
+            stop_sequence = stop_sequence_map.get(_stop_key_for_line(line))
         order_line_id = line.get("order_line_id") or line.get("id") or line_idx
         fallback_color = _color_for_stop_sequence(stop_sequence)
         for unit_index in range(qty):
@@ -10259,7 +10283,8 @@ def loads():
             order_id = _normalize_order_identifier(line.get("so_num"), fallback="UNKNOWN")
             stop_state = (line.get("state") or "").strip().upper()
             stop_zip = geo_utils.normalize_zip(line.get("zip")) or (line.get("zip") or "").strip()
-            group_key = f"{order_id}|{stop_state}|{stop_zip}"
+            stop_store = (line.get("store") or "").strip()
+            group_key = f"{order_id}|{stop_state}|{stop_zip}|{stop_store}" if stop_store else f"{order_id}|{stop_state}|{stop_zip}"
             group = group_map.get(group_key)
             if not group:
                 group = {
@@ -10270,6 +10295,7 @@ def loads():
                     "city": line.get("city") or "",
                     "state": stop_state,
                     "zip": stop_zip,
+                    "store": stop_store,
                     "total_qty": 0,
                     "status_label": "",
                     "sku_set": set(),
@@ -10401,9 +10427,9 @@ def loads():
         load["order_count"] = len(order_colors)
 
         for group in manifest_groups:
-            group["stop_key"] = _line_stop_key(group.get("state"), group.get("zip"))
+            group["stop_key"] = _stop_key_for_line(group)
             stop_sequence = stop_sequence_map.get(
-                _line_stop_key(group.get("state"), group.get("zip"))
+                _stop_key_for_line(group)
             )
             group["stop_sequence"] = stop_sequence
             group["color"] = order_colors.get(
@@ -11806,7 +11832,7 @@ def _build_load_report_rows(loads):
             city = (line.get("city") or "").strip()
             zip_code = (line.get("zip") or "").strip()
             cust_name = (line.get("cust_name") or "").strip()
-            stop_order = stop_sequence_map.get(_line_stop_key(state, zip_code))
+            stop_order = stop_sequence_map.get(_stop_key_for_line(line))
             due_obj = _parse_date(line.get("due_date"))
             due_label = due_obj.isoformat() if due_obj else (line.get("due_date") or "")
             qty = float(line.get("qty") or 0)
@@ -12091,7 +12117,7 @@ def _build_load_sheet_stops(load):
 
     stops_by_key = {}
     for line in lines:
-        key = _line_stop_key(line.get("state"), line.get("zip"))
+        key = _stop_key_for_line(line)
         if key not in stops_by_key:
             stops_by_key[key] = {
                 "stop_key": key,
@@ -14030,7 +14056,7 @@ def load_detail(load_id):
                 "status": status,
                 "early_days": early_days,
                 "stop_sequence": stop_sequence_map.get(
-                    _line_stop_key(line.get("state"), line.get("zip"))
+                    _stop_key_for_line(line)
                 ),
             }
         )

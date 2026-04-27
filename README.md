@@ -68,6 +68,20 @@ python app.py
 
 Open `http://127.0.0.1:5000` in your browser. You should land on the home page and be able to navigate between sections using the app's navigation links or menu.
 
+Windows dev auto-reload (PowerShell):
+
+```powershell
+.\scripts\dev.ps1
+```
+
+Optional flags:
+
+```powershell
+.\scripts\dev.ps1 -Port 5050
+.\scripts\dev.ps1 -Host 0.0.0.0 -Port 5000
+.\scripts\dev.ps1 -NoReload
+```
+
 ## Daily Open Orders Refresh Workflow
 
 The Orders page now shows an **Up to Date / Outdated** intake status and a step-by-step guide modal.

@@ -1333,6 +1333,164 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2})
 
+    def test_pj_multi_stack_side_insert_reuses_existing_side_stack(self):
+        profile_id = self.db.create_access_profile("PJ Multi Side Reuse Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Multi Side Reuse Tester",
+            "PJ Multi Side Reuse Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Multi Side Reuse Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-MULTI-SIDE", "UT", "utility", 16.0, 16.0, 4.0, 20.0),
+            )
+
+        add_left = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-MULTI-SIDE", "deck_zone": "lower_deck", "column_alignment": "left"},
+        )
+        self.assertEqual(add_left.status_code, 200)
+        self.assertTrue((add_left.get_json() or {}).get("ok"))
+
+        add_right = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-MULTI-SIDE",
+                "deck_zone": "lower_deck",
+                "insert_index": 1,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(add_right.status_code, 200)
+        self.assertTrue((add_right.get_json() or {}).get("ok"))
+
+        add_left_again = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-MULTI-SIDE",
+                "deck_zone": "lower_deck",
+                "insert_index": 0,
+                "column_alignment": "left",
+            },
+        )
+        self.assertEqual(add_left_again.status_code, 200)
+        self.assertTrue((add_left_again.get_json() or {}).get("ok"))
+
+        add_right_again = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-MULTI-SIDE",
+                "deck_zone": "lower_deck",
+                "insert_index": 1,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(add_right_again.status_code, 200)
+        self.assertTrue((add_right_again.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 4)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2})
+        self.assertEqual(
+            sorted(int(r["layer"]) for r in rows if int(r["sequence"]) == 1),
+            [1, 2],
+        )
+        self.assertEqual(
+            sorted(int(r["layer"]) for r in rows if int(r["sequence"]) == 2),
+            [1, 2],
+        )
+
+    def test_pj_multi_stack_side_insert_reuses_edge_stack_when_base_alignment_missing(self):
+        profile_id = self.db.create_access_profile("PJ Missing Alignment Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Missing Alignment Tester",
+            "PJ Missing Alignment Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Missing Alignment Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-MISSING-ALIGN", "UT", "utility", 16.0, 16.0, 4.0, 20.0),
+            )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-MISSING-ALIGN",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-MISSING-ALIGN",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+        )
+
+        add_left = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-MISSING-ALIGN",
+                "deck_zone": "lower_deck",
+                "insert_index": 0,
+                "column_alignment": "left",
+            },
+        )
+        self.assertEqual(add_left.status_code, 200)
+        self.assertTrue((add_left.get_json() or {}).get("ok"))
+
+        add_right = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-MISSING-ALIGN",
+                "deck_zone": "lower_deck",
+                "insert_index": 1,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(add_right.status_code, 200)
+        self.assertTrue((add_right.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 4)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2})
+        self.assertEqual(
+            sorted(int(r["layer"]) for r in rows if int(r["sequence"]) == 1),
+            [1, 2],
+        )
+        self.assertEqual(
+            sorted(int(r["layer"]) for r in rows if int(r["sequence"]) == 2),
+            [1, 2],
+        )
+
     def test_pj_add_on_stack_persists_stack_alignment_override(self):
         profile_id = self.db.create_access_profile("PJ Stack Alignment Tester")
         self._set_active_profile(profile_id)
@@ -2680,6 +2838,317 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(bool(lower["is_rotated"]), bool(upper["is_rotated"]))
         self.assertIn("gn_crisscross:1", str(lower.get("override_reason") or ""))
         self.assertIn("gn_crisscross:1", str(upper.get("override_reason") or ""))
+
+    def test_pj_fourth_selected_gooseneck_tongue_auto_flips_and_marks_upside_down(self):
+        profile_id = self.db.create_access_profile("PJ Gooseneck Pattern Planner")
+        self._set_active_profile(profile_id)
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Gooseneck Pattern Planner",
+            "PJ Gooseneck Pattern Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Gooseneck Pattern Planner",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-PATTERN", "CC", "utility", 30.0, 30.0, 9.0, 39.0),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-GN-PATTERN", "deck_zone": "lower_deck", "pj_tongue_profile": "gooseneck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json() or {}
+        self.assertTrue(base_payload.get("ok"))
+        base_position_id = str(base_payload.get("position_id") or "")
+        self.assertTrue(base_position_id)
+
+        rotate_base = self.client.post(
+            f"/prograde/api/session/{session_id}/rotate",
+            json={"position_id": base_position_id},
+        )
+        self.assertEqual(rotate_base.status_code, 200)
+        rotate_payload = rotate_base.get_json() or {}
+        self.assertTrue(rotate_payload.get("ok"))
+        self.assertEqual(int(rotate_payload.get("is_rotated") or 0), 1)
+
+        add_second = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN-PATTERN",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_second.status_code, 200)
+        second_payload = add_second.get_json() or {}
+        self.assertTrue(second_payload.get("ok"))
+        second_position_id = str(second_payload.get("position_id") or "")
+        self.assertTrue(second_position_id)
+
+        add_third = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN-PATTERN",
+                "deck_zone": "lower_deck",
+                "stack_on": second_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_third.status_code, 200)
+        third_payload = add_third.get_json() or {}
+        self.assertTrue(third_payload.get("ok"))
+        third_position_id = str(third_payload.get("position_id") or "")
+        self.assertTrue(third_position_id)
+
+        session_row_pre = dict(self.db.get_session(session_id) or {})
+        carrier_row_pre = self.db.get_carrier_config("53_step_deck")
+        zones_pre = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas_pre = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row_pre,
+            carrier=carrier_row_pre,
+            zones=zones_pre,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        pre_rows = [dict(p) for p in (canvas_pre.get("enriched_positions") or [])]
+        pre_by_layer = {int(r.get("layer") or 0): r for r in pre_rows}
+        self.assertIn(1, pre_by_layer)
+        self.assertIn(2, pre_by_layer)
+        self.assertIn(3, pre_by_layer)
+        pre_layer_starts = {
+            layer: float((pre_by_layer[layer] or {}).get("deck_x_start_ft") or 0.0)
+            for layer in (1, 2, 3)
+        }
+
+        add_fourth = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN-PATTERN",
+                "deck_zone": "lower_deck",
+                "stack_on": third_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_fourth.status_code, 200)
+        fourth_payload = add_fourth.get_json() or {}
+        self.assertTrue(fourth_payload.get("ok"))
+        self.assertFalse(bool(fourth_payload.get("gn_crisscross_applied")))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 4)
+        rows.sort(key=lambda r: int(r.get("layer") or 0))
+        layer_1, layer_2, layer_3, layer_4 = rows
+
+        self.assertTrue(bool(layer_1.get("is_rotated")))
+        self.assertTrue(bool(layer_2.get("is_rotated")))
+        self.assertTrue(bool(layer_3.get("is_rotated")))
+        self.assertFalse(bool(layer_4.get("is_rotated")))
+
+        self.assertNotIn("gn_upside_down:1", str(layer_1.get("override_reason") or ""))
+        self.assertNotIn("gn_upside_down:1", str(layer_2.get("override_reason") or ""))
+        self.assertNotIn("gn_upside_down:1", str(layer_3.get("override_reason") or ""))
+        self.assertIn("gn_upside_down:1", str(layer_4.get("override_reason") or ""))
+
+        session_row_post = dict(self.db.get_session(session_id) or {})
+        carrier_row_post = self.db.get_carrier_config("53_step_deck")
+        zones_post = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas_post = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row_post,
+            carrier=carrier_row_post,
+            zones=zones_post,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        post_rows = [dict(p) for p in (canvas_post.get("enriched_positions") or [])]
+        post_by_layer = {int(r.get("layer") or 0): r for r in post_rows}
+        self.assertIn(4, post_by_layer)
+
+        # Adding the 4th inverted GN should not reseat earlier layers in the stack.
+        for layer in (1, 2, 3):
+            self.assertIn(layer, post_by_layer)
+            self.assertAlmostEqual(
+                float((post_by_layer[layer] or {}).get("deck_x_start_ft") or 0.0),
+                pre_layer_starts[layer],
+                places=3,
+            )
+
+        host_layer = post_by_layer[3]
+        top_layer = post_by_layer[4]
+        host_is_rotated = bool((host_layer or {}).get("is_rotated"))
+        host_wall_x = (
+            float((host_layer or {}).get("deck_x_start_ft") or 0.0)
+            if host_is_rotated
+            else float((host_layer or {}).get("deck_x_end_ft") or 0.0)
+        )
+        top_is_rotated = bool((top_layer or {}).get("is_rotated"))
+        top_back_of_deck_x = (
+            float((top_layer or {}).get("deck_x_end_ft") or 0.0)
+            if top_is_rotated
+            else float((top_layer or {}).get("deck_x_start_ft") or 0.0)
+        )
+        self.assertAlmostEqual(top_back_of_deck_x, host_wall_x, places=3)
+
+        load_page = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(load_page.status_code, 200)
+        html = load_page.get_data(as_text=True)
+        self.assertIn("pg-unit-geometry gn-upside-down", html)
+        self.assertIn("scale(1 -1)", html)
+        rendered_x_by_layer = {}
+        for layer_s, x_s in re.findall(
+            r'data-layer="(\d+)".*?data-tooltip="[^"]*?\|\s*x=([-0-9.]+)\s*ft',
+            html,
+            flags=re.DOTALL,
+        ):
+            layer_n = int(layer_s)
+            if layer_n not in rendered_x_by_layer:
+                rendered_x_by_layer[layer_n] = float(x_s)
+        self.assertIn(3, rendered_x_by_layer)
+        self.assertIn(4, rendered_x_by_layer)
+        # The 4th inverted GN should inherit the host (3rd layer) visual offset.
+        self.assertAlmostEqual(rendered_x_by_layer[4], rendered_x_by_layer[3], places=2)
+
+    def test_pj_rotating_base_reflows_selected_gooseneck_tongue_stack(self):
+        profile_id = self.db.create_access_profile("PJ Gooseneck Rotate Reflow Planner")
+        self._set_active_profile(profile_id)
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Gooseneck Rotate Reflow Planner",
+            "PJ Gooseneck Rotate Reflow Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Gooseneck Rotate Reflow Planner",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-REFLOW", "CC", "utility", 30.0, 30.0, 9.0, 39.0),
+            )
+
+        add_base = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={"item_number": "PJ-GN-REFLOW", "deck_zone": "lower_deck", "pj_tongue_profile": "gooseneck"},
+        )
+        self.assertEqual(add_base.status_code, 200)
+        base_payload = add_base.get_json() or {}
+        self.assertTrue(base_payload.get("ok"))
+        base_position_id = str(base_payload.get("position_id") or "")
+        self.assertTrue(base_position_id)
+
+        add_second = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN-REFLOW",
+                "deck_zone": "lower_deck",
+                "stack_on": base_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_second.status_code, 200)
+        second_payload = add_second.get_json() or {}
+        self.assertTrue(second_payload.get("ok"))
+        second_position_id = str(second_payload.get("position_id") or "")
+        self.assertTrue(second_position_id)
+
+        add_third = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-GN-REFLOW",
+                "deck_zone": "lower_deck",
+                "stack_on": second_position_id,
+                "pj_tongue_profile": "gooseneck",
+            },
+        )
+        self.assertEqual(add_third.status_code, 200)
+        third_payload = add_third.get_json() or {}
+        self.assertTrue(third_payload.get("ok"))
+
+        rotate_base = self.client.post(
+            f"/prograde/api/session/{session_id}/rotate",
+            json={"position_id": base_position_id},
+        )
+        self.assertEqual(rotate_base.status_code, 200)
+        rotate_payload = rotate_base.get_json() or {}
+        self.assertTrue(rotate_payload.get("ok"))
+        self.assertEqual(int(rotate_payload.get("is_rotated") or 0), 1)
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 3)
+        rows.sort(key=lambda r: int(r.get("layer") or 0))
+        layer_1, layer_2, layer_3 = rows
+
+        self.assertTrue(bool(layer_1.get("is_rotated")))
+        self.assertTrue(bool(layer_2.get("is_rotated")))
+        self.assertTrue(bool(layer_3.get("is_rotated")))
+        self.assertNotIn("gn_upside_down:1", str(layer_1.get("override_reason") or ""))
+        self.assertNotIn("gn_upside_down:1", str(layer_2.get("override_reason") or ""))
+        self.assertNotIn("gn_upside_down:1", str(layer_3.get("override_reason") or ""))
+
+    def test_pj_canvas_normalizes_legacy_fourth_gooseneck_orientation_for_render(self):
+        profile_id = self.db.create_access_profile("PJ Legacy Gooseneck Render Planner")
+        self._set_active_profile(profile_id)
+
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Legacy Gooseneck Render Planner",
+            "PJ Legacy Gooseneck Render Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Legacy Gooseneck Render Planner",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-LEGACY", "CC", "utility", 30.0, 30.0, 9.0, 39.0),
+            )
+
+        for layer in (1, 2, 3, 4):
+            self.db.add_position(
+                position_id=str(uuid.uuid4()),
+                session_id=session_id,
+                brand="pj",
+                item_number="PJ-GN-LEGACY",
+                deck_zone="lower_deck",
+                layer=layer,
+                sequence=1,
+                override_reason="tongue_profile:gooseneck",
+                is_rotated=0,
+            )
+
+        load_page = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(load_page.status_code, 200)
+        html = load_page.get_data(as_text=True)
+        self.assertIn("pg-unit-geometry gn-upside-down", html)
+        self.assertIn("scale(1 -1)", html)
 
     def test_bigtex_flatbed_canvas_normalizes_upper_zone_to_lower_deck_surface(self):
         profile_id = self.db.create_access_profile("BT Flatbed Zone Tester")

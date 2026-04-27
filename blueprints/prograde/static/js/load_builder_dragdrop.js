@@ -391,10 +391,8 @@ document.getElementById("zone-modal").addEventListener("click", function (e) {
   if (e.target === this) closeModal();
 });
 initSkuHierarchyControls();
-renderSkuTree();
 applySkuFilter(SKU_FILTER ? SKU_FILTER.value : "");
 initRenderModeToggle();
 initDeckScale();
 initSchematicHoverTooltips();
-initSkuDragAndDrop();
 initInventoryUploadControls();

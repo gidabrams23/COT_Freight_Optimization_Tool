@@ -191,6 +191,7 @@ def _build_inventory_row(candidate, stack_fits):
         "available_built_count": candidate.get("available_built_count"),
         "available_future_count": candidate.get("available_future_count"),
         "is_unmapped": bool(candidate.get("is_unmapped")),
+        "sku_in_db": bool(candidate.get("sku_in_db", True)),
         "default_tongue_profile": candidate.get("default_tongue_profile") or "standard",
         "catalog_only": bool(candidate.get("catalog_only")),
         "fits_gap": fit_count > 0,
@@ -1006,6 +1007,7 @@ def _build_pj_upload_candidates(pj_sku_map, whse_code="", *, pj_height_ref):
         item_number = str(row.get("item_number") or "").strip().upper()
         if not item_number:
             continue
+        sku_in_db = bool(pj_sku_map.get(item_number))
         sku = dict(pj_sku_map.get(item_number) or {})
         if not sku and row.get("sku_model"):
             sku = {
@@ -1069,6 +1071,7 @@ def _build_pj_upload_candidates(pj_sku_map, whse_code="", *, pj_height_ref):
                 "available_built_count": 0,
                 "available_future_count": 0,
                 "is_unmapped": match_method == "unmapped",
+                "sku_in_db": sku_in_db,
                 "default_tongue_profile": default_tongue,
                 "default_override_reason": default_override,
                 "catalog_only": False,
