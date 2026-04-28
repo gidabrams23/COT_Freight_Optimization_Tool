@@ -3,6 +3,119 @@
 
 {% block content %}
 {% set selected_brand = selected_brand | default('bigtex') %}
+<style>
+.pg-sessions-two-pane {
+  display: grid;
+  grid-template-columns: minmax(480px, 0.94fr) minmax(520px, 1.06fr);
+  gap: 12px;
+  align-items: start;
+}
+.pg-sessions-list-card,
+.pg-sessions-preview-card {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.94) 0%, rgba(12, 20, 36, 0.92) 100%);
+}
+.pg-sessions-two-pane > .card + .card {
+  margin-top: 0;
+}
+.pg-sessions-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+.pg-sessions-list-subtitle {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.pg-session-row {
+  cursor: pointer;
+}
+.pg-session-row td {
+  transition: background-color 0.14s ease;
+}
+.pg-sessions-list-card table.pg-sessions-table tbody td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.pg-session-row:hover td {
+  background: rgba(30, 58, 138, 0.24);
+}
+.pg-session-row.active td {
+  background: rgba(30, 64, 175, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+.pg-session-head-session,
+.pg-session-head-updated,
+.pg-session-cell-session,
+.pg-session-cell-updated {
+  white-space: nowrap;
+}
+.pg-preview-open-btn {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ecfdf5;
+}
+.pg-preview-open-btn:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+.pg-preview-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.pg-session-preview-shell {
+  display: grid;
+  gap: 12px;
+}
+.pg-session-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pg-session-preview-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.pg-session-preview-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.pg-session-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pg-session-preview-actions form {
+  margin: 0;
+}
+.pg-session-preview-schematic {
+  padding: 0;
+  overflow: hidden;
+}
+.pg-session-preview-schematic .card-header {
+  padding: 10px 12px;
+}
+.pg-preview-static .pg-spatial-unit,
+.pg-preview-static .pg-spatial-unit *,
+.pg-preview-static .pg-unit-control,
+.pg-preview-static .pg-unit-control * {
+  pointer-events: none !important;
+}
+@media (max-width: 1320px) {
+  .pg-sessions-two-pane {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
 <div class="page-header">
   <div>
     <div class="page-title">Saved Sessions</div>
@@ -34,69 +147,149 @@
   </div>
   {% endif %}
 
-  <div class="card">
-    <div class="card-header">
-      <div>
-        <div class="card-title">{{ 'PJ' if selected_brand == 'pj' else 'Big Tex' }} Sessions</div>
-        <div class="card-subtitle">
-          {% if can_manage_sessions %}
-          {{ sessions|length }} saved session{% if sessions|length != 1 %}s{% endif %} across all planners
-          {% else %}
-          {{ sessions|length }} of your saved session{% if sessions|length != 1 %}s{% endif %}
-          {% endif %}
+  <div class="pg-sessions-two-pane">
+    <div class="card pg-sessions-list-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">{{ 'PJ' if selected_brand == 'pj' else 'Big Tex' }} Sessions</div>
+          <div class="card-subtitle">
+            {% if can_manage_sessions %}
+            {{ sessions|length }} saved session{% if sessions|length != 1 %}s{% endif %} across all planners
+            {% else %}
+            {{ sessions|length }} of your saved session{% if sessions|length != 1 %}s{% endif %}
+            {% endif %}
+          </div>
         </div>
       </div>
+
+      <div class="table-wrap">
+        <table class="pg-sessions-table">
+          <thead>
+            <tr>
+              <th class="pg-session-head-session">Session</th>
+              <th>Built By</th>
+              <th>Carrier</th>
+              <th>QTY</th>
+              <th class="pg-session-head-updated">Updated</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="pg-session-list-body">
+            {% if sessions %}
+              {% for s in sessions %}
+              <tr
+                class="pg-session-row"
+                data-session-id="{{ s.session_id }}"
+                data-preview-url="{{ url_for('prograde.session_preview', session_id=s.session_id, brand=selected_brand) }}"
+              >
+                <td class="td-mono pg-session-cell-session">{{ s.display_id or s.session_id }}</td>
+                <td>{{ s.builder_name or '-' }}</td>
+                <td>{{ s.carrier_type or '-' }}</td>
+                <td class="td-mono td-qty">{{ (s.trailer_qty if s.trailer_qty is not none else 0)|int }}</td>
+                <td class="td-mono pg-session-cell-updated">{{ (s.updated_at or s.created_at or '-')|string|replace('T', ' ')|replace('Z', '') }}</td>
+                <td>
+                  {% if s.is_saved %}
+                  <span class="badge badge-success">Saved</span>
+                  {% else %}
+                  <span class="badge badge-neutral">{{ s.status or 'draft' }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" style="text-align:center;color:var(--text-secondary);padding:16px;">No saved sessions yet.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Session</th>
-            <th>Label</th>
-            <th>Built By</th>
-            <th>Carrier</th>
-            <th>QTY</th>
-            <th>Updated</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% if sessions %}
-            {% for s in sessions %}
-            <tr>
-              <td class="td-mono">{{ s.display_id or s.session_id }}</td>
-              <td>{{ s.session_label or '-' }}</td>
-              <td>{{ s.builder_name or '-' }}</td>
-              <td>{{ s.carrier_type or '-' }}</td>
-              <td class="td-mono td-qty">{{ (s.trailer_qty if s.trailer_qty is not none else 0)|int }}</td>
-              <td class="td-mono">{{ (s.updated_at or s.created_at or '-')|string|replace('T', ' ')|replace('Z', '') }}</td>
-              <td>
-                {% if s.is_saved %}
-                <span class="badge badge-success">Saved</span>
-                {% else %}
-                <span class="badge badge-neutral">{{ s.status or 'draft' }}</span>
-                {% endif %}
-              </td>
-              <td>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                  <a href="{{ url_for('prograde.load_builder', session_id=s.session_id, brand=selected_brand) }}" class="btn btn-secondary btn-sm">Open</a>
-                  <a href="{{ url_for('prograde.export_load_pdf', session_id=s.session_id, brand=selected_brand) }}" class="btn btn-ghost btn-sm">PDF</a>
-                  <form method="POST" action="{{ url_for('prograde.session_delete', session_id=s.session_id) }}" onsubmit="return confirm('Delete this session?');">
-                    <button type="submit" class="btn btn-ghost btn-sm">Delete</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          {% else %}
-            <tr>
-              <td colspan="8" style="text-align:center;color:var(--text-secondary);padding:16px;">No saved sessions yet.</td>
-            </tr>
-          {% endif %}
-        </tbody>
-      </table>
+
+    <div class="card pg-sessions-preview-card" id="pg-session-preview-panel">
+      {% if sessions %}
+      <div class="pg-preview-loading">Loading preview...</div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-state-title">No Saved Sessions</div>
+        <div class="empty-state-body">Create a load to start building session previews.</div>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>
+
+<script>
+(() => {
+  const rows = Array.from(document.querySelectorAll('.pg-session-row'));
+  const previewPanel = document.getElementById('pg-session-preview-panel');
+  if (!rows.length || !previewPanel) {
+    return;
+  }
+
+  let activeSessionId = null;
+  let pendingController = null;
+
+  function setActiveRow(sessionId) {
+    rows.forEach((row) => {
+      row.classList.toggle('active', row.dataset.sessionId === sessionId);
+    });
+  }
+
+  async function loadPreview(row) {
+    const sessionId = row?.dataset?.sessionId;
+    const previewUrl = row?.dataset?.previewUrl;
+    if (!sessionId || !previewUrl) {
+      return;
+    }
+    if (pendingController) {
+      pendingController.abort();
+      pendingController = null;
+    }
+    pendingController = new AbortController();
+    activeSessionId = sessionId;
+    setActiveRow(sessionId);
+    previewPanel.innerHTML = '<div class="pg-preview-loading">Loading preview...</div>';
+
+    try {
+      const resp = await fetch(previewUrl, {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        signal: pendingController.signal
+      });
+      if (!resp.ok) {
+        throw new Error(`Preview request failed: ${resp.status}`);
+      }
+      const html = await resp.text();
+      if (activeSessionId !== sessionId) {
+        return;
+      }
+      previewPanel.innerHTML = html;
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        return;
+      }
+      previewPanel.innerHTML = '<div class="empty-state"><div class="empty-state-title">Preview Unavailable</div><div class="empty-state-body">Unable to load this session preview right now.</div></div>';
+    } finally {
+      if (pendingController && pendingController.signal.aborted) {
+        return;
+      }
+      pendingController = null;
+    }
+  }
+
+  rows.forEach((row) => {
+    row.addEventListener('click', (event) => {
+      if (event.target.closest('a, button, form, input, select, textarea')) {
+        return;
+      }
+      loadPreview(row);
+    });
+  });
+
+  loadPreview(rows[0]);
+})();
+</script>
 {% endblock %}

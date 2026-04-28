@@ -1882,6 +1882,57 @@ def _format_session_display_id(session):
     return f"{prefix} {date_label} #{sequence}"
 
 
+def _build_session_preview_payload(session_row):
+    session_dict = dict(session_row or {})
+    if not session_dict:
+        return None
+    session_dict["builder_name"] = _resolve_session_builder_name(session_row)
+    session_id = str(session_dict.get("session_id") or "").strip()
+    if not session_id:
+        return None
+
+    brand = (session_dict.get("brand") or "bigtex").strip().lower() or "bigtex"
+    carrier = db.get_carrier_config(session_dict.get("carrier_type"))
+    if not carrier:
+        return {
+            "session": session_dict,
+            "session_display_id": _format_session_display_id(session_row),
+            "carrier": None,
+            "zones": [],
+            "preview_rows": [],
+            "preview_rows_hidden_count": 0,
+            "preview_canvas": None,
+            "error_message": "Carrier configuration not found for this session.",
+        }
+
+    zones = brand_config.DECK_ZONES.get(brand, [])
+    raw_positions = db.get_positions(session_id)
+    canvas = _build_canvas_data(
+        session_id,
+        session_dict,
+        carrier,
+        zones,
+        raw_positions,
+        brand,
+        include_violations=False,
+        mark_active=False,
+    )
+    manifest_rows = list(canvas.get("manifest_rows") or [])
+    max_preview_rows = 24
+    preview_rows = manifest_rows[:max_preview_rows]
+
+    return {
+        "session": session_dict,
+        "session_display_id": _format_session_display_id(session_row),
+        "carrier": carrier,
+        "zones": zones,
+        "preview_rows": preview_rows,
+        "preview_rows_hidden_count": max(len(manifest_rows) - len(preview_rows), 0),
+        "preview_canvas": canvas,
+        "error_message": None,
+    }
+
+
 def _pdf_safe_filename(value, fallback="prograde_load_summary"):
     raw = str(value or "").strip()
     if not raw:
@@ -2600,7 +2651,17 @@ def _recompute_all_pj_skus():
     return updated
 
 
-def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *, include_violations=True):
+def _build_canvas_data(
+    session_id,
+    session,
+    carrier,
+    zones,
+    positions,
+    brand,
+    *,
+    include_violations=True,
+    mark_active=True,
+):
     """Build all zone/column data needed for the load canvas."""
     uniform_non_gooseneck_lane = brand == "bigtex"
     carrier_map = dict(carrier) if carrier else {}
@@ -3645,8 +3706,9 @@ def _build_canvas_data(session_id, session, carrier, zones, positions, brand, *,
     _assign_unit_sequence_numbers(enriched)
     _annotate_dump_nesting_candidates(zone_cols, brand=brand)
 
-    # After running check, mark stale session as active
-    db.mark_session_active(session_id)
+    # After running checks for active editing flows, mark stale session active.
+    if mark_active:
+        db.mark_session_active(session_id)
 
     violations_error   = sum(1 for v in violations if v["severity"] == "error" and not v["acknowledged"])
     violations_warning = sum(1 for v in violations if v["severity"] == "warning" and not v["acknowledged"])
@@ -3759,6 +3821,21 @@ def sessions():
         account_notice=account_notice,
         selected_brand=selected_brand,
         has_seed_data=db.has_seed_data(),
+    )
+
+
+@prograde_bp.route("/session/<session_id>/preview")
+def session_preview(session_id):
+    session_row, err = _session_or_404(session_id)
+    if err:
+        return err
+    payload = _build_session_preview_payload(session_row)
+    if not payload:
+        return _json_error("Session not found", 404)
+    return render_template(
+        "prograde/_session_preview.html",
+        selected_brand=_selected_brand(default=payload["session"].get("brand")),
+        **payload,
     )
 
 

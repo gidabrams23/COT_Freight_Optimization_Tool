@@ -1,0 +1,97 @@
+{% set s = session or {} %}
+{% set canvas = preview_canvas or {} %}
+{% set zone_cols = canvas.get('zone_cols', {}) if canvas else {} %}
+{% set lower_cols = zone_cols.get('lower_deck', {}) if zone_cols else {} %}
+{% set upper_cols = zone_cols.get('upper_deck', {}) if zone_cols else {} %}
+
+<div class="pg-session-preview-shell">
+  <div class="pg-session-preview-head">
+    <div>
+      <div class="pg-session-preview-title">Session Detail Preview</div>
+      <div class="pg-session-preview-subtitle mono">{{ session_display_id or s.get('session_id') }}</div>
+    </div>
+    <div class="pg-session-preview-actions">
+      <a class="btn btn-sm pg-preview-open-btn" href="{{ url_for('prograde.load_builder', session_id=s.get('session_id'), brand=selected_brand) }}">Open Session</a>
+      <a class="btn btn-secondary btn-sm" href="{{ url_for('prograde.export_load_pdf', session_id=s.get('session_id'), brand=selected_brand) }}">Print PDF</a>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('prograde.export_load', session_id=s.get('session_id'), brand=selected_brand) }}">Export View</a>
+      <form method="POST" action="{{ url_for('prograde.session_delete', session_id=s.get('session_id')) }}" onsubmit="return confirm('Delete this session?');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+    </div>
+  </div>
+
+  {% if error_message %}
+    <div class="empty-state" style="padding:20px 12px;">{{ error_message }}</div>
+  {% else %}
+    <div class="card pg-session-preview-schematic pg-preview-static">
+      <div class="card-header" style="margin:0;">
+        <div class="card-title">Quick Visual Preview</div>
+      </div>
+      {% set trailer_geometry = canvas.get('trailer_geometry') %}
+      {% set spatial_usage = canvas.get('spatial_usage') %}
+      {% set enriched_positions = canvas.get('enriched_positions') %}
+      {% set zone_cols = canvas.get('zone_cols') %}
+      {% set zone_lengths = canvas.get('zone_lengths') %}
+      {% set zone_blocked_ft = canvas.get('zone_blocked_ft') %}
+      {% set length_metrics = canvas.get('length_metrics') %}
+      {% set col_heights = canvas.get('col_heights') %}
+      {% set clearances = canvas.get('clearances') %}
+      {% set z_caps = canvas.get('z_caps') %}
+      {% set x_positions = canvas.get('x_positions') %}
+      {% set spatial_columns = canvas.get('spatial_columns') %}
+      {% set zone_origin_x_ft = canvas.get('zone_origin_x_ft') %}
+      {% set measure_segments_by_zone = canvas.get('measure_segments_by_zone') %}
+      {% set max_stacked_ft_by_zone = canvas.get('max_stacked_ft_by_zone') %}
+      {% set max_rendered_outline_ft_by_zone = canvas.get('max_rendered_outline_ft_by_zone') %}
+      {% set category_palette = canvas.get('category_palette') %}
+      {% set category_legend = canvas.get('category_legend') %}
+      {% set lower_left_overhang_ft = canvas.get('lower_left_overhang_ft') %}
+      {% set rear_clearance_len_ft = canvas.get('rear_clearance_len_ft') %}
+      {% set rear_clearance_height_ft = canvas.get('rear_clearance_height_ft') %}
+      {% include "prograde/_spatial_canvas.html" %}
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="card-header" style="margin:0;">
+        <div>
+          <div class="card-title">Included Units</div>
+          <div class="card-subtitle">{{ preview_rows | length }} shown{% if preview_rows_hidden_count > 0 %} ({{ preview_rows_hidden_count }} more on open){% endif %}</div>
+        </div>
+      </div>
+      <div class="table-wrap" style="border:none;border-top:1px solid var(--border-default);border-radius:0;">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th>Zone</th>
+              <th>Bed</th>
+              <th>Tongue</th>
+              <th>Total FP</th>
+              <th>Height</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if preview_rows %}
+              {% for row in preview_rows %}
+                <tr>
+                  <td class="td-mono">{{ row.unit_number }}</td>
+                  <td class="td-mono">{{ row.item_code or row.item_number }}</td>
+                  <td>{{ row.zones or '-' }}</td>
+                  <td class="td-mono">{{ '%.1f'|format(row.bed_length or 0) }}'</td>
+                  <td class="td-mono">{{ '%.1f'|format(row.tongue_length or 0) }}'</td>
+                  <td class="td-mono">{{ '%.1f'|format(row.total_footprint or 0) }}'</td>
+                  <td class="td-mono">{{ '%.1f'|format(row.height_each or 0) }}'</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--text-secondary);padding:16px;">No units on this session yet.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+</div>

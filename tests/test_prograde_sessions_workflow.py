@@ -192,6 +192,38 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertIsNone(self.db.get_session(session_id))
         self.assertEqual(len(self.db.get_positions(session_id)), 0)
 
+    def test_session_preview_route_renders_live_session_details(self):
+        profile_id = self._create_planner_profile("Preview Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "Preview Tester",
+            "Preview Session",
+            is_saved=True,
+            created_by_profile_id=profile_id,
+            created_by_name="Preview Tester",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-PREVIEW-1",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        resp = self.client.get(f"/prograde/session/{session_id}/preview?brand=bigtex")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("Session Detail Preview", html)
+        self.assertIn("Quick Visual Preview", html)
+        self.assertIn("Included Units", html)
+        self.assertIn("UNMAPPED-PREVIEW-1", html)
+
     def test_root_route_renders_account_landing_for_selected_brand(self):
         resp = self.client.get("/prograde/?brand=pj", follow_redirects=False)
         self.assertEqual(resp.status_code, 200)

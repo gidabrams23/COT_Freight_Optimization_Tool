@@ -10,6 +10,8 @@ This is the fastest path for ProGrade edits. It maps common requests to the exac
   - ProGrade settings UI and save/import client logic.
 - `blueprints/prograde/templates/prograde/load_builder.html`
   - Main load page CSS + JS and sidebar picker behavior.
+- `blueprints/prograde/templates/prograde/index.html`
+  - All Sessions two-pane list + detail-preview shell and click-to-preview client behavior.
 - `blueprints/prograde/templates/prograde/_load_canvas.html`
   - Manifest card markup under the load canvas.
 - `blueprints/prograde/templates/prograde/_inventory_gap_panel.html`
@@ -97,6 +99,7 @@ This is the fastest path for ProGrade edits. It maps common requests to the exac
 - Export:
   - `GET /prograde/session/<session_id>/export`
   - `GET /prograde/session/<session_id>/export.pdf`
+  - `GET /prograde/session/<session_id>/preview`
 - Unit actions:
   - `POST /prograde/api/session/<session_id>/add`
   - `POST /prograde/api/session/<session_id>/remove`

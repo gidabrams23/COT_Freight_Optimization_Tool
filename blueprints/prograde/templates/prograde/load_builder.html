@@ -1155,21 +1155,9 @@ body.pg-sku-drag-active .pg-drag-hint-row {
   fill: rgba(59, 130, 246, 0.008);
 }
 .prograde-schematic [data-drop-zone][data-drop-side] {
-  fill: rgba(30, 64, 175, 0.12);
-  stroke: rgba(125, 211, 252, 0.42);
-  stroke-width: 1.15;
-  stroke-dasharray: 4 4;
-}
-body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side] {
-  fill: rgba(56, 189, 248, 0.22);
-  stroke: rgba(186, 230, 253, 0.92);
-  stroke-width: 2;
-  stroke-dasharray: 7 4;
-}
-body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].drop-target-active {
-  fill: rgba(56, 189, 248, 0.46) !important;
-  stroke: rgba(224, 242, 254, 0.98);
-  stroke-width: 2.6;
+  fill: rgba(59, 130, 246, 0.001);
+  stroke: transparent;
+  stroke-width: 0;
   stroke-dasharray: none;
 }
 .prograde-schematic [data-stack-drop].drop-target-active {
@@ -1177,27 +1165,30 @@ body.pg-sku-drag-active .prograde-schematic [data-drop-zone][data-drop-side].dro
   stroke: rgba(125, 211, 252, 0.58);
   stroke-width: 1.2;
 }
+.prograde-schematic .unit-card.drop-target-active .pg-unit-drag-hitbox {
+  fill: rgba(125, 211, 252, 0.16) !important;
+  stroke: rgba(125, 211, 252, 0.58);
+  stroke-width: 1.2;
+}
+.prograde-schematic .unit-card.drop-target-active .pg-unit-body {
+  stroke: rgba(125, 211, 252, 0.72) !important;
+  stroke-width: 1.55;
+}
 .prograde-schematic [data-column-slot].drop-target-active {
   fill: rgba(125, 211, 252, 0.16) !important;
   stroke: rgba(125, 211, 252, 0.58);
   stroke-width: 1.2;
 }
 .prograde-schematic [data-drop-zone].drop-target-active {
-  fill: rgba(125, 211, 252, 0.1) !important;
+  fill: rgba(125, 211, 252, 0.14) !important;
+  stroke: rgba(125, 211, 252, 0.54);
+  stroke-width: 1.15;
 }
 .prograde-schematic [data-drop-zone][data-drop-side].drop-target-active {
-  fill: rgba(56, 189, 248, 0.46) !important;
-  stroke: rgba(186, 230, 253, 0.95);
-  stroke-width: 2.4;
-  stroke-dasharray: none;
-  filter: drop-shadow(0 0 7px rgba(56, 189, 248, 0.55));
-}
-/* PJ keeps left/right split hit-zones, but hides static side-box framing. */
-.page-body.brand-pj .prograde-schematic [data-drop-zone][data-drop-side] {
-  fill: rgba(59, 130, 246, 0.001);
-  stroke: transparent;
-  stroke-width: 0;
-  stroke-dasharray: none;
+  fill: rgba(125, 211, 252, 0.18) !important;
+  stroke: rgba(186, 230, 253, 0.9);
+  stroke-width: 1.35;
+  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.38));
 }
 .prograde-schematic .pg-spatial-unit.stack-dragging .pg-unit-body {
   stroke: rgba(125, 211, 252, 0.72) !important;
@@ -2942,6 +2933,16 @@ function _skuTotalLength(sku) {
   return bed + tongue;
 }
 
+function _skuDeckLength(sku) {
+  return _feetNumber(
+    sku.deck_length_ft
+    ?? sku.bed_length
+    ?? sku.bed_length_measured
+    ?? sku.bed_length_stated
+    ?? 0
+  );
+}
+
 const SKU_TOTAL_LENGTH_BY_ITEM = (() => {
   const map = new Map();
   (SKU_RAW || []).forEach((raw) => {
@@ -2951,6 +2952,20 @@ const SKU_TOTAL_LENGTH_BY_ITEM = (() => {
     const totalLengthFt = Number(_skuTotalLength(sku));
     if (Number.isFinite(totalLengthFt) && totalLengthFt > 0) {
       map.set(itemNumber, totalLengthFt);
+    }
+  });
+  return map;
+})();
+
+const SKU_DECK_LENGTH_BY_ITEM = (() => {
+  const map = new Map();
+  (SKU_RAW || []).forEach((raw) => {
+    const sku = raw || {};
+    const itemNumber = String(_skuItemNumber(sku) || "").trim().toUpperCase();
+    if (!itemNumber) return;
+    const deckLengthFt = Number(_skuDeckLength(sku));
+    if (Number.isFinite(deckLengthFt) && deckLengthFt > 0) {
+      map.set(itemNumber, deckLengthFt);
     }
   });
   return map;
@@ -4292,6 +4307,7 @@ function initSkuDragAndDrop(options = {}) {
     const skuRaw = transfer ? transfer.getData("application/x-prograde-sku") : "";
     const skuModeRaw = transfer ? transfer.getData("application/x-prograde-sku-mode") : "";
     const skuDumpHeightRaw = transfer ? transfer.getData("application/x-prograde-sku-dump-height") : "";
+    const skuDeckLengthRaw = transfer ? transfer.getData("application/x-prograde-sku-deck-length-ft") : "";
     const skuLengthRaw = transfer ? transfer.getData("application/x-prograde-sku-length-ft") : "";
     const skuSourceRaw = transfer ? transfer.getData("application/x-prograde-sku-source") : "";
     const plainRaw = transfer ? transfer.getData("text/plain") : "";
@@ -4316,6 +4332,7 @@ function initSkuDragAndDrop(options = {}) {
         itemNumber: skuItem,
         tongueMode: _pjTongueMode(skuModeRaw || "standard"),
         dumpHeightFt: _normalizePjDumpHeightFt(skuDumpHeightRaw, null),
+        deckLengthFt: _parsePositiveFeet(skuDeckLengthRaw) ?? _parsePositiveFeet(activeDrag && activeDrag.deckLengthFt),
         totalLengthFt: _parsePositiveFeet(skuLengthRaw) ?? _parsePositiveFeet(activeDrag && activeDrag.totalLengthFt),
         addSource: _normalizeAddSource(skuSourceRaw || (activeDrag && activeDrag.addSource), ADD_SOURCE_SKU_PICKER),
       };
@@ -4403,6 +4420,7 @@ function initSkuDragAndDrop(options = {}) {
         itemNumber: mouseSkuDrag.itemNumber,
         tongueMode: mouseSkuDrag.tongueMode,
         dumpHeightFt: mouseSkuDrag.dumpHeightFt,
+        deckLengthFt: mouseSkuDrag.deckLengthFt,
         totalLengthFt: mouseSkuDrag.totalLengthFt,
         addSource: ADD_SOURCE_SKU_PICKER,
       };
@@ -4441,6 +4459,7 @@ function initSkuDragAndDrop(options = {}) {
       itemNumber: state.itemNumber,
       tongueMode: state.tongueMode,
       dumpHeightFt: state.dumpHeightFt,
+      deckLengthFt: state.deckLengthFt,
       totalLengthFt: state.totalLengthFt,
       addSource: ADD_SOURCE_SKU_PICKER,
     };
@@ -4469,6 +4488,7 @@ function initSkuDragAndDrop(options = {}) {
         itemNumber,
         tongueMode: _pjTongueMode(item.dataset.selectedTongue || item.dataset.defaultTongue || "standard"),
         dumpHeightFt: _normalizePjDumpHeightFt(item.dataset.selectedDumpHeightFt || item.dataset.defaultDumpHeightFt, null),
+        deckLengthFt: _parsePositiveFeet(item.dataset.deckLengthFt),
         totalLengthFt: _parsePositiveFeet(item.dataset.totalLengthFt),
         originX: Number(evt.clientX || 0),
         originY: Number(evt.clientY || 0),
@@ -4512,6 +4532,7 @@ function initSkuDragAndDrop(options = {}) {
       window.__pgManualDragActive = true;
       draggedSkuItem = item.dataset.item || null;
       const inventoryTongueMode = _pjTongueMode(item.dataset.pjTongueMode || "standard");
+      const deckLengthFt = _parsePositiveFeet(item.dataset.deckLengthFt) ?? _parsePositiveFeet(item.dataset.totalLengthFt);
       const totalLengthFt = _parsePositiveFeet(item.dataset.totalLengthFt);
       activeDrag = draggedSkuItem
         ? {
@@ -4519,6 +4540,7 @@ function initSkuDragAndDrop(options = {}) {
             itemNumber: draggedSkuItem,
             tongueMode: inventoryTongueMode,
             dumpHeightFt: null,
+            deckLengthFt,
             totalLengthFt,
             addSource: ADD_SOURCE_INVENTORY_GAP,
           }
@@ -4530,6 +4552,7 @@ function initSkuDragAndDrop(options = {}) {
         evt.dataTransfer.setData("application/x-prograde-sku", draggedSkuItem || "");
         evt.dataTransfer.setData("application/x-prograde-sku-mode", inventoryTongueMode);
         evt.dataTransfer.setData("application/x-prograde-sku-dump-height", "");
+        evt.dataTransfer.setData("application/x-prograde-sku-deck-length-ft", deckLengthFt == null ? "" : String(deckLengthFt));
         evt.dataTransfer.setData("application/x-prograde-sku-length-ft", totalLengthFt == null ? "" : String(totalLengthFt));
         evt.dataTransfer.setData("application/x-prograde-sku-source", ADD_SOURCE_INVENTORY_GAP);
         evt.dataTransfer.setData("text/plain", draggedSkuItem || "");
@@ -5006,11 +5029,6 @@ function initSkuDragAndDrop(options = {}) {
     return null;
   };
 
-  const resolveStackSupportDeckLengthFt = (target) => {
-    const supportCard = resolveStackSupportUnitCard(target);
-    return _readDatasetFeet(supportCard, "deckLengthFt");
-  };
-
   const _readDatasetLayer = (node) => {
     if (!node || !node.dataset) return null;
     const layer = Number(node.dataset.layer || 0);
@@ -5070,30 +5088,55 @@ function initSkuDragAndDrop(options = {}) {
     return null;
   };
 
+  const resolvePayloadDeckLengthFt = (payload) => {
+    if (!payload) return null;
+    const payloadDeckLength = _parsePositiveFeet(payload.deckLengthFt);
+    if (payloadDeckLength !== null) return payloadDeckLength;
+
+    if (payload.type === "sku") {
+      const itemKey = String(payload.itemNumber || "").trim().toUpperCase();
+      if (!itemKey) return null;
+      if (SKU_DECK_LENGTH_BY_ITEM.has(itemKey)) {
+        return _parsePositiveFeet(SKU_DECK_LENGTH_BY_ITEM.get(itemKey));
+      }
+      const pickNode = Array.from(document.querySelectorAll(".sku-pick-item[data-item], .inventory-pick-item[data-item]"))
+        .find((el) => String(el.dataset.item || "").trim().toUpperCase() === itemKey);
+      return _readDatasetFeet(pickNode, "deckLengthFt");
+    }
+
+    if (payload.type === "unit") {
+      const positionId = String(payload.positionId || "").trim();
+      if (!positionId) return null;
+      const card = document.querySelector(`.unit-card[data-pos-id="${positionId}"]`);
+      if (!card) return null;
+      return _readDatasetFeet(card, "deckLengthFt");
+    }
+
+    return null;
+  };
+
   const canOfferStackSideAlignment = (payload, target) => {
-    if (SESSION_BRAND !== "pj") return true;
-    if (!payload || !target) return true;
-    if (payload.type !== "sku" && payload.type !== "unit") return true;
+    if (!payload || !target) return false;
+    if (payload.type !== "sku" && payload.type !== "unit") return false;
     const supportCard = resolveStackSupportUnitCard(target);
     const supportDeckLengthFt = _readDatasetFeet(supportCard, "deckLengthFt");
-    const payloadTotalLengthFt = resolvePayloadTotalLengthFt(payload);
-    if (supportDeckLengthFt === null || payloadTotalLengthFt === null) return true;
-    if (payloadTotalLengthFt < (supportDeckLengthFt - 1e-6)) {
+    const payloadDeckLengthFt = resolvePayloadDeckLengthFt(payload);
+    const payloadLengthFt = payloadDeckLengthFt ?? resolvePayloadTotalLengthFt(payload);
+    if (supportDeckLengthFt === null || payloadLengthFt === null) return false;
+    if (payloadLengthFt < (supportDeckLengthFt - 1e-6)) {
       return true;
     }
 
+    // Preserve sibling-lane creation on larger supports:
+    // if top card is already lane-anchored and opposite lane does not exist yet,
+    // compare against the immediate support below that top card.
     const supportSide = _normalizeDropSide(supportCard && supportCard.dataset ? supportCard.dataset.stackAlignment : "");
     if (supportCard && supportSide) {
-      // If this top card is already lane-anchored, allow one sibling-lane creation
-      // using its immediate support deck only when the opposite lane doesn't exist yet.
       const oppositeSide = supportSide === "left" ? "right" : "left";
       if (!columnHasOppositeLane(supportCard, oppositeSide)) {
         const belowCard = resolveImmediateSupportBelowCard(supportCard);
         const belowDeckLengthFt = _readDatasetFeet(belowCard, "deckLengthFt");
-        if (
-          belowDeckLengthFt !== null
-          && payloadTotalLengthFt < (belowDeckLengthFt - 1e-6)
-        ) {
+        if (belowDeckLengthFt !== null && payloadLengthFt < (belowDeckLengthFt - 1e-6)) {
           return true;
         }
       }
@@ -5155,11 +5198,7 @@ function initSkuDragAndDrop(options = {}) {
     const supportCard = resolveStackSupportUnitCard(target);
     if (supportCard) {
       let referenceCard = supportCard;
-      if (
-        SESSION_BRAND === "pj"
-        && payload
-        && canOfferStackSideAlignment(payload, target)
-      ) {
+      if (payload && canOfferStackSideAlignment(payload, target)) {
         const supportSide = _normalizeDropSide(supportCard.dataset && supportCard.dataset.stackAlignment);
         if (supportSide) {
           const belowCard = resolveImmediateSupportBelowCard(supportCard);
@@ -5179,7 +5218,7 @@ function initSkuDragAndDrop(options = {}) {
   const resolveStackTopDropSide = (target, evt = null, payload = null) => {
     if (!target) return "";
     if (!canOfferStackSideAlignment(payload, target)) return "";
-    if (payload && payload.type !== "sku" && target.matches && target.matches(".unit-card[data-pos-id]")) {
+    if (target.matches && target.matches(".unit-card[data-pos-id]")) {
       const inherited = _normalizeDropSide(target.dataset && target.dataset.stackAlignment);
       if (inherited) return inherited;
     }
@@ -5397,18 +5436,16 @@ function initSkuDragAndDrop(options = {}) {
   const setDropPlacementHint = (target, payload, evt) => {
     if (!target || !payload || !evt) return target;
     if (payload.type === "sku") {
-      if (SESSION_BRAND === "pj") {
-        const zone = getDropTargetZone(target);
-        if (zone === LOWER_DECK_ZONE) {
-          const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
-          const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
-          if (lowerDeckPlan && lowerDeckPlan.side && !lowerDeckPlan.stackTarget) {
-            const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
-            const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
-            hideDropPreview();
-            setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(LOWER_DECK_ZONE)}.`);
-            return sideTarget || lowerDeckTarget || target;
-          }
+      const dropZone = getDropTargetZone(target);
+      if (dropZone === LOWER_DECK_ZONE) {
+        const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
+        const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
+        if (lowerDeckPlan && lowerDeckPlan.side && !lowerDeckPlan.stackTarget) {
+          const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
+          const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
+          hideDropPreview();
+          setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(LOWER_DECK_ZONE)}.`);
+          return sideTarget || lowerDeckTarget || target;
         }
       }
       if (target.matches(".unit-card[data-pos-id]")) {
@@ -5457,7 +5494,6 @@ function initSkuDragAndDrop(options = {}) {
       const lowerDeckPlan = resolveLowerDeckDropPlan(target, evt, "sku");
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
-        const highlightedSideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
         if (lowerDeckPlan.stackTarget) {
           const stackPreviewTarget = resolveStackDropTargetElement(
             zone,
@@ -5474,14 +5510,18 @@ function initSkuDragAndDrop(options = {}) {
             lowerDeckPlan.stackTarget
           );
           if (showSideSplit) {
-            setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(zone)}.`);
+            setLowerDeckSideHighlight(lowerDeckPlan.side);
+            setDragLiveText(`Adding unit. Drop on the ${sideLabel} side of this stack to build that lane on ${zoneLabel(zone)}.`);
           } else if (Number.isInteger(stackLabel) && stackLabel > 0) {
+            clearLowerDeckSideHighlights();
             setDragLiveText(`Adding unit. Drop to stack on top of stack ${stackLabel} on ${zoneLabel(zone)}.`);
           } else {
+            clearLowerDeckSideHighlights();
             setDragLiveText(`Adding unit. Drop to stack on this stack on ${zoneLabel(zone)}.`);
           }
           return previewTarget;
         }
+        const highlightedSideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
         hideDropPreview();
         setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(zone)}.`);
         return highlightedSideTarget || target;
