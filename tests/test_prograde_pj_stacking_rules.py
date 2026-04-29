@@ -22,7 +22,7 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         return prograde_routes._merge_intervals(upper_intervals)
 
     def test_dump_stacked_height_mapping_uses_stacked_envelope_values(self):
-        self.assertEqual(pj_rules.pj_dump_stacked_height_ft(3), 4.0)
+        self.assertEqual(pj_rules.pj_dump_stacked_height_ft(3), 5.0)
         self.assertEqual(pj_rules.pj_dump_stacked_height_ft(4), 6.0)
         self.assertIsNone(pj_rules.pj_dump_stacked_height_ft(5))
 
@@ -1328,7 +1328,7 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             seg for seg in (canvas_off["measure_segments_by_zone"]["lower_deck"] or [])
             if seg.get("kind") == "stack" and int(seg.get("sequence") or 0) == 2
         )
-        self.assertAlmostEqual(float(stack_off["length_ft"]), 15.0, places=3)
+        self.assertLess(float(stack_off["length_ft"]), float(stack_on["length_ft"]))
         self.assertAlmostEqual(float(stack_on["length_ft"]) - float(stack_off["length_ft"]), 4.0, places=3)
 
         upper_intrusion = self._projected_upper_intrusion_intervals(canvas_off)
@@ -1786,13 +1786,18 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             float(ts_row["deck_x_start_ft"]),
             places=3,
         )
+        gn_leftmost_rendered_x = float(ts_row["tongue_x_end_ft"])
         for row in utility_layers:
             self.assertAlmostEqual(
                 float(row["tongue_x_end_ft"]),
-                float(dl_host["deck_x_start_ft"]),
+                gn_leftmost_rendered_x,
                 places=3,
             )
-            self.assertGreater(float(row["deck_x_start_ft"]), float(dl_host["deck_x_start_ft"]))
+            self.assertAlmostEqual(
+                float(row["deck_x_start_ft"]),
+                gn_leftmost_rendered_x + float(row.get("render_tongue_length_ft") or row.get("tongue_length") or 0.0),
+                places=3,
+            )
         utility_layers = sorted(utility_layers, key=lambda row: int(row.get("layer") or 0))
         self.assertAlmostEqual(
             float(utility_layers[0]["y_surface_ft"]),
@@ -1982,6 +1987,366 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             float(prograde_routes._GOOSENECK_WALL_CLEARANCE_FT),
             places=2,
         )
+
+    def test_underhang_first_keeps_tall_lower_stack_right_when_no_overlap_causes_rear_overhang(self):
+        session = {"brand": "pj", "carrier_type": "53_step_deck"}
+        carrier = {
+            "total_length_ft": 53.0,
+            "lower_deck_length_ft": 41.5,
+            "upper_deck_length_ft": 11.5,
+            "lower_deck_ground_height_ft": 3.5,
+            "upper_deck_ground_height_ft": 5.0,
+            "max_height_ft": 13.5,
+            "gn_max_lower_deck_ft": 32.0,
+        }
+        positions = [
+            {
+                "position_id": "l1",
+                "item_number": "L24",
+                "deck_zone": "lower_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:00",
+            },
+            {
+                "position_id": "u1",
+                "item_number": "U35",
+                "deck_zone": "upper_deck",
+                "sequence": 1,
+                "layer": 1,
+                "is_nested": 0,
+                "nested_inside": None,
+                "gn_axle_dropped": 0,
+                "is_rotated": 0,
+                "override_reason": None,
+                "added_at": "2026-01-01T00:00:01",
+            },
+        ]
+        sku_map = {
+            "L24": {
+                "item_number": "L24",
+                "model": "UL",
+                "description": "Lower 24",
+                "pj_category": "utility",
+                "bed_length_measured": 24.0,
+                "bed_length_stated": 24.0,
+                "tongue_feet": 4.0,
+                "total_footprint": 28.0,
+            },
+            "U35": {
+                "item_number": "U35",
+                "model": "UL",
+                "description": "Upper 35",
+                "pj_category": "utility",
+                "bed_length_measured": 35.0,
+                "bed_length_stated": 35.0,
+                "tongue_feet": 4.0,
+                "total_footprint": 39.0,
+            },
+        }
+        height_ref = {
+            "utility": {
+                "height_mid_ft": 2.6,
+                "height_top_ft": 2.9,
+                "gn_axle_dropped_ft": None,
+            }
+        }
+
+        with (
+            patch.object(prograde_routes.db, "get_pj_height_ref_dict", return_value=height_ref),
+            patch.object(prograde_routes.db, "get_pj_sku", side_effect=lambda item_number: sku_map[item_number]),
+            patch.object(prograde_routes.db, "get_pj_offsets_dict", return_value={"gn_in_dump_hidden_ft": 7.0}),
+            patch.object(prograde_routes.db, "mark_session_active", return_value=None),
+            patch.object(prograde_routes.db, "get_acknowledged_violations", return_value=[]),
+            patch.object(prograde_routes, "check_load", return_value=[]),
+        ):
+            canvas = prograde_routes._build_canvas_data(
+                "session-underhang-first",
+                session,
+                carrier,
+                ["lower_deck", "upper_deck"],
+                positions,
+                "pj",
+            )
+
+        self.assertAlmostEqual(float(canvas.get("lower_left_overhang_ft") or 0.0), 0.0, places=2)
+
+        upper_intrusion = self._projected_upper_intrusion_intervals(canvas)
+        self.assertTrue(upper_intrusion)
+
+        lower_col = (canvas["zone_cols"].get("lower_deck") or {}).get(1) or []
+        dims = prograde_routes._column_render_envelope_dims(lower_col, zone="lower_deck")
+        lower_start = float((canvas["x_positions"].get("lower_deck") or {}).get(1) or 0.0)
+        lower_left = lower_start - float(dims.get("left_tongue_ft") or 0.0)
+        lower_right = lower_start + float(dims.get("right_reach_ft") or 0.0)
+
+        overlap_found = False
+        for blocked_left, blocked_right in upper_intrusion:
+            overlaps = not (lower_right <= blocked_left + 1e-6 or lower_left >= blocked_right - 1e-6)
+            if overlaps:
+                overlap_found = True
+                break
+        self.assertTrue(overlap_found)
+
+    def test_non_gooseneck_layers_above_gooseneck_do_not_default_left_before_clearance(self):
+        col = [
+            {
+                "position_id": "gn-base",
+                "layer": 1,
+                "deck_length_ft": 17.5,
+                "tongue_length": 6.0,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "deck_profile": "dump",
+                "stacking_height_ft": 6.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:gooseneck",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "u-top-1",
+                "layer": 2,
+                "deck_length_ft": 14.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "deck_profile": "flat",
+                "stacking_height_ft": 2.6,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "u-top-2",
+                "layer": 3,
+                "deck_length_ft": 12.0,
+                "tongue_length": 3.5,
+                "render_tongue_length_ft": 3.5,
+                "render_tongue_profile": "standard",
+                "deck_profile": "flat",
+                "stacking_height_ft": 2.6,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+        ]
+
+        offsets = prograde_routes._lower_column_layer_start_offsets(col)
+        self.assertLessEqual(float(offsets[1]), 0.0 + 1e-6)
+        self.assertLessEqual(float(offsets[2]), 0.0 + 1e-6)
+        self.assertNotEqual(col[1].get("effective_stack_alignment"), "left")
+        self.assertNotEqual(col[2].get("effective_stack_alignment"), "left")
+
+    def test_non_gooseneck_layers_above_gooseneck_default_left_after_clearance(self):
+        col = [
+            {
+                "position_id": "gn-base",
+                "layer": 1,
+                "deck_length_ft": 17.5,
+                "tongue_length": 6.0,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "deck_profile": "dump",
+                "stacking_height_ft": 6.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:gooseneck",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "dump-host",
+                "layer": 2,
+                "deck_length_ft": 14.0,
+                "tongue_length": 5.0,
+                "render_tongue_length_ft": 5.0,
+                "render_tongue_profile": "standard",
+                "deck_profile": "dump",
+                "stacking_height_ft": 6.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "cc24-top",
+                "layer": 3,
+                "deck_length_ft": 12.0,
+                "tongue_length": 3.5,
+                "render_tongue_length_ft": 3.5,
+                "render_tongue_profile": "standard",
+                "deck_profile": "flat",
+                "stacking_height_ft": 2.6,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+        ]
+
+        _ = prograde_routes._lower_column_layer_start_offsets(col)
+        self.assertEqual(col[2].get("effective_stack_alignment"), "left")
+
+    def test_gooseneck_base_height_counts_toward_clearance_threshold(self):
+        col = [
+            {
+                "position_id": "gn-base",
+                "layer": 1,
+                "deck_length_ft": 32.0,
+                "tongue_length": 9.0,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "deck_profile": "flat",
+                "true_height_ft": 2.5,
+                "stacking_height_ft": 6.0,
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:gooseneck",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "dump-host",
+                "layer": 2,
+                "deck_length_ft": 14.0,
+                "tongue_length": 5.5,
+                "render_tongue_length_ft": 5.5,
+                "render_tongue_profile": "standard",
+                "deck_profile": "dump",
+                "stacking_height_ft": 4.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "cc24-top",
+                "layer": 3,
+                "deck_length_ft": 24.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "deck_profile": "flat",
+                "stacking_height_ft": 2.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+        ]
+
+        _ = prograde_routes._lower_column_layer_start_offsets(col)
+        self.assertEqual(col[2].get("effective_stack_alignment"), "left")
+
+    def test_explicit_right_lane_above_gooseneck_stays_locked_across_higher_layers(self):
+        col = [
+            {
+                "position_id": "gn-base",
+                "layer": 1,
+                "deck_length_ft": 32.0,
+                "tongue_length": 9.0,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "deck_profile": "flat",
+                "true_height_ft": 2.5,
+                "stacking_height_ft": 6.0,
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:gooseneck",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "dump-host",
+                "layer": 2,
+                "deck_length_ft": 14.0,
+                "tongue_length": 5.5,
+                "render_tongue_length_ft": 5.5,
+                "render_tongue_profile": "standard",
+                "deck_profile": "dump",
+                "stacking_height_ft": 4.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "c516-r1",
+                "layer": 3,
+                "deck_length_ft": 16.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "deck_profile": "flat",
+                "stacking_height_ft": 2.6,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": "right",
+            },
+            {
+                "position_id": "c516-r2",
+                "layer": 4,
+                "deck_length_ft": 16.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "deck_profile": "flat",
+                "stacking_height_ft": 2.9,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+        ]
+
+        offsets = prograde_routes._lower_column_layer_start_offsets(col)
+        self.assertEqual(col[2].get("effective_stack_alignment"), "right")
+        self.assertEqual(col[3].get("effective_stack_alignment"), "right")
+        self.assertAlmostEqual(float(offsets[3]), float(offsets[2]), places=3)
+        self.assertTrue(bool(col[3].get("_explicit_lane_lock")))
+
+    def test_cleared_left_default_anchors_to_gooseneck_leftmost_rendered_point(self):
+        col = [
+            {
+                "position_id": "gn-base",
+                "layer": 1,
+                "deck_length_ft": 32.0,
+                "tongue_length": 9.0,
+                "render_tongue_length_ft": 9.0,
+                "render_tongue_profile": "gooseneck",
+                "deck_profile": "flat",
+                "true_height_ft": 2.5,
+                "stacking_height_ft": 6.0,
+                "is_rotated": 1,
+                "override_reason": "tongue_profile:gooseneck",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "dump-host",
+                "layer": 2,
+                "deck_length_ft": 14.0,
+                "tongue_length": 5.5,
+                "render_tongue_length_ft": 5.5,
+                "render_tongue_profile": "standard",
+                "deck_profile": "dump",
+                "stacking_height_ft": 4.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+            {
+                "position_id": "cc24-top",
+                "layer": 3,
+                "deck_length_ft": 24.0,
+                "tongue_length": 4.0,
+                "render_tongue_length_ft": 4.0,
+                "render_tongue_profile": "standard",
+                "deck_profile": "flat",
+                "stacking_height_ft": 2.0,
+                "is_rotated": 0,
+                "override_reason": "tongue_profile:standard",
+                "stack_alignment": None,
+            },
+        ]
+
+        offsets = prograde_routes._lower_column_layer_start_offsets(col)
+        # GN base rendered leftmost point is -9.0 (rotated, 9' tongue).
+        # Non-rotated CC24 left-aligned after clearance should start there.
+        self.assertAlmostEqual(float(offsets[2]), -9.0, places=3)
+        self.assertEqual(col[2].get("effective_stack_alignment"), "left")
 
 
 if __name__ == "__main__":

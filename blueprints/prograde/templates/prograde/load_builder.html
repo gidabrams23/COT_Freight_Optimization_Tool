@@ -2509,6 +2509,7 @@ const PJ_GN_CRISSCROSS_WIDTH_SAVE_FT = Number(PJ_CRISSCROSS_ASSUMPTIONS.width_sa
 const ADD_SOURCE_SKU_PICKER = "sku_picker";
 const ADD_SOURCE_INVENTORY_GAP = "inventory_gap";
 const LOWER_DECK_ZONE = "lower_deck";
+const FLATBED_CARRIER_TYPES = new Set(["53_flatbed"]);
 let sessionIsSaved = Boolean({{ 1 if session.is_saved else 0 }});
 let leaveAutosaveAttempted = false;
 
@@ -2527,6 +2528,22 @@ const pjSkuTongueSelection = new Map();
 const pjSkuDumpHeightSelection = new Map();
 window.__pgManualDragPrimed = false;
 window.__pgManualDragActive = false;
+
+const getCurrentCarrierType = () => {
+  const select = document.getElementById("pg-carrier-select");
+  if (!select) return "";
+  return String(
+    select.dataset.currentValue
+      || select.value
+      || select.getAttribute("data-current-value")
+      || ""
+  ).trim().toLowerCase();
+};
+
+const isFlatbedEdgeInsertMode = () => {
+  if (!["bigtex", "pj"].includes(SESSION_BRAND)) return false;
+  return FLATBED_CARRIER_TYPES.has(getCurrentCarrierType());
+};
 
 function getRenderModeInputs() {
   return Array.from(document.querySelectorAll('input[name="render-mode"]'));
@@ -5448,9 +5465,18 @@ function initSkuDragAndDrop(options = {}) {
     if (!side) return null;
 
     const stacks = getOrderedStackTargetsForZone(zone);
+    const edgeInsertMode = isFlatbedEdgeInsertMode();
+    const pointerX = Number(evt && evt.clientX);
 
     if (!stacks.length) {
-      return { side, stackTarget: null, targetSeq: null, insertIndex: 0, edgeInsertIndex: 0 };
+      return {
+        side,
+        stackTarget: null,
+        targetSeq: null,
+        insertIndex: 0,
+        edgeInsertIndex: 0,
+        mode: "create_first_stack",
+      };
     }
     if (stacks.length === 1) {
       const lone = stacks[0];
@@ -5462,6 +5488,7 @@ function initSkuDragAndDrop(options = {}) {
           targetSeq: null,
           insertIndex: side === "right" ? 1 : 0,
           edgeInsertIndex: side === "right" ? 1 : 0,
+          mode: "create_new_side",
         };
       }
       return {
@@ -5470,8 +5497,38 @@ function initSkuDragAndDrop(options = {}) {
         targetSeq: Number.isInteger(lone.seq) ? lone.seq : null,
         insertIndex: side === "right" ? 1 : 0,
         edgeInsertIndex: side === "right" ? 1 : 0,
+        mode: "stack_existing",
       };
     }
+
+    if (edgeInsertMode && Number.isFinite(pointerX)) {
+      const leftRect = stacks[0].rect;
+      const rightRect = stacks[stacks.length - 1].rect;
+      const leftEdgeX = leftRect && Number.isFinite(leftRect.left) ? Number(leftRect.left) : null;
+      const rightEdgeX = rightRect && Number.isFinite(rightRect.right) ? Number(rightRect.right) : null;
+      if (leftEdgeX !== null && pointerX < (leftEdgeX - 0.5)) {
+        return {
+          side: "left",
+          stackTarget: null,
+          targetSeq: null,
+          insertIndex: 0,
+          edgeInsertIndex: 0,
+          mode: "create_new_edge",
+        };
+      }
+      if (rightEdgeX !== null && pointerX > (rightEdgeX + 0.5)) {
+        const rightEdgeInsertIndex = stacks.length;
+        return {
+          side: "right",
+          stackTarget: null,
+          targetSeq: null,
+          insertIndex: rightEdgeInsertIndex,
+          edgeInsertIndex: rightEdgeInsertIndex,
+          mode: "create_new_edge",
+        };
+      }
+    }
+
     const chosen = side === "right"
       ? stacks[stacks.length - 1]
       : stacks[0];
@@ -5481,6 +5538,7 @@ function initSkuDragAndDrop(options = {}) {
       targetSeq: Number.isInteger(chosen.seq) ? chosen.seq : null,
       insertIndex: side === "right" ? stacks.length - 1 : 0,
       edgeInsertIndex: side === "right" ? stacks.length : 0,
+      mode: "stack_existing",
     };
   };
 
@@ -5561,7 +5619,16 @@ function initSkuDragAndDrop(options = {}) {
           const sideLabel = lowerDeckPlan.side === "right" ? "RIGHT stack" : "LEFT stack";
           const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
           hideDropPreview();
-          setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(LOWER_DECK_ZONE)}.`);
+          if (lowerDeckPlan.mode === "create_new_edge") {
+            showDeckInsertMarker(
+              LOWER_DECK_ZONE,
+              Number.isInteger(lowerDeckPlan.insertIndex) ? lowerDeckPlan.insertIndex : 0,
+              lowerDeckTarget || target
+            );
+            setDragLiveText(`Adding unit. Drop to create a new ${sideLabel} on ${zoneLabel(LOWER_DECK_ZONE)}.`);
+          } else {
+            setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(LOWER_DECK_ZONE)}.`);
+          }
           return sideTarget || lowerDeckTarget || target;
         }
       }
@@ -5699,7 +5766,16 @@ function initSkuDragAndDrop(options = {}) {
         if (lowerDeckPlan && lowerDeckPlan.side) {
           const sideLabel = lowerDeckPlan.side === "right" ? "right stack" : "left stack";
           const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
-          setDragLiveText(`Moving unit. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+          if (lowerDeckPlan.mode === "create_new_edge") {
+            showDeckInsertMarker(
+              zone,
+              Number.isInteger(lowerDeckPlan.insertIndex) ? lowerDeckPlan.insertIndex : 0,
+              target
+            );
+            setDragLiveText(`Moving unit. Drop to create a new ${sideLabel} on ${zoneLabel(zone)}.`);
+          } else {
+            setDragLiveText(`Moving unit. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+          }
           return sideTarget || target;
         }
         clearLowerDeckSideHighlights();
@@ -5739,7 +5815,16 @@ function initSkuDragAndDrop(options = {}) {
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "right side" : "left side";
         const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
-        setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+        if (lowerDeckPlan.mode === "create_new_edge") {
+          showDeckInsertMarker(
+            zone,
+            Number.isInteger(lowerDeckPlan.edgeInsertIndex) ? lowerDeckPlan.edgeInsertIndex : 0,
+            target
+          );
+          setDragLiveText(`Moving stack ${payload.sequence}. Drop to create a new ${sideLabel} stack on ${zoneLabel(zone)}.`);
+        } else {
+          setDragLiveText(`Moving stack ${payload.sequence}. Drop to place on ${sideLabel} of ${zoneLabel(zone)}.`);
+        }
         return sideTarget || target;
       }
       clearLowerDeckSideHighlights();

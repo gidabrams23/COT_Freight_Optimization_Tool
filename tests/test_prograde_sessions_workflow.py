@@ -333,6 +333,90 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         updated = self.db.get_session(session_id)
         self.assertEqual(updated["carrier_type"], "53_flatbed")
 
+    def test_session_carrier_switch_to_flatbed_rehomes_upper_deck_sequences(self):
+        profile_id = self._create_planner_profile("Carrier Rehome Tester")
+        self._set_active_profile(profile_id)
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_flatbed", "bigtex", 53.0, 13.5, 53.0, 0.0, 4.0, 0.0, 0.0, "test flatbed"),
+            )
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "Carrier Rehome Tester",
+            "Carrier Rehome Session",
+            created_by_profile_id=profile_id,
+            created_by_name="Carrier Rehome Tester",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-TEST-LOWER",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-TEST-UPPER-A",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-TEST-UPPER-B",
+            deck_zone="upper_deck",
+            layer=2,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-TEST-UPPER-C",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=2,
+        )
+
+        resp = self.client.post(
+            f"/prograde/api/session/{session_id}/carrier",
+            json={"carrier_type": "53_flatbed"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json() or {}
+        self.assertTrue(payload.get("ok"))
+        normalized = payload.get("normalized_positions") or {}
+        self.assertEqual(int(normalized.get("moved_columns") or 0), 2)
+        self.assertEqual(int(normalized.get("moved_positions") or 0), 3)
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 4)
+        self.assertTrue(all(str(r.get("deck_zone") or "") == "lower_deck" for r in rows))
+        self.assertEqual(sorted({int(r.get("sequence") or 0) for r in rows}), [1, 2, 3])
+        self.assertEqual(
+            sorted(int(r.get("layer") or 0) for r in rows if int(r.get("sequence") or 0) == 2),
+            [1, 2],
+        )
+
     def test_nest_api_can_nest_and_clear_nested_state(self):
         profile_id = self._create_planner_profile("Nest API Tester")
         self._set_active_profile(profile_id)
@@ -1234,6 +1318,65 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2})
 
+    def test_bigtex_flatbed_multi_stack_same_side_insert_creates_new_edge_stack(self):
+        profile_id = self.db.create_access_profile("BT Flatbed Edge Stack Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_flatbed",
+            "BT Flatbed Edge Stack Tester",
+            "BT Flatbed Edge Stack Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Flatbed Edge Stack Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-FLATBED-EDGE", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        self.assertEqual(
+            self.client.post(
+                f"/prograde/api/session/{session_id}/add",
+                json={"item_number": "BT-FLATBED-EDGE", "deck_zone": "lower_deck", "column_alignment": "left"},
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.post(
+                f"/prograde/api/session/{session_id}/add",
+                json={
+                    "item_number": "BT-FLATBED-EDGE",
+                    "deck_zone": "lower_deck",
+                    "insert_index": 1,
+                    "column_alignment": "right",
+                },
+            ).status_code,
+            200,
+        )
+        add_third = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "BT-FLATBED-EDGE",
+                "deck_zone": "lower_deck",
+                "insert_index": 2,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(add_third.status_code, 200)
+        self.assertTrue((add_third.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 3)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2, 3})
+
     def test_bigtex_first_lower_deck_add_defaults_to_left_alignment(self):
         profile_id = self.db.create_access_profile("BT Default Left Tester")
         self._set_active_profile(profile_id)
@@ -1443,6 +1586,65 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
             sorted(int(r["layer"]) for r in rows if int(r["sequence"]) == 2),
             [1, 2],
         )
+
+    def test_pj_flatbed_multi_stack_same_side_insert_creates_new_edge_stack(self):
+        profile_id = self.db.create_access_profile("PJ Flatbed Edge Stack Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_flatbed",
+            "PJ Flatbed Edge Stack Tester",
+            "PJ Flatbed Edge Stack Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Flatbed Edge Stack Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-FLATBED-EDGE", "UT", "utility", 16.0, 16.0, 4.0, 20.0),
+            )
+
+        self.assertEqual(
+            self.client.post(
+                f"/prograde/api/session/{session_id}/add",
+                json={"item_number": "PJ-FLATBED-EDGE", "deck_zone": "lower_deck", "column_alignment": "left"},
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.post(
+                f"/prograde/api/session/{session_id}/add",
+                json={
+                    "item_number": "PJ-FLATBED-EDGE",
+                    "deck_zone": "lower_deck",
+                    "insert_index": 1,
+                    "column_alignment": "right",
+                },
+            ).status_code,
+            200,
+        )
+        add_third = self.client.post(
+            f"/prograde/api/session/{session_id}/add",
+            json={
+                "item_number": "PJ-FLATBED-EDGE",
+                "deck_zone": "lower_deck",
+                "insert_index": 2,
+                "column_alignment": "right",
+            },
+        )
+        self.assertEqual(add_third.status_code, 200)
+        self.assertTrue((add_third.get_json() or {}).get("ok"))
+
+        rows = [dict(r) for r in self.db.get_positions(session_id)]
+        self.assertEqual(len(rows), 3)
+        self.assertEqual({int(r["sequence"]) for r in rows}, {1, 2, 3})
 
     def test_pj_multi_stack_side_insert_reuses_edge_stack_when_base_alignment_missing(self):
         profile_id = self.db.create_access_profile("PJ Missing Alignment Tester")
@@ -2604,6 +2806,105 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertAlmostEqual(bar_y, expected_bar_top, places=2)
         self.assertAlmostEqual(overflow_h, expected_overflow_h, places=2)
         self.assertAlmostEqual(overflow_y + overflow_h, bar_y, places=2)
+
+    def test_pj_lower_b516_tongue_stuffing_persists_with_upper_deck_unit(self):
+        profile_id = self.db.create_access_profile("PJ B516 Stuffing Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ B516 Stuffing Tester",
+            "PJ B516 Stuffing Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ B516 Stuffing Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-B516-STUFF", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.9, 2.9),
+            )
+
+        for seq in (1, 2):
+            self.db.add_position(
+                position_id=str(uuid.uuid4()),
+                session_id=session_id,
+                brand="pj",
+                item_number="PJ-B516-STUFF",
+                deck_zone="lower_deck",
+                layer=1,
+                sequence=seq,
+                is_rotated=0,
+            )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+
+        canvas_no_upper = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        rows_no_upper = [dict(p) for p in (canvas_no_upper.get("enriched_positions") or [])]
+        lower_no_upper = sorted(
+            [
+                row for row in rows_no_upper
+                if str(row.get("deck_zone") or "") == "lower_deck"
+                and int(row.get("layer") or 0) == 1
+            ],
+            key=lambda row: int(row.get("sequence") or 0),
+        )
+        self.assertEqual(len(lower_no_upper), 2)
+        no_upper_delta = (
+            float(lower_no_upper[1].get("deck_x_start_ft") or 0.0)
+            - float(lower_no_upper[0].get("deck_x_start_ft") or 0.0)
+        )
+        self.assertAlmostEqual(no_upper_delta, 16.0, places=3)
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-STUFF",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=0,
+        )
+
+        canvas_with_upper = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        rows_with_upper = [dict(p) for p in (canvas_with_upper.get("enriched_positions") or [])]
+        lower_with_upper = sorted(
+            [
+                row for row in rows_with_upper
+                if str(row.get("deck_zone") or "") == "lower_deck"
+                and int(row.get("layer") or 0) == 1
+            ],
+            key=lambda row: int(row.get("sequence") or 0),
+        )
+        self.assertEqual(len(lower_with_upper), 2)
+        with_upper_delta = (
+            float(lower_with_upper[1].get("deck_x_start_ft") or 0.0)
+            - float(lower_with_upper[0].get("deck_x_start_ft") or 0.0)
+        )
+        self.assertAlmostEqual(with_upper_delta, 16.0, places=3)
 
     def test_pj_left_aligned_lower_stack_with_upper_overhang_snaps_right(self):
         profile_id = self.db.create_access_profile("PJ Overhang Snap Tester")

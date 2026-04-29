@@ -450,9 +450,9 @@ body.pg-sku-drag-active .pg-lower-side-label {
         {# Structural deck line for step deck/flatbed carriers. Ground Pull draws no deck. #}
         {% if has_structural_deck %}
         <path d="M {{ margin_l }},{{ lower_y_px }} L {{ step_x_px }},{{ lower_y_px }} L {{ step_x_px }},{{ upper_y_px }} L {{ trailer_end_x_px }},{{ upper_y_px }}"
-              fill="none" stroke="rgba(148, 163, 184, 0.28)" stroke-width="5.5" stroke-linecap="square" stroke-linejoin="miter"/>
+              fill="none" stroke="rgba(148, 163, 184, 0.28)" stroke-width="5.5" stroke-linecap="butt" stroke-linejoin="miter"/>
         <path d="M {{ margin_l }},{{ lower_y_px }} L {{ step_x_px }},{{ lower_y_px }} L {{ step_x_px }},{{ upper_y_px }} L {{ trailer_end_x_px }},{{ upper_y_px }}"
-              fill="none" stroke="rgba(203, 213, 225, 0.95)" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/>
+              fill="none" stroke="rgba(203, 213, 225, 0.95)" stroke-width="2.2" stroke-linecap="butt" stroke-linejoin="miter"/>
         {% endif %}
         <line x1="{{ margin_l }}" y1="{{ max_height_y_px }}" x2="{{ trailer_end_x_px }}" y2="{{ max_height_y_px }}" stroke="#ef4444" stroke-opacity="0.20" stroke-dasharray="5,4"/>
         {% if show_upper_zone %}
@@ -1057,7 +1057,14 @@ body.pg-sku-drag-active .pg-lower-side-label {
         <g class="pg-measure-svg">
           {# Container #}
           <rect x="{{ margin_l }}" y="{{ measure_top_y }}" width="{{ plot_w }}" height="{{ measure_h_px }}" rx="6"
-                fill="rgba(15, 23, 42, 0.35)" stroke="rgba(147, 197, 253, 0.22)" stroke-dasharray="4,3"/>
+                fill="rgba(15, 23, 42, 0.35)" stroke="none"/>
+          {# Draw measure border manually (top/left/bottom only) so no right-side wall line appears. #}
+          <line x1="{{ margin_l }}" y1="{{ measure_top_y }}" x2="{{ trailer_end_x_px }}" y2="{{ measure_top_y }}"
+                stroke="rgba(147, 197, 253, 0.22)" stroke-dasharray="4,3"/>
+          <line x1="{{ margin_l }}" y1="{{ measure_top_y }}" x2="{{ margin_l }}" y2="{{ measure_top_y + measure_h_px }}"
+                stroke="rgba(147, 197, 253, 0.22)" stroke-dasharray="4,3"/>
+          <line x1="{{ margin_l }}" y1="{{ measure_top_y + measure_h_px }}" x2="{{ trailer_end_x_px }}" y2="{{ measure_top_y + measure_h_px }}"
+                stroke="rgba(147, 197, 253, 0.22)" stroke-dasharray="4,3"/>
           {# Row dividers #}
           <line x1="{{ margin_l }}" y1="{{ measure_top_y + measure_row_h }}" x2="{{ trailer_end_x_px }}" y2="{{ measure_top_y + measure_row_h }}"
                 stroke="rgba(148,163,184,.18)" stroke-dasharray="3,3"/>
@@ -1102,7 +1109,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
           {% if remaining_seg_w > 2 %}
             <rect x="{{ remaining_seg_x + 1 }}" y="{{ measure_top_y + 2 }}"
                   width="{{ remaining_seg_w - 1 }}" height="{{ measure_row_h - 4 }}" rx="3"
-                  fill="rgba(34,197,94,0.09)" stroke="rgba(34,197,94,0.42)" stroke-width="1" stroke-dasharray="3,2"/>
+                  fill="rgba(34,197,94,0.09)" stroke="none"/>
             {% if remaining_seg_w > 52 %}
               <text x="{{ remaining_seg_x + 1 + ((remaining_seg_w - 1) / 2) }}" y="{{ measure_top_y + (measure_row_h / 2) + 3 }}"
                     text-anchor="middle" font-size="11" font-family="var(--font-mono)" font-weight="700"
@@ -1131,7 +1138,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
                 {% set seg_stroke = 'rgba(34,197,94,0.38)' %}
               {% endif %}
               <rect x="{{ seg_x }}" y="{{ measure_top_y + measure_row_h + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="3"
-                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" stroke-width="1" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
+                    fill="{{ seg_fill }}" {% if seg.kind == 'stack' %}stroke="{{ seg_stroke }}" stroke-width="1"{% else %}stroke="none"{% endif %}/>
               {% if seg_w > 50 %}
                 <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + measure_row_h + (measure_row_h / 2) + 3 }}" text-anchor="middle"
                       font-size="11" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
@@ -1160,13 +1167,16 @@ body.pg-sku-drag-active .pg-lower-side-label {
                 {% set seg_stroke = 'rgba(34,197,94,0.38)' %}
               {% endif %}
               <rect x="{{ seg_x }}" y="{{ measure_top_y + (measure_row_h * 2) + 2 }}" width="{{ seg_w }}" height="{{ measure_row_h - 4 }}" rx="3"
-                    fill="{{ seg_fill }}" stroke="{{ seg_stroke }}" stroke-width="1" {% if seg.kind != 'stack' %}stroke-dasharray="3,2"{% endif %}/>
+                    fill="{{ seg_fill }}" {% if seg.kind == 'stack' %}stroke="{{ seg_stroke }}" stroke-width="1"{% else %}stroke="none"{% endif %}/>
               {% if seg_w > 50 %}
                 <text x="{{ seg_x + (seg_w / 2) }}" y="{{ measure_top_y + (measure_row_h * 2) + (measure_row_h / 2) + 3 }}" text-anchor="middle"
                       font-size="11" font-family="var(--font-mono)" font-weight="700" fill="rgba(224,242,254,0.92)">{{ seg_label }}</text>
               {% endif %}
             {% endif %}
           {% endfor %}
+          {# Seam mask: fully hide any residual right-edge wall line beside measure rows. #}
+          <rect x="{{ trailer_end_x_px - 2 }}" y="{{ measure_top_y - 8 }}" width="6" height="{{ measure_h_px + 16 }}"
+                fill="rgba(2, 6, 23, 0.98)" stroke="none"/>
         </g>
             </svg>
       </div>
