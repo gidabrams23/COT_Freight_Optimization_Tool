@@ -2250,6 +2250,7 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
                 "deck_zone": "lower_deck",
                 "stack_on": base_id,
                 "stack_alignment": "left",
+                "stack_anchor_mode": "tongue",
             },
         )
         self.assertEqual(add_top.status_code, 200)
@@ -2272,10 +2273,16 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertIsNotNone(base)
         self.assertIsNotNone(top)
 
-        anchor_left_wall_ft = float((base or {}).get("deck_x_start_ft") or 0.0)
+        base_deck_start_ft = float((base or {}).get("deck_x_start_ft") or 0.0)
+        base_is_rotated = bool((base or {}).get("is_rotated"))
+        anchor_left_wall_ft = base_deck_start_ft - 4.0 if base_is_rotated else base_deck_start_ft
         top_left_edge_ft = float((top or {}).get("deck_x_start_ft") or 0.0)
         self.assertGreaterEqual(top_left_edge_ft, anchor_left_wall_ft - 0.001)
         self.assertLessEqual(top_left_edge_ft, anchor_left_wall_ft + 0.001)
+        base_surface_ft = float((base or {}).get("y_surface_ft") or 0.0)
+        top_surface_ft = float((top or {}).get("y_surface_ft") or 0.0)
+        self.assertGreaterEqual(top_surface_ft, base_surface_ft + 5.999)
+        self.assertLessEqual(top_surface_ft, base_surface_ft + 6.001)
 
     def test_pj_explicit_top_stack_anchors_to_shifted_support_not_whole_column(self):
         profile_id = self.db.create_access_profile("PJ Shifted Support Anchor Tester")
@@ -2677,6 +2684,125 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertGreaterEqual(left_occ_left_ft, anchor_left_wall_ft - 0.001)
         self.assertLessEqual(right_occ_right_ft, anchor_right_wall_ft + 0.001)
         self.assertAlmostEqual(left_occ_right_ft, right_occ_left_ft, places=3)
+
+    def test_pj_rotate_top_unit_disables_adjacent_overlap_credit_for_mixed_columns(self):
+        profile_id = self.db.create_access_profile("PJ Rotate Adjacent Overlap Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Rotate Adjacent Overlap Tester",
+            "PJ Rotate Adjacent Overlap Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Rotate Adjacent Overlap Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-B516-ROTOV", "B5", "utility", 16.0, 16.0, 4.0, 20.0, 2.9, 2.9),
+            )
+
+        base_left_id = str(uuid.uuid4())
+        top_left_id = str(uuid.uuid4())
+        base_right_id = str(uuid.uuid4())
+        top_right_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=base_left_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-ROTOV",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=top_left_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-ROTOV",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=base_right_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-ROTOV",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=top_right_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-ROTOV",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=2,
+            override_reason="tongue_profile:standard",
+            is_rotated=0,
+        )
+
+        def occupied_edges(unit):
+            deck_x0 = float((unit or {}).get("deck_x_start_ft") or 0.0)
+            deck_x1 = float((unit or {}).get("deck_x_end_ft") or deck_x0)
+            tongue_x0 = float((unit or {}).get("tongue_x_start_ft") or deck_x1)
+            tongue_x1 = float((unit or {}).get("tongue_x_end_ft") or tongue_x0)
+            return min(deck_x0, deck_x1, tongue_x0, tongue_x1), max(deck_x0, deck_x1, tongue_x0, tongue_x1)
+
+        def top_layer_rows():
+            session_row = dict(self.db.get_session(session_id) or {})
+            carrier_row = self.db.get_carrier_config("53_step_deck")
+            zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+            canvas = self.routes._build_canvas_data(
+                session_id=session_id,
+                session=session_row,
+                carrier=carrier_row,
+                zones=zones,
+                positions=self.db.get_positions(session_id),
+                brand="pj",
+            )
+            enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+            top_left = next((r for r in enriched if str(r.get("position_id") or "") == top_left_id), None)
+            top_right = next((r for r in enriched if str(r.get("position_id") or "") == top_right_id), None)
+            self.assertIsNotNone(top_left)
+            self.assertIsNotNone(top_right)
+            return top_left, top_right
+
+        pre_left, pre_right = top_layer_rows()
+        pre_left_l, pre_left_r = occupied_edges(pre_left)
+        pre_right_l, pre_right_r = occupied_edges(pre_right)
+        # Uniform-facing stacked columns should retain rear-pocket nesting.
+        self.assertTrue(pre_left_l < pre_right_l)
+        self.assertGreater(pre_left_r, pre_right_l + 1e-6)
+
+        rotate_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/rotate",
+            json={"position_id": top_left_id},
+        )
+        self.assertEqual(rotate_resp.status_code, 200)
+        self.assertTrue((rotate_resp.get_json() or {}).get("ok"))
+        self.assertEqual(int((rotate_resp.get_json() or {}).get("is_rotated") or 0), 1)
+
+        post_left, post_right = top_layer_rows()
+        post_left_l, post_left_r = occupied_edges(post_left)
+        post_right_l, post_right_r = occupied_edges(post_right)
+        self.assertTrue(post_left_r <= post_right_l + 1e-6 or post_left_l >= post_right_r - 1e-6)
 
     def test_pj_height_meter_core_cap_matches_10ft_scale_and_overflow_extends_above(self):
         profile_id = self.db.create_access_profile("PJ Meter Overflow Tester")

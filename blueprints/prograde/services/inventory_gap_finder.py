@@ -264,6 +264,7 @@ def _evaluate_single_stack_fit(
     candidate_height_ft = _as_float(candidate.get("stack_height_each"), 0.0)
     fit_result = {
         "stack_index": stack_index,
+        "stack_side": slot.get("stack_side"),
         "target_zone": target_zone,
         "target_sequence": target_sequence,
         "stack_on_position_id": stack_on_position_id,
@@ -288,13 +289,28 @@ def _evaluate_single_stack_fit(
     if candidate_height_ft <= _EPS:
         return fit_result
 
-    max_qty = int(remaining_height_ft // candidate_height_ft)
-    if available_count is not None:
-        max_qty = min(max_qty, int(available_count or 0))
-    if max_qty <= 0:
+    if brand == "pj" and not slot.get("stack_side"):
+        col_rows = list((base_columns.get(target_zone) or {}).get(target_sequence) or [])
+        candidate_base = _base_candidate_position(candidate, zone=target_zone)
+        max_qty, used_height = _pj_stack_top_capacity(
+            col_rows,
+            candidate_base,
+            _as_float(slot.get("zone_clearance_ft"), 0.0),
+            pj_sku_map,
+            pj_height_ref,
+        )
+        if available_count is not None:
+            max_qty = min(int(max_qty), int(available_count or 0))
+            used_height = max(0.0, min(float(used_height or 0.0), max_qty * candidate_height_ft))
+    else:
+        max_qty = int(remaining_height_ft // candidate_height_ft)
+        used_height = max_qty * candidate_height_ft
+        if available_count is not None:
+            max_qty = min(max_qty, int(available_count or 0))
+            used_height = max_qty * candidate_height_ft
+    if max_qty <= 0 or used_height <= _EPS:
         return fit_result
 
-    used_height = max_qty * candidate_height_ft
     fill_efficiency = min(used_height / remaining_height_ft, 1.0) if remaining_height_ft > _EPS else 0.0
     residual_ft = max(remaining_height_ft - used_height, 0.0)
 
@@ -351,6 +367,7 @@ def _build_stack_slots(canvas, grouped_columns):
     x_positions = canvas_map.get("x_positions") or {}
     zone_origin_x_ft = canvas_map.get("zone_origin_x_ft") or {}
     measure_segments_by_zone = canvas_map.get("measure_segments_by_zone") or {}
+    canvas_zone_cols = canvas_map.get("zone_cols") or {}
 
     seg_length_map = {}
     seg_x_abs_map = {}
@@ -368,9 +385,9 @@ def _build_stack_slots(canvas, grouped_columns):
 
     slots = []
     for zone in ("lower_deck", "upper_deck"):
-        zone_cols = (grouped_columns or {}).get(zone) or {}
-        for sequence in sorted(zone_cols.keys()):
-            col = list(zone_cols.get(sequence) or [])
+        grouped_zone_cols = (grouped_columns or {}).get(zone) or {}
+        for sequence in sorted(grouped_zone_cols.keys()):
+            col = list(grouped_zone_cols.get(sequence) or [])
             if not col:
                 continue
             top_row = max(col, key=lambda p: int(p.get("layer") or 0))
@@ -391,29 +408,119 @@ def _build_stack_slots(canvas, grouped_columns):
                 _as_float((zone_origin_x_ft.get(zone) if zone_origin_x_ft else 0.0), 0.0)
                 + _as_float((x_positions.get(zone) or {}).get(sequence) if x_positions else 0.0, 0.0),
             )
-            slots.append(
-                {
-                    "target_zone": zone,
-                    "target_sequence": int(sequence),
-                    "stack_on_position_id": top_row.get("position_id"),
-                    "stack_length_ft": round(max(stack_length_ft, 0.0), 2),
-                    "remaining_height_ft": round(remaining_height_ft, 2),
-                    "zone_clearance_ft": round(max(clearance, 0.0), 2),
-                    "current_height_ft": round(max(col_height, 0.0), 2),
-                    "x_abs_ft": round(x_abs, 3),
-                }
+            base_slot = {
+                "target_zone": zone,
+                "target_sequence": int(sequence),
+                "stack_on_position_id": top_row.get("position_id"),
+                "stack_length_ft": round(max(stack_length_ft, 0.0), 2),
+                "remaining_height_ft": round(remaining_height_ft, 2),
+                "zone_clearance_ft": round(max(clearance, 0.0), 2),
+                "current_height_ft": round(max(col_height, 0.0), 2),
+                "x_abs_ft": round(x_abs, 3),
+            }
+            split_slots = _pj_split_lane_slots(
+                zone=zone,
+                sequence=int(sequence),
+                zone_cols=canvas_zone_cols,
+                base_slot=base_slot,
             )
+            if split_slots:
+                slots.extend(split_slots)
+            else:
+                slots.append(base_slot)
 
     slots.sort(
         key=lambda slot: (
             float(slot.get("x_abs_ft") or 0.0),
             str(slot.get("target_zone") or ""),
             int(slot.get("target_sequence") or 0),
+            0 if str(slot.get("stack_side") or "").strip().lower() == "left" else (
+                1 if str(slot.get("stack_side") or "").strip().lower() == "right" else 2
+            ),
         )
     )
     for idx, slot in enumerate(slots, start=1):
         slot["stack_index"] = int(idx)
     return slots
+
+
+def _pj_split_lane_slots(*, zone, sequence, zone_cols, base_slot):
+    if str(zone or "") != "lower_deck":
+        return []
+    zone_map = dict((zone_cols or {}).get(zone) or {})
+    col_rows = list(zone_map.get(int(sequence)) or zone_map.get(str(sequence)) or [])
+    if not col_rows:
+        return []
+    lane_rows = {"left": [], "right": []}
+    for raw in col_rows:
+        row = dict(raw or {})
+        lane = _slot_lane_label(row)
+        if lane in lane_rows:
+            lane_rows[lane].append(row)
+    if not lane_rows["left"] or not lane_rows["right"]:
+        return []
+
+    clearance = _as_float(base_slot.get("zone_clearance_ft"), 0.0)
+    slots = []
+    for lane in ("left", "right"):
+        rows = lane_rows[lane]
+        if not rows:
+            continue
+        top_row = max(rows, key=_lane_row_top_sort_key)
+        lane_height_ft = _lane_rows_height_ft(rows)
+        remaining_height_ft = max(clearance - lane_height_ft, 0.0)
+        slot = dict(base_slot)
+        slot["stack_side"] = lane
+        slot["stack_on_position_id"] = top_row.get("position_id") or base_slot.get("stack_on_position_id")
+        lane_stack_length = _slot_stack_length_ft(top_row)
+        if lane_stack_length <= _EPS:
+            lane_stack_length = _as_float(base_slot.get("stack_length_ft"), 0.0)
+        slot["stack_length_ft"] = round(max(lane_stack_length, 0.0), 2)
+        slot["current_height_ft"] = round(max(lane_height_ft, 0.0), 2)
+        slot["remaining_height_ft"] = round(remaining_height_ft, 2)
+        slots.append(slot)
+    return slots
+
+
+def _slot_lane_label(row):
+    raw_alignment = str(
+        row.get("stack_alignment")
+        or row.get("effective_stack_alignment")
+        or ""
+    ).strip().lower()
+    if raw_alignment in {"left", "right"}:
+        return raw_alignment
+    raw_anchor = str(row.get("stack_anchor_mode") or "").strip().lower()
+    if raw_anchor == "tongue":
+        return "left"
+    return None
+
+
+def _lane_row_top_sort_key(row):
+    outline_top = _as_float(row.get("y_outline_top_ft"), _as_float(row.get("y_body_top_ft"), 0.0))
+    surface = _as_float(row.get("y_surface_ft"), 0.0)
+    return (
+        outline_top,
+        surface,
+        int(row.get("layer") or 0),
+    )
+
+
+def _lane_rows_height_ft(rows):
+    if not rows:
+        return 0.0
+    zone_surface = min(_as_float(r.get("zone_surface_ft"), _as_float(r.get("y_surface_ft"), 0.0)) for r in rows)
+    outline_top = max(_as_float(r.get("y_outline_top_ft"), _as_float(r.get("y_body_top_ft"), zone_surface)) for r in rows)
+    return max(outline_top - zone_surface, 0.0)
+
+
+def _slot_stack_length_ft(row):
+    render_footprint = _as_float(row.get("render_footprint_ft"), 0.0)
+    if render_footprint > _EPS:
+        return render_footprint
+    deck_length = _as_float(row.get("deck_length_ft"), _as_float(row.get("bed_length"), 0.0))
+    tongue_length = _as_float(row.get("render_tongue_length_ft"), _as_float(row.get("tongue_length"), 0.0))
+    return max(deck_length + tongue_length, 0.0)
 
 
 def _pick_best_placement(

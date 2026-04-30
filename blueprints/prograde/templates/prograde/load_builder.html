@@ -208,6 +208,9 @@ body {
 body.pg-sku-drag-active .pg-drag-hint-row {
   display: flex;
 }
+.pg-drag-hint-row.has-live-text {
+  display: flex;
+}
 .pg-layout {
   display: flex;
   gap: var(--space-md);
@@ -1276,6 +1279,13 @@ body.pg-sku-drag-active .pg-drag-hint-row {
     repeating-linear-gradient(45deg, rgba(186, 230, 253, 0.16) 0 8px, rgba(8, 47, 73, 0.14) 8px 16px),
     linear-gradient(180deg, rgba(125, 211, 252, 0.46), rgba(8, 47, 73, 0.26));
 }
+.pg-stack-drop-preview.side-tongue {
+  background:
+    repeating-linear-gradient(90deg, rgba(186, 230, 253, 0.14) 0 8px, rgba(14, 116, 144, 0.14) 8px 16px),
+    linear-gradient(180deg, rgba(56, 189, 248, 0.30), rgba(14, 116, 144, 0.22));
+  border-color: rgba(186, 230, 253, 0.88);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.36);
+}
 .pg-stack-drop-preview::after {
   content: attr(data-side-label);
   position: absolute;
@@ -1296,7 +1306,8 @@ body.pg-sku-drag-active .pg-drag-hint-row {
   display: none;
 }
 .pg-stack-drop-preview.side-left::after,
-.pg-stack-drop-preview.side-right::after {
+.pg-stack-drop-preview.side-right::after,
+.pg-stack-drop-preview.side-tongue::after {
   display: block;
 }
 @keyframes pgStackPreviewPulse {
@@ -3907,7 +3918,7 @@ async function refreshBuilderFast() {
   }, 320);
 }
 
-async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt, enableGnCrisscross = false, addSource = ADD_SOURCE_SKU_PICKER, columnAlignment = null, stackAlignment = null) {
+async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, dumpHeightFt, enableGnCrisscross = false, addSource = ADD_SOURCE_SKU_PICKER, columnAlignment = null, stackAlignment = null, stackAnchorMode = null) {
   try {
     const body = { item_number: itemNumber, deck_zone: zone };
     if (stackOnPosId) body.stack_on = stackOnPosId;
@@ -3916,6 +3927,7 @@ async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, 
     }
     if (columnAlignment) body.column_alignment = columnAlignment;
     if (stackAlignment) body.stack_alignment = stackAlignment;
+    if (stackAnchorMode) body.stack_anchor_mode = stackAnchorMode;
     if (SESSION_BRAND === "pj") {
       body.pj_tongue_profile = _pjTongueMode(tongueMode || _getSkuTongueSelection(itemNumber, "standard"));
       const normalizedDumpHeight = _normalizePjDumpHeightFt(dumpHeightFt, null);
@@ -3937,7 +3949,7 @@ async function addUnit(itemNumber, zone, stackOnPosId, insertIndex, tongueMode, 
   }
 }
 
-async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCrisscross = false, toLayerIndex = null, stackAlignment = null) {
+async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCrisscross = false, toLayerIndex = null, stackAlignment = null, stackAnchorMode = null) {
   try {
     const body = { position_id: positionId, to_zone: toZone };
     if (toSequence !== undefined && toSequence !== null && toSequence !== "") {
@@ -3954,6 +3966,9 @@ async function moveUnit(positionId, toZone, toSequence, insertIndex, enableGnCri
     }
     if (stackAlignment) {
       body.stack_alignment = stackAlignment;
+    }
+    if (stackAnchorMode) {
+      body.stack_anchor_mode = stackAnchorMode;
     }
     await postSession("/position/move", body);
     await refreshBuilderFast();
@@ -4187,6 +4202,7 @@ function initSkuDragAndDrop(options = {}) {
   const setDragLiveText = (text) => {
     const dragLiveIndicator = document.getElementById("stack-drag-live-indicator");
     if (!dragLiveIndicator) return;
+    const dragHintRow = dragLiveIndicator.closest(".pg-drag-hint-row");
     const normalized = String(text || "").trim();
     if (!normalized) {
       if (dragLiveIndicator.classList.contains("hidden") && !dragLiveIndicator.textContent) {
@@ -4194,6 +4210,9 @@ function initSkuDragAndDrop(options = {}) {
       }
       dragLiveIndicator.classList.add("hidden");
       dragLiveIndicator.textContent = "";
+      if (dragHintRow) {
+        dragHintRow.classList.remove("has-live-text");
+      }
       return;
     }
     if (!dragLiveIndicator.classList.contains("hidden") && dragLiveIndicator.textContent === normalized) {
@@ -4201,6 +4220,9 @@ function initSkuDragAndDrop(options = {}) {
     }
     dragLiveIndicator.textContent = normalized;
     dragLiveIndicator.classList.remove("hidden");
+    if (dragHintRow) {
+      dragHintRow.classList.add("has-live-text");
+    }
   };
 
   const setSkuDragAffordance = (enabled) => {
@@ -4224,6 +4246,9 @@ function initSkuDragAndDrop(options = {}) {
   const showDropPreview = (left, top, width, height, side = "") => {
     const preview = document.getElementById("pg-stack-drop-preview");
     if (!preview) return;
+    const setStackLanePreviewActive = (enabled) => {
+      document.body.classList.toggle("pg-stack-lane-preview-active", Boolean(enabled));
+    };
     if (
       !Number.isFinite(left)
       || !Number.isFinite(top)
@@ -4232,8 +4257,9 @@ function initSkuDragAndDrop(options = {}) {
       || width <= 0
       || height <= 0
     ) {
-      preview.classList.remove("active", "side-left", "side-right");
+      preview.classList.remove("active", "side-left", "side-right", "side-tongue");
       preview.removeAttribute("data-side-label");
+      setStackLanePreviewActive(false);
       return;
     }
     const normalizedSide = _normalizeDropSide(side);
@@ -4243,21 +4269,26 @@ function initSkuDragAndDrop(options = {}) {
     preview.style.height = `${Math.max(24, Math.round(height))}px`;
     preview.classList.toggle("side-left", normalizedSide === "left");
     preview.classList.toggle("side-right", normalizedSide === "right");
+    preview.classList.toggle("side-tongue", normalizedSide === "tongue");
     if (normalizedSide === "left") {
       preview.setAttribute("data-side-label", "LEFT STACK");
     } else if (normalizedSide === "right") {
       preview.setAttribute("data-side-label", "RIGHT STACK");
+    } else if (normalizedSide === "tongue") {
+      preview.setAttribute("data-side-label", "STACK ON TONGUE");
     } else {
       preview.removeAttribute("data-side-label");
     }
     preview.classList.add("active");
+    setStackLanePreviewActive(true);
   };
 
   const hideDropPreview = () => {
     const preview = document.getElementById("pg-stack-drop-preview");
     if (!preview) return;
     preview.removeAttribute("data-side-label");
-    preview.classList.remove("active", "side-left", "side-right");
+    preview.classList.remove("active", "side-left", "side-right", "side-tongue");
+    document.body.classList.remove("pg-stack-lane-preview-active");
   };
 
   const hideDropMarker = () => {
@@ -4298,6 +4329,80 @@ function initSkuDragAndDrop(options = {}) {
   const resolveDropTarget = (node) => {
     if (!node || !node.closest) return null;
     return node.closest("[data-column-slot], [data-stack-drop], .unit-card[data-pos-id], [data-drop-zone]");
+  };
+
+  const resolveDropTargetFromPoint = (evt, payload = null, fallbackTarget = null) => {
+    const x = Number(evt && evt.clientX);
+    const y = Number(evt && evt.clientY);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return fallbackTarget || null;
+    }
+    const type = String((payload && payload.type) || "").trim().toLowerCase();
+    const preferStackTargets = type === "sku" || type === "unit";
+    const nodes = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [];
+    if (Array.isArray(nodes) && nodes.length) {
+      if (preferStackTargets) {
+        for (const node of nodes) {
+          if (!node || !node.closest) continue;
+          const gnHit = node.closest('[data-gooseneck-hit="1"]');
+          if (!gnHit) continue;
+          const baseCard = gnHit.closest(".unit-card[data-pos-id]");
+          if (!baseCard || !baseCard.dataset) continue;
+          const zone = String(baseCard.dataset.zone || "").trim();
+          const seq = Number(baseCard.dataset.seq || 0);
+          if (!zone || !Number.isInteger(seq) || seq <= 0) {
+            return baseCard;
+          }
+          const cards = Array.from(document.querySelectorAll(`.unit-card[data-zone="${zone}"][data-seq="${seq}"]`));
+          if (!cards.length) {
+            return baseCard;
+          }
+          const topCard = cards.reduce((best, card) => {
+            const bestLayer = Number(best && best.dataset ? best.dataset.layer : 0);
+            const cardLayer = Number(card && card.dataset ? card.dataset.layer : 0);
+            return cardLayer > bestLayer ? card : best;
+          }, cards[0]);
+          return topCard || baseCard;
+        }
+        for (const node of nodes) {
+          if (!node || !node.closest) continue;
+          const stackTarget = node.closest(".unit-card[data-pos-id], [data-stack-drop]");
+          if (stackTarget) return stackTarget;
+        }
+      }
+      for (const node of nodes) {
+        const target = resolveDropTarget(node);
+        if (target) return target;
+      }
+    }
+    const probeNode = document.elementFromPoint(x, y);
+    return resolveDropTarget(probeNode) || fallbackTarget || null;
+  };
+
+  const pointerHitsGooseneckForTarget = (evt, target) => {
+    const x = Number(evt && evt.clientX);
+    const y = Number(evt && evt.clientY);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !target) return false;
+    const supportCard = resolveStackSupportUnitCard(target);
+    if (!supportCard || !supportCard.dataset) return false;
+    const zone = String(supportCard.dataset.zone || "").trim();
+    const seq = Number(supportCard.dataset.seq || 0);
+    if (!zone || !Number.isInteger(seq) || seq <= 0) return false;
+    const nodes = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [];
+    if (!Array.isArray(nodes) || !nodes.length) return false;
+    for (const node of nodes) {
+      if (!node || !node.closest) continue;
+      const gnHit = node.closest('[data-gooseneck-hit="1"]');
+      if (!gnHit) continue;
+      const baseCard = gnHit.closest(".unit-card[data-pos-id]");
+      if (!baseCard || !baseCard.dataset) continue;
+      const baseZone = String(baseCard.dataset.zone || "").trim();
+      const baseSeq = Number(baseCard.dataset.seq || 0);
+      if (baseZone === zone && baseSeq === seq) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const markStackClass = (zone, sequence, className, enabled) => {
@@ -4477,8 +4582,7 @@ function initSkuDragAndDrop(options = {}) {
       updateSkuDragGhostPosition(evt);
     }
     evt.preventDefault();
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const rawTarget = resolveDropTarget(probeNode) || state.hoverTarget;
+    const rawTarget = resolveDropTargetFromPoint(evt, activeDrag, state.hoverTarget) || state.hoverTarget;
     const target = normalizeDropTargetForPayload(rawTarget, activeDrag, evt) || state.hoverTarget;
     if (!target) return;
     clearTransientPlacementHints();
@@ -4486,7 +4590,11 @@ function initSkuDragAndDrop(options = {}) {
     if (state.hoverTarget && state.hoverTarget !== hintedTarget) {
       state.hoverTarget.classList.remove("drop-target-active", "drop-before", "drop-after");
     }
-    hintedTarget.classList.add("drop-target-active");
+    if (shouldUseGlobalHoverHighlight(hintedTarget, activeDrag)) {
+      hintedTarget.classList.add("drop-target-active");
+    } else {
+      hintedTarget.classList.remove("drop-target-active");
+    }
     mouseSkuDrag.hoverTarget = hintedTarget;
   }
 
@@ -4508,8 +4616,7 @@ function initSkuDragAndDrop(options = {}) {
       totalLengthFt: state.totalLengthFt,
       addSource: ADD_SOURCE_SKU_PICKER,
     };
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const rawTarget = resolveDropTarget(probeNode) || state.hoverTarget;
+    const rawTarget = resolveDropTargetFromPoint(evt, payload, state.hoverTarget) || state.hoverTarget;
     const target = normalizeDropTargetForPayload(rawTarget, payload, evt) || state.hoverTarget;
     stopManualSkuDrag();
     if (!target) return;
@@ -4657,12 +4764,15 @@ function initSkuDragAndDrop(options = {}) {
     if (!mouseUnitDrag.started) return;
     evt.preventDefault();
     const payload = { type: "unit", positionId: mouseUnitDrag.positionId };
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const target = resolveDropTarget(probeNode);
+    const target = resolveDropTargetFromPoint(evt, payload, mouseUnitDrag.hoverTarget);
     clearTransientPlacementHints();
     clearMouseUnitHover();
     if (!target) return;
-    target.classList.add("drop-target-active");
+    if (shouldUseGlobalHoverHighlight(target, payload)) {
+      target.classList.add("drop-target-active");
+    } else {
+      target.classList.remove("drop-target-active");
+    }
     mouseUnitDrag.hoverTarget = target;
     setDropPlacementHint(target, payload, evt);
   }
@@ -4677,8 +4787,7 @@ function initSkuDragAndDrop(options = {}) {
       return;
     }
     const payload = { type: "unit", positionId: state.positionId };
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const target = resolveDropTarget(probeNode) || state.hoverTarget;
+    const target = resolveDropTargetFromPoint(evt, payload, state.hoverTarget) || state.hoverTarget;
     stopManualUnitDrag();
     if (!target) return;
     try {
@@ -4736,12 +4845,15 @@ function initSkuDragAndDrop(options = {}) {
     if (!mouseStackDrag.started) return;
     evt.preventDefault();
     const payload = { type: "stack", zone: mouseStackDrag.zone, sequence: mouseStackDrag.sequence };
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const target = resolveDropTarget(probeNode);
+    const target = resolveDropTargetFromPoint(evt, payload, mouseStackDrag.hoverTarget);
     clearTransientPlacementHints();
     clearMouseStackHover();
     if (!target) return;
-    target.classList.add("drop-target-active");
+    if (shouldUseGlobalHoverHighlight(target, payload)) {
+      target.classList.add("drop-target-active");
+    } else {
+      target.classList.remove("drop-target-active");
+    }
     mouseStackDrag.hoverTarget = target;
     setDropPlacementHint(target, payload, evt);
   }
@@ -4756,8 +4868,7 @@ function initSkuDragAndDrop(options = {}) {
       return;
     }
     const payload = { type: "stack", zone: state.zone, sequence: state.sequence };
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const target = resolveDropTarget(probeNode) || state.hoverTarget;
+    const target = resolveDropTargetFromPoint(evt, payload, state.hoverTarget) || state.hoverTarget;
     stopManualStackDrag();
     if (!target) return;
     try {
@@ -4860,23 +4971,24 @@ function initSkuDragAndDrop(options = {}) {
   const getOrderedStackTargetsForZone = (zone) => {
     if (!zone) return [];
     const ordered = Array.from(document.querySelectorAll(`[data-stack-drop][data-zone="${zone}"]`))
-      .map((el) => ({
-        seq: Number(el.dataset.targetSeq || 0),
-        target: String(el.dataset.target || "").trim(),
-        columnAlignment: _normalizeDropSide(el.dataset.columnAlignment || ""),
-        rect: el.getBoundingClientRect ? el.getBoundingClientRect() : null,
-        stackAlignment: (() => {
-          const targetId = String(el.dataset.target || "").trim();
-          if (!targetId) return "";
-          const topCard = document.querySelector(`.unit-card[data-pos-id="${targetId}"]`);
-          return _normalizeDropSide(topCard && topCard.dataset ? topCard.dataset.stackAlignment : "");
-        })(),
-        visualLeft: (() => {
-          const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
-          if (rect && Number.isFinite(rect.left)) return rect.left;
-          return null;
-        })(),
-      }))
+      .map((el) => {
+        const targetId = String(el.dataset.target || "").trim();
+        const topCard = targetId ? document.querySelector(`.unit-card[data-pos-id="${targetId}"]`) : null;
+        const topCardSide = _normalizeDropSide(topCard && topCard.dataset ? topCard.dataset.stackAlignment : "");
+        const rawColumnAlignment = _normalizeDropSide(el.dataset.columnAlignment || "");
+        return {
+          seq: Number(el.dataset.targetSeq || 0),
+          target: targetId,
+          columnAlignment: rawColumnAlignment || topCardSide || "",
+          rect: el.getBoundingClientRect ? el.getBoundingClientRect() : null,
+          stackAlignment: topCardSide,
+          visualLeft: (() => {
+            const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+            if (rect && Number.isFinite(rect.left)) return rect.left;
+            return null;
+          })(),
+        };
+      })
       .filter((entry) => Number.isInteger(entry.seq) && entry.seq > 0)
       .sort((a, b) => {
         const aLeft = Number.isFinite(a.visualLeft) ? Number(a.visualLeft) : null;
@@ -4932,7 +5044,7 @@ function initSkuDragAndDrop(options = {}) {
 
   const _normalizeDropSide = (rawValue) => {
     const value = String(rawValue || "").trim().toLowerCase();
-    if (value === "left" || value === "right") return value;
+    if (value === "left" || value === "right" || value === "tongue") return value;
     return "";
   };
 
@@ -5174,30 +5286,182 @@ function initSkuDragAndDrop(options = {}) {
     if (!payload || !target) return false;
     if (payload.type !== "sku" && payload.type !== "unit") return false;
     const supportCard = resolveStackSupportUnitCard(target);
-    const supportDeckLengthFt = _readDatasetFeet(supportCard, "deckLengthFt");
+    const referenceCard = resolveColumnBaseCard(supportCard) || supportCard;
+    const supportDeckLengthFt = _readDatasetFeet(referenceCard, "deckLengthFt");
     const payloadDeckLengthFt = resolvePayloadDeckLengthFt(payload);
     const payloadLengthFt = payloadDeckLengthFt ?? resolvePayloadTotalLengthFt(payload);
     if (supportDeckLengthFt === null || payloadLengthFt === null) return false;
-    if (payloadLengthFt < (supportDeckLengthFt - 1e-6)) {
-      return true;
-    }
+    return payloadLengthFt < (supportDeckLengthFt - 1e-6);
+  };
 
-    // Preserve sibling-lane creation on larger supports:
-    // if top card is already lane-anchored and opposite lane does not exist yet,
-    // compare against the base support footprint for this stack column.
-    const supportSide = _normalizeDropSide(supportCard && supportCard.dataset ? supportCard.dataset.stackAlignment : "");
-    if (supportCard && supportSide) {
-      const oppositeSide = supportSide === "left" ? "right" : "left";
-      if (!columnHasOppositeLane(supportCard, oppositeSide)) {
-        const baseCard = resolveColumnBaseCard(supportCard);
-        const baseDeckLengthFt = _readDatasetFeet(baseCard, "deckLengthFt");
-        if (baseDeckLengthFt !== null && payloadLengthFt < (baseDeckLengthFt - 1e-6)) {
-          return true;
+  const _readCardStackingHeightFt = (card) => {
+    if (!card || !card.dataset) return 0;
+    const value = Number(card.dataset.stackingHeightFt || 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  };
+
+  const _cardUsesGooseneck = (card) => {
+    if (!card || !card.dataset) return false;
+    return _pjTongueMode(card.dataset.tongueProfile || "standard") === "gooseneck";
+  };
+
+  const _findGooseneckAnchorIndex = (cards, supportLayer) => {
+    if (!Array.isArray(cards) || !cards.length) return -1;
+    const supportLayerNum = Number(supportLayer || 0);
+    let anchorIdx = -1;
+    cards.forEach((card, idx) => {
+      const layer = _readDatasetLayer(card) || 0;
+      if (layer > 0 && layer <= supportLayerNum && _cardUsesGooseneck(card)) {
+        anchorIdx = idx;
+      }
+    });
+    return anchorIdx;
+  };
+
+  const _isCardRenderedRotated = (card) => {
+    if (!card || !card.dataset) return false;
+    const raw = String(card.dataset.isRotated || "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  };
+
+  const _pointInRect = (x, y, rect) => {
+    if (!rect) return false;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+    if (
+      !Number.isFinite(rect.left)
+      || !Number.isFinite(rect.right)
+      || !Number.isFinite(rect.top)
+      || !Number.isFinite(rect.bottom)
+    ) {
+      return false;
+    }
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  };
+
+  const resolveGooseneckTongueDropRect = (payload, target) => {
+    if (SESSION_BRAND !== "pj") return null;
+    if (!payload || (payload.type !== "sku" && payload.type !== "unit")) return null;
+    const supportCard = resolveStackSupportUnitCard(target);
+    if (!supportCard) return null;
+    const cards = getStackColumnCards(supportCard);
+    if (!cards.length) return null;
+    const supportLayer = _readDatasetLayer(supportCard) || 0;
+    if (!supportLayer) return null;
+    const anchorIdx = _findGooseneckAnchorIndex(cards, supportLayer);
+    if (anchorIdx < 0) return null;
+
+    const anchorCard = cards[anchorIdx] || null;
+    if (!anchorCard) return null;
+    const anchorRect = resolveUnitDeckReferenceRect(anchorCard);
+    if (!anchorRect || !Number.isFinite(anchorRect.width) || anchorRect.width <= 0) return null;
+
+    const deckLengthFt = _readDatasetFeet(anchorCard, "deckLengthFt");
+    const totalLengthFt = _readDatasetFeet(anchorCard, "totalLengthFt");
+    if (deckLengthFt === null || deckLengthFt <= 0) return null;
+    const renderedTotalLengthFt = totalLengthFt !== null ? totalLengthFt : deckLengthFt;
+    let tongueLengthFt = Math.max(renderedTotalLengthFt - deckLengthFt, 0);
+    if (_cardUsesGooseneck(anchorCard)) {
+      // Match the rendered gooseneck path geometry in the SVG: the horizontal
+      // top run is 4.0 ft even though the overall GN tongue footprint is longer.
+      tongueLengthFt = 4.0;
+    }
+    if (tongueLengthFt <= 1e-6) return null;
+
+    const pxPerFt = anchorRect.width / deckLengthFt;
+    if (!Number.isFinite(pxPerFt) || pxPerFt <= 0) return null;
+    const tongueWidthPx = Math.max(tongueLengthFt * pxPerFt, 8);
+    const rotated = _isCardRenderedRotated(anchorCard);
+    const left = rotated ? (anchorRect.left - tongueWidthPx) : anchorRect.right;
+    const right = rotated ? anchorRect.left : (anchorRect.right + tongueWidthPx);
+    if (!Number.isFinite(left) || !Number.isFinite(right) || right <= left) return null;
+
+    return {
+      left,
+      right,
+      top: anchorRect.top,
+      bottom: anchorRect.bottom,
+      width: right - left,
+      height: anchorRect.height,
+    };
+  };
+
+  const resolveStackTopDropPlacement = (target, evt = null, payload = null, preferredSide = "") => {
+    const normalizedPreferredSide = _normalizeDropSide(preferredSide);
+    const supportsSideSplit = canOfferStackSideAlignment(payload, target);
+    const tongueDropRect = supportsSideSplit ? resolveGooseneckTongueDropRect(payload, target) : null;
+    const tongueAvailable = Boolean(tongueDropRect);
+
+    let side = normalizedPreferredSide;
+    let stackAnchorMode = "";
+    if (!side && target && target.matches && target.matches(".unit-card[data-pos-id]")) {
+      side = _normalizeDropSide(target.dataset && target.dataset.stackAlignment);
+      if (side === "left") {
+        stackAnchorMode = String((target.dataset && target.dataset.stackAnchorMode) || "").trim().toLowerCase();
+      }
+    }
+    if (!side && supportsSideSplit && evt) {
+      const rect = resolveStackSideReferenceRect(target, payload);
+      if (rect && Number.isFinite(rect.left) && Number.isFinite(rect.width) && rect.width > 0) {
+        const pointerX = Number(evt.clientX || 0);
+        const pointerOnGooseneckPath = tongueAvailable && pointerHitsGooseneckForTarget(evt, target);
+        const pointerInTongueRect = tongueAvailable && _pointInRect(pointerX, Number(evt.clientY || 0), tongueDropRect);
+        if (pointerOnGooseneckPath || pointerInTongueRect) {
+          side = "left";
+          stackAnchorMode = "tongue";
+        } else {
+          side = pointerX >= (rect.left + (rect.width / 2)) ? "right" : "left";
+          stackAnchorMode = "deck";
         }
       }
     }
+    if (supportsSideSplit && evt && tongueAvailable) {
+      const pointerOnGooseneckPath = pointerHitsGooseneckForTarget(evt, target);
+      const pointerInTongueRect = _pointInRect(Number(evt.clientX || 0), Number(evt.clientY || 0), tongueDropRect);
+      if (pointerOnGooseneckPath || pointerInTongueRect) {
+        // Tongue zone should win even when hovering an existing left-lane card
+        // that pre-seeded side alignment from prior drops.
+        side = "left";
+        stackAnchorMode = "tongue";
+      }
+    }
+    if (!side && supportsSideSplit) {
+      side = resolveStackPointerSide(target, evt, payload);
+      if (side) stackAnchorMode = "deck";
+    }
+    if (!supportsSideSplit) {
+      side = "";
+      stackAnchorMode = "";
+    }
 
-    return false;
+    const laneTarget = side ? resolveColumnLaneTopCard(target, side) : null;
+    let stackTargetEl = null;
+    if (target && target.matches && target.matches(".unit-card[data-pos-id]")) {
+      if (side && payload && payload.type === "sku") {
+        stackTargetEl = laneTarget || target;
+      } else {
+        stackTargetEl = target;
+      }
+    } else if (target && target.matches && target.matches("[data-stack-drop]")) {
+      stackTargetEl = laneTarget || resolveStackTargetUnitCard(target);
+    }
+    const stackTargetId = String((stackTargetEl && stackTargetEl.dataset && stackTargetEl.dataset.posId) || "").trim();
+    const stackSideAlignment = supportsSideSplit ? side : "";
+    const normalizedAnchorMode = stackSideAlignment === "left"
+      ? (stackAnchorMode === "tongue" ? "tongue" : (stackAnchorMode === "deck" ? "deck" : ""))
+      : "";
+    const previewSide = normalizedAnchorMode === "tongue"
+      ? "tongue"
+      : stackSideAlignment;
+
+    return {
+      side,
+      previewSide,
+      stackTargetId,
+      stackTargetEl,
+      stackSideAlignment,
+      stackAnchorMode: normalizedAnchorMode,
+      tongueDropRect: normalizedAnchorMode === "tongue" ? tongueDropRect : null,
+    };
   };
 
   const resolveUnitDeckReferenceRect = (unitCard) => {
@@ -5254,12 +5518,9 @@ function initSkuDragAndDrop(options = {}) {
     if (supportCard) {
       let referenceCard = supportCard;
       if (payload && canOfferStackSideAlignment(payload, target)) {
-        const supportSide = _normalizeDropSide(supportCard.dataset && supportCard.dataset.stackAlignment);
-        if (supportSide) {
-          const baseCard = resolveColumnBaseCard(supportCard);
-          if (baseCard) {
-            referenceCard = baseCard;
-          }
+        const baseCard = resolveColumnBaseCard(supportCard);
+        if (baseCard) {
+          referenceCard = baseCard;
         }
       }
       const referenceRect = resolveUnitDeckReferenceRect(referenceCard);
@@ -5271,12 +5532,8 @@ function initSkuDragAndDrop(options = {}) {
   };
 
   const resolveStackTopDropSide = (target, evt = null, payload = null) => {
-    if (!target) return "";
-    if (!canOfferStackSideAlignment(payload, target)) return "";
-    if (!evt) return "";
-    const rect = resolveStackSideReferenceRect(target, payload);
-    if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) return "";
-    return Number(evt.clientX || 0) >= (rect.left + (rect.width / 2)) ? "right" : "left";
+    const placement = resolveStackTopDropPlacement(target, evt, payload);
+    return placement && placement.stackSideAlignment ? placement.stackSideAlignment : "";
   };
 
   const getStackColumnCards = (target) => {
@@ -5328,38 +5585,15 @@ function initSkuDragAndDrop(options = {}) {
     if (!target) {
       return {
         side: "",
+        previewSide: "",
         stackTargetId: "",
         stackTargetEl: null,
         stackSideAlignment: "",
+        stackAnchorMode: "",
+        tongueDropRect: null,
       };
     }
-
-    const explicitSide = _normalizeDropSide(preferredSide);
-    let side = explicitSide;
-    if (!side && target.matches && target.matches(".unit-card[data-pos-id]")) {
-      side = _normalizeDropSide(target.dataset && target.dataset.stackAlignment);
-    }
-    if (!side) {
-      side = resolveStackPointerSide(target, evt, payload);
-    }
-
-    const laneTarget = side ? resolveColumnLaneTopCard(target, side) : null;
-    let stackTargetEl = null;
-    if (target.matches && target.matches(".unit-card[data-pos-id]")) {
-      stackTargetEl = target;
-    } else if (target.matches && target.matches("[data-stack-drop]")) {
-      stackTargetEl = laneTarget || resolveStackTargetUnitCard(target);
-    }
-    const stackTargetId = String((stackTargetEl && stackTargetEl.dataset && stackTargetEl.dataset.posId) || "").trim();
-    const supportsSideSplit = canOfferStackSideAlignment(payload, stackTargetEl || target);
-    const stackSideAlignment = supportsSideSplit ? side : "";
-
-    return {
-      side,
-      stackTargetId,
-      stackTargetEl,
-      stackSideAlignment,
-    };
+    return resolveStackTopDropPlacement(target, evt, payload, preferredSide);
   };
 
   const resolveStackDropTargetElement = (zone, stackTarget = "", targetSeq = null) => {
@@ -5379,8 +5613,8 @@ function initSkuDragAndDrop(options = {}) {
     return null;
   };
 
-  const showStackTopDropPreview = (target, side = "", payload = null) => {
-    const rect = resolveStackSideReferenceRect(target, payload);
+  const showStackTopDropPreview = (target, side = "", payload = null, explicitRect = null) => {
+    const rect = explicitRect || resolveStackSideReferenceRect(target, payload);
     if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
       hideDropPreview();
       return;
@@ -5393,6 +5627,22 @@ function initSkuDragAndDrop(options = {}) {
       previewLeft = normalizedSide === "right" ? (rect.right - previewWidth) : rect.left;
     }
     showDropPreview(previewLeft, rect.top, previewWidth, rect.height, normalizedSide);
+  };
+
+  const showLowerDeckSidePreview = (side) => {
+    const normalizedSide = _normalizeDropSide(side);
+    if (!normalizedSide) {
+      hideDropPreview();
+      return;
+    }
+    const { left, right } = getLowerDeckSideDropTargets();
+    const sideTarget = normalizedSide === "right" ? right : left;
+    const rect = sideTarget && sideTarget.getBoundingClientRect ? sideTarget.getBoundingClientRect() : null;
+    if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
+      hideDropPreview();
+      return;
+    }
+    showDropPreview(rect.left, rect.top, rect.width, rect.height, normalizedSide);
   };
 
   const getLowerDeckSideFromPointer = (evt) => {
@@ -5612,7 +5862,7 @@ function initSkuDragAndDrop(options = {}) {
     if (!target || !payload || !evt) return target;
     if (payload.type === "sku") {
       const dropZone = getDropTargetZone(target);
-      if (dropZone === LOWER_DECK_ZONE) {
+      if (dropZone === LOWER_DECK_ZONE && target.matches && target.matches("[data-drop-zone]")) {
         const lowerDeckTarget = resolveDeckDropTargetForZone(LOWER_DECK_ZONE, evt);
         const lowerDeckPlan = resolveLowerDeckDropPlan(lowerDeckTarget, evt, "sku");
         if (lowerDeckPlan && lowerDeckPlan.side && !lowerDeckPlan.stackTarget) {
@@ -5629,7 +5879,7 @@ function initSkuDragAndDrop(options = {}) {
           } else {
             setDragLiveText(`Adding unit. Drop in the ${sideLabel} box to start/use that side stack on ${zoneLabel(LOWER_DECK_ZONE)}.`);
           }
-          return sideTarget || lowerDeckTarget || target;
+          return sideTarget || target;
         }
       }
       if (target.matches(".unit-card[data-pos-id]")) {
@@ -5643,13 +5893,22 @@ function initSkuDragAndDrop(options = {}) {
         const skuPlacement = resolveSkuStackPlacement(target, evt, payload);
         const previewTarget = skuPlacement.stackTargetEl || target;
         const dropSide = skuPlacement.stackSideAlignment || "";
-        if (dropSide) {
-          setLowerDeckSideHighlight(dropSide);
-        } else {
-          clearLowerDeckSideHighlights();
-        }
-        showStackTopDropPreview(previewTarget, dropSide, payload);
-        const sideHint = dropSide ? ` (${dropSide} side)` : "";
+        const previewSide = skuPlacement.previewSide || dropSide;
+        const previewRect = previewSide === "tongue" ? skuPlacement.tongueDropRect : null;
+        const gooseneckLaneTarget = SESSION_BRAND === "pj" && _stackTargetUsesGooseneck(previewTarget);
+        clearLowerDeckSideHighlights();
+        showStackTopDropPreview(previewTarget, previewSide, payload, previewRect);
+        const sideHint = previewSide
+          ? (
+            previewSide === "tongue"
+              ? " (tongue lane)"
+              : (
+            gooseneckLaneTarget
+              ? (dropSide === "left" ? " (gooseneck lane)" : " (deck lane)")
+              : ` (${dropSide} side)`
+              )
+          )
+          : "";
         const stackLabel = Number.isInteger(visualStackNumber) && visualStackNumber > 0
           ? visualStackNumber
           : (Number.isInteger(stackSequence) && stackSequence > 0 ? stackSequence : null);
@@ -5671,13 +5930,22 @@ function initSkuDragAndDrop(options = {}) {
         const skuPlacement = resolveSkuStackPlacement(target, evt, payload);
         const previewTarget = skuPlacement.stackTargetEl || target;
         const dropSide = skuPlacement.stackSideAlignment || "";
-        if (dropSide) {
-          setLowerDeckSideHighlight(dropSide);
-        } else {
-          clearLowerDeckSideHighlights();
-        }
-        showStackTopDropPreview(previewTarget, dropSide, payload);
-        const sideHint = dropSide ? ` (${dropSide} side)` : "";
+        const previewSide = skuPlacement.previewSide || dropSide;
+        const previewRect = previewSide === "tongue" ? skuPlacement.tongueDropRect : null;
+        const gooseneckLaneTarget = SESSION_BRAND === "pj" && _stackTargetUsesGooseneck(previewTarget);
+        clearLowerDeckSideHighlights();
+        showStackTopDropPreview(previewTarget, previewSide, payload, previewRect);
+        const sideHint = previewSide
+          ? (
+            previewSide === "tongue"
+              ? " (tongue lane)"
+              : (
+            gooseneckLaneTarget
+              ? (dropSide === "left" ? " (gooseneck lane)" : " (deck lane)")
+              : ` (${dropSide} side)`
+              )
+          )
+          : "";
         const stackLabel = Number.isInteger(visualStackNumber) && visualStackNumber > 0
           ? visualStackNumber
           : (Number.isInteger(stackSequence) && stackSequence > 0 ? stackSequence : null);
@@ -5706,7 +5974,9 @@ function initSkuDragAndDrop(options = {}) {
             lowerDeckPlan.side
           );
           const showSideSplit = Boolean(skuPlacement.stackSideAlignment);
-          showStackTopDropPreview(skuPlacement.stackTargetEl || previewTarget, skuPlacement.stackSideAlignment, payload);
+          const previewSide = skuPlacement.previewSide || skuPlacement.stackSideAlignment;
+          const previewRect = previewSide === "tongue" ? skuPlacement.tongueDropRect : null;
+          showStackTopDropPreview(skuPlacement.stackTargetEl || previewTarget, previewSide, payload, previewRect);
 
           const stackLabel = getVisualStackNumber(
             zone,
@@ -5714,8 +5984,15 @@ function initSkuDragAndDrop(options = {}) {
             lowerDeckPlan.stackTarget
           );
           if (showSideSplit) {
-            setLowerDeckSideHighlight(lowerDeckPlan.side);
-            setDragLiveText(`Adding unit. Drop on the ${sideLabel} side of this stack to build that lane on ${zoneLabel(zone)}.`);
+            clearLowerDeckSideHighlights();
+            if (previewSide === "tongue") {
+              setDragLiveText(`Adding unit. Drop on the TONGUE lane of this stack on ${zoneLabel(zone)}.`);
+            } else if (SESSION_BRAND === "pj" && _stackTargetUsesGooseneck(skuPlacement.stackTargetEl || previewTarget)) {
+              const laneLabel = lowerDeckPlan.side === "left" ? "LEFT gooseneck lane" : "RIGHT deck lane";
+              setDragLiveText(`Adding unit. Drop on the ${laneLabel} of this stack on ${zoneLabel(zone)}.`);
+            } else {
+              setDragLiveText(`Adding unit. Drop on the ${sideLabel} side of this stack to build that lane on ${zoneLabel(zone)}.`);
+            }
           } else if (Number.isInteger(stackLabel) && stackLabel > 0) {
             clearLowerDeckSideHighlights();
             setDragLiveText(`Adding unit. Drop to stack on top of stack ${stackLabel} on ${zoneLabel(zone)}.`);
@@ -5752,8 +6029,18 @@ function initSkuDragAndDrop(options = {}) {
       }
       if (target.matches("[data-stack-drop]")) {
         const zone = String(target.dataset.zone || "").trim();
-        setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}.`);
-        return resolveVisibleStackHoverTarget(target);
+        const stackPlacement = resolveStackTopDropPlacement(target, evt, payload);
+        const previewTarget = stackPlacement.stackTargetEl || resolveVisibleStackHoverTarget(target) || target;
+        const stackSideAlignment = stackPlacement.stackSideAlignment || "";
+        const previewSide = stackPlacement.previewSide || stackSideAlignment;
+        const previewRect = previewSide === "tongue" ? stackPlacement.tongueDropRect : null;
+        clearLowerDeckSideHighlights();
+        showStackTopDropPreview(previewTarget, previewSide, payload, previewRect);
+        const laneHint = previewSide === "tongue"
+          ? " (tongue lane)"
+          : (stackSideAlignment ? ` (${stackSideAlignment} side)` : "");
+        setDragLiveText(`Moving unit. Drop to place on ${zoneLabel(zone)}${laneHint}.`);
+        return previewTarget;
       }
       if (target.matches("[data-column-slot]")) {
         const zone = String(target.dataset.zone || "").trim();
@@ -5766,6 +6053,7 @@ function initSkuDragAndDrop(options = {}) {
         if (lowerDeckPlan && lowerDeckPlan.side) {
           const sideLabel = lowerDeckPlan.side === "right" ? "right stack" : "left stack";
           const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
+          hideDropPreview();
           if (lowerDeckPlan.mode === "create_new_edge") {
             showDeckInsertMarker(
               zone,
@@ -5815,6 +6103,7 @@ function initSkuDragAndDrop(options = {}) {
       if (lowerDeckPlan && lowerDeckPlan.side) {
         const sideLabel = lowerDeckPlan.side === "right" ? "right side" : "left side";
         const sideTarget = setLowerDeckSideHighlight(lowerDeckPlan.side);
+        hideDropPreview();
         if (lowerDeckPlan.mode === "create_new_edge") {
           showDeckInsertMarker(
             zone,
@@ -5851,6 +6140,7 @@ function initSkuDragAndDrop(options = {}) {
         : null;
       const stackTargetId = String((skuPlacement && skuPlacement.stackTargetId) || (lowerDeckSkuPlan.stackTarget || "")).trim() || null;
       const stackSideAlignment = (skuPlacement && skuPlacement.stackSideAlignment) || null;
+      const stackAnchorMode = (skuPlacement && skuPlacement.stackAnchorMode) || null;
       if (lowerDeckSkuPlan.stackTarget) {
         await addUnit(
           payload.itemNumber,
@@ -5862,7 +6152,8 @@ function initSkuDragAndDrop(options = {}) {
           false,
           payload.addSource,
           null,
-          stackSideAlignment
+          stackSideAlignment,
+          stackAnchorMode
         );
       } else {
         await addUnit(
@@ -5902,6 +6193,7 @@ function initSkuDragAndDrop(options = {}) {
         const skuPlacement = resolveSkuStackPlacement(target, evt, payload);
         const stackTarget = String(skuPlacement.stackTargetId || target.dataset.target || "").trim() || null;
         const stackSideAlignment = skuPlacement.stackSideAlignment || null;
+        const stackAnchorMode = skuPlacement.stackAnchorMode || null;
         await addUnit(
           payload.itemNumber,
           zone,
@@ -5912,11 +6204,14 @@ function initSkuDragAndDrop(options = {}) {
           enableGnCrisscross,
           payload.addSource,
           null,
-          stackSideAlignment
+          stackSideAlignment,
+          stackAnchorMode
         );
       } else if (payload.type === "unit") {
         const placement = evt ? getUnitDropPlacement(target, evt) : { toLayerIndex: null };
-        const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
+        const stackPlacement = resolveStackTopDropPlacement(target, evt, payload);
+        const stackSideAlignment = (stackPlacement && stackPlacement.stackSideAlignment) || null;
+        const stackAnchorMode = (stackPlacement && stackPlacement.stackAnchorMode) || null;
         await moveUnit(
           payload.positionId,
           zone,
@@ -5924,7 +6219,8 @@ function initSkuDragAndDrop(options = {}) {
           null,
           enableGnCrisscross,
           placement.toLayerIndex,
-          stackSideAlignment
+          stackSideAlignment,
+          stackAnchorMode
         );
       } else if (payload.type === "stack") {
         const insertIndex = getInsertIndexFromDropSide(target, zone, targetSeq, evt);
@@ -5943,6 +6239,7 @@ function initSkuDragAndDrop(options = {}) {
         const skuPlacement = resolveSkuStackPlacement(target, evt, payload);
         const stackTargetId = String(skuPlacement.stackTargetId || posId).trim() || null;
         const stackSideAlignment = skuPlacement.stackSideAlignment || null;
+        const stackAnchorMode = skuPlacement.stackAnchorMode || null;
         await addUnit(
           payload.itemNumber,
           zone,
@@ -5953,14 +6250,17 @@ function initSkuDragAndDrop(options = {}) {
           enableGnCrisscross,
           payload.addSource,
           null,
-          stackSideAlignment
+          stackSideAlignment,
+          stackAnchorMode
         );
       } else if (payload.type === "unit") {
         if (String(payload.positionId || "") === String(posId || "")) {
           return;
         }
         const placement = evt ? getUnitDropPlacement(target, evt) : { toLayerIndex: null };
-        const stackSideAlignment = resolveStackTopDropSide(target, evt, payload) || null;
+        const stackPlacement = resolveStackTopDropPlacement(target, evt, payload);
+        const stackSideAlignment = (stackPlacement && stackPlacement.stackSideAlignment) || null;
+        const stackAnchorMode = (stackPlacement && stackPlacement.stackAnchorMode) || null;
         await moveUnit(
           payload.positionId,
           zone,
@@ -5968,7 +6268,8 @@ function initSkuDragAndDrop(options = {}) {
           null,
           enableGnCrisscross,
           placement.toLayerIndex,
-          stackSideAlignment
+          stackSideAlignment,
+          stackAnchorMode
         );
       } else if (payload.type === "stack") {
         const insertIndex = getInsertIndexFromDropSide(target, zone, targetSeq, evt);
@@ -5998,6 +6299,7 @@ function initSkuDragAndDrop(options = {}) {
           );
           const stackTargetId = String(skuPlacement.stackTargetId || lowerDeckPlan.stackTarget || "").trim() || null;
           const stackSideAlignment = skuPlacement.stackSideAlignment || null;
+          const stackAnchorMode = skuPlacement.stackAnchorMode || null;
           await addUnit(
             payload.itemNumber,
             zone,
@@ -6008,14 +6310,33 @@ function initSkuDragAndDrop(options = {}) {
             false,
             payload.addSource,
             null,
-            stackSideAlignment
+            stackSideAlignment,
+            stackAnchorMode
           );
         } else {
           await addUnit(payload.itemNumber, zone, null, insertIndex, payload.tongueMode, payload.dumpHeightFt, false, payload.addSource, dropSideAlignment);
         }
       } else if (payload.type === "unit") {
         if (lowerDeckPlan && lowerDeckPlan.targetSeq) {
-          await moveUnit(payload.positionId, zone, lowerDeckPlan.targetSeq, null, false, null, dropSideAlignment);
+          const lowerDeckStackTarget = resolveStackDropTargetElement(zone, "", lowerDeckPlan.targetSeq);
+          const stackPlacement = resolveStackTopDropPlacement(
+            lowerDeckStackTarget || target,
+            evt,
+            payload,
+            dropSideAlignment || ""
+          );
+          const stackSideAlignment = (stackPlacement && stackPlacement.stackSideAlignment) || dropSideAlignment || null;
+          const stackAnchorMode = (stackPlacement && stackPlacement.stackAnchorMode) || null;
+          await moveUnit(
+            payload.positionId,
+            zone,
+            lowerDeckPlan.targetSeq,
+            null,
+            false,
+            null,
+            stackSideAlignment,
+            stackAnchorMode
+          );
         } else {
           await moveUnit(payload.positionId, zone, null, insertIndex);
         }
@@ -6062,11 +6383,28 @@ function initSkuDragAndDrop(options = {}) {
     globalHoverTarget = null;
   };
 
+  const shouldUseGlobalHoverHighlight = (target, payload) => {
+    if (!target) return false;
+    if (!payload) return true;
+    if (
+      (payload.type === "sku" || payload.type === "unit")
+      && target.matches
+      && (
+        target.matches(".unit-card[data-pos-id]")
+        || target.matches("[data-stack-drop]")
+      )
+    ) {
+      // For stack-on-unit drops, rely on the side preview band only to avoid
+      // conflicting highlights that imply a different landing target.
+      return false;
+    }
+    return true;
+  };
+
   const onGlobalDragOver = (evt) => {
     const payload = getPayload(evt);
     setSkuDragAffordance(Boolean(payload && payload.type === "sku"));
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const rawTarget = resolveDropTarget(probeNode) || resolveDropTarget(evt.target) || globalHoverTarget;
+    const rawTarget = resolveDropTargetFromPoint(evt, payload, globalHoverTarget) || resolveDropTarget(evt.target) || globalHoverTarget;
     const target = normalizeDropTargetForPayload(rawTarget, payload, evt) || globalHoverTarget;
     if (!target) {
       if (globalHoverTarget) {
@@ -6080,7 +6418,11 @@ function initSkuDragAndDrop(options = {}) {
     evt.preventDefault();
     clearTransientPlacementHints();
     const hintedTarget = setDropPlacementHint(target, payload, evt) || target;
-    setGlobalHoverTarget(hintedTarget);
+    if (shouldUseGlobalHoverHighlight(hintedTarget, payload)) {
+      setGlobalHoverTarget(hintedTarget);
+    } else {
+      clearGlobalHoverTarget();
+    }
     if (evt.dataTransfer) {
       evt.dataTransfer.dropEffect = payload && payload.type === "sku" ? "copy" : "move";
     }
@@ -6091,8 +6433,7 @@ function initSkuDragAndDrop(options = {}) {
     const hoveredTarget = (globalHoverTarget && globalHoverTarget.isConnected)
       ? globalHoverTarget
       : null;
-    const probeNode = document.elementFromPoint(Number(evt.clientX || 0), Number(evt.clientY || 0));
-    const rawTarget = hoveredTarget || resolveDropTarget(probeNode) || resolveDropTarget(evt.target);
+    const rawTarget = hoveredTarget || resolveDropTargetFromPoint(evt, payload, hoveredTarget) || resolveDropTarget(evt.target);
     const target = normalizeDropTargetForPayload(rawTarget, payload, evt) || hoveredTarget;
     if (!target) return;
     evt.preventDefault();

@@ -365,6 +365,122 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertFalse(row["fits_gap"])
         self.assertFalse(any(fit.get("fits") for fit in row["stack_fits"]))
 
+    def test_pj_inventory_gap_splits_left_right_lane_slots_and_targets_lane_top(self):
+        session_id = self._create_session("pj")
+        now = "2026-04-13T00:00:00"
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, description, bed_length_stated, bed_length_measured,
+                 tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "PJ-GN-SPLIT",
+                    "PL",
+                    "gooseneck",
+                    "split lane gn",
+                    40.0,
+                    40.0,
+                    9.0,
+                    49.0,
+                    4.5,
+                    4.5,
+                    now,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, description, bed_length_stated, bed_length_measured,
+                 tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "PJ-B516-SPLIT",
+                    "B5",
+                    "utility",
+                    "split lane utility",
+                    16.0,
+                    16.0,
+                    4.0,
+                    20.0,
+                    1.0,
+                    1.0,
+                    now,
+                ),
+            )
+
+        base_id = str(uuid.uuid4())
+        left_id = str(uuid.uuid4())
+        right_id = str(uuid.uuid4())
+        left_top_id = str(uuid.uuid4())
+        self.db.add_position(
+            position_id=base_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-GN-SPLIT",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:gooseneck",
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=left_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-SPLIT",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+            override_reason="stack_alignment:left;stack_anchor:tongue;tongue_profile:standard",
+        )
+        self.db.add_position(
+            position_id=right_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-SPLIT",
+            deck_zone="lower_deck",
+            layer=3,
+            sequence=1,
+            override_reason="stack_alignment:right;tongue_profile:standard",
+        )
+        self.db.add_position(
+            position_id=left_top_id,
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-SPLIT",
+            deck_zone="lower_deck",
+            layer=4,
+            sequence=1,
+            override_reason="stack_alignment:left;stack_anchor:tongue;tongue_profile:standard",
+        )
+
+        gap_data = self._get_gap_data(session_id)
+        lane_slots = [
+            slot
+            for slot in (gap_data.get("stack_slots") or [])
+            if slot.get("target_zone") == "lower_deck" and int(slot.get("target_sequence") or 0) == 1
+        ]
+        slots_by_side = {
+            str(slot.get("stack_side") or "").strip().lower(): slot
+            for slot in lane_slots
+            if str(slot.get("stack_side") or "").strip().lower() in {"left", "right"}
+        }
+
+        self.assertIn("left", slots_by_side)
+        self.assertIn("right", slots_by_side)
+        self.assertEqual(slots_by_side["left"]["stack_on_position_id"], left_top_id)
+        self.assertEqual(slots_by_side["right"]["stack_on_position_id"], right_id)
+        self.assertLess(
+            float(slots_by_side["left"]["remaining_height_ft"] or 0.0),
+            float(slots_by_side["right"]["remaining_height_ft"] or 0.0),
+        )
+        self.assertAlmostEqual(float(slots_by_side["left"]["stack_length_ft"] or 0.0), 20.0, places=1)
+        self.assertAlmostEqual(float(slots_by_side["right"]["stack_length_ft"] or 0.0), 20.0, places=1)
+
     def test_bt_inventory_gap_supports_warehouse_filter(self):
         session_id = self._create_session("bigtex")
         self._insert_bigtex_sku("BT-WHSE-1", model="WH1", mcat="utility", total_footprint=12.0, stack_height=1.0)
@@ -485,6 +601,78 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertIn("Upload Inventory", html)
         self.assertNotIn("Upload Orders", html)
         self.assertIn("Available Qty", html)
+
+    def test_pj_load_page_labels_split_lane_stack_headers(self):
+        profile_id = self._activate_profile(name="PJ Lane Header Tester")
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Lane Header Tester",
+            "pj-lane-headers",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Lane Header Tester",
+        )
+        now = "2026-04-13T00:00:00"
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, description, bed_length_stated, bed_length_measured,
+                 tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("PJ-GN-HDR", "PL", "gooseneck", "hdr gn", 40.0, 40.0, 9.0, 49.0, 4.5, 4.5, now),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, description, bed_length_stated, bed_length_measured,
+                 tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("PJ-B516-HDR", "B5", "utility", "hdr top", 16.0, 16.0, 4.0, 20.0, 1.0, 1.0, now),
+            )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-GN-HDR",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            override_reason="tongue_profile:gooseneck",
+            is_rotated=1,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-HDR",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+            override_reason="stack_alignment:left;stack_anchor:tongue;tongue_profile:standard",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-B516-HDR",
+            deck_zone="lower_deck",
+            layer=3,
+            sequence=1,
+            override_reason="stack_alignment:right;tongue_profile:standard",
+        )
+
+        resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("Stack 1 (Left) Fit", html)
+        self.assertIn("Stack 2 (Right) Fit", html)
+        self.assertIn("Left remaining height", html)
+        self.assertIn("Right remaining height", html)
 
 
 if __name__ == "__main__":

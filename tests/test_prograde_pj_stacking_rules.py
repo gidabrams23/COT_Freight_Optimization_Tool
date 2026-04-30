@@ -1786,16 +1786,16 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
             float(ts_row["deck_x_start_ft"]),
             places=3,
         )
-        gn_leftmost_rendered_x = float(ts_row["tongue_x_end_ft"])
+        gn_support_wall_x = float(ts_row["deck_x_start_ft"])
         for row in utility_layers:
             self.assertAlmostEqual(
                 float(row["tongue_x_end_ft"]),
-                gn_leftmost_rendered_x,
+                gn_support_wall_x,
                 places=3,
             )
             self.assertAlmostEqual(
                 float(row["deck_x_start_ft"]),
-                gn_leftmost_rendered_x + float(row.get("render_tongue_length_ft") or row.get("tongue_length") or 0.0),
+                gn_support_wall_x + float(row.get("render_tongue_length_ft") or row.get("tongue_length") or 0.0),
                 places=3,
             )
         utility_layers = sorted(utility_layers, key=lambda row: int(row.get("layer") or 0))
@@ -2142,7 +2142,7 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         self.assertNotEqual(col[1].get("effective_stack_alignment"), "left")
         self.assertNotEqual(col[2].get("effective_stack_alignment"), "left")
 
-    def test_non_gooseneck_layers_above_gooseneck_default_left_after_clearance(self):
+    def test_non_gooseneck_layers_above_gooseneck_do_not_auto_shift_after_clearance(self):
         col = [
             {
                 "position_id": "gn-base",
@@ -2186,9 +2186,10 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         ]
 
         _ = prograde_routes._lower_column_layer_start_offsets(col)
-        self.assertEqual(col[2].get("effective_stack_alignment"), "left")
+        self.assertNotEqual(col[2].get("effective_stack_alignment"), "left")
+        self.assertFalse(bool(col[2].get("_cleared_gooseneck_left_default")))
 
-    def test_gooseneck_base_height_counts_toward_clearance_threshold(self):
+    def test_gooseneck_height_threshold_no_longer_forces_left_lane(self):
         col = [
             {
                 "position_id": "gn-base",
@@ -2233,7 +2234,7 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         ]
 
         _ = prograde_routes._lower_column_layer_start_offsets(col)
-        self.assertEqual(col[2].get("effective_stack_alignment"), "left")
+        self.assertFalse(bool(col[2].get("_cleared_gooseneck_left_default")))
 
     def test_explicit_right_lane_above_gooseneck_stays_locked_across_higher_layers(self):
         col = [
@@ -2298,7 +2299,7 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
         self.assertAlmostEqual(float(offsets[3]), float(offsets[2]), places=3)
         self.assertTrue(bool(col[3].get("_explicit_lane_lock")))
 
-    def test_cleared_left_default_anchors_to_gooseneck_leftmost_rendered_point(self):
+    def test_explicit_left_lane_anchors_to_gooseneck_leftmost_rendered_point(self):
         col = [
             {
                 "position_id": "gn-base",
@@ -2338,14 +2339,15 @@ class ProgradePjStackingRulesTests(unittest.TestCase):
                 "stacking_height_ft": 2.0,
                 "is_rotated": 0,
                 "override_reason": "tongue_profile:standard",
-                "stack_alignment": None,
+                "stack_alignment": "left",
+                "stack_anchor_mode": "tongue",
             },
         ]
 
         offsets = prograde_routes._lower_column_layer_start_offsets(col)
-        # GN base rendered leftmost point is -9.0 (rotated, 9' tongue).
-        # Non-rotated CC24 left-aligned after clearance should start there.
-        self.assertAlmostEqual(float(offsets[2]), -9.0, places=3)
+        # Explicit LEFT + TONGUE mode anchors to the rendered gooseneck
+        # tongue-end line (rotated GN: rendered leftmost x is -4.0).
+        self.assertAlmostEqual(float(offsets[2]), -4.0, places=3)
         self.assertEqual(col[2].get("effective_stack_alignment"), "left")
 
 

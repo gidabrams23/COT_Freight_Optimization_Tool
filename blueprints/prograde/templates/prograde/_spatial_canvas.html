@@ -153,6 +153,20 @@ body.pg-sku-drag-active .pg-lower-side-guide {
 body.pg-sku-drag-active .pg-lower-side-label {
   fill: rgba(224, 242, 254, 0.98);
 }
+body.pg-stack-lane-preview-active .pg-lower-side-guide,
+body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-guide {
+  fill: rgba(15, 23, 42, 0.01);
+  stroke: rgba(125, 211, 252, 0.22);
+  stroke-width: 1.0;
+  stroke-dasharray: 6 5;
+  opacity: 0.16;
+}
+body.pg-stack-lane-preview-active .pg-lower-side-label,
+body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label,
+body.pg-stack-lane-preview-active .pg-lower-side-label.active,
+body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active {
+  fill: rgba(191, 219, 254, 0.58);
+}
 .pg-side-gauge {
   position: absolute;
   width: 56px;
@@ -464,7 +478,7 @@ body.pg-sku-drag-active .pg-lower-side-label {
           {% set lower_half_w = lower_drop_w / 2 %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="left"/>
           <rect x="{{ margin_l + lower_half_w }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" fill="rgba(59,130,246,0.001)" data-drop-zone="lower_deck" data-drop-side="right"/>
-          {% if session.brand == 'bigtex' %}
+          {% if session.brand in ['bigtex', 'pj'] %}
           <rect x="{{ margin_l }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" class="pg-lower-side-guide"/>
           <rect x="{{ margin_l + lower_half_w }}" y="{{ stack_plot_y }}" width="{{ lower_half_w }}" height="{{ stack_plot_h }}" class="pg-lower-side-guide"/>
           <text id="pg-lower-side-label-left" class="pg-lower-side-label" x="{{ margin_l + (lower_half_w / 2) }}" y="{{ stack_plot_y + 14 }}" text-anchor="middle">Left Stack</text>
@@ -811,8 +825,10 @@ body.pg-sku-drag-active .pg-lower-side-label {
                  data-zone="{{ zone }}"
                  data-seq="{{ seq }}"
                  data-layer="{{ pos.layer }}"
-                 data-stack-alignment="{{ pos.stack_alignment or '' }}"
+                 data-stack-alignment="{{ pos.effective_stack_alignment or pos.stack_alignment or '' }}"
+                 data-stack-anchor-mode="{{ pos.stack_anchor_mode or '' }}"
                  data-deck-length-ft="{{ deck_len }}"
+                 data-stacking-height-ft="{{ (pos.stacking_height_ft or pos.deck_component_height_ft or pos.height or 0) | float }}"
                  data-total-length-ft="{{ (pos.render_footprint_ft if pos.render_footprint_ft is defined else (deck_len + tongue_len)) | float }}"
                  data-deck-x0="{{ x_start_px }}"
                  data-deck-x1="{{ x_end_px }}"
@@ -930,6 +946,17 @@ body.pg-sku-drag-active .pg-lower-side-label {
                   {% set p2py = p1py %}
                   {% set p3py = ground_y - (gn_tip_render_surface_ft - display_floor_ft) * py_per_ft %}
                   {% set gn_thick_px = [0.26 * py_per_ft, 3.4] | max %}
+                  {% set gn_hit_px = [gn_thick_px + 12.0, 14.0] | max %}
+                  <path d="M {{ p0px }},{{ p0py }} L {{ p1px }},{{ p1py }} L {{ p2px }},{{ p2py }} L {{ p3px }},{{ p3py }}"
+                        class="pg-gooseneck-hit-zone"
+                        data-gooseneck-hit="1"
+                        fill="none"
+                        stroke="rgba(186, 230, 253, 0.001)"
+                        stroke-width="{{ gn_hit_px }}"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        pointer-events="stroke"
+                        clip-path="url(#pg-clip-cab)"/>
                   <path d="M {{ p0px }},{{ p0py }} L {{ p1px }},{{ p1py }} L {{ p2px }},{{ p2py }} L {{ p3px }},{{ p3py }}"
                         fill="none"
                         stroke="{{ accent }}90"
