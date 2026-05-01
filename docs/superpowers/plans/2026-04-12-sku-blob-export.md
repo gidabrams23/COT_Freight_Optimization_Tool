@@ -78,7 +78,7 @@ Requirements:
 
 - use `DefaultAzureCredential`
 - read the account name from `SKU_EXPORT_STORAGE_ACCOUNT` unless explicitly passed
-- write to container `reference`
+- write to container `resources`
 - write to blob `freight/cot_load_scoring/sku_specifications.csv`
 - overwrite the existing blob
 - return a useful success value such as the blob URL
@@ -289,4 +289,3 @@ Record what was actually validated. Do not claim the manual recovery workflow wo
 - [ ] Tests cover serialization, blob upload behavior, and scorer compatibility.
 - [ ] The manual recovery workflow is explicitly verified or any remaining gap is clearly documented.
 - [ ] No Flask route hooks or request-triggered export logic are introduced.
-

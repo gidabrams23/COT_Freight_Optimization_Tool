@@ -10,7 +10,7 @@ Local mode (default):
 Blob mode (--blob):
     Uploads to Azure Blob Storage using Managed Identity.
     Requires ``SKU_EXPORT_STORAGE_ACCOUNT`` env var.
-    Destination: reference/freight/cot_load_scoring/sku_specifications.csv
+    Destination: resources/freight/cot_load_scoring/sku_specifications.csv
 """
 
 import argparse
@@ -41,7 +41,7 @@ EXPORT_FIELDS = [
 
 DEFAULT_OUTPUT = ROOT / "data" / "exports" / "sku_specifications_snapshot.csv"
 
-BLOB_CONTAINER = "reference"
+BLOB_CONTAINER = "resources"
 BLOB_PATH = "freight/cot_load_scoring/sku_specifications.csv"
 
 

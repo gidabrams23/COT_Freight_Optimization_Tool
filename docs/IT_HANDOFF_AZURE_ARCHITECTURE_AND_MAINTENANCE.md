@@ -453,7 +453,7 @@ The application exports a daily snapshot of SKU specifications to Azure Blob Sto
 | Field | Value |
 |---|---|
 | Storage Account | Configured via `SKU_EXPORT_STORAGE_ACCOUNT` env var |
-| Container | `reference` |
+| Container | `resources` |
 | Blob Path | `freight/cot_load_scoring/sku_specifications.csv` |
 
 ### Identity and Permissions
@@ -488,7 +488,7 @@ The script overwrites the existing blob. The last successful snapshot remains av
 
 ### Monitoring and Failure Behavior
 
-- **Success log:** `Uploaded N SKU specs to https://<account>.blob.core.windows.net/reference/freight/cot_load_scoring/sku_specifications.csv`
+- **Success log:** `Uploaded N SKU specs to https://<account>.blob.core.windows.net/resources/freight/cot_load_scoring/sku_specifications.csv`
 - **Failure log:** `Failed to upload SKU snapshot to blob storage.` with full traceback
 - **Missing config:** `SKU_EXPORT_STORAGE_ACCOUNT is not set. Cannot upload to blob storage.` (exits non-zero)
 - A failed export does not affect planner workflows (the export runs outside the web process)

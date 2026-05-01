@@ -109,6 +109,8 @@ class TestExportToBlob(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertIn("teststorage", result)
+        self.assertEqual(BLOB_CONTAINER, "resources")
+        self.assertIn(f"/{BLOB_CONTAINER}/{BLOB_PATH}", result)
         mock_blob_client.upload_blob.assert_called_once()
         uploaded_content = mock_blob_client.upload_blob.call_args[0][0]
         self.assertIn(b"5X8GW", uploaded_content)

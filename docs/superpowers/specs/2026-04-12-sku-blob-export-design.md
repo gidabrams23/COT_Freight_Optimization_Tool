@@ -55,7 +55,7 @@ The export should remain runnable manually from the command line for recovery an
 ### Blob Destination
 
 - **Storage account:** configured via `SKU_EXPORT_STORAGE_ACCOUNT`
-- **Container:** `reference`
+- **Container:** `resources`
 - **Blob path:** `freight/cot_load_scoring/sku_specifications.csv`
 
 If `SKU_EXPORT_STORAGE_ACCOUNT` is unset, blob export is disabled and the script should fail fast with a clear message when blob mode is requested.
@@ -175,4 +175,3 @@ This is an ops/runtime behavior change and should be reflected in the Azure hand
 | `requirements.txt` | Modified to add Azure blob dependencies |
 | ops/scheduler configuration | New or updated scheduled daily execution path |
 | docs/IT handoff doc | Updated to describe export scheduling and recovery workflow |
-
