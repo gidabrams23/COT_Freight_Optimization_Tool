@@ -2352,6 +2352,17 @@ def _draw_dashed_hline(draw, x0, x1, y, *, dash=10, gap=7, fill=(239, 68, 68), w
         x = seg_right + gap
 
 
+def _draw_centered_text(draw, center_xy, text, *, font, fill):
+    value = str(text or "").strip()
+    if not value:
+        return
+    cx, cy = center_xy
+    left, top, right, bottom = draw.textbbox((0, 0), value, font=font)
+    width = right - left
+    height = bottom - top
+    draw.text((cx - (width / 2) - left, cy - (height / 2) - top), value, font=font, fill=fill)
+
+
 def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id):
     if not _ensure_pillow_available():
         raise RuntimeError("PDF export requires Pillow. Install dependencies from requirements.txt.")
@@ -2366,8 +2377,10 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
     f_body = _pdf_font(14)
     f_small = _pdf_font(12)
     f_tiny = _pdf_font(10)
-    f_manifest = _pdf_font(18)
-    f_manifest_bold = _pdf_font(19, bold=True)
+    f_unit_badge = _pdf_font(13, bold=True)
+    f_unit_plus = _pdf_font(15, bold=True)
+    f_manifest = _pdf_font(19, bold=True)
+    f_manifest_bold = _pdf_font(20, bold=True)
 
     margin = 36
     header_h = 60
@@ -2533,19 +2546,19 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
                 fill=(255, 255, 255),
             )
 
-        unit_badge_r = 9
+        unit_badge_r = 10
         badge_cx = x0 + unit_badge_r + 3
         badge_cy = y0 + unit_badge_r + 3
         draw.ellipse((badge_cx - unit_badge_r, badge_cy - unit_badge_r, badge_cx + unit_badge_r, badge_cy + unit_badge_r), fill=(15, 23, 42), outline=accent, width=1)
         unit_seq = str(int(_as_float(pos.get("unit_sequence_num"), 0)) or "")
-        draw.text((badge_cx - 5, badge_cy - 6), unit_seq, font=f_tiny, fill=(241, 245, 249))
+        _draw_centered_text(draw, (badge_cx, badge_cy), unit_seq, font=f_unit_badge, fill=(241, 245, 249))
 
         if str(pos.get("add_source") or "").strip().lower() == "inventory_gap":
-            plus_r = 8
+            plus_r = 8.5
             plus_cx = badge_cx + unit_badge_r + plus_r + 2
             plus_cy = badge_cy
             draw.ellipse((plus_cx - plus_r, plus_cy - plus_r, plus_cx + plus_r, plus_cy + plus_r), fill=(245, 158, 11), outline=(180, 83, 9), width=1)
-            draw.text((plus_cx - 4, plus_cy - 7), "+", font=f_manifest_bold, fill=(255, 255, 255))
+            _draw_centered_text(draw, (plus_cx, plus_cy), "+", font=f_unit_plus, fill=(255, 255, 255))
 
         if brand == "bigtex":
             sku_label = str(pos.get("item_number") or pos.get("item_code") or "").strip().upper()
@@ -2553,14 +2566,17 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
             sku_label = str(pos.get("item_code") or pos.get("item_number") or "").strip().upper()
         if not sku_label:
             sku_label = "----"
-        font_size = 14
+        font_size = 15
         text_font = _pdf_font(font_size, bold=True)
         text_box_w = max((x1 - x0) - 8, 20)
-        while font_size > 7 and draw.textlength(sku_label, font=text_font) > text_box_w:
+        while font_size > 8 and draw.textlength(sku_label, font=text_font) > text_box_w:
             font_size -= 1
             text_font = _pdf_font(font_size, bold=True)
-        text_x = x0 + ((x1 - x0) - draw.textlength(sku_label, font=text_font)) / 2
-        text_y = y0 + ((y1 - y0) / 2) - 7
+        text_left, text_top, text_right, text_bottom = draw.textbbox((0, 0), sku_label, font=text_font)
+        text_w = text_right - text_left
+        text_h = text_bottom - text_top
+        text_x = x0 + ((x1 - x0) - text_w) / 2 - text_left
+        text_y = y0 + ((y1 - y0) - text_h) / 2 - text_top
         draw.text((text_x, text_y), sku_label, font=text_font, fill=(15, 23, 42))
 
     measure_segments = _row_to_dict(canvas.get("measure_segments_by_zone") or {})
@@ -2601,7 +2617,7 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
         width=2,
     )
     draw.text((margin + 14, manifest_top + 10), "Manifest", font=f_label, fill=(15, 23, 42))
-    draw.text((margin + 118, manifest_top + 12), "Inventory Gap unit indicator: +", font=f_small, fill=(71, 85, 105))
+    draw.text((margin + 118, manifest_top + 10), "Inventory Gap unit indicator: +", font=f_label, fill=(71, 85, 105))
 
     manifest_rows = list(canvas.get("manifest_rows") or [])
     table_left = margin + 12
@@ -2613,7 +2629,7 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
     if not manifest_rows:
         draw.text((table_left, table_top + 8), "No units on this load.", font=f_body, fill=(100, 116, 139))
     else:
-        row_h = 26
+        row_h = 28
         max_cols = 4
         rows_per_col = max(1, int((table_h - row_h) // row_h))
         columns = max(1, min(max_cols, (len(manifest_rows) + rows_per_col - 1) // rows_per_col))
@@ -2629,17 +2645,17 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
             col_x1 = col_x0 + col_w
             draw.rectangle((col_x0, table_top, col_x1, table_top + row_h), fill=(226, 232, 240), outline=(203, 213, 225))
             if compact:
-                draw.text((col_x0 + 4, table_top + 4), "#", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x0 + 38, table_top + 4), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 90, table_top + 4), "FP", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 48, table_top + 4), "H", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 4, table_top + 5), "#", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 38, table_top + 5), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 90, table_top + 5), "FP", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 48, table_top + 5), "H", font=f_manifest_bold, fill=(15, 23, 42))
             else:
-                draw.text((col_x0 + 4, table_top + 4), "#", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x0 + 34, table_top + 4), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 232, table_top + 4), "Bed", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 178, table_top + 4), "Tongue", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 106, table_top + 4), "FP", font=f_manifest_bold, fill=(15, 23, 42))
-                draw.text((col_x1 - 52, table_top + 4), "H", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 4, table_top + 5), "#", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x0 + 34, table_top + 5), "SKU", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 232, table_top + 5), "Bed", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 178, table_top + 5), "Tongue", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 106, table_top + 5), "FP", font=f_manifest_bold, fill=(15, 23, 42))
+                draw.text((col_x1 - 52, table_top + 5), "H", font=f_manifest_bold, fill=(15, 23, 42))
 
             start = col_idx * rows_per_col
             end = min(start + rows_per_col, len(render_rows))
@@ -2653,25 +2669,25 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
                 sku = str(row.get("item_number") or row.get("item_code") or "").strip().upper()
                 fp = f"{_as_float(row.get('total_footprint'), 0.0):.1f}"
                 ht = f"{_as_float(row.get('height_each'), 0.0):.1f}"
-                draw.text((col_x0 + 4, y0 + 4), unit_num, font=f_manifest, fill=(15, 23, 42))
+                draw.text((col_x0 + 4, y0 + 5), unit_num, font=f_manifest, fill=(15, 23, 42))
                 if compact:
                     sku_clip = sku
                     while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 144):
                         sku_clip = sku_clip[:-1]
-                    draw.text((col_x0 + 38, y0 + 4), sku_clip, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 90, y0 + 4), fp, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 48, y0 + 4), ht, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x0 + 38, y0 + 5), sku_clip, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 90, y0 + 5), fp, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 48, y0 + 5), ht, font=f_manifest, fill=(15, 23, 42))
                 else:
                     bed = f"{_as_float(row.get('bed_length'), 0.0):.1f}"
                     tongue = f"{_as_float(row.get('tongue_length'), 0.0):.1f}"
                     sku_clip = sku
                     while sku_clip and draw.textlength(sku_clip, font=f_manifest) > (col_w - 292):
                         sku_clip = sku_clip[:-1]
-                    draw.text((col_x0 + 34, y0 + 4), sku_clip, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 232, y0 + 4), bed, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 178, y0 + 4), tongue, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 106, y0 + 4), fp, font=f_manifest, fill=(15, 23, 42))
-                    draw.text((col_x1 - 52, y0 + 4), ht, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x0 + 34, y0 + 5), sku_clip, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 232, y0 + 5), bed, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 178, y0 + 5), tongue, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 106, y0 + 5), fp, font=f_manifest, fill=(15, 23, 42))
+                    draw.text((col_x1 - 52, y0 + 5), ht, font=f_manifest, fill=(15, 23, 42))
 
         if truncated:
             hidden = len(manifest_rows) - len(render_rows)

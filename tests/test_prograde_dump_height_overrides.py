@@ -114,7 +114,8 @@ class ProgradeDumpHeightOverrideTests(unittest.TestCase):
         self.assertEqual(add_resp.status_code, 200)
 
         html_on = self.client.get(f"/prograde/session/{session_id}/load").get_data(as_text=True)
-        self.assertIn("Door On", html_on)
+        self.assertNotIn("Door On", html_on)
+        self.assertNotIn("Door Off", html_on)
         self.assertIn("pg-dump-rear-wall", html_on)
 
         positions = self.db.get_positions(session_id)
@@ -128,6 +129,71 @@ class ProgradeDumpHeightOverrideTests(unittest.TestCase):
         html_off = self.client.get(f"/prograde/session/{session_id}/load").get_data(as_text=True)
         self.assertIn("Door Off", html_off)
         self.assertNotIn("pg-dump-rear-wall", html_off)
+
+    def test_same_direction_dump_pair_auto_enables_dump_door_off(self):
+        item_number = self._first_dump_item_number()
+        self.assertIsNotNone(item_number)
+
+        profile_id = self._create_active_profile("Auto Door Rule Tester")
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "Auto Door Rule Tester",
+            "auto-door-off",
+            created_by_profile_id=profile_id,
+            created_by_name="Auto Door Rule Tester",
+        )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number=item_number,
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number=item_number,
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+            is_rotated=0,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+        lower_rows = sorted(
+            [
+                dict(row)
+                for row in (canvas.get("enriched_positions") or [])
+                if str(row.get("deck_zone") or "") == "lower_deck"
+                and int(row.get("layer") or 0) == 1
+            ],
+            key=lambda row: int(row.get("sequence") or 0),
+        )
+        self.assertEqual(len(lower_rows), 2)
+        left_row, right_row = lower_rows
+
+        self.assertTrue(bool(right_row.get("dump_door_removed")))
+        self.assertTrue(bool(right_row.get("auto_dump_door_removed")))
+        self.assertTrue(bool(right_row.get("dump_door_control_visible")))
+        self.assertAlmostEqual(float(left_row.get("occupied_tongue_length_ft") or 0.0), 1.0, places=2)
 
 
 if __name__ == "__main__":
