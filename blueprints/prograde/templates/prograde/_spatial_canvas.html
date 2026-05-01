@@ -2,7 +2,7 @@
 {% set spatial = spatial_usage or {} %}
 {% set total_len_ft = (geo.get('total_length_ft', (carrier.total_length_ft or 53.0)) if geo else (carrier.total_length_ft or 53.0)) | float %}
 {% set max_height_ft = (geo.get('max_height_ft', (carrier.max_height_ft or 13.5)) if geo else (carrier.max_height_ft or 13.5)) | float %}
-{% set step_x_ft = (geo.get('step_x_ft', (carrier.lower_deck_length_ft or 41.5)) if geo else (carrier.lower_deck_length_ft or 41.5)) | float %}
+{% set step_x_ft = (geo.get('step_x_ft', (carrier.lower_deck_length_ft or 41.0)) if geo else (carrier.lower_deck_length_ft or 41.0)) | float %}
 {% set lower_surface_ft = (geo.get('lower_deck_surface_ft', (carrier.lower_deck_ground_height_ft or 3.5)) if geo else (carrier.lower_deck_ground_height_ft or 3.5)) | float %}
 {% set upper_surface_ft = (geo.get('upper_deck_surface_ft', (carrier.upper_deck_ground_height_ft or 5.0)) if geo else (carrier.upper_deck_ground_height_ft or 5.0)) | float %}
 {% set ground_pull_mode = (geo.get('ground_pull_mode', false) if geo else false) %}
@@ -427,6 +427,7 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
         {% endif %}
         {# Height meters rendered in the SAME SVG coordinate system as the deck/units. #}
         <g class="pg-height-meter-svg">
+          <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 20 }}" text-anchor="middle" font-size="9" font-family="var(--font-mono)" font-weight="700" fill="rgba(148, 163, 184, 0.92)">MAX {{ '%.1f'|format(max_height_ft) }} ft</text>
           {% if lower_overflow_h_px <= 0.5 %}
           <text x="{{ left_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="13" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(lower_cap_ft) }} ft</text>
           {% endif %}
@@ -444,6 +445,7 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
           {% endif %}
 
           {% if show_upper_zone %}
+          <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 20 }}" text-anchor="middle" font-size="9" font-family="var(--font-mono)" font-weight="700" fill="rgba(148, 163, 184, 0.92)">MAX {{ '%.1f'|format(max_height_ft) }} ft</text>
           {% if upper_overflow_h_px <= 0.5 %}
           <text x="{{ right_meter_x + (meter_w / 2) }}" y="{{ guide_line_y - 8 }}" text-anchor="middle" font-size="13" font-family="var(--font-mono)" font-weight="800" fill="rgba(191, 219, 254, 0.95)">{{ '%.1f'|format(upper_cap_ft) }} ft</text>
           {% endif %}
@@ -758,11 +760,12 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
                 {% set door_y = door_max_y %}
               {% endif %}
               {% set door_y = [door_y, render_top_y + 0.2] | max %}
+              {% set show_dump_door_control = (session.brand == 'pj' and is_dump_profile and (pos.dump_door_control_visible or pos.dump_door_removed)) %}
               {% set show_nest_control = (((pos.can_nest_now and pos.nest_host_position_id) or pos.is_nested) and session.brand in ['pj', 'bigtex']) %}
               {% set nest_h = [door_h, 8] | max %}
               {% set nest_w = [door_w, 22] | max %}
               {% set nest_x = door_x %}
-              {% set nest_y_base = (door_y + door_h + 1.2) if (session.brand == 'pj' and is_dump_profile) else (btn_y + btn_size + 1.2) %}
+              {% set nest_y_base = (door_y + door_h + 1.2) if show_dump_door_control else (btn_y + btn_size + 1.2) %}
               {% set nest_y = nest_y_base %}
               {% set nest_max_y = render_bottom_y - nest_h - 0.8 %}
               {% if nest_y > nest_max_y %}
@@ -774,7 +777,7 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
               {% set control_strip_x1 = [delete_x + btn_size + control_strip_pad, render_x1 + 2.0] | min %}
               {% set control_strip_y0 = [btn_y - control_strip_pad, render_top_y - 1.0] | max %}
               {% set control_strip_y1 = btn_y + btn_size + control_strip_pad %}
-              {% if is_dump_profile %}
+              {% if show_dump_door_control %}
                 {% set control_strip_y1 = [control_strip_y1, door_y + door_h + control_strip_pad] | max %}
               {% endif %}
               {% if show_nest_control %}
@@ -1034,7 +1037,7 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
                   <rect x="{{ rotate_x }}" y="{{ btn_y }}" width="{{ btn_size }}" height="{{ btn_size }}" rx="2.4" fill="rgba(2,6,23,0.96)" stroke="#e2e8f0" stroke-width="1.2"/>
                   <text x="{{ rotate_x + (btn_size/2) }}" y="{{ btn_y + (btn_size * 0.77) }}" text-anchor="middle" font-size="{{ [btn_size * 0.74, 10.2] | min }}" font-weight="800" fill="#f8fafc">&#8635;</text>
                 </g>
-                {% if session.brand == 'pj' and is_dump_profile %}
+                {% if show_dump_door_control %}
                 <g class="pg-unit-control pg-unit-control-door" style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); toggleDumpDoor('{{ pos.position_id }}');">
                   <rect x="{{ door_x - 3 }}" y="{{ door_y - 3 }}" width="{{ door_w + 6 }}" height="{{ door_h + 6 }}" rx="4" fill="transparent" stroke="none"/>
                   <rect x="{{ door_x }}" y="{{ door_y }}" width="{{ door_w }}" height="{{ door_h }}" rx="2" fill="rgba(15,23,42,0.90)" stroke="#f59e0b" stroke-width="1"/>

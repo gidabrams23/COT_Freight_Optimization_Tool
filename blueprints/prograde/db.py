@@ -46,6 +46,12 @@ def _default_prograde_db_path():
 
 DB_PATH = Path(os.environ.get("PROGRADE_DB_PATH", str(_default_prograde_db_path())))
 FALLBACK_SEED_DB_PATH = ROOT_DIR / "archive" / "prograde_source_drop_v03" / "prograde.db"
+PROGRADE_ACCESS_PROFILES_SEED_PATH = Path(
+    os.environ.get(
+        "PROGRADE_ACCESS_PROFILES_SEED_PATH",
+        str(ROOT_DIR / "data" / "seed" / "prograde_access_profiles.csv"),
+    )
+)
 DEFAULT_BT_DATA_WORKBOOK_PATH = Path(
     os.environ.get(
         "PROGRADE_BT_DATA_WORKBOOK_PATH",
@@ -206,8 +212,8 @@ REFERENCE_CARRIER_DEFAULTS = [
         "brand": "pj",
         "total_length_ft": 53.0,
         "max_height_ft": 13.5,
-        "lower_deck_length_ft": 41.5,
-        "upper_deck_length_ft": 11.75,
+        "lower_deck_length_ft": 41.0,
+        "upper_deck_length_ft": 12.0,
         "lower_deck_ground_height_ft": 3.5,
         "upper_deck_ground_height_ft": 5.0,
         "gn_max_lower_deck_ft": 32.0,
@@ -773,6 +779,53 @@ def init_db():
     """)
 
     _seed_reference_defaults(c)
+    _seed_access_profiles_from_csv(conn)
+
+    # One-time geometry normalization: align legacy 53_step_deck split with current 41/12 standard.
+    stepdeck_geometry_marker = c.execute(
+        "SELECT meta_value FROM app_meta WHERE meta_key='stepdeck_geometry_41_12_v1'"
+    ).fetchone()
+    if not stepdeck_geometry_marker:
+        row = c.execute(
+            """
+            SELECT lower_deck_length_ft, upper_deck_length_ft
+            FROM carrier_configs
+            WHERE carrier_type='53_step_deck'
+            """
+        ).fetchone()
+
+        def _to_float(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        lower_ft = _to_float(row["lower_deck_length_ft"]) if row else None
+        upper_ft = _to_float(row["upper_deck_length_ft"]) if row else None
+
+        # Only normalize known legacy defaults, leaving custom user geometry untouched.
+        if (
+            lower_ft is not None
+            and upper_ft is not None
+            and abs(lower_ft - 41.5) <= 0.05
+            and abs(upper_ft - 11.75) <= 0.05
+        ):
+            c.execute(
+                """
+                UPDATE carrier_configs
+                SET lower_deck_length_ft=41.0, upper_deck_length_ft=12.0, updated_at=?
+                WHERE carrier_type='53_step_deck'
+                """,
+                (datetime.utcnow().isoformat(),),
+            )
+
+        c.execute(
+            """
+            INSERT OR REPLACE INTO app_meta(meta_key, meta_value, updated_at)
+            VALUES ('stepdeck_geometry_41_12_v1', '1', ?)
+            """,
+            (datetime.utcnow().isoformat(),),
+        )
 
     # One-time migration: preserve all pre-existing sessions as saved so history remains visible.
     backfill_marker = c.execute(
@@ -954,6 +1007,52 @@ def _seed_skus_from_csv(conn, mode="bootstrap_if_empty"):
         _seed_if_table_empty("pj_skus", "pj_skus.csv")
         _seed_if_table_empty("bigtex_skus", "bigtex_skus.csv")
     conn.commit()
+
+
+def _seed_access_profiles_from_csv(conn):
+    seed_path = Path(PROGRADE_ACCESS_PROFILES_SEED_PATH)
+    if not seed_path.exists():
+        return 0
+
+    inserted = 0
+    now = datetime.utcnow().isoformat()
+    c = conn.cursor()
+
+    with open(seed_path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            name = _normalize_profile_name(row.get("name"))
+            if not name:
+                continue
+            wants_admin = _is_truthy(row.get("is_admin"))
+            existing = c.execute(
+                """
+                SELECT id, is_admin
+                FROM prograde_access_profiles
+                WHERE lower(name)=lower(?)
+                LIMIT 1
+                """,
+                (name,),
+            ).fetchone()
+            if existing:
+                if wants_admin and not int(existing["is_admin"] or 0):
+                    c.execute(
+                        "UPDATE prograde_access_profiles SET is_admin=1, updated_at=? WHERE id=?",
+                        (now, int(existing["id"])),
+                    )
+                continue
+
+            c.execute(
+                """
+                INSERT INTO prograde_access_profiles (name, is_admin, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (name, 1 if wants_admin else 0, now, now),
+            )
+            inserted += 1
+
+    conn.commit()
+    return inserted
 
 
 def has_seed_data():

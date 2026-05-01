@@ -886,7 +886,7 @@ def _pj_step_crossing(positions, carrier, skus, offsets):
     carrier_map = _row_to_dict(carrier) if carrier else {}
     if not _carrier_supports_upper_deck(carrier_map):
         return []
-    step_x_ft = float(carrier_map.get("lower_deck_length_ft") or 41.5)
+    step_x_ft = float(carrier_map.get("lower_deck_length_ft") or 41.0)
     grouped = _group_columns_by_zone(positions)
     x_positions = _column_x_positions_by_zone(grouped, skus, offsets)
     violations = []

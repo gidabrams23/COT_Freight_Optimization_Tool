@@ -47,6 +47,16 @@ _PJ_PICKER_CATEGORY_LABELS = {
     "utility": "Utility",
     "uncategorized": "Uncategorized",
 }
+_PJ_SETTINGS_CATEGORY_ORDER = [
+    "car_hauler",
+    "deck_over",
+    "tilt",
+    "utility",
+    "dump",
+    "gooseneck",
+    "pintle",
+    "uncategorized",
+]
 _PJ_GOOSENECK_CATEGORIES = {
     "gooseneck",
     "gooseneck_flatdeck",
@@ -817,6 +827,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["deck_length_ft"] = round(deck_length_ft, 2)
         p["render_footprint_ft"] = render_footprint_ft
         p["dump_door_removed"] = _extract_dump_door_removed_reason(p.get("override_reason"))
+        p["auto_dump_door_removed"] = False
+        p["dump_door_control_visible"] = bool(p["dump_door_removed"])
         p["gn_crisscross"] = _extract_gn_crisscross_override_reason(p.get("override_reason"))
         p["gn_upside_down"] = _extract_gn_upside_down_override_reason(p.get("override_reason"))
         p["stack_alignment"] = _extract_stack_alignment_override_reason(p.get("override_reason"))
@@ -838,6 +850,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["deck_length_ft"] = p["bed_length"]
         p["render_footprint_ft"] = p["footprint"]
         p["dump_door_removed"] = False
+        p["auto_dump_door_removed"] = False
+        p["dump_door_control_visible"] = False
         p["gn_crisscross"] = False
         p["gn_upside_down"] = False
         p["stack_alignment"] = None
@@ -859,6 +873,8 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
         p["deck_length_ft"] = 0
         p["render_footprint_ft"] = 0
         p["dump_door_removed"] = False
+        p["auto_dump_door_removed"] = False
+        p["dump_door_control_visible"] = False
         p["gn_crisscross"] = False
         p["gn_upside_down"] = False
         p["stack_alignment"] = None
@@ -1968,6 +1984,102 @@ def _apply_dump_door_tongue_stuffing(
     return applied
 
 
+def _apply_pj_auto_dump_door_for_stuffing(
+    zone_cols,
+    lower_zone="lower_deck",
+    upper_zone="upper_deck",
+):
+    """
+    Automatically enable dump-door-off state when two dump stacks are aligned
+    in the same direction and a tongue can be stuffed into the receiving dump.
+    """
+
+    def _mark_dump_base(base_row):
+        if not base_row:
+            return
+        base_row["auto_dump_door_removed"] = True
+        base_row["dump_door_removed"] = True
+        base_row["dump_door_control_visible"] = True
+
+    def _pair_allowance_ft(source_base, receiving_dump_base, *, source_to_right):
+        if not source_base or not receiving_dump_base:
+            return 0.0
+        source_is_dump = str(source_base.get("deck_profile") or "").strip().lower() == "dump"
+        receiving_is_dump = str(receiving_dump_base.get("deck_profile") or "").strip().lower() == "dump"
+        if not (source_is_dump and receiving_is_dump):
+            return 0.0
+
+        source_rotated = bool(source_base.get("is_rotated"))
+        receiving_rotated = bool(receiving_dump_base.get("is_rotated"))
+        if source_to_right:
+            if source_rotated or receiving_rotated:
+                return 0.0
+        else:
+            if (not source_rotated) or (not receiving_rotated):
+                return 0.0
+
+        source_tongue_ft = _as_float(
+            source_base.get("render_tongue_length_ft"),
+            _as_float(source_base.get("tongue_length"), 0.0),
+        )
+        receiving_deck_len_ft = _as_float(
+            receiving_dump_base.get("deck_length_ft"),
+            _as_float(receiving_dump_base.get("bed_length"), 0.0),
+        )
+        insertion_window_ft = min(max(receiving_deck_len_ft, 0.0), _REAR_POCKET_LEN_FT)
+        insertable_source_tongue_ft = max(
+            max(source_tongue_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
+            0.0,
+        )
+        return min(insertable_source_tongue_ft, max(insertion_window_ft, 0.0))
+
+    lower_cols = (zone_cols or {}).get(lower_zone) or {}
+    upper_cols = (zone_cols or {}).get(upper_zone) or {}
+
+    # Reset/initialize door visibility flags each render pass.
+    for zone_cols_map in (lower_cols, upper_cols):
+        for seq in sorted(zone_cols_map.keys()):
+            col = zone_cols_map.get(seq) or []
+            for unit in col:
+                unit["auto_dump_door_removed"] = False
+                if str(unit.get("deck_profile") or "").strip().lower() == "dump":
+                    unit["dump_door_control_visible"] = bool(unit.get("dump_door_removed"))
+                else:
+                    unit["dump_door_control_visible"] = False
+
+    # Same-deck lower adjacency.
+    lower_seqs = sorted(lower_cols.keys())
+    for idx in range(len(lower_seqs) - 1):
+        left_seq = int(lower_seqs[idx])
+        right_seq = int(lower_seqs[idx + 1])
+        left_col = lower_cols.get(left_seq) or []
+        right_col = lower_cols.get(right_seq) or []
+        if not left_col or not right_col:
+            continue
+        left_base = next((p for p in left_col if int(p.get("layer") or 0) == 1), left_col[0])
+        right_base = next((p for p in right_col if int(p.get("layer") or 0) == 1), right_col[0])
+
+        # Left -> right stuffing (both non-rotated, tongues toward right).
+        if _pair_allowance_ft(left_base, right_base, source_to_right=True) > 1e-9:
+            _mark_dump_base(right_base)
+
+        # Right -> left stuffing (both rotated, tongues toward left).
+        if _pair_allowance_ft(right_base, left_base, source_to_right=False) > 1e-9:
+            _mark_dump_base(left_base)
+
+    # Cross-deck seam: right-most lower to left-most upper (toward right only).
+    if lower_cols and upper_cols:
+        lower_seq = max(lower_cols.keys())
+        upper_seq = min(upper_cols.keys())
+        lower_col = lower_cols.get(lower_seq) or []
+        upper_col = upper_cols.get(upper_seq) or []
+        if lower_col and upper_col:
+            lower_base = next((p for p in lower_col if int(p.get("layer") or 0) == 1), lower_col[0])
+            upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
+            if _pair_allowance_ft(lower_base, upper_base, source_to_right=True) > 1e-9:
+                _mark_dump_base(upper_base)
+
+
 def _category_key_for_position(pos):
     raw = (pos.get("pj_category") or pos.get("mcat") or "unknown")
     if pos.get("mcat"):
@@ -2307,7 +2419,7 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
 
     carrier_map = _row_to_dict(carrier)
     total_len_ft = max(_as_float(carrier_map.get("total_length_ft"), 53.0), 1.0)
-    step_x_ft = _as_float(carrier_map.get("lower_deck_length_ft"), 41.5)
+    step_x_ft = _as_float(carrier_map.get("lower_deck_length_ft"), 41.0)
     lower_surface_ft = _as_float(carrier_map.get("lower_deck_ground_height_ft"), 3.5)
     upper_surface_ft = _as_float(carrier_map.get("upper_deck_ground_height_ft"), 5.0)
     max_height_ft = _as_float(carrier_map.get("max_height_ft"), 13.5)
@@ -2584,6 +2696,27 @@ def _pj_picker_category_label(category):
     if not key:
         return "Uncategorized"
     return _PJ_PICKER_CATEGORY_LABELS.get(key, _category_label_for_key(key))
+
+
+def _pj_settings_category_options():
+    return [(key, _pj_picker_category_label(key)) for key in _PJ_SETTINGS_CATEGORY_ORDER]
+
+
+def _canonicalize_pj_settings_category(value, *, existing_category=None):
+    key = _normalize_pj_picker_category(value)
+    if key == "uncategorized":
+        return None
+    if key == "dump":
+        current = str(existing_category or "").strip().lower()
+        if current in _PJ_DUMP_CATEGORIES:
+            return current
+        return "dump_variants"
+    if key == "gooseneck":
+        current = str(existing_category or "").strip().lower()
+        if current in _PJ_GOOSENECK_CATEGORIES:
+            return current
+        return "gooseneck"
+    return key
 
 
 def _pj_picker_tongue_profile(sku):
@@ -2919,7 +3052,9 @@ def _build_canvas_data(
     mark_active=True,
 ):
     """Build all zone/column data needed for the load canvas."""
-    uniform_non_gooseneck_lane = brand == "bigtex"
+    # Keep non-gooseneck lower-deck layers in a single flush lane for both
+    # BT and PJ, then let right-pack logic move the full column footprint.
+    uniform_non_gooseneck_lane = brand in {"bigtex", "pj"}
     carrier_map = dict(carrier) if carrier else {}
     carrier_type = str(
         carrier_map.get("carrier_type")
@@ -3092,6 +3227,11 @@ def _build_canvas_data(
                     lower["gn_crisscross"] = True
                     upper["gn_crisscross"] = True
     if brand == "pj":
+        _apply_pj_auto_dump_door_for_stuffing(
+            zone_cols,
+            lower_zone="lower_deck",
+            upper_zone="upper_deck",
+        )
         _apply_dump_door_tongue_stuffing(zone_cols, lower_zone="lower_deck", upper_zone="upper_deck")
     elif brand == "bigtex":
         _apply_bt_same_direction_tongue_stuffing(zone_cols)
@@ -3188,8 +3328,8 @@ def _build_canvas_data(
                 clearances[z] = bt_configs[cfg_key]["max_height_ft"]
 
     trailer_total_len_ft = _as_float(carrier_map.get("total_length_ft"), 53.0)
-    lower_deck_len_ft = _as_float(carrier_map.get("lower_deck_length_ft"), _as_float(z_caps.get("lower_deck"), 41.5))
-    upper_deck_len_ft = _as_float(carrier_map.get("upper_deck_length_ft"), _as_float(z_caps.get("upper_deck"), 11.5))
+    lower_deck_len_ft = _as_float(carrier_map.get("lower_deck_length_ft"), _as_float(z_caps.get("lower_deck"), 41.0))
+    upper_deck_len_ft = _as_float(carrier_map.get("upper_deck_length_ft"), _as_float(z_caps.get("upper_deck"), 12.0))
     lower_surface_ft = _as_float(carrier_map.get("lower_deck_ground_height_ft"), 3.5)
     upper_surface_ft = _as_float(carrier_map.get("upper_deck_ground_height_ft"), 5.0)
     max_height_ft = _as_float(carrier_map.get("max_height_ft"), 13.5)
@@ -4539,7 +4679,9 @@ def settings():
     pj_skus = [dict(row) for row in db.get_pj_skus()]
     for sku in pj_skus:
         sku["item_code"] = _pj_picker_short_item_code(sku)
-    advanced_schematic_links = db.get_advanced_schematic_links()
+        settings_category = _normalize_pj_picker_category(sku.get("pj_category"))
+        sku["settings_category"] = settings_category
+        sku["settings_category_label"] = _pj_picker_category_label(settings_category)
     if not db.has_seed_data():
         return render_template(
             "prograde/settings.html",
@@ -4547,14 +4689,13 @@ def settings():
             carrier_geometry={},
             gn_neck_geometry={},
             pj_offset_map={},
-            advanced_schematic_links=[],
             pj_measurement_offsets=[],
             pj_skus=[],
             bt_skus=[],
             bt_stack_configs=[],
             bt_workbook_path=str(bt_workbook_path) if bt_workbook_path else "",
             pj_workbook_path=str(pj_workbook_path) if pj_workbook_path else "",
-            pj_categories=brand_config.PJ_CATEGORIES,
+            pj_settings_categories=_pj_settings_category_options(),
             selected_brand=selected_brand,
             active_profile=active_profile,
             error_message="ProGrade seed data not loaded. Settings are unavailable until data is seeded.",
@@ -4565,14 +4706,13 @@ def settings():
         carrier_geometry       = carrier_geometry,
         gn_neck_geometry       = gn_neck_geometry,
         pj_offset_map          = pj_offset_map,
-        advanced_schematic_links = advanced_schematic_links,
         pj_measurement_offsets = pj_measurement_offsets,
         pj_skus                = pj_skus,
         bt_skus                = db.get_bigtex_skus(),
         bt_stack_configs       = db.get_bt_stack_configs(),
         bt_workbook_path       = str(bt_workbook_path) if bt_workbook_path else "",
         pj_workbook_path       = str(pj_workbook_path) if pj_workbook_path else "",
-        pj_categories          = brand_config.PJ_CATEGORIES,
+        pj_settings_categories = _pj_settings_category_options(),
         selected_brand         = selected_brand,
         active_profile         = active_profile,
     )
@@ -4705,7 +4845,6 @@ ALLOWED_FIELDS = {
         "total_length_ft", "max_height_ft", "lower_deck_length_ft", "upper_deck_length_ft",
         "lower_deck_ground_height_ft", "upper_deck_ground_height_ft", "gn_max_lower_deck_ft", "notes",
     },
-    "advanced_schematic_links": {"drawing_label", "render_mode", "applies_to_categories", "notes", "display_order"},
     "pj_measurement_offsets": {"offset_ft", "notes"},
     "bt_stack_configs":    {"max_length_ft", "max_height_ft", "notes"},
     "bigtex_skus": {"mcat", "tier", "model", "gvwr", "floor_type", "bed_length", "width", "tongue", "stack_height"},
@@ -4759,8 +4898,6 @@ def api_settings_save():
     try:
         if table == "carrier_configs":
             db.update_carrier_config(pk, field, value)
-        elif table == "advanced_schematic_links":
-            db.update_advanced_schematic_link(pk, field, value)
         elif table == "pj_measurement_offsets":
             db.update_pj_measurement_offset(pk, field, value)
         elif table == "bt_stack_configs":
@@ -4770,6 +4907,10 @@ def api_settings_save():
                 value = int(value)
             db.update_bigtex_sku_field(pk, field, value)
         elif table == "pj_skus":
+            if field == "pj_category":
+                existing = db.get_pj_sku(pk)
+                existing_category = (dict(existing).get("pj_category") if existing else None)
+                value = _canonicalize_pj_settings_category(value, existing_category=existing_category)
             db.update_pj_sku_field(pk, field, value)
 
         db.flag_all_draft_sessions_stale()
