@@ -70,11 +70,18 @@ class TestSKUResolution(unittest.TestCase):
         self.assertFalse(unmapped)
         self.assertEqual(spec["max_stack_height"], 4)
 
+    def test_step_deck_uses_flatbed_max_stack_on_upper_deck(self):
+        spec, unmapped = _resolve_sku("5X8GW", self._lookup, "STEP_DECK")
+        self.assertFalse(unmapped)
+        self.assertEqual(spec["max_stack_height"], 5)
+        self.assertEqual(spec["upper_deck_max_stack_height"], 4)
+
     def test_fallback_to_dimension_parsing(self):
         spec, unmapped = _resolve_sku("6X12NEWSKU", self._lookup, "STEP_DECK")
         self.assertFalse(unmapped)
         self.assertEqual(spec["unit_length_ft"], 12.0)
         self.assertEqual(spec["max_stack_height"], 1)
+        self.assertEqual(spec["upper_deck_max_stack_height"], 1)
 
     def test_unmapped_when_no_match_and_no_dimensions(self):
         spec, unmapped = _resolve_sku("CUSTOM", self._lookup, "STEP_DECK")

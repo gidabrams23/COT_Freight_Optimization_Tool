@@ -66,9 +66,11 @@ def _resolve_sku(sku_text, sku_lookup, trailer_type):
     if spec:
         is_step_deck = trailer_type.startswith("STEP_DECK")
         max_stack = spec["max_stack_step_deck"] if is_step_deck else spec["max_stack_flat_bed"]
+        upper_max_stack = spec["max_stack_flat_bed"] if is_step_deck else max_stack
         return {
             "unit_length_ft": spec["length_with_tongue_ft"],
             "max_stack_height": max(max_stack, 1),
+            "upper_deck_max_stack_height": max(upper_max_stack, 1),
             "category": spec["category"],
         }, False
 
@@ -77,6 +79,7 @@ def _resolve_sku(sku_text, sku_lookup, trailer_type):
         return {
             "unit_length_ft": parsed_length,
             "max_stack_height": 1,
+            "upper_deck_max_stack_height": 1,
             "category": "UNKNOWN",
         }, False
 
@@ -202,6 +205,7 @@ class UtilizationScorer:
                         "qty": qty,
                         "unit_length_ft": resolved["unit_length_ft"],
                         "max_stack_height": resolved["max_stack_height"],
+                        "upper_deck_max_stack_height": resolved["upper_deck_max_stack_height"],
                         "category": resolved["category"],
                     }
                 )
