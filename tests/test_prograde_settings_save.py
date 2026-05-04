@@ -274,6 +274,239 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(str(row["mcat"]), "DUMP")
 
+    def test_api_add_pj_sku_creates_and_computes_footprint(self):
+        resp = self.client.post(
+            "/prograde/api/settings/pj/sku",
+            json={
+                "item_number": "pj-new-100",
+                "model": "ut",
+                "pj_category": "utility",
+                "bed_length_measured": 12.0,
+                "tongue_feet": 4.0,
+                "height_mid_ft": 1.5,
+                "height_top_ft": 2.0,
+                "description": "test pj add",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["result"]["created"])
+        self.assertEqual(float(payload["result"]["total_footprint"]), 16.0)
+
+        with self.db.get_db() as conn:
+            row = conn.execute(
+                """
+                SELECT item_number, model, pj_category, tongue_group, total_footprint
+                FROM pj_skus
+                WHERE item_number=?
+                """,
+                ("PJ-NEW-100",),
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row["model"]), "UT")
+        self.assertEqual(str(row["pj_category"]), "utility")
+        self.assertEqual(str(row["tongue_group"]), "standard")
+        self.assertEqual(float(row["total_footprint"]), 16.0)
+
+    def test_api_add_pj_sku_updates_existing_item(self):
+        first = self.client.post(
+            "/prograde/api/settings/pj/sku",
+            json={
+                "item_number": "pj-upsert-1",
+                "model": "ly",
+                "pj_category": "gooseneck",
+                "bed_length_measured": 30.0,
+                "tongue_feet": 9.0,
+                "height_mid_ft": 2.5,
+                "height_top_ft": 2.5,
+            },
+        )
+        self.assertEqual(first.status_code, 200)
+        self.assertTrue(first.get_json()["result"]["created"])
+
+        second = self.client.post(
+            "/prograde/api/settings/pj/sku",
+            json={
+                "item_number": "pj-upsert-1",
+                "model": "ly",
+                "pj_category": "gooseneck",
+                "bed_length_measured": 31.0,
+                "tongue_feet": 9.0,
+                "height_mid_ft": 2.6,
+                "height_top_ft": 2.6,
+            },
+        )
+        self.assertEqual(second.status_code, 200)
+        second_payload = second.get_json()
+        self.assertTrue(second_payload["ok"])
+        self.assertFalse(second_payload["result"]["created"])
+        self.assertEqual(float(second_payload["result"]["total_footprint"]), 40.0)
+
+        row = self.db.get_pj_sku("PJ-UPSERT-1")
+        self.assertIsNotNone(row)
+        self.assertEqual(float(row["bed_length_measured"]), 31.0)
+        self.assertEqual(float(row["total_footprint"]), 40.0)
+
+    def test_api_add_pj_sku_preserves_hidden_legacy_flags(self):
+        now = datetime.utcnow().isoformat()
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_group, tongue_feet,
+                 height_mid_ft, height_top_ft, total_footprint, can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("PJ-LEGACY-1", "UT", "utility", 12.0, 12.0, "standard", 4.0, 1.5, 2.0, 16.0, 1, 1, 1, now),
+            )
+
+        resp = self.client.post(
+            "/prograde/api/settings/pj/sku",
+            json={
+                "item_number": "PJ-LEGACY-1",
+                "model": "UT",
+                "pj_category": "utility",
+                "bed_length_measured": 13.0,
+                "tongue_feet": 4.0,
+                "height_mid_ft": 1.6,
+                "height_top_ft": 2.1,
+                "can_nest_inside_dump": False,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["result"]["created"])
+
+        with self.db.get_db() as conn:
+            row = conn.execute(
+                """
+                SELECT can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed, bed_length_measured
+                FROM pj_skus
+                WHERE item_number=?
+                """,
+                ("PJ-LEGACY-1",),
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(int(row["can_nest_inside_dump"]), 0)
+        self.assertEqual(int(row["gn_axle_droppable"]), 1)
+        self.assertEqual(int(row["tongue_overlap_allowed"]), 1)
+        self.assertAlmostEqual(float(row["bed_length_measured"]), 13.0)
+
+    def test_api_add_pj_sku_validates_missing_required_fields(self):
+        resp = self.client.post(
+            "/prograde/api/settings/pj/sku",
+            json={
+                "item_number": "PJ-BAD-1",
+                "model": "UT",
+                "pj_category": "utility",
+                "bed_length_measured": 12.0,
+                "tongue_feet": 4.0,
+                "height_mid_ft": 1.5,
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        payload = resp.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("numeric", str(payload["error"]).lower())
+
+    def test_api_add_bigtex_sku_creates_and_normalizes_category(self):
+        resp = self.client.post(
+            "/prograde/api/settings/bigtex/sku",
+            json={
+                "item_number": "bt-new-300",
+                "model": "70CH",
+                "mcat": "OL CAR HAULER",
+                "bed_length": 18.0,
+                "tongue": 4.0,
+                "stack_height": 2.0,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["result"]["created"])
+        self.assertEqual(float(payload["result"]["total_footprint"]), 22.0)
+
+        with self.db.get_db() as conn:
+            row = conn.execute(
+                """
+                SELECT item_number, mcat, model, bed_length, tongue, total_footprint
+                FROM bigtex_skus
+                WHERE item_number=?
+                """,
+                ("BT-NEW-300",),
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row["mcat"]), "CAR HAULER")
+        self.assertEqual(str(row["model"]), "70CH")
+        self.assertEqual(float(row["bed_length"]), 18.0)
+        self.assertEqual(float(row["tongue"]), 4.0)
+        self.assertEqual(float(row["total_footprint"]), 22.0)
+
+    def test_api_add_bigtex_sku_preserves_legacy_metadata_when_not_provided(self):
+        now = datetime.utcnow().isoformat()
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, gvwr, floor_type, width, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("BT-LEGACY-1", "DUMP", 3, "14LP", 9999, "hydraulic", 6.5, 14.0, 5.0, 4.0, 19.0, now),
+            )
+
+        resp = self.client.post(
+            "/prograde/api/settings/bigtex/sku",
+            json={
+                "item_number": "BT-LEGACY-1",
+                "model": "14LP",
+                "mcat": "DUMP",
+                "bed_length": 15.0,
+                "tongue": 5.0,
+                "stack_height": 4.25,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["result"]["created"])
+
+        with self.db.get_db() as conn:
+            row = conn.execute(
+                """
+                SELECT tier, gvwr, floor_type, width, bed_length, tongue, stack_height
+                FROM bigtex_skus
+                WHERE item_number=?
+                """,
+                ("BT-LEGACY-1",),
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(int(row["tier"]), 3)
+        self.assertEqual(int(row["gvwr"]), 9999)
+        self.assertEqual(str(row["floor_type"]), "hydraulic")
+        self.assertAlmostEqual(float(row["width"]), 6.5)
+        self.assertAlmostEqual(float(row["bed_length"]), 15.0)
+        self.assertAlmostEqual(float(row["tongue"]), 5.0)
+        self.assertAlmostEqual(float(row["stack_height"]), 4.25)
+
+    def test_api_add_bigtex_sku_validates_missing_required_fields(self):
+        resp = self.client.post(
+            "/prograde/api/settings/bigtex/sku",
+            json={
+                "item_number": "BT-BAD-1",
+                "model": "14LP",
+                "mcat": "DUMP",
+                "bed_length": 14.0,
+                "tongue": 5.0,
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        payload = resp.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("stack height", str(payload["error"]).lower())
+
 
 if __name__ == "__main__":
     unittest.main()

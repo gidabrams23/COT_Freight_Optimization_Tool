@@ -124,32 +124,6 @@ body {
   font-weight: 700;
   letter-spacing: .01em;
 }
-.pg-action-save {
-  background: linear-gradient(135deg, #2563eb, #0ea5e9);
-  border-color: rgba(125, 211, 252, 0.52);
-  color: #f8fafc;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-.pg-action-save:hover {
-  background: linear-gradient(135deg, #1d4ed8, #0284c7);
-  border-color: rgba(147, 197, 253, 0.72);
-}
-.pg-violation-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  min-width: 0;
-  padding: 1px 0;
-}
-.pg-violation-summary-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
 .pg-carrier-group {
   display: inline-flex;
   align-items: center;
@@ -2384,8 +2358,7 @@ body.pg-sku-drag-active .pg-drag-hint-row {
     justify-content: flex-start;
     flex-wrap: wrap;
   }
-  .pg-top-meta-group,
-  .pg-violation-summary {
+  .pg-top-meta-group {
     flex: 1 1 100%;
     min-width: 0;
   }
@@ -3869,7 +3842,6 @@ async function refreshBuilderFragments(options = {}) {
 
   replaceNodeByIdFromDoc("pg-top-bar", sourceDoc);
   replaceNodeByIdFromDoc("pg-canvas-column", sourceDoc);
-  replaceNodeByIdFromDoc("violation-panel", sourceDoc);
 
   initRenderModeToggle();
   initSpatialScale();
@@ -4075,58 +4047,6 @@ async function toggleAxleDrop(positionId, checkbox) {
   }
 }
 
-async function acknowledgeViolation(ruleCode, action, btn) {
-  try {
-    await postSession("/acknowledge", { rule_code: ruleCode, action });
-    const item = document.getElementById("viol-" + ruleCode.replace(/_/g, "-"));
-    if (!item) {
-      await refreshBuilderFragments({ refreshInventory: true });
-      return;
-    }
-    if (action === "add") {
-      item.classList.add("acknowledged");
-      btn.className = "violation-unack-btn";
-      btn.textContent = "Un-acknowledge";
-      btn.onclick = () => acknowledgeViolation(ruleCode, "remove", btn);
-    } else {
-      item.classList.remove("acknowledged");
-      btn.className = "violation-ack-btn";
-      btn.textContent = "Acknowledge";
-      btn.onclick = () => acknowledgeViolation(ruleCode, "add", btn);
-    }
-    await refreshBuilderFragments({ refreshInventory: true });
-  } catch (e) {
-    showToast(`Acknowledge failed: ${e.message}`, "error");
-  }
-}
-
-async function saveSession(buttonEl) {
-  const btn = buttonEl && buttonEl.tagName ? buttonEl : document.getElementById("save-session-btn");
-  if (btn && btn.dataset.saving === "1") {
-    return;
-  }
-  const originalLabel = btn ? btn.textContent : "Save Session";
-  try {
-    if (btn) {
-      btn.dataset.saving = "1";
-      btn.disabled = true;
-      btn.textContent = "Saving...";
-    }
-    await postSession("/save", {});
-    sessionIsSaved = true;
-    await refreshBuilderFragments();
-    showToast("Session saved and added to All Sessions", "success");
-  } catch (e) {
-    showToast(`Save failed: ${e.message}`, "error");
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.dataset.saving = "0";
-      btn.textContent = originalLabel;
-    }
-  }
-}
-
 function _hasPlacedUnits() {
   return Boolean(document.querySelector(".unit-card[data-pos-id]"));
 }
@@ -4160,7 +4080,7 @@ function _autosaveOnLeave() {
 }
 
 async function resetSession() {
-  if (!window.confirm("Clear all positions and acknowledgements in this session?")) {
+  if (!window.confirm("Clear all positions in this session?")) {
     return;
   }
   try {
@@ -4169,10 +4089,6 @@ async function resetSession() {
   } catch (e) {
     showToast(`Reset failed: ${e.message}`, "error");
   }
-}
-
-async function refreshViolations() {
-  await refreshBuilderFragments();
 }
 
 function initSkuDragAndDrop(options = {}) {

@@ -197,6 +197,77 @@
   align-items: center;
   gap: 4px;
 }
+.sku-add-shell {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.32);
+  padding: 10px;
+  margin: 10px 0 12px;
+}
+.sku-add-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-primary);
+}
+.sku-add-row {
+  display: grid;
+  gap: 8px;
+  align-items: end;
+}
+.sku-add-row.pj {
+  grid-template-columns: 1.2fr 1.1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+.sku-add-row.bt {
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+.sku-add-col label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.sku-add-readonly {
+  min-height: 31px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.6);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+}
+.sku-add-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+.sku-add-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sku-add-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sku-add-help {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
 .cheat-view-btn {
   border: 1px solid var(--border-subtle);
   background: transparent;
@@ -352,6 +423,13 @@
   .pg-split {
     grid-template-columns: 1fr;
   }
+  .sku-add-row.pj,
+  .sku-add-row.bt {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sku-add-row .sku-add-col.full {
+    grid-column: span 2;
+  }
 }
 </style>
 {% endblock %}
@@ -384,7 +462,7 @@
     <div class="pg-hero-chips">
       <span class="pg-hero-chip">Live save with stale-session revalidation flagging</span>
       <span class="pg-hero-chip">Universal trailer geometry + brand-specific SKU standards</span>
-      <span class="pg-hero-chip">Imports reload standards from source workbooks</span>
+      <span class="pg-hero-chip">Add or update one SKU at a time with guided fields</span>
     </div>
   </div>
 
@@ -581,10 +659,64 @@
           <button type="button" class="cheat-view-btn" id="pj-collapse-models-btn">Models</button>
           <button type="button" class="cheat-view-btn" id="pj-expand-items-btn">Items</button>
         </div>
-        <input type="text" id="pj-import-path" class="form-control" value="{{ pj_workbook_path }}" placeholder="PJ workbook path (optional)" style="width:360px" />
-        <button type="button" class="btn btn-secondary btn-sm" id="pj-import-btn">Import PJ Workbook</button>
       </div>
     </div>
+
+    <form id="pj-add-sku-form" class="sku-add-shell">
+      <p class="sku-add-title">Add or Update PJ SKU</p>
+      <div class="sku-add-row pj">
+        <div class="sku-add-col">
+          <label for="pj-add-category">Category *</label>
+          <select id="pj-add-category" name="pj_category" class="form-control" required>
+            {% for val, lbl in pj_settings_categories %}
+              {% if val != 'uncategorized' %}
+              <option value="{{ val }}">{{ lbl }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sku-add-col">
+          <label for="pj-add-model">Model *</label>
+          <input id="pj-add-model" name="model" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="pj-add-item-number">Item # *</label>
+          <input id="pj-add-item-number" name="item_number" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label>Item Code</label>
+          <div id="pj-add-item-code" class="sku-add-readonly">Auto</div>
+        </div>
+        <div class="sku-add-col">
+          <label for="pj-add-height-mid">Bottom/Mid Height (ft) *</label>
+          <input id="pj-add-height-mid" name="height_mid_ft" type="number" min="0.25" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="pj-add-height-top">Top Height (ft) *</label>
+          <input id="pj-add-height-top" name="height_top_ft" type="number" min="0.25" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="pj-add-bed-measured">Bed Length (ft) *</label>
+          <input id="pj-add-bed-measured" name="bed_length_measured" type="number" min="0.25" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="pj-add-tongue">Tongue (ft) *</label>
+          <input id="pj-add-tongue" name="tongue_feet" type="number" min="0" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label>Footprint (ft)</label>
+          <div id="pj-add-footprint" class="sku-add-readonly">0.0</div>
+        </div>
+      </div>
+      <div class="sku-add-checks">
+        <label><input type="checkbox" name="can_nest_inside_dump" /> Can nest inside dump (used by PJ nesting controls)</label>
+      </div>
+      <div class="sku-add-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Add SKU</button>
+        <button type="reset" class="btn btn-secondary btn-sm">Clear</button>
+      </div>
+      <div class="sku-add-help">If the item number already exists, this updates that row. Dump side height, notes, and other legacy flags can still be edited in CSV seeds if needed.</div>
+    </form>
 
     <div class="table-wrap">
       <table id="pj-sku-table">
@@ -709,7 +841,7 @@
         {% else %}
           <tr>
             <td colspan="9" style="text-align:center;color:var(--text-secondary);padding:14px;">
-              No PJ SKUs loaded yet. Import the PJ workbook.
+              No PJ SKUs loaded yet. Use Add SKU to create the first entry.
             </td>
           </tr>
         {% endif %}
@@ -787,10 +919,47 @@
           <button type="button" class="cheat-view-btn" id="bt-collapse-models-btn">Models</button>
           <button type="button" class="cheat-view-btn" id="bt-expand-items-btn">Items</button>
         </div>
-        <input type="text" id="bt-import-path" class="form-control" value="{{ bt_workbook_path }}" placeholder="Workbook path (optional)" style="width:360px" />
-        <button type="button" class="btn btn-secondary btn-sm" id="bt-import-btn">Import Data Tab</button>
       </div>
     </div>
+
+    <form id="bt-add-sku-form" class="sku-add-shell">
+      <p class="sku-add-title">Add or Update Big Tex SKU</p>
+      <div class="sku-add-row bt">
+        <div class="sku-add-col">
+          <label for="bt-add-category">Category *</label>
+          <input id="bt-add-category" name="mcat" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bt-add-model">Model *</label>
+          <input id="bt-add-model" name="model" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bt-add-item-number">Item # *</label>
+          <input id="bt-add-item-number" name="item_number" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bt-add-bed-length">Bed Length (ft) *</label>
+          <input id="bt-add-bed-length" name="bed_length" type="number" min="0.25" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bt-add-tongue">Tongue (ft) *</label>
+          <input id="bt-add-tongue" name="tongue" type="number" min="0" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label>Footprint (ft)</label>
+          <div id="bt-add-footprint" class="sku-add-readonly">0.0</div>
+        </div>
+        <div class="sku-add-col">
+          <label for="bt-add-stack-height">Stack Height (ft) *</label>
+          <input id="bt-add-stack-height" name="stack_height" type="number" min="0.25" step="0.25" class="form-control" required />
+        </div>
+      </div>
+      <div class="sku-add-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Add SKU</button>
+        <button type="reset" class="btn btn-secondary btn-sm">Clear</button>
+      </div>
+      <div class="sku-add-help">Category aliases are normalized automatically (for example, OL DUMP becomes DUMP). Legacy metadata fields (tier/GVWR/floor type) are no longer part of this add flow.</div>
+    </form>
 
     <div class="table-wrap">
       <table id="bt-sku-table">
@@ -886,7 +1055,7 @@
         {% else %}
           <tr>
             <td colspan="7" style="text-align:center;color:var(--text-secondary);padding:14px;">
-              No Big Tex SKUs loaded yet. Click Import Data Tab.
+              No Big Tex SKUs loaded yet. Use Add SKU to create the first entry.
             </td>
           </tr>
         {% endif %}
@@ -955,15 +1124,13 @@ const SETTINGS_TAB_BTNS = Array.from(document.querySelectorAll('[data-settings-t
 const SETTINGS_SECTIONS = Array.from(document.querySelectorAll('.pg-settings-section'));
 const SETTINGS_INTROS = Array.from(document.querySelectorAll('.pg-settings-intro'));
 
-const PJ_IMPORT_PATH = document.getElementById('pj-import-path');
-const PJ_IMPORT_BTN = document.getElementById('pj-import-btn');
+const PJ_ADD_SKU_FORM = document.getElementById('pj-add-sku-form');
 const PJ_SEARCH = document.getElementById('pj-sku-search');
 const PJ_COLLAPSE_MODELS_BTN = document.getElementById('pj-collapse-models-btn');
 const PJ_EXPAND_ITEMS_BTN = document.getElementById('pj-expand-items-btn');
 
 const BT_SEARCH = document.getElementById('bt-sku-search');
-const BT_IMPORT_PATH = document.getElementById('bt-import-path');
-const BT_IMPORT_BTN = document.getElementById('bt-import-btn');
+const BT_ADD_SKU_FORM = document.getElementById('bt-add-sku-form');
 const BT_COLLAPSE_MODELS_BTN = document.getElementById('bt-collapse-models-btn');
 const BT_EXPAND_ITEMS_BTN = document.getElementById('bt-expand-items-btn');
 
@@ -1397,64 +1564,150 @@ if (BT_SEARCH) {
   });
 }
 
-if (PJ_IMPORT_BTN) {
-  PJ_IMPORT_BTN.addEventListener('click', async function () {
-    const workbookPath = PJ_IMPORT_PATH ? PJ_IMPORT_PATH.value.trim() : '';
-    setStatus('Importing...', 'saving');
+function parseOptionalNumber(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+}
+
+function formatFeet(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0.0';
+  return num.toFixed(1);
+}
+
+function pjShortItemCode(modelRaw, itemRaw) {
+  const model = String(modelRaw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const item = String(itemRaw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!item) return 'Auto';
+  const modelPrefix = (model || item).slice(0, 2);
+  let tail = item.startsWith(modelPrefix) ? item.slice(modelPrefix.length) : item;
+  tail = tail.replace(/^[A-Z]+/, '');
+  let digits = (tail.match(/[0-9]/g) || []).join('');
+  if (!digits) digits = (item.match(/[0-9]/g) || []).join('');
+  if (digits.length < 2) return item;
+  return `${modelPrefix}${digits.slice(0, 2)}`;
+}
+
+function bindSkuAddReadOnlyCalculations() {
+  if (PJ_ADD_SKU_FORM) {
+    const itemInput = PJ_ADD_SKU_FORM.querySelector('[name="item_number"]');
+    const modelInput = PJ_ADD_SKU_FORM.querySelector('[name="model"]');
+    const bedInput = PJ_ADD_SKU_FORM.querySelector('[name="bed_length_measured"]');
+    const tongueInput = PJ_ADD_SKU_FORM.querySelector('[name="tongue_feet"]');
+    const codeEl = document.getElementById('pj-add-item-code');
+    const fpEl = document.getElementById('pj-add-footprint');
+    const refreshPj = () => {
+      if (codeEl) codeEl.textContent = pjShortItemCode(modelInput ? modelInput.value : '', itemInput ? itemInput.value : '');
+      const bed = parseOptionalNumber(bedInput ? bedInput.value : null) || 0;
+      const tongue = parseOptionalNumber(tongueInput ? tongueInput.value : null) || 0;
+      if (fpEl) fpEl.textContent = formatFeet(bed + tongue);
+    };
+    [itemInput, modelInput, bedInput, tongueInput].forEach((el) => {
+      if (el) el.addEventListener('input', refreshPj);
+    });
+    PJ_ADD_SKU_FORM.addEventListener('reset', () => setTimeout(refreshPj, 0));
+    refreshPj();
+  }
+
+  if (BT_ADD_SKU_FORM) {
+    const bedInput = BT_ADD_SKU_FORM.querySelector('[name="bed_length"]');
+    const tongueInput = BT_ADD_SKU_FORM.querySelector('[name="tongue"]');
+    const fpEl = document.getElementById('bt-add-footprint');
+    const refreshBt = () => {
+      const bed = parseOptionalNumber(bedInput ? bedInput.value : null) || 0;
+      const tongue = parseOptionalNumber(tongueInput ? tongueInput.value : null) || 0;
+      if (fpEl) fpEl.textContent = formatFeet(bed + tongue);
+    };
+    [bedInput, tongueInput].forEach((el) => {
+      if (el) el.addEventListener('input', refreshBt);
+    });
+    BT_ADD_SKU_FORM.addEventListener('reset', () => setTimeout(refreshBt, 0));
+    refreshBt();
+  }
+}
+
+if (PJ_ADD_SKU_FORM) {
+  PJ_ADD_SKU_FORM.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const fd = new FormData(PJ_ADD_SKU_FORM);
+    const payload = {
+      item_number: String(fd.get('item_number') || '').trim(),
+      model: String(fd.get('model') || '').trim(),
+      pj_category: String(fd.get('pj_category') || '').trim(),
+      bed_length_measured: parseOptionalNumber(fd.get('bed_length_measured')),
+      tongue_feet: parseOptionalNumber(fd.get('tongue_feet')),
+      height_mid_ft: parseOptionalNumber(fd.get('height_mid_ft')),
+      height_top_ft: parseOptionalNumber(fd.get('height_top_ft')),
+      can_nest_inside_dump: fd.get('can_nest_inside_dump') === 'on',
+    };
+    setStatus('Saving...', 'saving');
     try {
-      const resp = await fetch("{{ url_for('prograde.api_pj_import') }}", {
+      const resp = await fetch("{{ url_for('prograde.api_add_pj_sku') }}", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workbook_path: workbookPath || null, toc_sheet_name: 'ToC' }),
+        body: JSON.stringify(payload),
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Import failed');
+        throw new Error(data.error || 'Add SKU failed');
       }
       if (data.sessions_flagged) {
         STALE_ALERT.classList.add('visible');
       }
-      const result = data.import_result || {};
-      setStatus('Import complete', 'saved');
-      showToast(`Imported ${result.row_count || 0} PJ rows`, 'success');
-      setTimeout(() => location.reload(), 400);
+      const result = data.result || {};
+      setStatus('Saved OK', 'saved');
+      showToast(`${result.created ? 'Added' : 'Updated'} PJ SKU ${result.item_number || payload.item_number}`, 'success');
+      setTimeout(() => location.reload(), 300);
     } catch (e) {
       setStatus('Error', 'error');
-      showToast('PJ import failed: ' + e.message, 'error');
+      showToast('PJ add SKU failed: ' + e.message, 'error');
     }
   });
 }
 
-if (BT_IMPORT_BTN) {
-  BT_IMPORT_BTN.addEventListener('click', async function () {
-    const workbookPath = BT_IMPORT_PATH ? BT_IMPORT_PATH.value.trim() : '';
-    setStatus('Importing...', 'saving');
+if (BT_ADD_SKU_FORM) {
+  BT_ADD_SKU_FORM.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const fd = new FormData(BT_ADD_SKU_FORM);
+    const payload = {
+      item_number: String(fd.get('item_number') || '').trim(),
+      model: String(fd.get('model') || '').trim(),
+      mcat: String(fd.get('mcat') || '').trim(),
+      bed_length: parseOptionalNumber(fd.get('bed_length')),
+      tongue: parseOptionalNumber(fd.get('tongue')),
+      stack_height: parseOptionalNumber(fd.get('stack_height')),
+    };
+    setStatus('Saving...', 'saving');
     try {
-      const resp = await fetch("{{ url_for('prograde.api_bigtex_import') }}", {
+      const resp = await fetch("{{ url_for('prograde.api_add_bigtex_sku') }}", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workbook_path: workbookPath || null, sheet_name: 'Data' }),
+        body: JSON.stringify(payload),
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Import failed');
+        throw new Error(data.error || 'Add SKU failed');
       }
       if (data.sessions_flagged) {
         STALE_ALERT.classList.add('visible');
       }
-      const result = data.import_result || {};
-      setStatus('Import complete', 'saved');
-      showToast(`Imported ${result.row_count || 0} BT rows from ${result.sheet_name || 'Data'}`, 'success');
-      setTimeout(() => location.reload(), 400);
+      const result = data.result || {};
+      setStatus('Saved OK', 'saved');
+      showToast(`${result.created ? 'Added' : 'Updated'} Big Tex SKU ${result.item_number || payload.item_number}`, 'success');
+      setTimeout(() => location.reload(), 300);
     } catch (e) {
       setStatus('Error', 'error');
-      showToast('BT import failed: ' + e.message, 'error');
+      showToast('Big Tex add SKU failed: ' + e.message, 'error');
     }
   });
 }
 
 pjBindHierarchyControls();
 btBindHierarchyControls();
+bindSkuAddReadOnlyCalculations();
 
 SETTINGS_TAB_BTNS.forEach((btn) => {
   btn.addEventListener('click', () => setSettingsTab(btn.dataset.settingsTabBtn));

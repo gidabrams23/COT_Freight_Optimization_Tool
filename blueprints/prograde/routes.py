@@ -740,10 +740,7 @@ def _build_bt_sku_map(item_numbers=None):
             for item in item_numbers
             if str(item or "").strip()
         }
-        return {
-            item_number: dict(db.get_bigtex_sku(item_number) or {})
-            for item_number in normalized
-        }
+        return db.get_bigtex_skus_by_item_numbers(normalized)
     return {r["item_number"]: dict(r) for r in db.get_bigtex_skus()}
 
 
@@ -761,7 +758,7 @@ def _bt_render_deck_profile(sku_row):
     return "flat"
 
 
-def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
+def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None, pj_sku_map=None):
     """Enrich a position row with display fields: footprint, height, sku metadata."""
     p = dict(pos)
     p["gn_axle_dropped"] = bool(p.get("gn_axle_dropped"))
@@ -771,8 +768,13 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None):
     p["violation"] = False
     p["is_top_layer"] = False
     if brand == "pj":
-        raw = db.get_pj_sku(p["item_number"])
-        sku = dict(raw) if raw else {}
+        item_number = str(p.get("item_number") or "").strip()
+        sku = _row_to_dict((pj_sku_map or {}).get(item_number))
+        if not sku and item_number:
+            raw = db.get_pj_sku(item_number)
+            sku = dict(raw) if raw else {}
+            if sku and pj_sku_map is not None:
+                pj_sku_map[item_number] = sku
     else:
         sku = (bt_sku_map or {}).get(p["item_number"]) or {}
 
@@ -1512,6 +1514,52 @@ def _column_gooseneck_wall_x_local(col, start_local_ft):
     return _as_float(start_local_ft, 0.0) + deck_len_ft
 
 
+def _lower_column_seam_right_extent_ft(
+    col,
+    *,
+    seq,
+    seam_seq,
+    uniform_non_gooseneck_lane=False,
+):
+    """
+    Right-edge extent (local ft) used for lower-deck seam packing.
+
+    For the seam-interface lower stack, let a right-facing gooseneck anchor by
+    deck edge (tongue may extend onto the upper deck area). Other columns keep
+    full rendered-envelope behavior.
+    """
+    render_dims = _column_render_envelope_dims(
+        col,
+        zone="lower_deck",
+        uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+    )
+    default_right_reach_ft = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
+    if int(seq) != int(seam_seq):
+        return default_right_reach_ft
+    if not col:
+        return default_right_reach_ft
+
+    base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
+    if (not _is_gooseneck_render_profile(base)) or bool(base.get("is_rotated")):
+        return default_right_reach_ft
+
+    rows = sorted((col or []), key=lambda p: int(p.get("layer") or 0))
+    local_starts = _lower_column_layer_start_offsets(
+        rows,
+        prefer_occupied_tongue=True,
+        uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+    )
+    max_deck_right_ft = 0.0
+    for idx, unit in enumerate(rows):
+        start_ft = _as_float(local_starts[idx], 0.0)
+        deck_len_ft = max(
+            _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)),
+            0.0,
+        )
+        max_deck_right_ft = max(max_deck_right_ft, start_ft + deck_len_ft)
+    return max(max_deck_right_ft, 0.0)
+
+
 def _column_render_envelope_dims(col, zone=None, uniform_non_gooseneck_lane=False):
     """
     Return rendered envelope dims across all units in a stacked column.
@@ -1623,6 +1671,13 @@ def _column_has_stuffed_forward_tongue(col):
         if occupied_tongue_ft + 1e-9 < rendered_tongue_ft:
             return True
     return False
+
+
+def _is_lower_seam_facing_gooseneck_column(col):
+    if not col:
+        return False
+    base = next((p for p in col if int(p.get("layer") or 0) == 1), col[0])
+    return _is_gooseneck_render_profile(base) and (not bool(base.get("is_rotated")))
 
 
 def _upper_column_intrusion_interval_on_lower(col, upper_start_local_ft, zone_origin_upper_ft, step_x_ft):
@@ -2785,15 +2840,17 @@ def _apply_pj_gooseneck_stack_pattern_for_column(session_id, deck_zone, sequence
         return False
     rows.sort(key=lambda row: int(row.get("layer") or 0))
 
-    sku_cache = {}
+    pj_sku_map = db.get_pj_skus_by_item_numbers({
+        str(row.get("item_number") or "").strip()
+        for row in rows
+        if str(row.get("item_number") or "").strip()
+    })
 
     def _sku_for(position):
         item_number = str(position.get("item_number") or "").strip()
         if not item_number:
             return {}
-        if item_number not in sku_cache:
-            sku_cache[item_number] = dict(db.get_pj_sku(item_number) or {})
-        return sku_cache[item_number]
+        return _row_to_dict(pj_sku_map.get(item_number))
 
     def _is_gn(position):
         return _position_uses_pj_gooseneck(position, _sku_for(position))
@@ -2852,15 +2909,17 @@ def _apply_pj_gn_crisscross_for_column(session_id, deck_zone, sequence, preferre
         return False
     rows.sort(key=lambda row: int(row.get("layer") or 0))
 
-    sku_cache = {}
+    pj_sku_map = db.get_pj_skus_by_item_numbers({
+        str(row.get("item_number") or "").strip()
+        for row in rows
+        if str(row.get("item_number") or "").strip()
+    })
 
     def _sku_for(position):
         item_number = str(position.get("item_number") or "").strip()
         if not item_number:
             return {}
-        if item_number not in sku_cache:
-            sku_cache[item_number] = dict(db.get_pj_sku(item_number) or {})
-        return sku_cache[item_number]
+        return _row_to_dict(pj_sku_map.get(item_number))
 
     def _is_gn(position):
         return _position_uses_pj_gooseneck(position, _sku_for(position))
@@ -3087,10 +3146,18 @@ def _build_canvas_data(
                 bt_item_numbers.add(item_number)
     bt_sku_map  = _build_bt_sku_map(bt_item_numbers) if brand == "bigtex" else None
     bt_configs  = {r["config_id"]: dict(r) for r in db.get_bt_stack_configs()} if brand == "bigtex" else {}
+    pj_sku_map = {}
+    if brand == "pj":
+        pj_item_numbers = {
+            str((dict(p) if p is not None else {}).get("item_number") or "").strip()
+            for p in positions
+            if str((dict(p) if p is not None else {}).get("item_number") or "").strip()
+        }
+        pj_sku_map = db.get_pj_skus_by_item_numbers(pj_item_numbers)
 
     enriched = []
     for p in positions:
-        pv = _build_position_view(p, brand, bt_sku_map, height_ref)
+        pv = _build_position_view(p, brand, bt_sku_map, height_ref, pj_sku_map)
         pv["deck_zone"] = _normalize_zone_for_brand(
             brand,
             pv.get("deck_zone"),
@@ -3098,13 +3165,6 @@ def _build_canvas_data(
             carrier_type=carrier_map.get("carrier_type") or (session or {}).get("carrier_type"),
         )
         enriched.append(pv)
-    pj_sku_map = {}
-    if brand == "pj":
-        for p in enriched:
-            item_number = str(p.get("item_number") or "").strip()
-            if not item_number or item_number in pj_sku_map:
-                continue
-            pj_sku_map[item_number] = dict(db.get_pj_sku(item_number) or {})
 
     if ground_pull_mode:
         dynamic_deck_len_ft = _ground_pull_first_deck_length_ft(enriched)
@@ -3419,6 +3479,8 @@ def _build_canvas_data(
     # extend past step_x on the lower deck. Resolve from right->left so
     # overflow shifts left without disturbing earlier stacks unless necessary.
     if lower_zone in zone_cols and lower_zone in x_positions:
+        lower_zone_seqs_sorted = sorted((zone_cols.get(lower_zone) or {}).keys())
+        lower_seam_seq = max(lower_zone_seqs_sorted) if lower_zone_seqs_sorted else None
         lower_blocked_by_upper_ft = max(_as_float(zone_blocked_ft.get("lower_deck"), 0.0), 0.0)
         lower_cap_local = max(
             (step_x_ft - lower_blocked_by_upper_ft) - _as_float(zone_origin_x_ft.get(lower_zone), 0.0),
@@ -3474,12 +3536,12 @@ def _build_canvas_data(
         next_start_limit = max(lower_cap_local - 0.08, 0.0)
         for seq in sorted((zone_cols.get(lower_zone) or {}).keys(), reverse=True):
             col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-            render_dims = _column_render_envelope_dims(
+            col_right_extent = _lower_column_seam_right_extent_ft(
                 col,
-                zone=lower_zone,
+                seq=seq,
+                seam_seq=lower_seam_seq,
                 uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
             )
-            col_right_extent = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
 
             current_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
             max_start = next_start_limit - col_right_extent
@@ -3511,13 +3573,12 @@ def _build_canvas_data(
                 )
                 desired_start = prev_right_edge + max(dims.get("left_tongue_ft", 0.0), 0.0)
                 desired_start -= (overlap_left_tongue + overlap_prev_tongue)
-
-                render_dims = _column_render_envelope_dims(
+                col_right_extent = _lower_column_seam_right_extent_ft(
                     col,
-                    zone=lower_zone,
+                    seq=seq,
+                    seam_seq=lower_seam_seq,
                     uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
                 )
-                col_right_extent = max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
                 max_start = max((lower_cap_local - 0.08) - col_right_extent, 0.0)
                 current_start = min(desired_start, max_start)
                 x_positions[lower_zone][int(seq)] = round(current_start, 3)
@@ -3567,13 +3628,13 @@ def _build_canvas_data(
             lower_max_right = 0.0
             for seq in lower_seqs_sorted:
                 col = (zone_cols.get(lower_zone) or {}).get(seq) or []
-                render_dims = _column_render_envelope_dims(
+                start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
+                right = start + _lower_column_seam_right_extent_ft(
                     col,
-                    zone=lower_zone,
+                    seq=seq,
+                    seam_seq=lower_seam_seq,
                     uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
                 )
-                start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
-                right = start + max(_as_float(render_dims.get("right_reach_ft"), 0.0), 0.0)
                 if right > lower_max_right:
                     lower_max_right = right
             lower_shift_delta = max((lower_cap_local - 0.08) - lower_max_right, 0.0)
@@ -3695,6 +3756,8 @@ def _build_canvas_data(
                 # pack right up to the overhang limit when that geometry exists.
                 allow_post_upper_right_snap = True
             if allow_post_upper_right_snap:
+                lower_zone_seqs_sorted = sorted((zone_cols.get(lower_zone) or {}).keys())
+                lower_seam_seq = max(lower_zone_seqs_sorted) if lower_zone_seqs_sorted else None
                 lower_max_right = 0.0
                 for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
                     col = (zone_cols.get(lower_zone) or {}).get(seq) or []
@@ -3710,13 +3773,24 @@ def _build_canvas_data(
                             + max(_as_float(base_dims.get("deck_len_ft"), 0.0), 0.0)
                             + max(_as_float(base_dims.get("right_tongue_ft"), 0.0), 0.0)
                         )
+                        if (
+                            int(seq) == int(lower_seam_seq) if lower_seam_seq is not None else False
+                        ) and col:
+                            seam_right = _lower_column_seam_right_extent_ft(
+                                col,
+                                seq=seq,
+                                seam_seq=lower_seam_seq,
+                                uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                            )
+                            right = min(right, start + seam_right)
                     else:
-                        dims = _column_render_envelope_dims(
+                        seam_right = _lower_column_seam_right_extent_ft(
                             col,
-                            zone=lower_zone,
+                            seq=seq,
+                            seam_seq=lower_seam_seq,
                             uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
                         )
-                        right = start + max(_as_float(dims.get("right_reach_ft"), 0.0), 0.0)
+                        right = start + seam_right
                     if right > lower_max_right:
                         lower_max_right = right
                 lower_shift_delta = max((final_cap_local - 0.08) - lower_max_right, 0.0)
@@ -3724,6 +3798,74 @@ def _build_canvas_data(
                     for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
                         cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
                         x_positions[lower_zone][int(seq)] = round(cur + lower_shift_delta, 3)
+
+    # Seam gooseneck interference guard:
+    # If the seam-interface lower stack is a right-facing gooseneck, keep its
+    # rendered tongue from crossing into occupied upper-deck span.
+    if (
+        lower_zone in zone_cols
+        and upper_zone in zone_cols
+        and lower_zone in x_positions
+        and upper_zone in x_positions
+    ):
+        lower_zone_seqs_sorted = sorted((zone_cols.get(lower_zone) or {}).keys())
+        if lower_zone_seqs_sorted:
+            lower_seam_seq = max(lower_zone_seqs_sorted)
+            seam_col = (zone_cols.get(lower_zone) or {}).get(lower_seam_seq) or []
+            if _is_lower_seam_facing_gooseneck_column(seam_col):
+                seam_start_local_ft = _as_float(
+                    x_positions.get(lower_zone, {}).get(int(lower_seam_seq), 0.0),
+                    0.0,
+                )
+                seam_rows = sorted((seam_col or []), key=lambda p: int(p.get("layer") or 0))
+                seam_local_offsets = _lower_column_layer_start_offsets(
+                    seam_rows,
+                    prefer_occupied_tongue=False,
+                    uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                )
+                seam_right_reach_render_ft = 0.0
+                for idx, unit in enumerate(seam_rows):
+                    local_start_ft = _as_float(seam_local_offsets[idx], 0.0)
+                    deck_len_ft = max(
+                        _as_float(unit.get("deck_length_ft"), _as_float(unit.get("bed_length"), 0.0)),
+                        0.0,
+                    )
+                    tongue_len_ft = max(
+                        _as_float(unit.get("render_tongue_length_ft"), _as_float(unit.get("tongue_length"), 0.0)),
+                        0.0,
+                    )
+                    right_edge_ft = local_start_ft + deck_len_ft + (0.0 if bool(unit.get("is_rotated")) else tongue_len_ft)
+                    seam_right_reach_render_ft = max(seam_right_reach_render_ft, right_edge_ft)
+                seam_right_global_ft = seam_start_local_ft + max(seam_right_reach_render_ft, 0.0)
+                upper_left_global_ft = None
+                for seq in sorted((zone_cols.get(upper_zone) or {}).keys()):
+                    col = (zone_cols.get(upper_zone) or {}).get(seq) or []
+                    if not col:
+                        continue
+                    start_local_ft = _as_float(
+                        x_positions.get(upper_zone, {}).get(int(seq), 0.0),
+                        0.0,
+                    )
+                    dims = _column_render_envelope_dims(
+                        col,
+                        zone=upper_zone,
+                        uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+                    )
+                    col_left_global_ft = (
+                        _as_float(zone_origin_x_ft.get(upper_zone), step_x_ft)
+                        + start_local_ft
+                        - max(_as_float(dims.get("left_tongue_ft"), 0.0), 0.0)
+                    )
+                    if upper_left_global_ft is None or col_left_global_ft < upper_left_global_ft:
+                        upper_left_global_ft = col_left_global_ft
+                if upper_left_global_ft is not None:
+                    max_allowed_right_ft = upper_left_global_ft - 0.08
+                    if seam_right_global_ft > max_allowed_right_ft + 1e-9:
+                        shift_left_ft = seam_right_global_ft - max_allowed_right_ft
+                        x_positions[lower_zone][int(lower_seam_seq)] = round(
+                            seam_start_local_ft - shift_left_ft,
+                            3,
+                        )
 
     # Cross-deck collision guard:
     # Lower-deck horizontal occupancy cannot intersect upper-deck occupied span
@@ -3752,6 +3894,8 @@ def _build_canvas_data(
         if merged_upper_intrusion:
             step_clearance_ft = max(upper_surface_ft - lower_surface_ft, 0.0)
             lower_height_map = col_heights.get(lower_zone, {}) or {}
+            lower_zone_seqs_sorted = sorted((zone_cols.get(lower_zone) or {}).keys())
+            lower_seam_seq = max(lower_zone_seqs_sorted) if lower_zone_seqs_sorted else None
             next_start_limit = None
             next_col = None
             next_base_dims = None
@@ -3792,7 +3936,12 @@ def _build_canvas_data(
                     cur_start = min(cur_start, max_start)
 
                 col_height_ft = _as_float(lower_height_map.get(int(seq), 0.0), 0.0)
-                if col_height_ft > step_clearance_ft + 1e-9:
+                force_seam_gn_overlap_guard = (
+                    lower_seam_seq is not None
+                    and int(seq) == int(lower_seam_seq)
+                    and _is_lower_seam_facing_gooseneck_column(col)
+                )
+                if col_height_ft > step_clearance_ft + 1e-9 or force_seam_gn_overlap_guard:
                     required_gap_ft = 0.08
                     if _column_has_stuffed_forward_tongue(col):
                         # Keep at least the non-nested tongue exposure at the seam.
@@ -4339,6 +4488,10 @@ def account_landing():
 @prograde_bp.route("/sessions")
 def sessions():
     selected_brand = _selected_brand(default="bigtex")
+    trailer_filter = str(request.args.get("trailer_filter") or "with_trailers").strip().lower()
+    if trailer_filter not in {"with_trailers", "all"}:
+        trailer_filter = "with_trailers"
+    min_trailer_qty = 1 if trailer_filter == "with_trailers" else None
     active_profile = _get_or_auto_active_profile()
     if not active_profile:
         _set_account_notice("Select or create an account to continue.", level="warning")
@@ -4347,7 +4500,11 @@ def sessions():
     account_notice = _consume_account_notice()
     can_manage_sessions = bool(active_profile.get("is_admin"))
     sessions = []
-    for row in db.get_all_sessions(brand=selected_brand, saved_only=True):
+    for row in db.get_all_sessions(
+        brand=selected_brand,
+        saved_only=True,
+        min_trailer_qty=min_trailer_qty,
+    ):
         if not _can_access_session(row, active_profile):
             continue
         session_dict = dict(row)
@@ -4362,6 +4519,8 @@ def sessions():
         account_notice=account_notice,
         selected_brand=selected_brand,
         has_seed_data=db.has_seed_data(),
+        trailer_filter=trailer_filter,
+        carrier_options=_carrier_type_options_for_brand(selected_brand),
     )
 
 
@@ -4445,7 +4604,7 @@ def session_new():
                 carrier_type,
                 planner_name,
                 session_label,
-                is_saved=True,
+                is_saved=False,
                 created_by_profile_id=active_profile["id"],
                 created_by_name=planner_name,
             )
@@ -4486,7 +4645,7 @@ def session_new():
                 carrier_type,
                 planner_name,
                 session_label,
-                is_saved=True,
+                is_saved=False,
                 created_by_profile_id=active_profile["id"],
                 created_by_name=planner_name,
             )
@@ -4533,7 +4692,7 @@ def load_builder(session_id):
         zones,
         raw_positions,
         brand,
-        include_violations=not canvas_only,
+        include_violations=False,
     )
     refresh_inventory = str(request.args.get("refresh_inventory") or "").strip().lower() in {"1", "true", "yes", "y"}
     inventory_whse = (request.args.get("inventory_whse") or request.args.get("bt_whse") or "").strip().upper()
@@ -4563,7 +4722,7 @@ def load_builder(session_id):
     }
     session_display_id = _format_session_display_id(session_row)
     selected_brand = _selected_brand(default=brand)
-    active_profile = _get_or_auto_active_profile()
+    active_profile = None if partial_refresh else _get_or_auto_active_profile()
     carrier_options = _carrier_type_options_for_brand(brand)
 
     if partial_refresh:
@@ -4753,12 +4912,16 @@ def api_save_session(session_id):
     saved_row = db.save_session(session_id)
     if not saved_row:
         return _json_error("Session not found", 404)
+    trailer_qty = int(saved_row["trailer_qty"] or 0)
+    if trailer_qty <= 0:
+        return _json_error("Add at least one trailer before saving to All Sessions.", 400)
     return jsonify(
         ok=True,
         session_id=saved_row["session_id"],
         status=saved_row["status"],
         is_saved=bool(saved_row["is_saved"]),
         updated_at=saved_row["updated_at"],
+        trailer_qty=trailer_qty,
     )
 
 
@@ -4996,6 +5159,174 @@ def api_pj_import():
     except Exception:
         current_app.logger.exception("Failed to import PJ workbook")
         return _json_error("Failed to import PJ workbook", 500)
+
+
+@prograde_bp.route("/api/settings/pj/sku", methods=["POST"])
+def api_add_pj_sku():
+    data = request.get_json(silent=True) or {}
+
+    item_number = str(data.get("item_number") or "").strip().upper()
+    model = str(data.get("model") or "").strip().upper()
+    raw_category = str(data.get("pj_category") or "").strip()
+    if not item_number:
+        return _json_error("item_number is required")
+    if not model:
+        return _json_error("model is required")
+    if not raw_category:
+        return _json_error("pj_category is required")
+
+    try:
+        bed_length_measured = float(data.get("bed_length_measured"))
+        tongue_feet = float(data.get("tongue_feet"))
+        height_mid_ft = float(data.get("height_mid_ft"))
+        height_top_ft = float(data.get("height_top_ft"))
+    except (TypeError, ValueError):
+        return _json_error("Measured length, tongue, and heights must be numeric")
+
+    if bed_length_measured <= 0:
+        return _json_error("bed_length_measured must be greater than 0")
+    if tongue_feet < 0:
+        return _json_error("tongue_feet must be 0 or greater")
+    if height_mid_ft <= 0 or height_top_ft <= 0:
+        return _json_error("height_mid_ft and height_top_ft must be greater than 0")
+
+    existing_row = dict(db.get_pj_sku(item_number) or {})
+
+    bed_length_stated_raw = data.get("bed_length_stated")
+    bed_length_stated = bed_length_measured
+    if bed_length_stated_raw not in (None, ""):
+        try:
+            bed_length_stated = float(bed_length_stated_raw)
+        except (TypeError, ValueError):
+            return _json_error("bed_length_stated must be numeric")
+        if bed_length_stated <= 0:
+            return _json_error("bed_length_stated must be greater than 0")
+
+    dump_side_height_ft = existing_row.get("dump_side_height_ft")
+    if data.get("dump_side_height_ft") not in (None, ""):
+        try:
+            dump_side_height_ft = float(data.get("dump_side_height_ft"))
+        except (TypeError, ValueError):
+            return _json_error("dump_side_height_ft must be numeric")
+        if dump_side_height_ft <= 0:
+            return _json_error("dump_side_height_ft must be greater than 0")
+
+    category = _canonicalize_pj_settings_category(raw_category, existing_category=existing_row.get("pj_category"))
+    if not category:
+        return _json_error("Unable to resolve pj_category")
+
+    payload = {
+        "item_number": item_number,
+        "model": model,
+        "pj_category": category,
+        "bed_length_stated": bed_length_stated,
+        "bed_length_measured": bed_length_measured,
+        "tongue_group": ("gooseneck" if category in _PJ_GOOSENECK_CATEGORIES else "standard"),
+        "tongue_feet": tongue_feet,
+        "height_mid_ft": height_mid_ft,
+        "height_top_ft": height_top_ft,
+        "dump_side_height_ft": dump_side_height_ft,
+        "can_nest_inside_dump": bool(data.get("can_nest_inside_dump")),
+        "gn_axle_droppable": bool(existing_row.get("gn_axle_droppable")),
+        "tongue_overlap_allowed": bool(existing_row.get("tongue_overlap_allowed")),
+        "description": existing_row.get("description"),
+        "notes": existing_row.get("notes"),
+        "pairing_rule": existing_row.get("pairing_rule"),
+    }
+
+    try:
+        result = db.upsert_pj_sku(payload)
+        db.flag_all_draft_sessions_stale()
+        return jsonify(ok=True, sessions_flagged=True, result=result)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    except Exception:
+        current_app.logger.exception("Failed to add/update PJ SKU from settings form")
+        return _json_error("Failed to add PJ SKU", 500)
+
+
+@prograde_bp.route("/api/settings/bigtex/sku", methods=["POST"])
+def api_add_bigtex_sku():
+    data = request.get_json(silent=True) or {}
+
+    item_number = str(data.get("item_number") or "").strip().upper()
+    model = str(data.get("model") or "").strip().upper()
+    mcat = str(data.get("mcat") or "").strip()
+    if not item_number:
+        return _json_error("item_number is required")
+    if not model:
+        return _json_error("model is required")
+    if not mcat:
+        return _json_error("mcat is required")
+
+    try:
+        bed_length = float(data.get("bed_length"))
+        tongue = float(data.get("tongue"))
+        stack_height = float(data.get("stack_height"))
+    except (TypeError, ValueError):
+        return _json_error("Bed length, tongue, and stack height must be numeric")
+
+    if bed_length <= 0:
+        return _json_error("bed_length must be greater than 0")
+    if tongue < 0:
+        return _json_error("tongue must be 0 or greater")
+    if stack_height <= 0:
+        return _json_error("stack_height must be greater than 0")
+
+    existing_row = dict(db.get_bigtex_sku(item_number) or {})
+
+    tier = existing_row.get("tier")
+    if data.get("tier") not in (None, ""):
+        try:
+            tier = int(data.get("tier"))
+        except (TypeError, ValueError):
+            return _json_error("tier must be an integer")
+        if tier < 0:
+            return _json_error("tier must be 0 or greater")
+
+    gvwr = existing_row.get("gvwr")
+    if data.get("gvwr") not in (None, ""):
+        try:
+            gvwr = int(data.get("gvwr"))
+        except (TypeError, ValueError):
+            return _json_error("gvwr must be an integer")
+        if gvwr < 0:
+            return _json_error("gvwr must be 0 or greater")
+
+    width = existing_row.get("width")
+    if data.get("width") not in (None, ""):
+        try:
+            width = float(data.get("width"))
+        except (TypeError, ValueError):
+            return _json_error("width must be numeric")
+        if width <= 0:
+            return _json_error("width must be greater than 0")
+
+    floor_type = str(existing_row.get("floor_type") or "").strip().lower() or None
+    if data.get("floor_type") not in (None, ""):
+        floor_type = str(data.get("floor_type") or "").strip().lower() or None
+
+    payload = {
+        "item_number": item_number,
+        "mcat": mcat,
+        "model": model,
+        "tier": tier,
+        "gvwr": gvwr,
+        "floor_type": floor_type,
+        "width": width,
+        "bed_length": bed_length,
+        "tongue": tongue,
+        "stack_height": stack_height,
+    }
+    try:
+        result = db.upsert_bigtex_sku(payload)
+        db.flag_all_draft_sessions_stale()
+        return jsonify(ok=True, sessions_flagged=True, result=result)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    except Exception:
+        current_app.logger.exception("Failed to add/update Big Tex SKU from settings form")
+        return _json_error("Failed to add Big Tex SKU", 500)
 
 
 @prograde_bp.route("/api/session/<session_id>/add", methods=["POST"])

@@ -13,11 +13,7 @@
         <span class="badge {% if session.brand == 'pj' %}badge-info{% else %}badge-neutral{% endif %}">
           {{ session.brand | upper }}
         </span>
-        {% if session.is_saved %}
-        <span class="badge badge-success">Saved</span>
-        {% else %}
-        <span class="badge badge-warning">Not Saved</span>
-        {% endif %}
+        <span class="badge badge-info">Auto-save</span>
       </div>
       <div class="pg-session-meta">
         <span class="pg-session-name">{{ session.session_label or 'Untitled Session' }}</span>
@@ -31,7 +27,7 @@
       <div class="brand-path-group" aria-label="Create load">
         <span class="brand-path-label">Brand</span>
         <span class="brand-path-btn active">{{ "Big Tex" if selected_brand == "bigtex" else "PJ" }}</span>
-        <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}">Create Load</a>
+        <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand, carrier_type=session.carrier_type) }}">Create Load</a>
       </div>
       <div class="pg-carrier-group" aria-label="Truck type">
         <span class="pg-carrier-label">Truck</span>
@@ -47,21 +43,7 @@
     </div>
 
     <div class="pg-top-actions-wrap">
-      <div id="violation-summary" class="pg-violation-summary" aria-live="polite">
-        <span class="pg-violation-summary-label">Load Check</span>
-        {% if violations_error > 0 %}
-          <span class="badge badge-error">{{ violations_error }} Error{% if violations_error > 1 %}s{% endif %}</span>
-        {% endif %}
-        {% if violations_warning > 0 %}
-          <span class="badge badge-warning">{{ violations_warning }} Warning{% if violations_warning > 1 %}s{% endif %}</span>
-        {% endif %}
-        {% if violations_error == 0 and violations_warning == 0 %}
-          <span class="badge badge-success">Clear</span>
-        {% endif %}
-      </div>
-
       <div class="pg-top-actions">
-        <button type="button" id="save-session-btn" class="btn btn-sm pg-action-btn pg-action-save" onclick="saveSession(this)">Save Session</button>
         <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
         <a href="{{ url_for('prograde.export_load_pdf', session_id=session.session_id, brand=selected_brand) }}"
            class="btn btn-secondary btn-sm pg-action-btn">Download PDF</a>

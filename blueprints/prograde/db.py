@@ -1592,6 +1592,26 @@ def get_pj_sku(item_number):
     with get_db() as conn:
         return conn.execute("SELECT * FROM pj_skus WHERE item_number=?", (item_number,)).fetchone()
 
+
+def get_pj_skus_by_item_numbers(item_numbers):
+    normalized = sorted({
+        str(item).strip()
+        for item in (item_numbers or [])
+        if str(item or "").strip()
+    })
+    if not normalized:
+        return {}
+    placeholders = ",".join("?" for _ in normalized)
+    sql = f"SELECT * FROM pj_skus WHERE item_number IN ({placeholders})"
+    with get_db() as conn:
+        rows = conn.execute(sql, normalized).fetchall()
+    return {
+        str(row["item_number"]).strip(): dict(row)
+        for row in rows
+        if str(row["item_number"] or "").strip()
+    }
+
+
 def update_pj_sku_field(item_number, field, value):
     with get_db() as conn:
         conn.execute(
@@ -1622,6 +1642,96 @@ def recompute_pj_footprint(item_number):
         "tongue_feet": round(float(tongue_feet), 2),
         "total_footprint": total_footprint,
     }
+
+
+def upsert_pj_sku(payload):
+    item_number = str((payload or {}).get("item_number") or "").strip().upper()
+    if not item_number:
+        raise ValueError("item_number is required.")
+
+    now = datetime.utcnow().isoformat()
+    model = str((payload or {}).get("model") or "").strip().upper() or None
+    pj_category = str((payload or {}).get("pj_category") or "").strip().lower() or None
+    bed_length_stated = _coerce_float((payload or {}).get("bed_length_stated"), None)
+    bed_length_measured = _coerce_float((payload or {}).get("bed_length_measured"), None)
+    tongue_feet = _coerce_float((payload or {}).get("tongue_feet"), 0.0) or 0.0
+    if bed_length_measured is None:
+        bed_length_measured = bed_length_stated if bed_length_stated is not None else 0.0
+    if bed_length_stated is None:
+        bed_length_stated = bed_length_measured
+    total_footprint = round(float(bed_length_measured) + float(tongue_feet), 2)
+
+    height_mid_ft = _coerce_float((payload or {}).get("height_mid_ft"), None)
+    height_top_ft = _coerce_float((payload or {}).get("height_top_ft"), None)
+    dump_side_height_ft = _coerce_float((payload or {}).get("dump_side_height_ft"), None)
+    can_nest_inside_dump = 1 if bool((payload or {}).get("can_nest_inside_dump")) else 0
+    gn_axle_droppable = 1 if bool((payload or {}).get("gn_axle_droppable")) else 0
+    tongue_overlap_allowed = 1 if bool((payload or {}).get("tongue_overlap_allowed")) else 0
+    pairing_rule = str((payload or {}).get("pairing_rule") or "").strip() or None
+    notes = str((payload or {}).get("notes") or "").strip() or None
+    description = str((payload or {}).get("description") or "").strip() or None
+    tongue_group = str((payload or {}).get("tongue_group") or "").strip().lower() or None
+    gvwr = _coerce_int((payload or {}).get("gvwr"), None)
+
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT item_number FROM pj_skus WHERE item_number=?",
+            (item_number,),
+        ).fetchone()
+        conn.execute(
+            """
+            INSERT INTO pj_skus
+            (
+              item_number, model, pj_category, description, gvwr,
+              bed_length_stated, bed_length_measured, tongue_group, tongue_feet,
+              height_mid_ft, height_top_ft, total_footprint, dump_side_height_ft,
+              can_nest_inside_dump, gn_axle_droppable, tongue_overlap_allowed,
+              pairing_rule, notes, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(item_number) DO UPDATE SET
+              model=excluded.model,
+              pj_category=excluded.pj_category,
+              description=excluded.description,
+              gvwr=excluded.gvwr,
+              bed_length_stated=excluded.bed_length_stated,
+              bed_length_measured=excluded.bed_length_measured,
+              tongue_group=excluded.tongue_group,
+              tongue_feet=excluded.tongue_feet,
+              height_mid_ft=excluded.height_mid_ft,
+              height_top_ft=excluded.height_top_ft,
+              total_footprint=excluded.total_footprint,
+              dump_side_height_ft=excluded.dump_side_height_ft,
+              can_nest_inside_dump=excluded.can_nest_inside_dump,
+              gn_axle_droppable=excluded.gn_axle_droppable,
+              tongue_overlap_allowed=excluded.tongue_overlap_allowed,
+              pairing_rule=excluded.pairing_rule,
+              notes=excluded.notes,
+              updated_at=excluded.updated_at
+            """,
+            (
+                item_number,
+                model,
+                pj_category,
+                description,
+                gvwr,
+                bed_length_stated,
+                bed_length_measured,
+                tongue_group,
+                tongue_feet,
+                height_mid_ft,
+                height_top_ft,
+                total_footprint,
+                dump_side_height_ft,
+                can_nest_inside_dump,
+                gn_axle_droppable,
+                tongue_overlap_allowed,
+                pairing_rule,
+                notes,
+                now,
+            ),
+        )
+    return {"item_number": item_number, "created": bool(existing is None), "total_footprint": total_footprint}
 
 
 def get_bigtex_skus(search=None, mcat=None):
@@ -1666,6 +1776,29 @@ def get_bigtex_sku(item_number):
     return payload
 
 
+def get_bigtex_skus_by_item_numbers(item_numbers):
+    normalized = sorted({
+        str(item).strip()
+        for item in (item_numbers or [])
+        if str(item or "").strip()
+    })
+    if not normalized:
+        return {}
+    placeholders = ",".join("?" for _ in normalized)
+    sql = f"SELECT * FROM bigtex_skus WHERE item_number IN ({placeholders})"
+    with get_db() as conn:
+        rows = conn.execute(sql, normalized).fetchall()
+    payload = {}
+    for row in rows:
+        item_number = str(row["item_number"] or "").strip()
+        if not item_number:
+            continue
+        row_dict = dict(row)
+        row_dict["mcat"] = normalize_bigtex_mcat(row_dict.get("mcat"))
+        payload[item_number] = row_dict
+    return payload
+
+
 def update_bigtex_sku_field(item_number, field, value):
     if field == "mcat":
         normalized = normalize_bigtex_mcat(value)
@@ -1695,6 +1828,67 @@ def recompute_bigtex_footprint(item_number):
         "tongue": round(tongue, 2),
         "total_footprint": total_footprint,
     }
+
+
+def upsert_bigtex_sku(payload):
+    item_number = str((payload or {}).get("item_number") or "").strip().upper()
+    if not item_number:
+        raise ValueError("item_number is required.")
+
+    now = datetime.utcnow().isoformat()
+    mcat = normalize_bigtex_mcat((payload or {}).get("mcat")) or None
+    model = str((payload or {}).get("model") or "").strip().upper() or None
+    tier = _coerce_int((payload or {}).get("tier"), None)
+    gvwr = _coerce_int((payload or {}).get("gvwr"), None)
+    floor_type = str((payload or {}).get("floor_type") or "").strip().lower() or None
+    width = _coerce_float((payload or {}).get("width"), None)
+    bed_length = _coerce_float((payload or {}).get("bed_length"), 0.0) or 0.0
+    tongue = _coerce_float((payload or {}).get("tongue"), 0.0) or 0.0
+    stack_height = _coerce_float((payload or {}).get("stack_height"), None)
+    total_footprint = round(float(bed_length) + float(tongue), 2)
+
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT item_number FROM bigtex_skus WHERE item_number=?",
+            (item_number,),
+        ).fetchone()
+        conn.execute(
+            """
+            INSERT INTO bigtex_skus
+            (
+              item_number, mcat, tier, model, gvwr, floor_type, width,
+              bed_length, tongue, stack_height, total_footprint, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(item_number) DO UPDATE SET
+              mcat=excluded.mcat,
+              tier=excluded.tier,
+              model=excluded.model,
+              gvwr=excluded.gvwr,
+              floor_type=excluded.floor_type,
+              width=excluded.width,
+              bed_length=excluded.bed_length,
+              tongue=excluded.tongue,
+              stack_height=excluded.stack_height,
+              total_footprint=excluded.total_footprint,
+              updated_at=excluded.updated_at
+            """,
+            (
+                item_number,
+                mcat,
+                tier,
+                model,
+                gvwr,
+                floor_type,
+                width,
+                bed_length,
+                tongue,
+                stack_height,
+                total_footprint,
+                now,
+            ),
+        )
+    return {"item_number": item_number, "created": bool(existing is None), "total_footprint": total_footprint}
 
 
 def get_bt_inventory_upload_meta():
@@ -3442,7 +3636,7 @@ def get_session(session_id):
     with get_db() as conn:
         return conn.execute("SELECT * FROM load_sessions WHERE session_id=?", (session_id,)).fetchone()
 
-def get_all_sessions(brand=None, saved_only=False):
+def get_all_sessions(brand=None, saved_only=False, min_trailer_qty=None):
     where = []
     params = []
     if brand:
@@ -3450,6 +3644,9 @@ def get_all_sessions(brand=None, saved_only=False):
         params.append(str(brand))
     if saved_only:
         where.append("COALESCE(ls.is_saved, 1)=1")
+    if min_trailer_qty is not None:
+        where.append("COALESCE(lp.position_count, 0) >= ?")
+        params.append(int(max(min_trailer_qty, 0)))
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     with get_db() as conn:
         return conn.execute(
@@ -3513,15 +3710,44 @@ def mark_session_active(session_id):
         )
 
 def save_session(session_id):
-    """Persist an explicit user save action and mark the session as logged."""
+    """Persist an explicit user save action and mark the session as logged.
+
+    Sessions with zero trailers remain unsaved.
+    """
     ts = datetime.utcnow().isoformat()
     with get_db() as conn:
+        session_row = conn.execute(
+            "SELECT session_id FROM load_sessions WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+        if not session_row:
+            return None
+        qty_row = conn.execute(
+            "SELECT COUNT(*) AS trailer_qty FROM load_positions WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+        trailer_qty = int(qty_row["trailer_qty"] or 0) if qty_row else 0
+        is_saved = 1 if trailer_qty > 0 else 0
         conn.execute(
-            "UPDATE load_sessions SET is_saved=1, updated_at=? WHERE session_id=?",
-            (ts, session_id),
+            "UPDATE load_sessions SET is_saved=?, updated_at=? WHERE session_id=?",
+            (is_saved, ts, session_id),
         )
         return conn.execute(
-            "SELECT session_id, status, is_saved, updated_at FROM load_sessions WHERE session_id=?",
+            """
+            SELECT
+                ls.session_id,
+                ls.status,
+                ls.is_saved,
+                ls.updated_at,
+                COALESCE(lp.position_count, 0) AS trailer_qty
+            FROM load_sessions ls
+            LEFT JOIN (
+                SELECT session_id, COUNT(*) AS position_count
+                FROM load_positions
+                GROUP BY session_id
+            ) lp ON lp.session_id = ls.session_id
+            WHERE ls.session_id=?
+            """,
             (session_id,),
         ).fetchone()
 

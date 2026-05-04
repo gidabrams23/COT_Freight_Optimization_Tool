@@ -50,7 +50,7 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
             sess["profile_name"] = str(name)
             sess["role"] = str(role)
 
-    def test_session_hidden_from_all_sessions_until_saved(self):
+    def test_session_hidden_from_all_sessions_until_saved_with_trailer(self):
         profile_id = self._create_planner_profile("Workflow Tester")
         self._set_active_profile(profile_id)
         session_id = str(uuid.uuid4())
@@ -69,14 +69,77 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertNotIn(session_id, resp_before.get_data(as_text=True))
 
         save_resp = self.client.post(f"/prograde/api/session/{session_id}/save", json={})
+        self.assertEqual(save_resp.status_code, 400)
+        save_error = save_resp.get_json() or {}
+        self.assertEqual(save_error.get("error"), "Add at least one trailer before saving to All Sessions.")
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-SAVE-1",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        save_resp = self.client.post(f"/prograde/api/session/{session_id}/save", json={})
         self.assertEqual(save_resp.status_code, 200)
         save_payload = save_resp.get_json()
         self.assertTrue(save_payload["ok"])
         self.assertEqual(save_payload["session_id"], session_id)
+        self.assertEqual(int(save_payload.get("trailer_qty") or 0), 1)
 
         resp_after = self.client.get("/prograde/sessions?brand=bigtex")
         self.assertEqual(resp_after.status_code, 200)
         self.assertIn(session_id, resp_after.get_data(as_text=True))
+
+    def test_all_sessions_trailer_filter_hides_zero_qty_by_default(self):
+        profile_id = self._create_planner_profile("Filter Tester")
+        self._set_active_profile(profile_id)
+        hidden_session_id = str(uuid.uuid4())
+        shown_session_id = str(uuid.uuid4())
+        self.db.create_session(
+            hidden_session_id,
+            "bigtex",
+            "53_step_deck",
+            "Filter Tester",
+            "Empty saved session",
+            is_saved=True,
+            created_by_profile_id=profile_id,
+            created_by_name="Filter Tester",
+        )
+        self.db.create_session(
+            shown_session_id,
+            "bigtex",
+            "53_step_deck",
+            "Filter Tester",
+            "Saved session with trailer",
+            is_saved=True,
+            created_by_profile_id=profile_id,
+            created_by_name="Filter Tester",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=shown_session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-FILTER-1",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        resp_default = self.client.get("/prograde/sessions?brand=bigtex")
+        self.assertEqual(resp_default.status_code, 200)
+        html_default = resp_default.get_data(as_text=True)
+        self.assertNotIn(hidden_session_id, html_default)
+        self.assertIn(shown_session_id, html_default)
+
+        resp_all = self.client.get("/prograde/sessions?brand=bigtex&trailer_filter=all")
+        self.assertEqual(resp_all.status_code, 200)
+        html_all = resp_all.get_data(as_text=True)
+        self.assertIn(hidden_session_id, html_all)
+        self.assertIn(shown_session_id, html_all)
 
     def test_all_sessions_filters_by_selected_brand(self):
         profile_id = self._create_planner_profile("Brand Tester")
@@ -93,6 +156,15 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
             created_by_profile_id=profile_id,
             created_by_name="Brand Tester",
         )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=bt_session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-BRAND-BT",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
         self.db.create_session(
             pj_session_id,
             "pj",
@@ -102,6 +174,15 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
             is_saved=True,
             created_by_profile_id=profile_id,
             created_by_name="Brand Tester",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=pj_session_id,
+            brand="pj",
+            item_number="UNMAPPED-BRAND-PJ",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
         )
 
         bt_resp = self.client.get("/prograde/sessions?brand=bigtex")
@@ -574,6 +655,15 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
             created_by_profile_id=planner_one_id,
             created_by_name="Planner One",
         )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=planner_one_session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-PLANNER-1",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
         self.db.create_session(
             planner_two_session_id,
             "bigtex",
@@ -583,6 +673,15 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
             is_saved=True,
             created_by_profile_id=planner_two_id,
             created_by_name="Planner Two",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=planner_two_session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-PLANNER-2",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
         )
 
         self._set_active_profile(planner_one_id)
@@ -637,7 +736,7 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(row["created_by_profile_id"], profile_id)
         self.assertEqual(row["created_by_name"], "Builder User")
         self.assertEqual(row["planner_name"], "Builder User")
-        self.assertEqual(int(row["is_saved"] or 0), 1)
+        self.assertEqual(int(row["is_saved"] or 0), 0)
 
     def test_bigtex_same_direction_stack_uses_half_tongue_occupancy_in_canvas(self):
         profile_id = self.db.create_access_profile("BT Tongue Half Tester")
@@ -1058,6 +1157,64 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         upper_tongue_end = float(upper_left.get("tongue_x_end_ft") or 0.0)
         self.assertAlmostEqual(upper_tongue_end - upper_deck_end, 4.0, places=2)
 
+    def test_pj_lower_gooseneck_seam_anchor_uses_deck_edge(self):
+        profile_id = self.db.create_access_profile("PJ Seam Anchor Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "pj",
+            "53_step_deck",
+            "PJ Seam Anchor Tester",
+            "PJ Seam Anchor Session",
+            created_by_profile_id=profile_id,
+            created_by_name="PJ Seam Anchor Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pj_skus
+                (item_number, model, pj_category, bed_length_stated, bed_length_measured, tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("PJ-GN-SEAM", "LS", "gooseneck", 32.0, 32.0, 9.0, 41.0, 2.5, 2.5),
+            )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="pj",
+            item_number="PJ-GN-SEAM",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=0,
+            override_reason="tongue_profile:gooseneck",
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("pj", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="pj",
+        )
+
+        unit = dict((canvas.get("enriched_positions") or [])[0])
+        step_x_ft = float((canvas.get("trailer_geometry") or {}).get("step_x_ft") or 41.5)
+        deck_end_ft = float(unit.get("deck_x_end_ft") or 0.0)
+        tongue_end_ft = max(
+            float(unit.get("tongue_x_start_ft") or 0.0),
+            float(unit.get("tongue_x_end_ft") or 0.0),
+        )
+        self.assertAlmostEqual(deck_end_ft, step_x_ft - 0.08, places=2)
+        self.assertGreater(tongue_end_ft, step_x_ft + 0.5)
+
     def test_bigtex_same_direction_half_tongue_applies_to_all_layers_in_target_stack(self):
         profile_id = self.db.create_access_profile("BT Layer Tongue Tester")
         self._set_active_profile(profile_id)
@@ -1155,6 +1312,167 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertAlmostEqual(float(right_top.get("render_tongue_length_ft") or 0.0), 4.0, places=2)
         self.assertAlmostEqual(float(right_top.get("occupied_tongue_length_ft") or 0.0), 2.0, places=2)
         self.assertTrue(bool(right_top.get("bt_half_tongue_stuffed")))
+
+    def test_bigtex_lower_gooseneck_seam_anchor_uses_deck_edge(self):
+        profile_id = self.db.create_access_profile("BT Seam Anchor Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Seam Anchor Tester",
+            "BT Seam Anchor Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Seam Anchor Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-GN-SEAM", "gooseneck", 1, "GN", 32.0, 9.0, 2.0, 41.0),
+            )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-GN-SEAM",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=0,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+
+        unit = dict((canvas.get("enriched_positions") or [])[0])
+        step_x_ft = float((canvas.get("trailer_geometry") or {}).get("step_x_ft") or 41.5)
+        deck_end_ft = float(unit.get("deck_x_end_ft") or 0.0)
+        tongue_end_ft = max(
+            float(unit.get("tongue_x_start_ft") or 0.0),
+            float(unit.get("tongue_x_end_ft") or 0.0),
+        )
+        self.assertAlmostEqual(deck_end_ft, step_x_ft - 0.08, places=2)
+        self.assertGreater(tongue_end_ft, step_x_ft + 0.5)
+
+    def test_bigtex_lower_gooseneck_seam_anchor_yields_to_upper_interference(self):
+        profile_id = self.db.create_access_profile("BT Seam Interference Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Seam Interference Tester",
+            "BT Seam Interference Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Seam Interference Tester",
+        )
+
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO carrier_configs
+                (
+                  carrier_type, brand, total_length_ft, max_height_ft,
+                  lower_deck_length_ft, upper_deck_length_ft,
+                  lower_deck_ground_height_ft, upper_deck_ground_height_ft,
+                  gn_max_lower_deck_ft, notes, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("53_step_deck", "generic", 53.0, 13.5, 41.5, 11.5, 3.5, 5.0, 39.0, "test step deck"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-GN-SEAM-LOWER", "gooseneck", 1, "GN", 16.0, 9.0, 2.0, 25.0),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-UPPER-BLOCK", "utility", 1, "UT", 16.0, 4.0, 2.0, 20.0),
+            )
+
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-GN-SEAM-LOWER",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=0,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-UPPER-BLOCK",
+            deck_zone="upper_deck",
+            layer=1,
+            sequence=1,
+            is_rotated=0,
+        )
+
+        session_row = dict(self.db.get_session(session_id) or {})
+        carrier_row = self.db.get_carrier_config("53_step_deck")
+        zones = self.routes.brand_config.DECK_ZONES.get("bigtex", [])
+        canvas = self.routes._build_canvas_data(
+            session_id=session_id,
+            session=session_row,
+            carrier=carrier_row,
+            zones=zones,
+            positions=self.db.get_positions(session_id),
+            brand="bigtex",
+        )
+
+        enriched = [dict(p) for p in (canvas.get("enriched_positions") or [])]
+        lower = next((row for row in enriched if row.get("item_number") == "BT-GN-SEAM-LOWER"), None)
+        upper = next((row for row in enriched if row.get("item_number") == "BT-UPPER-BLOCK"), None)
+        self.assertIsNotNone(lower)
+        self.assertIsNotNone(upper)
+
+        lower_tongue_right_ft = max(
+            float((lower or {}).get("tongue_x_start_ft") or 0.0),
+            float((lower or {}).get("tongue_x_end_ft") or 0.0),
+        )
+        upper_left_ft = float((upper or {}).get("deck_x_start_ft") or 0.0)
+        self.assertLessEqual(lower_tongue_right_ft, upper_left_ft + 0.10)
 
     def test_bigtex_add_on_stack_persists_column_alignment_on_base_stack(self):
         profile_id = self.db.create_access_profile("BT Alignment Tester")

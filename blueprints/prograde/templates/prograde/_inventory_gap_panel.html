@@ -7,11 +7,28 @@
 {% set warehouse_options = (inventory_gap.warehouse_options if inventory_gap and inventory_gap.warehouse_options else []) %}
 {% set selected_whse = (inventory_gap.selected_warehouse if inventory_gap and inventory_gap.selected_warehouse else 'ALL') %}
 {% set inventory_mode = (inventory_gap.mode if inventory_gap and inventory_gap.mode else '') %}
+{% set upload_meta = (inventory_gap.upload_meta if inventory_gap and inventory_gap.upload_meta else None) %}
+{% set upload_filename = (upload_meta.source_filename if upload_meta and upload_meta.source_filename else '') %}
+{% set upload_uploaded_at = (upload_meta.uploaded_at if upload_meta and upload_meta.uploaded_at else '') %}
+{% set upload_format = (upload_meta.source_format if upload_meta and upload_meta.source_format else '') %}
 <div class="inventory-wrap card" id="pg-inventory-card" style="padding:0;overflow:hidden">
   <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
     <div class="inventory-header-row">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div class="card-title">{{ 'BT' if is_bt else 'PJ' }} Inventory Gap Finder</div>
+        <div>
+          <div class="card-title">{{ 'BT' if is_bt else 'PJ' }} Inventory Gap Finder</div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap;">
+            <span>WHSE: {{ selected_whse }}</span>
+            {% if upload_uploaded_at %}
+            <span>Last Upload: {{ upload_uploaded_at|string|replace('T', ' ')|replace('Z', '') }}</span>
+            {% endif %}
+            {% if upload_filename %}
+            <span>Source: {{ upload_filename }}</span>
+            {% elif upload_format %}
+            <span>Source: {{ upload_format }}</span>
+            {% endif %}
+          </div>
+        </div>
         <div class="inventory-header-stats">
           <span class="inventory-header-stat">Rows: {{ (inventory_gap.rows | length) if inventory_gap else 0 }}</span>
           <span class="inventory-header-stat">Stacks: {{ stack_slots | length }}</span>

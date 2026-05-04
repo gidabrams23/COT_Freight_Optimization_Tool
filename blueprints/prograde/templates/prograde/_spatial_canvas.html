@@ -933,7 +933,7 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
 
                 {% if tongue_profile == 'gooseneck' %}
                   {% set gn_dir = -1 if pos.is_rotated else 1 %}
-                  {% set gn_top_run_ft = 4.0 %}
+                  {% set gn_top_run_ft = tongue_len %}
                   {% set gn_render_rise_ft = 6.0 %}
                   {% set gn_tip_render_surface_ft = y_surface_ft + 3.0 %}
                   {% set p0x = tongue_attach_ft %}
@@ -1027,18 +1027,39 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
                       rx="3"
                       onmousedown="event.stopPropagation();"
                       onclick="event.stopPropagation();"/>
-                <g class="pg-unit-control pg-unit-control-delete" style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); removeUnit('{{ pos.position_id }}');">
+                <g class="pg-unit-control pg-unit-control-delete"
+                   style="cursor:pointer"
+                   role="button"
+                   tabindex="0"
+                   aria-label="Remove unit {{ pos.item_number or pos.position_id }}"
+                   onmousedown="event.stopPropagation();"
+                   onclick="event.stopPropagation(); removeUnit('{{ pos.position_id }}');"
+                   onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); removeUnit('{{ pos.position_id }}'); }">
                   <rect x="{{ delete_x - 3 }}" y="{{ btn_y - 3 }}" width="{{ btn_size + 6 }}" height="{{ btn_size + 6 }}" rx="4" fill="transparent" stroke="none"/>
                   <rect x="{{ delete_x }}" y="{{ btn_y }}" width="{{ btn_size }}" height="{{ btn_size }}" rx="2.4" fill="rgba(2,6,23,0.96)" stroke="#fb7185" stroke-width="1.25"/>
                   <text x="{{ delete_x + (btn_size/2) }}" y="{{ btn_y + (btn_size * 0.77) }}" text-anchor="middle" font-size="{{ [btn_size * 0.74, 10.2] | min }}" font-weight="800" fill="#fda4af">x</text>
                 </g>
-                <g class="pg-unit-control pg-unit-control-rotate" style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); rotateUnit('{{ pos.position_id }}');">
+                <g class="pg-unit-control pg-unit-control-rotate"
+                   style="cursor:pointer"
+                   role="button"
+                   tabindex="0"
+                   aria-label="Rotate unit {{ pos.item_number or pos.position_id }}"
+                   onmousedown="event.stopPropagation();"
+                   onclick="event.stopPropagation(); rotateUnit('{{ pos.position_id }}');"
+                   onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); rotateUnit('{{ pos.position_id }}'); }">
                   <rect x="{{ rotate_x - 3 }}" y="{{ btn_y - 3 }}" width="{{ btn_size + 6 }}" height="{{ btn_size + 6 }}" rx="4" fill="transparent" stroke="none"/>
                   <rect x="{{ rotate_x }}" y="{{ btn_y }}" width="{{ btn_size }}" height="{{ btn_size }}" rx="2.4" fill="rgba(2,6,23,0.96)" stroke="#e2e8f0" stroke-width="1.2"/>
                   <text x="{{ rotate_x + (btn_size/2) }}" y="{{ btn_y + (btn_size * 0.77) }}" text-anchor="middle" font-size="{{ [btn_size * 0.74, 10.2] | min }}" font-weight="800" fill="#f8fafc">&#8635;</text>
                 </g>
                 {% if show_dump_door_control %}
-                <g class="pg-unit-control pg-unit-control-door" style="cursor:pointer" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); toggleDumpDoor('{{ pos.position_id }}');">
+                <g class="pg-unit-control pg-unit-control-door"
+                   style="cursor:pointer"
+                   role="button"
+                   tabindex="0"
+                   aria-label="{% if pos.dump_door_removed %}Enable dump door{% else %}Disable dump door{% endif %} for {{ pos.item_number or pos.position_id }}"
+                   onmousedown="event.stopPropagation();"
+                   onclick="event.stopPropagation(); toggleDumpDoor('{{ pos.position_id }}');"
+                   onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); toggleDumpDoor('{{ pos.position_id }}'); }">
                   <rect x="{{ door_x - 3 }}" y="{{ door_y - 3 }}" width="{{ door_w + 6 }}" height="{{ door_h + 6 }}" rx="4" fill="transparent" stroke="none"/>
                   <rect x="{{ door_x }}" y="{{ door_y }}" width="{{ door_w }}" height="{{ door_h }}" rx="2" fill="rgba(15,23,42,0.90)" stroke="#f59e0b" stroke-width="1"/>
                   <text x="{{ door_x + (door_w / 2) }}" y="{{ door_y + (door_h * 0.73) }}" text-anchor="middle" font-size="{{ [door_h * 0.72, 7.8] | min }}" font-weight="700" fill="#f59e0b">
@@ -1049,8 +1070,12 @@ body.pg-sku-drag-active.pg-stack-lane-preview-active .pg-lower-side-label.active
                 {% if show_nest_control %}
                 <g class="pg-unit-control pg-unit-control-nest"
                    style="cursor:pointer"
+                   role="button"
+                   tabindex="0"
+                   aria-label="{% if pos.is_nested %}Unnest{% else %}Nest{% endif %} unit {{ pos.item_number or pos.position_id }}"
                    onmousedown="event.stopPropagation();"
-                   onclick="event.stopPropagation(); {% if pos.is_nested %}unnestUnit('{{ pos.position_id }}'){% else %}nestUnit('{{ pos.position_id }}','{{ pos.nest_host_position_id }}'){% endif %};">
+                   onclick="event.stopPropagation(); {% if pos.is_nested %}unnestUnit('{{ pos.position_id }}'){% else %}nestUnit('{{ pos.position_id }}','{{ pos.nest_host_position_id }}'){% endif %};"
+                   onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); {% if pos.is_nested %}unnestUnit('{{ pos.position_id }}'){% else %}nestUnit('{{ pos.position_id }}','{{ pos.nest_host_position_id }}'){% endif %}; }">
                   <rect x="{{ nest_x - 3 }}" y="{{ nest_y - 3 }}" width="{{ nest_w + 6 }}" height="{{ nest_h + 6 }}" rx="4" fill="transparent" stroke="none"/>
                   <rect x="{{ nest_x }}" y="{{ nest_y }}" width="{{ nest_w }}" height="{{ nest_h }}" rx="2"
                         fill="{% if pos.is_nested %}rgba(14, 116, 144, 0.58){% else %}rgba(13, 148, 136, 0.46){% endif %}"
