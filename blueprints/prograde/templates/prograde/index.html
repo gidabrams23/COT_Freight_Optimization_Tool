@@ -129,14 +129,7 @@
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <a href="{{ url_for('prograde.account_landing', brand=selected_brand, next=url_for('prograde.sessions', brand=selected_brand)) }}" class="btn btn-secondary">Account</a>
-    <label for="pg-create-carrier-select" style="font-size:11px;color:var(--text-secondary);font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Truck</label>
-    <select id="pg-create-carrier-select" class="form-control form-control-sm" style="min-width:172px;">
-      {% for option in carrier_options or [] %}
-      <option value="{{ option.carrier_type }}">{{ option.label }}</option>
-      {% endfor %}
-    </select>
     <a id="pg-create-load-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}" class="btn btn-primary">Create Load</a>
-    <a href="{{ url_for('prograde.settings', brand=selected_brand) }}" class="btn btn-secondary">Settings</a>
   </div>
 </div>
 
@@ -166,16 +159,6 @@
             {% endif %}
           </div>
         </div>
-      </div>
-      <div class="pg-sessions-list-toolbar">
-        <div class="pg-sessions-list-subtitle">Filter</div>
-        <form method="GET" action="{{ url_for('prograde.sessions') }}" style="display:flex;gap:8px;align-items:center;">
-          <input type="hidden" name="brand" value="{{ selected_brand }}" />
-          <select class="form-control" name="trailer_filter" onchange="this.form.submit()" aria-label="Trailer quantity filter">
-            <option value="with_trailers" {% if trailer_filter != 'all' %}selected{% endif %}>Hide 0-trailer loads</option>
-            <option value="all" {% if trailer_filter == 'all' %}selected{% endif %}>Show all saved loads</option>
-          </select>
-        </form>
       </div>
 
       <div class="table-wrap">
@@ -239,24 +222,6 @@
 (() => {
   const rows = Array.from(document.querySelectorAll('.pg-session-row'));
   const previewPanel = document.getElementById('pg-session-preview-panel');
-  const createCarrierSelect = document.getElementById('pg-create-carrier-select');
-  const createLoadBtn = document.getElementById('pg-create-load-btn');
-
-  function updateCreateLoadHref() {
-    if (!createLoadBtn) return;
-    const baseUrl = "{{ url_for('prograde.session_new', brand=selected_brand) }}";
-    const carrierType = createCarrierSelect ? String(createCarrierSelect.value || '').trim() : '';
-    if (!carrierType) {
-      createLoadBtn.href = baseUrl;
-      return;
-    }
-    createLoadBtn.href = `${baseUrl}?carrier_type=${encodeURIComponent(carrierType)}`;
-  }
-
-  if (createCarrierSelect) {
-    createCarrierSelect.addEventListener('change', updateCreateLoadHref);
-    updateCreateLoadHref();
-  }
 
   if (!rows.length || !previewPanel) {
     return;

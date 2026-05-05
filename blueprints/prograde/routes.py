@@ -1023,7 +1023,7 @@ def compute_column_x_positions(zone_columns, zone_caps=None, right_anchor_zones=
     return x_positions
 
 
-def _column_base_dims(col, rear_pocket_len_ft=_REAR_POCKET_LEN_FT):
+def _column_base_dims(col):
     """Return base-unit envelope/pocket geometry for a stacked column."""
     if not col:
         return {
@@ -1044,9 +1044,10 @@ def _column_base_dims(col, rear_pocket_len_ft=_REAR_POCKET_LEN_FT):
         ),
     )
     is_rotated = bool(base.get("is_rotated"))
+    is_dump_profile = str(base.get("deck_profile") or "").strip().lower() == "dump"
     left_tongue_ft = tongue_len_ft if is_rotated else 0.0
     right_tongue_ft = 0.0 if is_rotated else tongue_len_ft
-    rear_pocket_ft = min(max(deck_len_ft, 0.0), _as_float(rear_pocket_len_ft, _REAR_POCKET_LEN_FT))
+    rear_pocket_ft = 0.0 if is_dump_profile else min(max(deck_len_ft, 0.0), _REAR_POCKET_LEN_FT)
     return {
         "deck_len_ft": max(deck_len_ft, 0.0),
         "left_tongue_ft": max(left_tongue_ft, 0.0),
@@ -1643,7 +1644,7 @@ def _column_has_mixed_rotation(col):
 
 def _columns_allow_adjacent_overlap_credit(left_col, right_col):
     """
-    Allow rear-pocket tongue overlap credit between adjacent columns when safe.
+    Allow adjacent tongue overlap credit between columns when safe.
 
     Keep legacy nesting behavior for uniformly oriented stacked columns, but
     disable overlap credit when either stacked column has mixed facing layers
@@ -1794,7 +1795,7 @@ def _cross_deck_dump_door_allowance_intervals(
     This is intentionally narrow:
     - Only seam-interface columns (rightmost lower, leftmost upper).
     - Only when the upper interface base is a dump with door removed and rear facing seam.
-    - Only allows lower tongue insertion up to rear-pocket length.
+    - Lower tongue insertion allowance is bounded by receiving dump deck length.
     """
     lower_cols = (zone_cols or {}).get(lower_zone) or {}
     upper_cols = (zone_cols or {}).get(upper_zone) or {}
@@ -1810,6 +1811,10 @@ def _cross_deck_dump_door_allowance_intervals(
 
     lower_base = next((p for p in lower_col if int(p.get("layer") or 0) == 1), lower_col[0])
     upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
+    if not _is_gooseneck_render_profile(lower_base):
+        # Keep interval carving limited to GN seam scenarios; standard tongues
+        # use explicit seam spacing normalization instead.
+        return []
 
     upper_is_dump = str(upper_base.get("deck_profile") or "").strip().lower() == "dump"
     upper_door_removed = bool(upper_base.get("dump_door_removed"))
@@ -1828,7 +1833,7 @@ def _cross_deck_dump_door_allowance_intervals(
         upper_base.get("deck_length_ft"),
         _as_float(upper_base.get("bed_length"), 0.0),
     )
-    insertion_window_ft = min(max(upper_deck_len_ft, 0.0), _REAR_POCKET_LEN_FT)
+    insertion_window_ft = max(upper_deck_len_ft, 0.0)
     insertable_lower_tongue_ft = max(
         max(lower_tongue_toward_seam_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
         0.0,
@@ -2025,7 +2030,7 @@ def _apply_dump_door_tongue_stuffing(
             right_base.get("deck_length_ft"),
             _as_float(right_base.get("bed_length"), 0.0),
         )
-        insertion_window_ft = min(max(right_deck_len_ft, 0.0), _REAR_POCKET_LEN_FT)
+        insertion_window_ft = max(right_deck_len_ft, 0.0)
         insertable_left_tongue_ft = max(
             max(left_tongue_toward_right_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
             0.0,
@@ -2081,7 +2086,7 @@ def _apply_pj_auto_dump_door_for_stuffing(
             receiving_dump_base.get("deck_length_ft"),
             _as_float(receiving_dump_base.get("bed_length"), 0.0),
         )
-        insertion_window_ft = min(max(receiving_deck_len_ft, 0.0), _REAR_POCKET_LEN_FT)
+        insertion_window_ft = max(receiving_deck_len_ft, 0.0)
         insertable_source_tongue_ft = max(
             max(source_tongue_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
             0.0,
@@ -2133,6 +2138,153 @@ def _apply_pj_auto_dump_door_for_stuffing(
             upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
             if _pair_allowance_ft(lower_base, upper_base, source_to_right=True) > 1e-9:
                 _mark_dump_base(upper_base)
+
+
+def _pj_dump_tongue_stuffing_allowance_ft(source_base, receiving_dump_base):
+    """
+    Return how much of the source tongue can be inserted into the receiving dump
+    while preserving minimum exposed tongue.
+    """
+    if not source_base or not receiving_dump_base:
+        return 0.0
+    source_is_dump = str(source_base.get("deck_profile") or "").strip().lower() == "dump"
+    receiving_is_dump = str(receiving_dump_base.get("deck_profile") or "").strip().lower() == "dump"
+    if not (source_is_dump and receiving_is_dump):
+        return 0.0
+    if bool(source_base.get("is_rotated")) or bool(receiving_dump_base.get("is_rotated")):
+        # This helper handles the lower-deck left->right stuffing case.
+        return 0.0
+    if not bool(receiving_dump_base.get("dump_door_removed")):
+        return 0.0
+
+    source_tongue_ft = _as_float(
+        source_base.get("render_tongue_length_ft"),
+        _as_float(source_base.get("tongue_length"), 0.0),
+    )
+    receiving_deck_len_ft = _as_float(
+        receiving_dump_base.get("deck_length_ft"),
+        _as_float(receiving_dump_base.get("bed_length"), 0.0),
+    )
+    insertion_window_ft = max(receiving_deck_len_ft, 0.0)
+    insertable_source_tongue_ft = max(
+        max(source_tongue_ft, 0.0) - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT,
+        0.0,
+    )
+    return min(insertable_source_tongue_ft, max(insertion_window_ft, 0.0))
+
+
+def _apply_pj_uniform_adjacent_dump_stuffing_spacing(zone_cols, x_positions, lower_zone="lower_deck"):
+    """
+    Normalize adjacent lower-deck stack spacing for PJ dump-door stuffing pairs.
+
+    For left->right dump pairs where the right dump can receive tongue insertion,
+    enforce a consistent deck-to-deck gap equal to the required exposed tongue.
+    """
+    lower_cols = (zone_cols or {}).get(lower_zone) or {}
+    lower_positions = (x_positions or {}).get(lower_zone) or {}
+    seqs = sorted(lower_cols.keys())
+    if len(seqs) < 2:
+        return False
+
+    applied = False
+    for idx in range(len(seqs) - 2, -1, -1):
+        left_seq = int(seqs[idx])
+        right_seq = int(seqs[idx + 1])
+        left_col = lower_cols.get(left_seq) or []
+        right_col = lower_cols.get(right_seq) or []
+        if not left_col or not right_col:
+            continue
+
+        left_base = next((p for p in left_col if int(p.get("layer") or 0) == 1), left_col[0])
+        right_base = next((p for p in right_col if int(p.get("layer") or 0) == 1), right_col[0])
+        allowance_ft = _pj_dump_tongue_stuffing_allowance_ft(left_base, right_base)
+        if allowance_ft <= 1e-9:
+            continue
+
+        left_deck_len_ft = max(_as_float(_column_base_dims(left_col).get("deck_len_ft"), 0.0), 0.0)
+        if left_deck_len_ft <= 1e-9:
+            continue
+
+        right_start_ft = _as_float(lower_positions.get(right_seq), 0.0)
+        target_left_start_ft = right_start_ft - left_deck_len_ft - _DUMP_DOOR_MIN_EXPOSED_TONGUE_FT
+        current_left_start_ft = _as_float(lower_positions.get(left_seq), 0.0)
+        if abs(current_left_start_ft - target_left_start_ft) > 1e-6:
+            lower_positions[left_seq] = round(target_left_start_ft, 3)
+            applied = True
+
+    return applied
+
+
+def _apply_pj_cross_deck_standard_tongue_dump_spacing(
+    zone_cols,
+    x_positions,
+    zone_origin_x_ft,
+    *,
+    lower_zone="lower_deck",
+    upper_zone="upper_deck",
+    uniform_non_gooseneck_lane=False,
+):
+    """
+    Enforce consistent 1-ft-exposed spacing for standard tongues at the seam.
+
+    For lower->upper seam pair (lower right-most stack into upper left-most dump
+    with door removed), set lower seam stack so its occupied right edge aligns
+    to the upper seam left edge, matching same-deck stuffing behavior.
+    """
+    lower_cols = (zone_cols or {}).get(lower_zone) or {}
+    upper_cols = (zone_cols or {}).get(upper_zone) or {}
+    lower_positions = (x_positions or {}).get(lower_zone) or {}
+    upper_positions = (x_positions or {}).get(upper_zone) or {}
+    if not lower_cols or not upper_cols:
+        return False
+
+    lower_seq = max(lower_cols.keys())
+    upper_seq = min(upper_cols.keys())
+    lower_col = lower_cols.get(lower_seq) or []
+    upper_col = upper_cols.get(upper_seq) or []
+    if not lower_col or not upper_col:
+        return False
+
+    lower_base = next((p for p in lower_col if int(p.get("layer") or 0) == 1), lower_col[0])
+    upper_base = next((p for p in upper_col if int(p.get("layer") or 0) == 1), upper_col[0])
+
+    # Standard tongue only (GN seam spacing is handled by GN-specific logic).
+    if _is_gooseneck_render_profile(lower_base):
+        return False
+    if bool(lower_base.get("is_rotated")):
+        return False
+
+    upper_is_dump = str(upper_base.get("deck_profile") or "").strip().lower() == "dump"
+    upper_door_removed = bool(upper_base.get("dump_door_removed"))
+    upper_rear_faces_seam = not bool(upper_base.get("is_rotated"))
+    if not (upper_is_dump and upper_door_removed and upper_rear_faces_seam):
+        return False
+
+    upper_start_local_ft = _as_float(upper_positions.get(int(upper_seq), 0.0), 0.0)
+    upper_dims = _column_render_envelope_dims(
+        upper_col,
+        zone=upper_zone,
+        uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+    )
+    upper_left_global_ft = (
+        _as_float(zone_origin_x_ft.get(upper_zone), 0.0)
+        + upper_start_local_ft
+        - max(_as_float(upper_dims.get("left_tongue_ft"), 0.0), 0.0)
+    )
+
+    lower_right_extent_ft = _lower_column_seam_right_extent_ft(
+        lower_col,
+        seq=lower_seq,
+        seam_seq=lower_seq,
+        uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+    )
+    target_lower_start_ft = upper_left_global_ft - lower_right_extent_ft
+    current_lower_start_ft = _as_float(lower_positions.get(int(lower_seq), 0.0), 0.0)
+    if abs(target_lower_start_ft - current_lower_start_ft) <= 1e-6:
+        return False
+
+    lower_positions[int(lower_seq)] = round(target_lower_start_ft, 3)
+    return True
 
 
 def _category_key_for_position(pos):
@@ -3434,8 +3586,7 @@ def _build_canvas_data(
         if zone in x_positions:
             x_positions[zone][int(seq)] = round(_as_float(x_ft, 0.0), 3)
 
-    # Same-zone tongue-under-rear overlap: when adjacent columns face each
-    # other's rear pocket, reduce required horizontal spacing.
+    # Same-zone adjacency: resolve sequence spacing for lower columns.
     lower_zone = "lower_deck"
     upper_zone = "upper_deck"
     if lower_zone in zone_cols and lower_zone in x_positions:
@@ -3451,8 +3602,7 @@ def _build_canvas_data(
             current_start = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
             if idx > 0 and prev_dims is not None and prev_right_edge is not None:
                 allow_overlap_credit = _columns_allow_adjacent_overlap_credit(prev_col, col)
-                # Skip rear-pocket overlap reduction when half-insertion is active -
-                # the half-tongue already models the physical insertion correctly.
+                # Half-tongue paths already model insertion behavior directly.
                 overlap_left_tongue = 0.0 if (cur_stuffed or not allow_overlap_credit) else min(
                     max(dims.get("left_tongue_ft", 0.0), 0.0),
                     max(prev_dims.get("rear_pocket_right_ft", 0.0), 0.0),
@@ -3502,6 +3652,20 @@ def _build_canvas_data(
                 if interval is not None:
                     upper_intrusion_cap_intervals.append(interval)
             merged_cap_intrusion = _merge_intervals(upper_intrusion_cap_intervals)
+            if brand == "pj" and merged_cap_intrusion:
+                seam_allowance_intervals = _cross_deck_dump_door_allowance_intervals(
+                    zone_cols,
+                    x_positions,
+                    zone_origin_x_ft,
+                    step_x_ft,
+                    lower_zone=lower_zone,
+                    upper_zone=upper_zone,
+                )
+                if seam_allowance_intervals:
+                    merged_cap_intrusion = _subtract_intervals(
+                        merged_cap_intrusion,
+                        seam_allowance_intervals,
+                    )
             if merged_cap_intrusion:
                 lower_cap_local = max(
                     lower_cap_local,
@@ -3549,8 +3713,7 @@ def _build_canvas_data(
             x_positions[lower_zone][int(seq)] = round(adjusted_start, 3)
             next_start_limit = adjusted_start
 
-        # Re-pack left->right after seam clamping so rear-pocket overlap can be
-        # fully realized while still respecting the hard right boundary.
+        # Re-pack left->right after seam clamping while respecting the hard right boundary.
         seqs = sorted((zone_cols.get(lower_zone) or {}).keys())
         prev_dims = None
         prev_right_edge = None
@@ -3740,6 +3903,20 @@ def _build_canvas_data(
             if interval is not None:
                 post_upper_intrusion.append(interval)
         merged_post_upper_intrusion = _merge_intervals(post_upper_intrusion)
+        if brand == "pj" and merged_post_upper_intrusion:
+            seam_allowance_intervals = _cross_deck_dump_door_allowance_intervals(
+                zone_cols,
+                x_positions,
+                zone_origin_x_ft,
+                step_x_ft,
+                lower_zone=lower_zone,
+                upper_zone=upper_zone,
+            )
+            if seam_allowance_intervals:
+                merged_post_upper_intrusion = _subtract_intervals(
+                    merged_post_upper_intrusion,
+                    seam_allowance_intervals,
+                )
         if merged_post_upper_intrusion:
             lower_blocked_by_upper_ft = max(_as_float(zone_blocked_ft.get("lower_deck"), 0.0), 0.0)
             blocked_cap_local = max(
@@ -3860,6 +4037,24 @@ def _build_canvas_data(
                         upper_left_global_ft = col_left_global_ft
                 if upper_left_global_ft is not None:
                     max_allowed_right_ft = upper_left_global_ft - 0.08
+                    if brand == "pj":
+                        seam_allowance_intervals = _cross_deck_dump_door_allowance_intervals(
+                            zone_cols,
+                            x_positions,
+                            zone_origin_x_ft,
+                            step_x_ft,
+                            lower_zone=lower_zone,
+                            upper_zone=upper_zone,
+                        )
+                        if seam_allowance_intervals:
+                            allowance_right_ft = max(
+                                _as_float(right, 0.0)
+                                for _, right in seam_allowance_intervals
+                            )
+                            max_allowed_right_ft = max(
+                                max_allowed_right_ft,
+                                allowance_right_ft - 0.08,
+                            )
                     if seam_right_global_ft > max_allowed_right_ft + 1e-9:
                         shift_left_ft = seam_right_global_ft - max_allowed_right_ft
                         x_positions[lower_zone][int(lower_seam_seq)] = round(
@@ -3891,6 +4086,20 @@ def _build_canvas_data(
                 upper_intrusion_intervals.append(interval)
 
         merged_upper_intrusion = _merge_intervals(upper_intrusion_intervals)
+        if brand == "pj" and merged_upper_intrusion:
+            seam_allowance_intervals = _cross_deck_dump_door_allowance_intervals(
+                zone_cols,
+                x_positions,
+                zone_origin_x_ft,
+                step_x_ft,
+                lower_zone=lower_zone,
+                upper_zone=upper_zone,
+            )
+            if seam_allowance_intervals:
+                merged_upper_intrusion = _subtract_intervals(
+                    merged_upper_intrusion,
+                    seam_allowance_intervals,
+                )
         if merged_upper_intrusion:
             step_clearance_ft = max(upper_surface_ft - lower_surface_ft, 0.0)
             lower_height_map = col_heights.get(lower_zone, {}) or {}
@@ -4012,6 +4221,21 @@ def _build_canvas_data(
                 for seq in sorted((zone_cols.get(lower_zone) or {}).keys()):
                     cur = _as_float(x_positions[lower_zone].get(int(seq), 0.0), 0.0)
                     x_positions[lower_zone][int(seq)] = round(cur + shift_right, 3)
+
+    if brand == "pj" and lower_zone in zone_cols and lower_zone in x_positions:
+        _apply_pj_cross_deck_standard_tongue_dump_spacing(
+            zone_cols,
+            x_positions,
+            zone_origin_x_ft,
+            lower_zone=lower_zone,
+            upper_zone=upper_zone,
+            uniform_non_gooseneck_lane=uniform_non_gooseneck_lane,
+        )
+        _apply_pj_uniform_adjacent_dump_stuffing_spacing(
+            zone_cols,
+            x_positions,
+            lower_zone=lower_zone,
+        )
 
     # Compute true lower-deck left overhang from resolved spatial positions.
     # This captures deck and tongue geometry (including rotated units) after all
@@ -4488,10 +4712,6 @@ def account_landing():
 @prograde_bp.route("/sessions")
 def sessions():
     selected_brand = _selected_brand(default="bigtex")
-    trailer_filter = str(request.args.get("trailer_filter") or "with_trailers").strip().lower()
-    if trailer_filter not in {"with_trailers", "all"}:
-        trailer_filter = "with_trailers"
-    min_trailer_qty = 1 if trailer_filter == "with_trailers" else None
     active_profile = _get_or_auto_active_profile()
     if not active_profile:
         _set_account_notice("Select or create an account to continue.", level="warning")
@@ -4503,7 +4723,7 @@ def sessions():
     for row in db.get_all_sessions(
         brand=selected_brand,
         saved_only=True,
-        min_trailer_qty=min_trailer_qty,
+        min_trailer_qty=1,
     ):
         if not _can_access_session(row, active_profile):
             continue
@@ -4519,8 +4739,6 @@ def sessions():
         account_notice=account_notice,
         selected_brand=selected_brand,
         has_seed_data=db.has_seed_data(),
-        trailer_filter=trailer_filter,
-        carrier_options=_carrier_type_options_for_brand(selected_brand),
     )
 
 

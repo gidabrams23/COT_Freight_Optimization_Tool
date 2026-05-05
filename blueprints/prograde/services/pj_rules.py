@@ -429,7 +429,7 @@ def _group_columns_by_zone(positions):
     return grouped
 
 
-def _base_dims_for_column(col, skus, rear_pocket_len_ft=_REAR_POCKET_LEN_FT):
+def _base_dims_for_column(col, skus):
     if not col:
         return {
             "deck_len_ft": 0.0,
@@ -444,9 +444,11 @@ def _base_dims_for_column(col, skus, rear_pocket_len_ft=_REAR_POCKET_LEN_FT):
     deck_len_ft = max(_position_deck_length_ft(base, sku), 0.0)
     tongue_len_ft = max(_position_render_tongue_ft(base, sku), 0.0)
     is_rotated = bool(base.get("is_rotated"))
+    category = str((sku or {}).get("pj_category") or "").strip().lower()
+    is_dump_profile = category in _PJ_DUMP_CATEGORIES
     left_tongue_ft = tongue_len_ft if is_rotated else 0.0
     right_tongue_ft = 0.0 if is_rotated else tongue_len_ft
-    rear_pocket_ft = min(deck_len_ft, float(rear_pocket_len_ft or _REAR_POCKET_LEN_FT))
+    rear_pocket_ft = 0.0 if is_dump_profile else min(deck_len_ft, float(_REAR_POCKET_LEN_FT))
     return {
         "deck_len_ft": deck_len_ft,
         "left_tongue_ft": left_tongue_ft,
@@ -624,10 +626,7 @@ def compute_pj_length_metrics(
         upper_is_dump = upper_category in _PJ_DUMP_CATEGORIES
         upper_rear_faces_seam = not bool(upper_interface.get("is_rotated"))
         if upper_is_dump and upper_rear_faces_seam and _position_dump_door_removed(upper_interface, upper_sku):
-            insertion_window_ft = min(
-                max(_position_deck_length_ft(upper_interface, upper_sku), 0.0),
-                float(_REAR_POCKET_LEN_FT),
-            )
+            insertion_window_ft = max(_position_deck_length_ft(upper_interface, upper_sku), 0.0)
             lower_tongue_toward_seam_ft = 0.0
             if not bool(lower_interface.get("is_rotated")):
                 lower_tongue_toward_seam_ft = _position_render_tongue_ft(lower_interface, lower_sku)
