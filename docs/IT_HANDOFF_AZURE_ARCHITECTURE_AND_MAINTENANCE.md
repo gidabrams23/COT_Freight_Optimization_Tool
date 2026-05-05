@@ -171,7 +171,7 @@ flowchart LR
   - Else Render-specific fallback `/var/data/prograde.db` when Render env variables exist.
   - Else local fallback `data/db/prograde.db`.
 - Azure defaults are now safe without explicit DB path env vars, but persistent App Service storage must still be enabled for restart durability (`WEBSITES_ENABLE_APP_SERVICE_STORAGE=true`).
-- ProGrade sessions are now created as saved sessions by default so they remain visible in `All Sessions` after restarts.
+- ProGrade sessions now start unsaved; they are marked saved only after at least one trailer exists and the planner explicitly saves.
 
 ### Core Entities (Operationally Important)
 - Order intake and planning:
@@ -245,6 +245,7 @@ flowchart LR
 | `APP_SEED_DIR` | `data/seed` | (empty) | Override only if seed location changes. |
 | `SQLITE_BUSY_TIMEOUT_SEC` | `30` | (empty) | DB lock wait timeout (seconds). |
 | `PROGRADE_SQLITE_BUSY_TIMEOUT_SEC` | falls back to `SQLITE_BUSY_TIMEOUT_SEC` (`30`) | (empty) | ProGrade DB lock wait timeout override (seconds). |
+| `PROGRADE_ACCESS_PROFILES_SEED_PATH` | `data/seed/prograde_access_profiles.csv` | (empty) | Optional ProGrade account seed CSV override. |
 | `ACCESS_PROFILES_SEED_PATH` | `data/seed/access_profiles.csv` | (empty) | Optional override. |
 | `ACCESS_PROFILE_IDENTITIES_SEED_PATH` | `data/seed/access_profile_identities.csv` | (empty) | Optional override. |
 

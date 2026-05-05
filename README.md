@@ -36,14 +36,16 @@
   - quick add account by name
 - When a user is already signed into COT, ProGrade now attempts to auto-select (or auto-create) a matching ProGrade account from the active COT profile name.
 - Once selected, the active account persists in the current user session and is used for new load creation.
-- New loads inherit the currently selected ProGrade account as the builder, are created as saved sessions by default, and display that user in the All Sessions table.
+- New loads inherit the currently selected ProGrade account as the builder, start as draft sessions, and become saved only after at least one trailer is added and the user saves.
 - `All Sessions` (`/prograde/sessions`) is owner-scoped by default:
   - admin accounts can view all saved sessions
   - planner accounts only see sessions they built
+  - default filter hides saved sessions with `QTY=0` (toggle available to show all saved loads)
 - Load Builder includes a `Truck` dropdown in the top header so planners can switch session carrier type between configured trailer profiles (`53_step_deck`, `53_flatbed`, and `ground_pull`).
 - `ground_pull` mode renders without a structural deck line; the first placed unit becomes the effective deck and drives the active total-length capacity.
 - Default admin account name is seeded from `PROGRADE_DEFAULT_ADMIN_NAME`; fallback is OS `USERNAME` (or `Admin`).
 - ProGrade SKU catalogs (`pj_skus`, `bigtex_skus`) are upserted from `data/seed/*.csv` on startup by default.
+- ProGrade account profiles can be pre-seeded from `data/seed/prograde_access_profiles.csv` (override path with `PROGRADE_ACCESS_PROFILES_SEED_PATH`).
 - Optional preservation mode (future use): set `PROGRADE_PRESERVE_SKU_EDITS_ON_START=true` to seed only empty tables and avoid overwriting existing SKU edits on restart.
 - Optional SQLite lock tuning for ProGrade writes: `PROGRADE_SQLITE_BUSY_TIMEOUT_SEC` (falls back to `SQLITE_BUSY_TIMEOUT_SEC`, default `30`).
 
@@ -94,6 +96,54 @@ Guide checklist:
 3. Click **Refresh and Export** and wait for the message: `Done. File saved to...`
 4. Click **Upload Orders** in Intake Hub and select today's export from the Exports folder
 5. Wait for processing and complete upload
+
+### Optional: SQL Refresh (manual + scheduled)
+
+For local/manual testing, signed-in users can use **Refresh from SQL** in the Orders page Data Intake Hub.
+This runs a direct SQL pull, then passes the data through the same order import pipeline as CSV upload.
+
+Required environment variables:
+
+```bash
+COT_SQL_HOST=<sql-server-host>
+COT_SQL_DATABASE=<sql-database-name>
+COT_SQL_USERNAME=<read-only-sql-user>
+COT_SQL_PASSWORD=<read-only-sql-password>
+```
+
+Optional environment variables:
+
+```bash
+COT_SQL_DRIVER="ODBC Driver 18 for SQL Server"
+COT_SQL_PORT=1433
+COT_SQL_ENCRYPT=yes
+COT_SQL_TRUST_SERVER_CERTIFICATE=yes
+COT_SQL_CONNECT_TIMEOUT_SEC=30
+```
+
+Optional scheduler integration variable:
+
+```bash
+COT_SQL_REFRESH_TOKEN=<shared-secret-for-internal-refresh-endpoint>
+```
+
+Internal endpoint for an external scheduler (for example Azure Function Timer trigger):
+
+```text
+POST /internal/sql-refresh
+Header: X-COT-Refresh-Token: <COT_SQL_REFRESH_TOKEN>
+```
+
+Nightly stale planning-session cleanup endpoint (same token), to release non-approved draft loads
+from prior-day sessions and archive sessions that have no approved loads:
+
+```text
+POST /internal/planning-sessions/eod-cleanup
+Header: X-COT-Refresh-Token: <COT_SQL_REFRESH_TOKEN>
+```
+
+If a scheduled auto-refresh runs, the first user to sign in that day receives a one-time summary popup
+showing refresh status and unmapped SKU count (if any).
 
 ## Microsoft Entra SSO
 

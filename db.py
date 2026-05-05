@@ -1049,6 +1049,33 @@ def init_db():
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS sql_refresh_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_started_at TEXT NOT NULL DEFAULT (datetime('now')),
+                run_finished_at TEXT,
+                refresh_day TEXT,
+                trigger_source TEXT,
+                initiated_by TEXT,
+                status TEXT NOT NULL,
+                upload_id INTEGER,
+                filename TEXT,
+                total_rows INTEGER DEFAULT 0,
+                total_orders INTEGER DEFAULT 0,
+                new_orders INTEGER DEFAULT 0,
+                changed_orders INTEGER DEFAULT 0,
+                unchanged_orders INTEGER DEFAULT 0,
+                reopened_orders INTEGER DEFAULT 0,
+                dropped_orders INTEGER DEFAULT 0,
+                mapping_rate REAL DEFAULT 0.0,
+                unmapped_count INTEGER DEFAULT 0,
+                error_message TEXT,
+                announced_first_login_at TEXT,
+                FOREIGN KEY (upload_id) REFERENCES upload_history(id)
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS upload_unmapped_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 upload_id INTEGER NOT NULL,
@@ -1443,6 +1470,25 @@ def init_db():
         _ensure_column(connection, "upload_history", "reopened_orders", "reopened_orders INTEGER")
         _ensure_column(connection, "upload_history", "dropped_orders", "dropped_orders INTEGER")
         _ensure_column(connection, "upload_history", "deleted_at", "deleted_at TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "run_started_at", "run_started_at TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "run_finished_at", "run_finished_at TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "refresh_day", "refresh_day TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "trigger_source", "trigger_source TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "initiated_by", "initiated_by TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "status", "status TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "upload_id", "upload_id INTEGER")
+        _ensure_column(connection, "sql_refresh_runs", "filename", "filename TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "total_rows", "total_rows INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "total_orders", "total_orders INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "new_orders", "new_orders INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "changed_orders", "changed_orders INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "unchanged_orders", "unchanged_orders INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "reopened_orders", "reopened_orders INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "dropped_orders", "dropped_orders INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "mapping_rate", "mapping_rate REAL DEFAULT 0.0")
+        _ensure_column(connection, "sql_refresh_runs", "unmapped_count", "unmapped_count INTEGER DEFAULT 0")
+        _ensure_column(connection, "sql_refresh_runs", "error_message", "error_message TEXT")
+        _ensure_column(connection, "sql_refresh_runs", "announced_first_login_at", "announced_first_login_at TEXT")
         _ensure_column(connection, "sku_specifications", "description", "description TEXT")
         _ensure_column(connection, "sku_specifications", "added_at", "added_at TEXT")
         _ensure_column(connection, "sku_specifications", "source", "source TEXT")
@@ -1535,6 +1581,15 @@ def init_db():
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_load_report_uploads_uploaded_at ON load_report_uploads(uploaded_at DESC)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sql_refresh_runs_started_at ON sql_refresh_runs(run_started_at DESC)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sql_refresh_runs_refresh_day ON sql_refresh_runs(refresh_day)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sql_refresh_runs_notice ON sql_refresh_runs(refresh_day, announced_first_login_at, trigger_source)"
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_load_report_assignments_upload_so ON load_report_assignments(upload_id, so_num)"
@@ -3034,6 +3089,117 @@ def add_upload_history(entry):
         return cursor.lastrowid
 
 
+def add_sql_refresh_run(entry):
+    entry = entry or {}
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO sql_refresh_runs (
+                run_started_at,
+                run_finished_at,
+                refresh_day,
+                trigger_source,
+                initiated_by,
+                status,
+                upload_id,
+                filename,
+                total_rows,
+                total_orders,
+                new_orders,
+                changed_orders,
+                unchanged_orders,
+                reopened_orders,
+                dropped_orders,
+                mapping_rate,
+                unmapped_count,
+                error_message,
+                announced_first_login_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                entry.get("run_started_at"),
+                entry.get("run_finished_at"),
+                entry.get("refresh_day"),
+                entry.get("trigger_source"),
+                entry.get("initiated_by"),
+                entry.get("status"),
+                entry.get("upload_id"),
+                entry.get("filename"),
+                int(entry.get("total_rows") or 0),
+                int(entry.get("total_orders") or 0),
+                int(entry.get("new_orders") or 0),
+                int(entry.get("changed_orders") or 0),
+                int(entry.get("unchanged_orders") or 0),
+                int(entry.get("reopened_orders") or 0),
+                int(entry.get("dropped_orders") or 0),
+                float(entry.get("mapping_rate") or 0.0),
+                int(entry.get("unmapped_count") or 0),
+                entry.get("error_message"),
+                entry.get("announced_first_login_at"),
+            ),
+        )
+        connection.commit()
+        return cursor.lastrowid
+
+
+def get_latest_sql_refresh_run():
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT *
+            FROM sql_refresh_runs
+            ORDER BY run_started_at DESC, id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def claim_first_login_sql_refresh_notice(refresh_day):
+    day_text = str(refresh_day or "").strip()
+    if not day_text:
+        return None
+    announced_at = datetime.utcnow().isoformat(timespec="seconds")
+    auto_sources = ("auto_scheduler", "auto_internal", "auto_function")
+
+    with get_connection() as connection:
+        row = connection.execute(
+            f"""
+            SELECT *
+            FROM sql_refresh_runs
+            WHERE refresh_day = ?
+              AND trigger_source IN ({", ".join("?" for _ in auto_sources)})
+              AND announced_first_login_at IS NULL
+            ORDER BY run_started_at DESC, id DESC
+            LIMIT 1
+            """,
+            [day_text, *auto_sources],
+        ).fetchone()
+        if not row:
+            return None
+
+        run_id = int(row["id"])
+        cursor = connection.execute(
+            """
+            UPDATE sql_refresh_runs
+            SET announced_first_login_at = ?
+            WHERE id = ?
+              AND announced_first_login_at IS NULL
+            """,
+            (announced_at, run_id),
+        )
+        connection.commit()
+        if cursor.rowcount != 1:
+            return None
+
+        refreshed = connection.execute(
+            "SELECT * FROM sql_refresh_runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+        return dict(refreshed) if refreshed else dict(row)
+
+
 def add_upload_unmapped_items(upload_id, items):
     if not upload_id or not items:
         return
@@ -3642,6 +3808,24 @@ def list_planning_sessions(filters=None):
             params,
         ).fetchall()
         return [_decode_load_route_fields(dict(row)) for row in rows]
+
+
+def list_stale_planning_sessions(before_date):
+    cutoff = str(before_date or "").strip()
+    if not cutoff:
+        return []
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT *
+            FROM planning_sessions
+            WHERE DATE(created_at) < DATE(?)
+              AND UPPER(COALESCE(status, 'DRAFT')) != 'ARCHIVED'
+            ORDER BY created_at ASC, id ASC
+            """,
+            (cutoff,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
 def create_load(load, connection=None):
     created_at = datetime.utcnow().isoformat(timespec="seconds")

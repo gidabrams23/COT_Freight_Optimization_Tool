@@ -1,4 +1,5 @@
 import os
+from datetime import date
 
 import db
 
@@ -94,9 +95,94 @@ def test_planning_sessions_view_auto_releases_active_draft_session(monkeypatch):
         "_release_draft_loads_for_session",
         lambda session_id: released_sessions.append(int(session_id)) or [],
     )
+    monkeypatch.setattr(
+        app_module,
+        "_auto_release_stale_unplanned_sessions",
+        lambda reference_day=None: {},
+    )
     monkeypatch.setattr(app_module.db, "list_planning_sessions", lambda _filters=None: [])
 
     response = client.get("/planning-sessions")
 
     assert response.status_code == 200
     assert released_sessions == [55]
+
+
+def test_auto_release_stale_unplanned_sessions_releases_and_archives(monkeypatch):
+    archived_ids = []
+    cleared_active_ids = []
+
+    monkeypatch.setattr(
+        app_module.db,
+        "list_stale_planning_sessions",
+        lambda _before_date: [
+            {"id": 101, "status": "DRAFT"},
+            {"id": 102, "status": "DRAFT"},
+            {"id": 103, "status": "COMPLETED"},
+        ],
+    )
+    monkeypatch.setattr(
+        app_module,
+        "_release_draft_loads_for_session",
+        lambda session_id: [session_id * 10] if session_id in {101, 102} else [],
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "list_loads",
+        lambda _origin_plant=None, session_id=None: (
+            [] if session_id == 101 else [{"id": 9001, "status": "APPROVED"}]
+        ),
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "archive_planning_session",
+        lambda session_id: archived_ids.append(int(session_id)),
+    )
+    monkeypatch.setattr(app_module, "_get_active_planning_session_id", lambda: 101)
+    monkeypatch.setattr(
+        app_module,
+        "_set_active_planning_session_id",
+        lambda session_id: cleared_active_ids.append(session_id),
+    )
+
+    summary = app_module._auto_release_stale_unplanned_sessions(reference_day=date(2026, 5, 5))
+
+    assert summary["reference_day"] == "2026-05-05"
+    assert summary["inspected_sessions"] == 3
+    assert summary["released_sessions"] == 2
+    assert summary["released_loads"] == 2
+    assert summary["archived_sessions"] == 1
+    assert summary["archived_session_ids"] == [101]
+    assert archived_ids == [101]
+    assert cleared_active_ids == [None]
+
+
+def test_internal_planning_sessions_eod_cleanup_returns_summary(monkeypatch):
+    client = app_module.app.test_client()
+    monkeypatch.setattr(app_module, "_verify_sql_refresh_internal_token", lambda: True)
+    monkeypatch.setattr(
+        app_module,
+        "_auto_release_stale_unplanned_sessions",
+        lambda reference_day=None: {
+            "reference_day": "2026-05-05",
+            "inspected_sessions": 4,
+            "released_loads": 3,
+            "released_sessions": 2,
+            "archived_sessions": 1,
+            "archived_session_ids": [88],
+        },
+    )
+
+    response = client.post("/internal/planning-sessions/eod-cleanup")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "message": "Stale draft sessions were cleaned up.",
+        "reference_day": "2026-05-05",
+        "inspected_sessions": 4,
+        "released_loads": 3,
+        "released_sessions": 2,
+        "archived_sessions": 1,
+        "archived_session_ids": [88],
+    }

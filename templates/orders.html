@@ -623,6 +623,11 @@
           </div>
           <div class="panel-actions intake-actions">
             <div class="intake-action-cluster">
+              {% if is_admin and sql_refresh_enabled %}
+                <button class="btn-secondary btn-xs" type="button" data-sql-refresh-button>
+                  Refresh from SQL
+                </button>
+              {% endif %}
               <form class="upload-inline-form" method="post" enctype="multipart/form-data" action="{{ url_for('orders_upload') }}" data-upload-form>
                 <label class="btn-primary btn-xs upload-inline-button">
                   <input type="file" name="file" accept=".csv" required data-upload-input>
@@ -3325,6 +3330,7 @@
     function initOrderUploadModal() {
       const form = document.querySelector('[data-upload-form]');
       const input = document.querySelector('[data-upload-input]');
+      const sqlRefreshButton = document.querySelector('[data-sql-refresh-button]');
       const modal = document.querySelector('[data-upload-modal]');
       if (!form || !input || !modal) return;
 
@@ -3781,6 +3787,87 @@
         xhr.send(formData);
       };
 
+      const runSqlRefresh = async () => {
+        if (activeRequest) return;
+
+        const abortController = new AbortController();
+        activeRequest = abortController;
+        if (sqlRefreshButton) {
+          sqlRefreshButton.disabled = true;
+          sqlRefreshButton.textContent = 'Refreshing...';
+        }
+
+        if (filenameEl) filenameEl.textContent = 'SQL Server refresh';
+        setNextActionMode('close');
+        setProgress(8);
+        setStatus('Requesting SQL refresh...');
+        hideSummary();
+        hideUnmapped();
+        openModal();
+        startProcessingSteps();
+
+        try {
+          const response = await fetch('/api/orders/sql-refresh', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            signal: abortController.signal,
+          });
+
+          let payload = {};
+          try {
+            payload = await response.json();
+          } catch (err) {
+            payload = {};
+          }
+
+          if (activeRequest !== abortController) return;
+          activeRequest = null;
+          stopProcessingSteps();
+          setProgress(100);
+
+          if (response.ok) {
+            const lineCount = payload.total_rows ?? payload.sql_row_count ?? 0;
+            setStatus(`SQL refresh complete. ${lineCount} rows processed.`);
+            showSummary(payload);
+            renderUnmappedItems(payload.unmapped_items || []);
+            setNextActionMode('reload');
+          } else {
+            const errorMessage = payload.error || 'SQL refresh failed.';
+            if (payload.blocked) {
+              setStatus(`${errorMessage} Save SKU specs below, then run Refresh from SQL again.`);
+            } else {
+              setStatus(errorMessage);
+            }
+            if (payload && Object.keys(payload).length) {
+              showSummary(payload);
+              renderUnmappedItems(payload.unmapped_items || []);
+              if (payload.blocked) setNextActionMode('reload');
+            } else {
+              hideSummary();
+              hideUnmapped();
+              setNextActionMode('close');
+            }
+          }
+        } catch (err) {
+          if (activeRequest === abortController) {
+            activeRequest = null;
+            stopProcessingSteps();
+            setProgress(100);
+            if (err && err.name === 'AbortError') {
+              setStatus('SQL refresh canceled.');
+            } else {
+              setStatus('SQL refresh failed. Please try again.');
+            }
+            setNextActionMode('close');
+          }
+        } finally {
+          if (sqlRefreshButton) {
+            sqlRefreshButton.disabled = false;
+            sqlRefreshButton.textContent = 'Refresh from SQL';
+          }
+        }
+      };
+
       if (unmappedSaveButton) {
         unmappedSaveButton.addEventListener('click', async () => {
           const specs = collectUnmappedSpecs();
@@ -3805,7 +3892,7 @@
               throw new Error((payload && payload.error) || 'Failed to save SKU specs.');
             }
             if (unmappedStatus) {
-              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Click Continue to finish.`;
+              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Re-run Refresh from SQL to import orders.`;
             }
             setNextActionMode('reload');
           } catch (err) {
@@ -3824,6 +3911,12 @@
         runUpload(file);
         input.value = '';
       });
+
+      if (sqlRefreshButton) {
+        sqlRefreshButton.addEventListener('click', () => {
+          runSqlRefresh();
+        });
+      }
     }
 
     function initOrderRefreshGuideModal() {

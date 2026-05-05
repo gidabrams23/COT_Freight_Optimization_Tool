@@ -130,6 +130,52 @@
         </main>
       </div>
     </div>
+    {% if sql_auto_refresh_notice %}
+      <div class="modal-backdrop" id="sql-refresh-notice-modal" data-sql-refresh-notice-modal>
+        <div class="modal-card">
+          <div class="modal-header">
+            <div class="modal-title">
+              <h3>{{ sql_auto_refresh_notice.title }}</h3>
+              <p>{{ sql_auto_refresh_notice.message }}</p>
+            </div>
+            <button class="btn-icon" type="button" data-sql-refresh-notice-close aria-label="Close refresh notice">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="upload-summary">
+              <div class="upload-summary-title">Auto Refresh Summary</div>
+              <div class="upload-summary-grid">
+                <div class="upload-summary-item"><span>Started</span><strong>{{ sql_auto_refresh_notice.started_label or '--' }}</strong></div>
+                <div class="upload-summary-item"><span>Rows</span><strong>{{ sql_auto_refresh_notice.total_rows }}</strong></div>
+                <div class="upload-summary-item"><span>Orders</span><strong>{{ sql_auto_refresh_notice.total_orders }}</strong></div>
+                <div class="upload-summary-item"><span>New</span><strong>{{ sql_auto_refresh_notice.new_orders }}</strong></div>
+                <div class="upload-summary-item"><span>Changed</span><strong>{{ sql_auto_refresh_notice.changed_orders }}</strong></div>
+                <div class="upload-summary-item"><span>Reopened</span><strong>{{ sql_auto_refresh_notice.reopened_orders }}</strong></div>
+                <div class="upload-summary-item"><span>Closed</span><strong>{{ sql_auto_refresh_notice.dropped_orders }}</strong></div>
+                <div class="upload-summary-item"><span>Unmapped SKUs</span><strong>{{ sql_auto_refresh_notice.unmapped_count }}</strong></div>
+              </div>
+            </div>
+            {% if sql_auto_refresh_notice.filename %}
+              <p class="muted">Source file: <strong>{{ sql_auto_refresh_notice.filename }}</strong></p>
+            {% endif %}
+            {% if sql_auto_refresh_notice.error_message %}
+              <p class="status-banner warning">Error: {{ sql_auto_refresh_notice.error_message }}</p>
+            {% endif %}
+          </div>
+          <div class="modal-footer">
+            <button class="btn-ghost" type="button" data-sql-refresh-notice-close>Close</button>
+            <a class="btn-primary" href="{{ sql_auto_refresh_notice.orders_url }}">
+              {% if sql_auto_refresh_notice.status == 'blocked_unmapped_skus' %}
+                Review New SKUs
+              {% else %}
+                Open Orders
+              {% endif %}
+            </a>
+          </div>
+        </div>
+      </div>
+    {% endif %}
     <div class="modal-backdrop hidden" id="app-feedback-modal" data-feedback-modal>
       <div class="modal-card">
         <div class="modal-header">
@@ -239,6 +285,19 @@
           if (feedbackSubmit) feedbackSubmit.disabled = !type;
         });
       });
+
+      const sqlRefreshNoticeModal = document.querySelector('[data-sql-refresh-notice-modal]');
+      if (sqlRefreshNoticeModal) {
+        const closeSqlRefreshNotice = () => {
+          sqlRefreshNoticeModal.classList.add('hidden');
+        };
+        sqlRefreshNoticeModal.querySelectorAll('[data-sql-refresh-notice-close]').forEach((button) => {
+          button.addEventListener('click', closeSqlRefreshNotice);
+        });
+        sqlRefreshNoticeModal.addEventListener('click', (event) => {
+          if (event.target === sqlRefreshNoticeModal) closeSqlRefreshNotice();
+        });
+      }
     </script>
   </body>
 </html>

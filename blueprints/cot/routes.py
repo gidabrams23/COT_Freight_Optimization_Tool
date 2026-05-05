@@ -78,6 +78,11 @@ from services.cost_calculator import (
 )
 from services.optimizer_engine import OptimizerEngine
 from services.order_importer import OrderImporter
+from services.cot_sql_refresh import (
+    CotSqlRefreshError,
+    build_orders_upload_payload,
+    is_sql_refresh_configured,
+)
 from blueprints.prograde import prograde_bp
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -360,8 +365,10 @@ SESSION_ENTRA_OAUTH_NEXT_KEY = "entra_oauth_next"
 SESSION_LOGIN_ERROR_KEY = "login_error_message"
 SESSION_ACTIVE_PLANNING_ID_KEY = "active_planning_session_id"
 SESSION_ORDER_REFRESH_PROMPT_KEY = "show_order_refresh_prompt"
+SESSION_SQL_AUTO_REFRESH_NOTICE_KEY = "sql_auto_refresh_notice"
 
 OPEN_ORDER_SHAREPOINT_URL = "https://bigtextrailers.sharepoint.com/sites/COTLoadPlanning/Shared%20Documents/Forms/AllItems.aspx"
+SQL_REFRESH_INTERNAL_TOKEN = (os.environ.get("COT_SQL_REFRESH_TOKEN") or "").strip()
 ORDER_REMOVAL_REASONS = [
     "Customer mixing conflict",
     "Capacity exceeded",
@@ -1185,6 +1192,7 @@ def login():
                     source="entra" if sso_gate_enabled else "local",
                 )
                 _set_order_refresh_prompt_if_outdated()
+                _set_sql_auto_refresh_notice_for_first_login()
                 if not sso_gate_enabled:
                     session.pop(SESSION_SSO_PROVIDER_KEY, None)
                     session.pop(SESSION_SSO_EMAIL_KEY, None)
@@ -1605,6 +1613,172 @@ def _normalize_so_num_for_load_report_match(value):
     if re.fullmatch(r"\d+\.0+", text):
         text = text.split(".", 1)[0]
     return text
+
+
+def _build_upload_api_response(summary, filename=""):
+    unmapped_items = summary.get("unmapped_items") or []
+    unmapped_suggestions = _build_unmapped_suggestions(unmapped_items)
+    return {
+        "filename": filename,
+        "total_rows": summary.get("total_rows"),
+        "total_orders": len(summary.get("orders") or []),
+        "mapping_rate": round(summary.get("mapping_rate") or 0, 2),
+        "unmapped_count": len(unmapped_items),
+        "new_orders": summary.get("new_orders"),
+        "changed_orders": summary.get("changed_orders"),
+        "unchanged_orders": summary.get("unchanged_orders"),
+        "reopened_orders": summary.get("reopened_orders"),
+        "dropped_orders": summary.get("dropped_orders"),
+        "unmapped_items": unmapped_suggestions,
+    }
+
+
+def _build_blocked_upload_response(exc, filename="", source=""):
+    blocked_summary = (exc.summary or {}) if exc else {}
+    unmapped_items = blocked_summary.get("unmapped_items") or []
+    unmapped_suggestions = _build_unmapped_suggestions(unmapped_items)
+    response = {
+        "error": str(exc) if exc else "Upload blocked.",
+        "blocked": True,
+        "filename": filename,
+        "total_rows": blocked_summary.get("total_rows") or 0,
+        "total_orders": 0,
+        "mapping_rate": round(blocked_summary.get("mapping_rate") or 0, 2),
+        "unmapped_count": len(unmapped_items),
+        "new_orders": 0,
+        "changed_orders": 0,
+        "unchanged_orders": 0,
+        "reopened_orders": 0,
+        "dropped_orders": 0,
+        "unmapped_items": unmapped_suggestions,
+    }
+    if source:
+        response["source"] = source
+    return response
+
+
+def _execute_sql_orders_refresh(trigger_source, initiated_by="", refresh_day=None):
+    refresh_day_value = str(refresh_day or datetime.now(APP_TIMEZONE).date().isoformat())
+    started_at = datetime.utcnow().isoformat(timespec="seconds")
+    run_entry = {
+        "run_started_at": started_at,
+        "refresh_day": refresh_day_value,
+        "trigger_source": (trigger_source or "manual_ui").strip().lower(),
+        "initiated_by": (initiated_by or "").strip(),
+        "status": "failed",
+    }
+
+    payload = None
+    try:
+        payload = build_orders_upload_payload()
+        summary = _handle_order_upload(payload.file_stream)
+        run_entry.update(
+            {
+                "status": "success",
+                "upload_id": summary.get("upload_id"),
+                "filename": payload.filename,
+                "total_rows": summary.get("total_rows") or payload.row_count or 0,
+                "total_orders": len(summary.get("orders") or []),
+                "new_orders": summary.get("new_orders") or 0,
+                "changed_orders": summary.get("changed_orders") or 0,
+                "unchanged_orders": summary.get("unchanged_orders") or 0,
+                "reopened_orders": summary.get("reopened_orders") or 0,
+                "dropped_orders": summary.get("dropped_orders") or 0,
+                "mapping_rate": summary.get("mapping_rate") or 0.0,
+                "unmapped_count": len(summary.get("unmapped_items") or []),
+            }
+        )
+        response = _build_upload_api_response(summary, filename=payload.filename)
+        response["source"] = "sql"
+        response["sql_row_count"] = payload.row_count
+        return response, 200
+    except UploadValidationError as exc:
+        blocked_summary = exc.summary or {}
+        run_entry.update(
+            {
+                "status": "blocked_unmapped_skus",
+                "filename": getattr(payload, "filename", ""),
+                "total_rows": blocked_summary.get("total_rows") or 0,
+                "total_orders": len(blocked_summary.get("orders") or []),
+                "mapping_rate": blocked_summary.get("mapping_rate") or 0.0,
+                "unmapped_count": len(blocked_summary.get("unmapped_items") or []),
+                "error_message": str(exc),
+            }
+        )
+        response = _build_blocked_upload_response(
+            exc,
+            filename=getattr(payload, "filename", ""),
+            source="sql",
+        )
+        return response, 400
+    except CotSqlRefreshError as exc:
+        run_entry["error_message"] = str(exc)
+        return {"error": f"SQL refresh failed: {exc}"}, 400
+    except Exception as exc:
+        run_entry["error_message"] = str(exc)
+        return {"error": f"SQL refresh failed: {exc}"}, 400
+    finally:
+        run_entry["run_finished_at"] = datetime.utcnow().isoformat(timespec="seconds")
+        db.add_sql_refresh_run(run_entry)
+
+
+def _build_sql_auto_refresh_notice(run_row):
+    if not run_row:
+        return None
+
+    status = (run_row.get("status") or "").strip().lower()
+    filename = (run_row.get("filename") or "").strip()
+    started_label = _format_intake_datetime_label(run_row.get("run_started_at"))
+    if status == "success":
+        title = "Daily SQL Auto Refresh Completed"
+        message = "Orders were refreshed automatically before login."
+    elif status == "blocked_unmapped_skus":
+        title = "Daily SQL Auto Refresh Needs SKU Review"
+        message = "New SKUs were discovered and must be approved before orders can import."
+    else:
+        title = "Daily SQL Auto Refresh Failed"
+        message = "Automatic refresh failed. Run Refresh from SQL from Orders Intake Hub."
+
+    return {
+        "status": status,
+        "title": title,
+        "message": message,
+        "started_label": started_label,
+        "filename": filename,
+        "total_rows": int(run_row.get("total_rows") or 0),
+        "total_orders": int(run_row.get("total_orders") or 0),
+        "new_orders": int(run_row.get("new_orders") or 0),
+        "changed_orders": int(run_row.get("changed_orders") or 0),
+        "reopened_orders": int(run_row.get("reopened_orders") or 0),
+        "dropped_orders": int(run_row.get("dropped_orders") or 0),
+        "unmapped_count": int(run_row.get("unmapped_count") or 0),
+        "error_message": (run_row.get("error_message") or "").strip(),
+        "orders_url": url_for("orders"),
+    }
+
+
+def _set_sql_auto_refresh_notice_for_first_login():
+    today_value = datetime.now(APP_TIMEZONE).date().isoformat()
+    run_row = db.claim_first_login_sql_refresh_notice(today_value)
+    notice = _build_sql_auto_refresh_notice(run_row)
+    if notice:
+        session[SESSION_SQL_AUTO_REFRESH_NOTICE_KEY] = notice
+    else:
+        session.pop(SESSION_SQL_AUTO_REFRESH_NOTICE_KEY, None)
+
+
+def _verify_sql_refresh_internal_token():
+    configured = SQL_REFRESH_INTERNAL_TOKEN
+    if not configured:
+        return False
+    header_token = (request.headers.get("X-COT-Refresh-Token") or "").strip()
+    query_token = (request.args.get("token") or "").strip()
+    body_token = ""
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        body_token = str(payload.get("token") or "").strip()
+    supplied = header_token or query_token or body_token
+    return bool(supplied and supplied == configured)
 
 
 def _normalize_load_report_column(value):
@@ -7855,6 +8029,7 @@ def inject_session_context():
     role = _get_session_role()
     allowed_plants = _get_allowed_plants()
     selected_plants = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
+    sql_auto_refresh_notice = session.pop(SESSION_SQL_AUTO_REFRESH_NOTICE_KEY, None)
     return {
         "session_role": role,
         "session_profile_name": _get_session_profile_name(),
@@ -7872,6 +8047,7 @@ def inject_session_context():
         "show_tutorial_nav": TUTORIAL_NAV_ENABLED,
         "trailer_profile_options": TRAILER_PROFILE_OPTIONS,
         "app_release_label": APP_RELEASE_LABEL,
+        "sql_auto_refresh_notice": sql_auto_refresh_notice,
     }
 
 
@@ -8788,22 +8964,67 @@ def api_orders_upload():
         return jsonify(response), 400
     except Exception as exc:
         return jsonify({"error": f"Upload failed: {exc}"}), 400
-    unmapped_items = summary.get("unmapped_items") or []
-    unmapped_suggestions = _build_unmapped_suggestions(unmapped_items)
-    response = {
-        "filename": getattr(file, "filename", ""),
-        "total_rows": summary.get("total_rows"),
-        "total_orders": len(summary.get("orders") or []),
-        "mapping_rate": round(summary.get("mapping_rate") or 0, 2),
-        "unmapped_count": len(summary.get("unmapped_items") or []),
-        "new_orders": summary.get("new_orders"),
-        "changed_orders": summary.get("changed_orders"),
-        "unchanged_orders": summary.get("unchanged_orders"),
-        "reopened_orders": summary.get("reopened_orders"),
-        "dropped_orders": summary.get("dropped_orders"),
-        "unmapped_items": unmapped_suggestions,
-    }
+    response = _build_upload_api_response(summary, filename=getattr(file, "filename", ""))
     return jsonify(response)
+
+
+@cot_bp.route("/api/orders/sql-refresh", methods=["POST"])
+def api_orders_sql_refresh():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    if _get_session_role() != ROLE_ADMIN:
+        return jsonify({"error": "Only admin accounts can run SQL refresh."}), 403
+    if not is_sql_refresh_configured():
+        return jsonify({"error": "SQL refresh is not configured in environment variables."}), 400
+
+    initiated_by = _get_session_profile_name() or _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY)) or "manual"
+    response, status_code = _execute_sql_orders_refresh(
+        trigger_source="manual_ui",
+        initiated_by=initiated_by,
+    )
+    return jsonify(response), status_code
+
+
+@cot_bp.route("/internal/sql-refresh", methods=["POST"])
+def internal_sql_refresh():
+    if not _verify_sql_refresh_internal_token():
+        return jsonify({"error": "Unauthorized"}), 401
+    if not is_sql_refresh_configured():
+        return jsonify({"error": "SQL refresh is not configured in environment variables."}), 400
+
+    response, status_code = _execute_sql_orders_refresh(
+        trigger_source="auto_internal",
+        initiated_by="scheduler",
+    )
+    return jsonify(response), status_code
+
+
+@cot_bp.route("/internal/planning-sessions/eod-cleanup", methods=["POST"])
+def internal_planning_sessions_eod_cleanup():
+    if not _verify_sql_refresh_internal_token():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    day_token = (
+        (payload.get("day") or "").strip()
+        or (request.args.get("day") or "").strip()
+    )
+    reference_day = None
+    if day_token:
+        try:
+            reference_day = date.fromisoformat(day_token)
+        except ValueError:
+            return jsonify({"error": "Invalid day. Use YYYY-MM-DD."}), 400
+
+    summary = _auto_release_stale_unplanned_sessions(reference_day=reference_day)
+    return jsonify(
+        {
+            "ok": True,
+            "message": "Stale draft sessions were cleaned up.",
+            **summary,
+        }
+    )
 
 
 @cot_bp.route("/api/skus/bulk-add", methods=["POST"])
@@ -9290,6 +9511,7 @@ def orders():
         needs_session=needs_session,
         needs_replace=needs_replace,
         is_admin=role == ROLE_ADMIN,
+        sql_refresh_enabled=is_sql_refresh_configured(),
         optimizer_v2_enabled=OPTIMIZER_V2_ENABLED,
     )
 
@@ -9870,6 +10092,7 @@ def orders_optimize():
         needs_session=False,
         needs_replace=False,
         is_admin=role == ROLE_ADMIN,
+        sql_refresh_enabled=is_sql_refresh_configured(),
         optimizer_v2_enabled=OPTIMIZER_V2_ENABLED,
     )
 
@@ -11157,6 +11380,7 @@ def planning_sessions():
             and _normalize_session_status(active_session.get("status")) == "DRAFT"
         ):
             _release_draft_loads_for_session(active_session_id)
+    _auto_release_stale_unplanned_sessions()
 
     if plant_code and plant_code not in allowed_plants:
         abort(403)
@@ -11661,6 +11885,63 @@ def _release_draft_loads_for_session(session_id):
         released_ids.append(load_id)
     _sync_planning_session_status(session_id)
     return released_ids
+
+
+def _auto_release_stale_unplanned_sessions(reference_day=None):
+    if reference_day and isinstance(reference_day, datetime):
+        reference_day = reference_day.date()
+    target_day = reference_day or datetime.now(APP_TIMEZONE).date()
+    stale_sessions = db.list_stale_planning_sessions(target_day.isoformat())
+    if not stale_sessions:
+        return {
+            "reference_day": target_day.isoformat(),
+            "inspected_sessions": 0,
+            "released_loads": 0,
+            "released_sessions": 0,
+            "archived_sessions": 0,
+            "archived_session_ids": [],
+        }
+
+    released_loads = 0
+    released_sessions = 0
+    archived_sessions = 0
+    archived_session_ids = []
+
+    for planning_session in stale_sessions:
+        session_id = _coerce_int_value(planning_session.get("id"))
+        if not session_id:
+            continue
+        status = _normalize_session_status(planning_session.get("status"))
+        if status == "ARCHIVED":
+            continue
+
+        released_for_session = _release_draft_loads_for_session(session_id)
+        if released_for_session:
+            released_sessions += 1
+            released_loads += len(released_for_session)
+
+        remaining_loads = db.list_loads(None, session_id=session_id)
+        has_approved_load = any(
+            ((load.get("status") or STATUS_PROPOSED).strip().upper() == STATUS_APPROVED)
+            for load in remaining_loads
+        )
+        if has_approved_load:
+            continue
+
+        db.archive_planning_session(session_id)
+        archived_sessions += 1
+        archived_session_ids.append(session_id)
+        if _get_active_planning_session_id() == session_id:
+            _set_active_planning_session_id(None)
+
+    return {
+        "reference_day": target_day.isoformat(),
+        "inspected_sessions": len(stale_sessions),
+        "released_loads": released_loads,
+        "released_sessions": released_sessions,
+        "archived_sessions": archived_sessions,
+        "archived_session_ids": archived_session_ids,
+    }
 
 
 def _build_planning_session_rollup(loads):
