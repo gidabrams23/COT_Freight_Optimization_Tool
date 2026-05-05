@@ -22,6 +22,7 @@ data/db/write_probe.txt
 # Local temp artifacts from test and ad hoc checks
 .tmp/pytest-tmp/
 .tmp/ad_hoc_bt_checks/
+tmp/debug_screens/
 
 # OS/editor noise
 .DS_Store
