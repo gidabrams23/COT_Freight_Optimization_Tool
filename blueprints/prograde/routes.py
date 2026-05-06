@@ -959,6 +959,12 @@ def _ground_pull_first_deck_length_ft(enriched_positions):
         ),
     )
     for pos in ordered:
+        full_span_ft = _as_float(
+            pos.get("occupied_footprint_ft"),
+            _as_float(pos.get("render_footprint_ft"), 0.0),
+        )
+        if full_span_ft > 0:
+            return round(full_span_ft, 3)
         deck_len_ft = _as_float(
             pos.get("deck_length_ft"),
             _as_float(pos.get("bed_length"), 0.0),
@@ -4517,6 +4523,41 @@ def _build_canvas_data(
                     zone_max = used
         max_rendered_outline_ft_by_zone[zone] = round(zone_max, 3)
 
+    # Flatbed side gauges: track leftmost and rightmost lower-deck stack heights independently.
+    lower_side_meter_ft = {
+        "left": round(_as_float(max_rendered_outline_ft_by_zone.get("lower_deck"), 0.0), 3),
+        "right": round(_as_float(max_rendered_outline_ft_by_zone.get("lower_deck"), 0.0), 3),
+    }
+    if carrier_type == "53_flatbed":
+        lower_zone_cols = (zone_cols.get("lower_deck") or {})
+        lower_zone_surface_ft = _as_float(zone_surface_ft.get("lower_deck"), 0.0)
+        side_samples = []
+        for seq in sorted(lower_zone_cols.keys()):
+            col = lower_zone_cols.get(seq) or []
+            if not col:
+                continue
+            col_width_ft = 0.0
+            col_max_used_ft = 0.0
+            for unit in col:
+                footprint_ft = _as_float(
+                    unit.get("occupied_footprint_ft"),
+                    _as_float(unit.get("render_footprint_ft"), _as_float(unit.get("footprint"), 0.0)),
+                )
+                if footprint_ft > col_width_ft:
+                    col_width_ft = footprint_ft
+                top = _as_float(unit.get("y_outline_top_ft"), _as_float(unit.get("y_body_top_ft"), 0.0))
+                used_ft = max(top - lower_zone_surface_ft, 0.0)
+                if used_ft > col_max_used_ft:
+                    col_max_used_ft = used_ft
+            col_start_ft = _as_float((x_positions.get("lower_deck") or {}).get(int(seq)), 0.0)
+            col_center_ft = col_start_ft + (max(col_width_ft, 0.0) / 2.0)
+            side_samples.append((col_center_ft, col_max_used_ft))
+
+        if side_samples:
+            side_samples.sort(key=lambda sample: sample[0])
+            lower_side_meter_ft["left"] = round(_as_float(side_samples[0][1], 0.0), 3)
+            lower_side_meter_ft["right"] = round(_as_float(side_samples[-1][1], 0.0), 3)
+
     # Global horizontal occupancy span from rendered geometry.
     spatial_min_x_ft = 0.0
     spatial_max_x_ft = 0.0
@@ -4664,6 +4705,7 @@ def _build_canvas_data(
         zone_origin_x_ft=zone_origin_x_ft,
         max_stacked_ft_by_zone=max_stacked_ft_by_zone,
         max_rendered_outline_ft_by_zone=max_rendered_outline_ft_by_zone,
+        lower_side_meter_ft=lower_side_meter_ft,
         trailer_geometry=trailer_geometry,
         rear_clearance_len_ft=_REAR_POCKET_LEN_FT,
         rear_clearance_height_ft=_REAR_POCKET_HEIGHT_FT,

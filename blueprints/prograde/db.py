@@ -226,7 +226,7 @@ REFERENCE_CARRIER_DEFAULTS = [
         "max_height_ft": 13.5,
         "lower_deck_length_ft": 53.0,
         "upper_deck_length_ft": 0.0,
-        "lower_deck_ground_height_ft": 4.0,
+        "lower_deck_ground_height_ft": 5.0,
         "upper_deck_ground_height_ft": 0.0,
         "gn_max_lower_deck_ft": 0.0,
         "notes": "Default Big Tex flatbed carrier profile",
@@ -823,6 +823,47 @@ def init_db():
             """
             INSERT OR REPLACE INTO app_meta(meta_key, meta_value, updated_at)
             VALUES ('stepdeck_geometry_41_12_v1', '1', ?)
+            """,
+            (datetime.utcnow().isoformat(),),
+        )
+
+    # One-time data correction: 53' flatbed lower deck ground height should be 5.0 ft.
+    flatbed_ground_height_marker = c.execute(
+        "SELECT meta_value FROM app_meta WHERE meta_key='flatbed_lower_ground_height_5_v1'"
+    ).fetchone()
+    if not flatbed_ground_height_marker:
+        row = c.execute(
+            """
+            SELECT lower_deck_ground_height_ft
+            FROM carrier_configs
+            WHERE carrier_type='53_flatbed'
+            """
+        ).fetchone()
+        current_flatbed_lower_ground_ft = None
+        if row:
+            try:
+                current_flatbed_lower_ground_ft = float(row["lower_deck_ground_height_ft"])
+            except (TypeError, ValueError):
+                current_flatbed_lower_ground_ft = None
+
+        # Apply correction only for the old default value to avoid overriding user custom settings.
+        if (
+            current_flatbed_lower_ground_ft is not None
+            and abs(current_flatbed_lower_ground_ft - 4.0) <= 0.05
+        ):
+            c.execute(
+                """
+                UPDATE carrier_configs
+                SET lower_deck_ground_height_ft=5.0, updated_at=?
+                WHERE carrier_type='53_flatbed'
+                """,
+                (datetime.utcnow().isoformat(),),
+            )
+
+        c.execute(
+            """
+            INSERT OR REPLACE INTO app_meta(meta_key, meta_value, updated_at)
+            VALUES ('flatbed_lower_ground_height_5_v1', '1', ?)
             """,
             (datetime.utcnow().isoformat(),),
         )

@@ -9,16 +9,17 @@
 {% set inventory_mode = (inventory_gap.mode if inventory_gap and inventory_gap.mode else '') %}
 {% set upload_meta = (inventory_gap.upload_meta if inventory_gap and inventory_gap.upload_meta else None) %}
 {% set upload_uploaded_at = (upload_meta.uploaded_at if upload_meta and upload_meta.uploaded_at else '') %}
-{% set upload_date = (upload_uploaded_at|string)[:10] if upload_uploaded_at else '' %}
+{% set upload_iso_date = (upload_uploaded_at|string)[:10] if upload_uploaded_at else '' %}
+{% set upload_date = ((upload_iso_date[5:7] ~ '/' ~ upload_iso_date[8:10] ~ '/' ~ upload_iso_date[2:4]) if upload_iso_date|length == 10 else '') %}
 <div class="inventory-wrap card" id="pg-inventory-card" style="padding:0;overflow:hidden">
   <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
     <div class="inventory-header-row">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div class="inventory-header-main">
         <div>
           <div class="inventory-title-row">
             <div class="card-title">{{ 'BT' if is_bt else 'PJ' }} Inventory Gap Finder</div>
             {% if upload_date %}
-            <span class="inventory-last-upload-pill">Last Upload {{ upload_date }}</span>
+            <span class="inventory-last-upload-pill">Uploaded {{ upload_date }}</span>
             {% endif %}
           </div>
         </div>
@@ -27,18 +28,18 @@
           <span class="inventory-header-stat">Stacks: {{ stack_slots | length }}</span>
         </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
+      <div class="inventory-header-actions">
         {% if can_upload_inventory %}
         {% if warehouse_options|length > 1 %}
         <label for="inv-whse-filter" style="font-size:11px;color:var(--text-secondary);font-weight:600;">WHSE</label>
-        <select id="inv-whse-filter" class="form-control form-control-sm" style="min-width:84px;">
+        <select id="inv-whse-filter" class="form-control form-control-sm inventory-whse-select" style="min-width:84px;">
           {% for opt in warehouse_options %}
           <option value="{{ opt.value }}" {% if opt.value == selected_whse %}selected{% endif %}>{{ opt.label }}</option>
           {% endfor %}
         </select>
         {% endif %}
         <input type="file" id="inv-upload-input" accept="{{ upload_accept }}" style="display:none" />
-        <button type="button" class="btn btn-secondary btn-sm" id="inv-upload-btn">
+        <button type="button" class="btn btn-secondary btn-sm inventory-upload-btn" id="inv-upload-btn">
           Upload Inventory
         </button>
         {% endif %}
