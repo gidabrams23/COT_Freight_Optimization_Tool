@@ -3,7 +3,7 @@
         <div>
           <div class="card-title">Add SKUs</div>
           <div class="card-subtitle" style="margin-top:2px;">
-            {{ 'PJ' if session.brand == 'pj' else 'Big Tex' }} SKUs grouped as {{ 'Category -> Model -> Item' if session.brand == 'pj' else 'Category -> Model -> Item' }}
+            {% if session.brand == 'pj' %}PJ{% elif session.brand == 'bwise' %}B-Wise{% else %}Big Tex{% endif %} SKUs grouped as Category -> Model -> Item
           </div>
         </div>
       </div>
@@ -11,7 +11,7 @@
         <div class="picker-search-row">
           <input type="text" id="sku-filter" class="form-control"
                  placeholder="Filter by category, model, item, or deck dimensions..." style="font-size:12px" />
-          {% if session.brand == 'bigtex' %}
+          {% if session.brand in ['bigtex', 'bwise'] %}
           <div class="sku-view-controls" aria-label="SKU hierarchy view">
             <button type="button" class="sku-view-btn" id="sku-collapse-models-btn">Models</button>
             <button type="button" class="sku-view-btn" id="sku-expand-items-btn">Items</button>

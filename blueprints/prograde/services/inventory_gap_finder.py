@@ -30,13 +30,14 @@ _BT_LEN_RE = re.compile(r"(?<!\d)(\d{2})(?!\d)")
 
 def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", inventory_whse=None):
     brand_key = str(brand or "").strip().lower()
-    if brand_key not in {"bigtex", "pj"}:
+    if brand_key not in {"bigtex", "pj", "bwise"}:
         return {
             "remaining_ft": 0.0,
             "remaining_ft_raw": 0.0,
             "rows": [],
             "stack_slots": [],
             "total_available_units": 0,
+            "total_inventory_qty": 0,
             "upload_meta": None,
             "mode": "unsupported",
             "warehouse_options": [],
@@ -46,7 +47,7 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", 
     positions = _normalized_positions(db.get_positions(session_id), brand_key, carrier_map=dict(carrier or {}))
     columns = _group_columns(positions)
     stack_slots = _build_stack_slots(canvas, columns)
-    bt_sku_map = _build_bigtex_sku_map() if brand_key == "bigtex" else {}
+    bt_sku_map = _build_bigtex_sku_map(brand_key=brand_key) if brand_key in {"bigtex", "bwise"} else {}
     pj_sku_map = _build_pj_sku_map() if brand_key == "pj" else {}
     pj_offsets = db.get_pj_offsets_dict() if brand_key == "pj" else {}
     pj_height_ref = db.get_pj_height_ref_dict() if brand_key == "pj" else {}
@@ -79,6 +80,12 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", 
         warehouse_options = [{"value": "ALL", "label": "All Warehouses"}]
         warehouse_options.extend({"value": code, "label": code} for code in whse_codes)
         mode = "bt_upload"
+    elif brand_key == "bwise":
+        upload_meta = None
+        selected_whse = ""
+        warehouse_options = []
+        candidates = _build_bwise_catalog_candidates(bt_sku_map)
+        mode = "bwise_catalog"
     else:
         upload_meta = db.get_pj_inventory_upload_meta()
         whse_codes = db.get_pj_inventory_whse_codes()
@@ -138,6 +145,7 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", 
         total_available_units = sum(int(r.get("available_count") or 0) for r in rows)
     else:
         total_available_units = len(rows)
+    total_inventory_qty = sum(int(r.get("total_count") or 0) for r in rows)
 
     return {
         "remaining_ft": remaining_ft,
@@ -145,6 +153,7 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", 
         "rows": rows,
         "stack_slots": stack_slots,
         "total_available_units": total_available_units,
+        "total_inventory_qty": total_inventory_qty,
         "upload_meta": dict(upload_meta) if upload_meta else None,
         "mode": mode,
         "warehouse_options": warehouse_options,
@@ -1190,7 +1199,7 @@ def _build_pj_upload_candidates(pj_sku_map, whse_code="", *, pj_height_ref):
 
 
 def _error_violations(brand, positions, carrier_map, *, bt_sku_map, pj_sku_map, pj_offsets, pj_height_ref):
-    if brand == "bigtex":
+    if brand in {"bigtex", "bwise"}:
         violations = []
         violations.extend(bt_rules._bt_total_length(positions, bt_sku_map, carrier_map, {}))
         violations.extend(bt_rules._bt_height(positions, bt_sku_map, carrier_map, {}))
@@ -1221,10 +1230,14 @@ def _position_id_tuple(position_ids):
     return tuple(normalized)
 
 
-def _build_bigtex_sku_map():
+def _build_bigtex_sku_map(*, brand_key="bigtex"):
+    if str(brand_key or "").strip().lower() == "bwise":
+        rows = db.get_bwise_skus()
+    else:
+        rows = db.get_bigtex_skus()
     return {
         str(row["item_number"]).strip().upper(): dict(row)
-        for row in db.get_bigtex_skus()
+        for row in rows
     }
 
 
@@ -1262,7 +1275,7 @@ def _normalized_positions(rows, brand, carrier_map=None):
 
 def _normalize_zone(brand, zone, carrier_map=None):
     zone_value = str(zone or "").strip()
-    if brand != "bigtex":
+    if brand not in {"bigtex", "bwise"}:
         return zone_value
     legacy_map = {
         "stack_1": "lower_deck",
@@ -1275,6 +1288,43 @@ def _normalize_zone(brand, zone, carrier_map=None):
     if normalized == "upper_deck" and (carrier_key == "ground_pull" or upper_len <= 0.0):
         return "lower_deck"
     return normalized
+
+
+def _build_bwise_catalog_candidates(bwise_sku_map):
+    candidates = []
+    for row in db.get_bwise_skus():
+        sku = dict(row or {})
+        item_number = str(sku.get("item_number") or "").strip().upper()
+        if not item_number:
+            continue
+        old_model = str(sku.get("old_model") or "").strip()
+        model = str(sku.get("model") or "").strip()
+        display_model = old_model or model
+        mcat = db.normalize_bigtex_mcat(sku.get("mcat") or "")
+        candidates.append(
+            {
+                "brand": "bwise",
+                "item_number": item_number,
+                "model": display_model,
+                "mcat": mcat,
+                "footprint_each": _as_float(sku.get("total_footprint"), 0.0),
+                "stack_height_each": _as_float(sku.get("stack_height"), 0.0),
+                "available_count": None,
+                "total_count": None,
+                "assigned_count": None,
+                "built_count": None,
+                "future_build_count": None,
+                "available_built_count": None,
+                "available_future_count": None,
+                "is_unmapped": False,
+                "sku_in_db": True,
+                "default_tongue_profile": "standard",
+                "default_override_reason": None,
+                "catalog_only": True,
+            }
+        )
+        bwise_sku_map.setdefault(item_number, sku)
+    return candidates
 
 
 def _pj_default_tongue_profile(sku):

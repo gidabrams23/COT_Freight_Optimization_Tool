@@ -507,6 +507,65 @@ class ProgradeSettingsSaveTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("stack height", str(payload["error"]).lower())
 
+    def test_api_add_bwise_sku_creates_row_with_placeholder_flag(self):
+        resp = self.client.post(
+            "/prograde/api/settings/bwise/sku",
+            json={
+                "item_number": "bw-new-100",
+                "mcat": "Dumps",
+                "model": "DMP",
+                "old_model": "DMP-100",
+                "bed_length": 12.0,
+                "tongue": 4.0,
+                "stack_height": 2.0,
+                "stack_height_is_placeholder": True,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["result"]["created"])
+        self.assertEqual(float(payload["result"]["total_footprint"]), 16.0)
+
+        row = self.db.get_bwise_sku("BW-NEW-100")
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row["mcat"]), "Dumps")
+        self.assertEqual(str(row["model"]), "DMP")
+        self.assertEqual(str(row["old_model"]), "DMP-100")
+        self.assertEqual(float(row["total_footprint"]), 16.0)
+        self.assertEqual(int(row["stack_height_is_placeholder"]), 1)
+
+    def test_bwise_bed_length_save_recomputes_footprint(self):
+        now = datetime.utcnow().isoformat()
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bwise_skus
+                (item_number, mcat, model, old_model, bed_length, tongue, stack_height, total_footprint, stack_height_is_placeholder, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("BW-RECOMP-1", "Utility", "UT", "UT-1", 12.0, 4.0, 2.0, 16.0, 1, now),
+            )
+
+        resp = self.client.post(
+            "/prograde/api/settings/save",
+            json={
+                "table": "bwise_skus",
+                "pk": "BW-RECOMP-1",
+                "field": "bed_length",
+                "value": 14.5,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertIsInstance(payload.get("recomputed_bwise"), list)
+        self.assertEqual(float(payload["recomputed_bwise"][0]["total_footprint"]), 18.5)
+
+        updated = dict(self.db.get_bwise_sku("BW-RECOMP-1"))
+        self.assertEqual(float(updated["bed_length"]), 14.5)
+        self.assertEqual(float(updated["total_footprint"]), 18.5)
+
 
 if __name__ == "__main__":
     unittest.main()

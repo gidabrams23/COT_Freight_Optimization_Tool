@@ -28,6 +28,9 @@
       <a href="{{ url_for('prograde.session_new', brand='pj') }}" class="btn {% if selected_brand == 'pj' %}btn-primary{% else %}btn-secondary{% endif %}" style="padding:12px 18px;font-size:15px;font-weight:700;">
         Create Load - PJ
       </a>
+      <a href="{{ url_for('prograde.session_new', brand='bwise') }}" class="btn {% if selected_brand == 'bwise' %}btn-primary{% else %}btn-secondary{% endif %}" style="padding:12px 18px;font-size:15px;font-weight:700;">
+        Create Load - B-Wise
+      </a>
     </div>
     <div class="card-subtitle" style="margin-bottom:4px;">Manual setup (optional)</div>
   </div>
@@ -44,6 +47,7 @@
           <option value="">- Select -</option>
           <option value="pj">PJ Trailers</option>
           <option value="bigtex">Big Tex Trailers</option>
+          <option value="bwise">B-Wise</option>
         </select>
       </div>
 
@@ -79,6 +83,7 @@
 const CARRIERS = {
   pj: [{ val: "53_step_deck", lbl: "53' Step Deck" }],
   bigtex: [{ val: "53_step_deck", lbl: "53' Step Deck" }],
+  bwise: [{ val: "53_step_deck", lbl: "53' Step Deck" }],
 };
 
 document.getElementById("brand-select").addEventListener("change", function () {

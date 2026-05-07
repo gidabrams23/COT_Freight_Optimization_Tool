@@ -26,7 +26,9 @@
     <div class="pg-top-meta-group">
       <div class="brand-path-group" aria-label="Create load">
         <span class="brand-path-label">Brand</span>
-        <span class="brand-path-btn active">{{ "Big Tex" if selected_brand == "bigtex" else "PJ" }}</span>
+        <span class="brand-path-btn active">
+          {% if selected_brand == "pj" %}PJ{% elif selected_brand == "bwise" %}B-Wise{% else %}Big Tex{% endif %}
+        </span>
         <a class="brand-path-btn" href="{{ url_for('prograde.session_new', brand=selected_brand, carrier_type=session.carrier_type) }}">Create Load</a>
       </div>
       <div class="pg-carrier-group" aria-label="Truck type">

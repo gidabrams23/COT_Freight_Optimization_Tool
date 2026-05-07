@@ -26,15 +26,35 @@ _REQUIRED_ENV_VARS = (
 )
 
 
+# Temporary POC defaults for hosted environments that do not have App Settings configured yet.
+# Keep environment variables as the primary source; these values are fallback-only.
+_POC_SQL_DEFAULTS = {
+    "COT_SQL_HOST": "cotlav7.cot.int",
+    "COT_SQL_DATABASE": "DProProd",
+    "COT_SQL_USERNAME": "query",
+    "COT_SQL_PASSWORD": "query",
+    "COT_SQL_DRIVER": "ODBC Driver 18 for SQL Server",
+    "COT_SQL_PORT": "1433",
+    "COT_SQL_ENCRYPT": "yes",
+    "COT_SQL_TRUST_SERVER_CERTIFICATE": "yes",
+    "COT_SQL_CONNECT_TIMEOUT_SEC": "30",
+}
+
+
+def _configured_text(name, default=""):
+    value = os.environ.get(name)
+    if value is not None and str(value).strip():
+        return str(value).strip()
+    fallback = _POC_SQL_DEFAULTS.get(name, default)
+    return str(fallback).strip()
+
+
 def is_sql_refresh_configured():
-    return all((os.environ.get(name) or "").strip() for name in _REQUIRED_ENV_VARS)
+    return all(_configured_text(name) for name in _REQUIRED_ENV_VARS)
 
 
 def _env_text(name, default=""):
-    value = os.environ.get(name)
-    if value is None:
-        return str(default)
-    return str(value).strip()
+    return _configured_text(name, default=default)
 
 
 def _build_sqlalchemy_engine():

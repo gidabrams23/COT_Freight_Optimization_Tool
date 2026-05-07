@@ -115,6 +115,28 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
                 ),
             )
 
+    def _insert_bwise_sku(self, item_number, *, model, old_model, mcat, total_footprint, stack_height):
+        now = "2026-04-13T00:00:00"
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bwise_skus
+                (item_number, model, old_model, mcat, bed_length, tongue, total_footprint, stack_height, stack_height_is_placeholder, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                (
+                    item_number,
+                    model,
+                    old_model,
+                    mcat,
+                    float(total_footprint) - 2.0,
+                    2.0,
+                    float(total_footprint),
+                    float(stack_height),
+                    now,
+                ),
+            )
+
     def _insert_bt_snapshot_whse(self, item_number, *, whse_code, available_count, total_count=None):
         now = "2026-04-13T00:00:00"
         total = int(total_count if total_count is not None else available_count)
@@ -673,6 +695,50 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertIn("Stack 2 (Right) Fit", html)
         self.assertIn("Left remaining height", html)
         self.assertIn("Right remaining height", html)
+
+    def test_bwise_inventory_gap_uses_catalog_mode_without_upload(self):
+        profile_id = self._activate_profile(name="B-Wise Gap Tester")
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bwise",
+            "53_step_deck",
+            "B-Wise Gap Tester",
+            "bwise-gap-page",
+            created_by_profile_id=profile_id,
+            created_by_name="B-Wise Gap Tester",
+        )
+        self._insert_bwise_sku(
+            "BW-CAT-01",
+            model="UT7",
+            old_model="UT-714",
+            mcat="Tandem-Axle Utility",
+            total_footprint=19.0,
+            stack_height=2.0,
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bwise",
+            item_number="BW-CAT-01",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        gap_data = self._get_gap_data(session_id)
+        self.assertEqual(gap_data.get("mode"), "bwise_catalog")
+        self.assertEqual(gap_data.get("warehouse_options"), [])
+        self.assertEqual(gap_data.get("selected_warehouse"), "ALL")
+        self.assertGreaterEqual(len(gap_data.get("rows") or []), 1)
+        row = {r["item_number"]: r for r in (gap_data.get("rows") or [])}["BW-CAT-01"]
+        self.assertIsNone(row.get("available_count"))
+
+        resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("B-Wise Inventory Gap Finder", html)
+        self.assertNotIn("Upload Inventory", html)
 
 
 if __name__ == "__main__":

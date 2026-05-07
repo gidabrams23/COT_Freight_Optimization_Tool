@@ -1,170 +1,263 @@
-{% extends "base.html" %}
-{% set show_nav = false %}
+{% extends "prograde/base.html" %}
 {% block content %}
   {% set selected_brand = selected_brand | default("bigtex") %}
   {% set selected_account_id = active_profile.id if active_profile else (accounts[0].id if accounts else None) %}
+  <style>
+    .access-manage-page { padding: 20px; }
+    .access-manage-hero { display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap; }
+    .access-manage-hero h1 { font-size:34px;line-height:1.1;margin:0; }
+    .access-manage-chips { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+    .meta-chip { display:inline-flex;padding:4px 10px;border:1px solid var(--border-default);border-radius:999px;font-size:11px;color:var(--text-secondary);text-transform:uppercase;font-weight:700;letter-spacing:.04em;background:var(--bg-secondary); }
+    .muted { color: var(--text-secondary); font-size: 12px; }
+    .alert-message { border-radius:8px;padding:10px 12px;border:1px solid var(--status-info);margin-bottom:14px;background:var(--status-info-bg);color:var(--status-info); }
+    .alert-message.warning { border-color:var(--status-error);background:var(--status-error-bg);color:var(--status-error); }
+    .alert-message.success { border-color:var(--status-success);background:var(--status-success-bg);color:var(--status-success); }
+    .access-manage-grid { display:grid;grid-template-columns:minmax(320px,520px) minmax(540px,1fr);gap:12px;align-items:start; }
+    .card-widget { background:var(--bg-primary);border:1px solid var(--border-default);border-radius:10px; }
+    .panel-header { padding:12px 14px;border-bottom:1px solid var(--border-default); }
+    .panel-title h3 { margin:0;font-size:28px;line-height:1.1; }
+    .panel-body { padding:14px; }
+    .access-profile-form { display:flex;flex-direction:column;gap:12px; }
+    .access-profile-form-grid { display:grid;grid-template-columns:1fr;gap:10px; }
+    .access-profile-form-grid label, .access-mode-option { display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-secondary); }
+    .access-profile-form input[type="text"], .access-profile-form input[readonly], .access-profile-form select { background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:6px;padding:9px 10px;color:var(--text-primary); }
+    .access-mode-grid { display:grid;grid-template-columns:1fr;gap:8px; }
+    .access-mode-option { background:var(--bg-secondary);border:1px solid var(--border-default);padding:10px;border-radius:8px;flex-direction:row;align-items:flex-start;gap:10px; }
+    .access-mode-option strong { color:var(--text-primary);display:block; }
+    .access-mode-option span { color:var(--text-secondary);font-size:12px;display:block; }
+    .form-actions { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+    .table-container { overflow-x:auto;border:1px solid var(--border-default);border-radius:8px; }
+    .settings-table { width:100%;border-collapse:collapse; }
+    .settings-table th,.settings-table td { padding:8px 10px;border-bottom:1px solid var(--border-default);font-size:12px;vertical-align:middle; }
+    .settings-table th { font-size:11px;text-transform:uppercase;color:var(--text-secondary);background:var(--bg-secondary);text-align:left; }
+    .settings-table tr:last-child td { border-bottom:none; }
+    .access-actions-cell { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+    .status-pill { display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;background:var(--status-success-bg);color:var(--status-success);border:1px solid var(--status-success); }
+    .status-pill.status-pill-muted { background:var(--bg-secondary);color:var(--text-secondary);border-color:var(--border-default); }
+    .btn-success,.btn-secondary,.btn-danger,.btn-ghost,.btn-xs { display:inline-flex;align-items:center;justify-content:center;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;border:1px solid transparent;cursor:pointer;text-decoration:none; }
+    .btn-success { background:#16a34a;color:#ecfdf5;border-color:#16a34a; }
+    .btn-secondary { background:var(--bg-secondary);color:var(--text-primary);border-color:var(--border-default); }
+    .btn-danger { background:var(--status-error-bg);color:var(--status-error);border-color:var(--status-error); }
+    .btn-ghost { background:transparent;color:var(--text-secondary);border-color:var(--border-default); }
+    .btn-xs { padding:4px 8px; }
+    @media (max-width: 1140px) {
+      .access-manage-grid { grid-template-columns:1fr; }
+    }
+  </style>
 
-  <section class="login-page">
-    <div class="login-hero">
-      <div class="login-logo">
-        <span class="material-symbols-outlined">hub</span>
+  <section class="access-manage-page">
+    <header class="access-manage-hero">
+      <div>
+        <h1>Access Profiles</h1>
+        <p class="muted">Select account access, set default brand focus, and assign administrator accounts.</p>
       </div>
-      <div class="login-title">PROGRADE PORTAL</div>
-      <div class="login-subtitle">Load Builder Access</div>
-    </div>
+      <div class="access-manage-chips">
+        <span class="meta-chip">{{ accounts | length }} total profiles</span>
+        <span class="meta-chip">{{ accounts | selectattr('is_admin') | list | length }} admin</span>
+      </div>
+    </header>
 
     {% if account_notice %}
-      <div
-        class="login-alert"
-        style="
-          width:min(760px,100%);
-          {% if account_notice.level == 'success' %}
-          background:rgba(34,197,94,0.18);border-color:rgba(34,197,94,0.5);color:#bbf7d0;
-          {% elif account_notice.level == 'warning' %}
-          background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.5);color:#fcd34d;
-          {% elif account_notice.level == 'info' %}
-          background:rgba(59,130,246,0.18);border-color:rgba(59,130,246,0.5);color:#bfdbfe;
-          {% endif %}
-        "
-      >
+      {% set level = account_notice.level or 'info' %}
+      <div class="alert-message {% if level == 'error' %}warning{% else %}success{% endif %}">
         {{ account_notice.message }}
       </div>
     {% endif %}
 
-    <div class="login-card login-card-single">
-      <div class="login-column login-admin">
-        <div class="login-section-label">System Access</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-          <div class="login-field" style="margin:0;">
-            <label>Brand</label>
-            <div style="display:flex;gap:8px;margin-top:8px;">
-              <a
-                class="btn-secondary"
-                href="{{ url_for('prograde.account_landing', brand='bigtex', next=next_url) }}"
-                style="{% if selected_brand == 'bigtex' %}border-color:rgba(59,130,246,0.7);box-shadow:0 0 0 1px rgba(59,130,246,0.35);{% endif %}"
-              >
-                Big Tex
-              </a>
-              <a
-                class="btn-secondary"
-                href="{{ url_for('prograde.account_landing', brand='pj', next=next_url) }}"
-                style="{% if selected_brand == 'pj' %}border-color:rgba(59,130,246,0.7);box-shadow:0 0 0 1px rgba(59,130,246,0.35);{% endif %}"
-              >
-                PJ
-              </a>
-            </div>
-          </div>
-          {% if active_profile %}
-            <a class="btn-secondary" href="{{ url_for('prograde.sessions', brand=selected_brand) }}">Continue to Sessions</a>
-          {% endif %}
+    <article class="card-widget access-editor-card" style="margin-bottom:14px;">
+      <div class="panel-header">
+        <div class="panel-title">
+          <h3>Select Account</h3>
         </div>
-
+      </div>
+      <div class="panel-body">
         {% if accounts %}
-          <form method="post" class="login-admin-form" id="prograde-account-form" action="{{ url_for('prograde.account_select') }}">
-            <input type="hidden" name="brand" value="{{ selected_brand }}">
+          <form method="post" action="{{ url_for('prograde.account_select') }}" class="access-profile-form" id="prograde-account-select-form">
+            <input type="hidden" name="brand" id="prograde-selected-brand" value="{{ selected_brand }}">
             <input type="hidden" name="next" value="{{ next_url }}">
 
-            <div class="login-field login-account-select-field">
-              <label for="profile_id">Select Account</label>
-              <select class="select-field login-account-select" name="profile_id" id="profile_id" required>
-                {% for account in accounts %}
-                  <option value="{{ account.id }}" {% if account.id == selected_account_id %}selected{% endif %}>
-                    {{ account.name }} - {{ "Admin" if account.is_admin else "Planner" }}
-                  </option>
-                {% endfor %}
-              </select>
+            <div class="access-profile-form-grid">
+              <label>
+                Select Account
+                <select name="profile_id" id="profile_id" required>
+                  {% for account in accounts %}
+                    <option value="{{ account.id }}" {% if account.id == selected_account_id %}selected{% endif %}>
+                      {{ account.name }} - {{ "Admin" if account.is_admin else "Planner" }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
+                Brand Focus
+                <input type="text" id="profile-default-brand-display" value="-" readonly>
+                <span class="muted">Selecting an account auto-focuses this brand.</span>
+              </label>
             </div>
 
-            <div class="login-account-card active" id="prograde-selected-card">
-              <div class="login-account-icon">
-                <span class="material-symbols-outlined" id="prograde-selected-icon">
-                  {{ "shield" if active_profile and active_profile.is_admin else "person" }}
-                </span>
-              </div>
-              <div class="login-account-meta">
-                <div class="login-account-title" id="prograde-selected-title">
-                  {{ active_profile.name if active_profile else (accounts[0].name if accounts else "Select an account") }}
-                </div>
-                <div class="login-account-subtitle" id="prograde-selected-subtitle">
-                  {{ active_profile.role_label if active_profile else (accounts[0].role_label if accounts else "Account access") }}
-                </div>
-              </div>
-            </div>
-
-            <div class="login-field">
-              <label>Enter ProGrade</label>
-              <div class="login-input-row">
-                <button class="btn-primary" type="submit" style="width:100%;">
-                  <span class="material-symbols-outlined">login</span>
-                  <span>Continue with Selected Account</span>
-                </button>
-              </div>
-              <div class="login-note">
-                <span class="material-symbols-outlined">verified_user</span>
-                <span>ProGrade uses account selection only on this page. SSO is not required.</span>
-              </div>
+            <div class="form-actions" style="justify-content:space-between;">
+              <a class="btn-secondary" href="{{ url_for('prograde.settings', brand=selected_brand) }}">Manage Settings</a>
+              <button class="btn-success" type="submit">Continue with Selected Account</button>
             </div>
           </form>
         {% else %}
-          <div class="empty-state">No ProGrade accounts exist yet. Add one below to continue.</div>
+          <div class="empty-state">No ProGrade accounts exist yet.</div>
         {% endif %}
+      </div>
+    </article>
 
-        <form method="post" class="login-admin-form" action="{{ url_for('prograde.account_create') }}" style="margin-top:4px;">
-          <input type="hidden" name="brand" value="{{ selected_brand }}">
-          <input type="hidden" name="next" value="{{ next_url }}">
-          <div class="login-field">
-            <label for="new_account_name">Add New Account</label>
-            <div class="login-input-row">
-              <input
-                type="text"
-                id="new_account_name"
-                name="name"
-                maxlength="80"
-                placeholder="Planner name"
-                required
-              >
-              <button class="btn-primary" type="submit" aria-label="Create ProGrade account">
-                <span class="material-symbols-outlined">person_add</span>
-              </button>
-            </div>
-            <div class="login-note">
-              <span class="material-symbols-outlined">group_add</span>
-              <span>New accounts are created as planner access and signed in immediately.</span>
-            </div>
+    <div class="access-manage-grid">
+      <article class="card-widget access-editor-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h3>{% if edit_profile %}Edit Profile{% else %}Add New Account{% endif %}</h3>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div class="panel-body">
+          {% if can_manage_accounts %}
+            <form
+              method="post"
+              id="prograde-manage-profile-form"
+              class="access-profile-form"
+              action="{{ url_for('prograde.account_update') if edit_profile else url_for('prograde.account_create') }}"
+            >
+              <input type="hidden" name="brand" value="{{ selected_brand }}">
+              {% if not edit_profile %}
+                <input type="hidden" name="manage_mode" value="1">
+              {% endif %}
+              {% if edit_profile %}
+                <input type="hidden" name="profile_id" value="{{ edit_profile.id }}">
+              {% endif %}
 
-    <div class="login-footer">
-      <div class="login-status">
-        <span class="status-dot"></span>
-        ProGrade Online
-      </div>
-      <div><a href="{{ url_for('prograde.settings', brand=selected_brand) }}" style="color:rgba(191,219,254,0.9);text-decoration:none;">Manage Settings</a></div>
+              <div class="access-profile-form-grid">
+                <label>
+                  Profile Name
+                  <input
+                    type="text"
+                    name="name"
+                    maxlength="80"
+                    placeholder="e.g., Sam"
+                    value="{{ edit_profile.name if edit_profile else '' }}"
+                    required
+                  >
+                </label>
+                <label>
+                  Default Focus Brand
+                  <select name="default_brand" required>
+                    <option value="bigtex" {% if (edit_profile and edit_profile.default_brand == 'bigtex') or (not edit_profile and selected_brand == 'bigtex') %}selected{% endif %}>Big Tex</option>
+                    <option value="pj" {% if (edit_profile and edit_profile.default_brand == 'pj') or (not edit_profile and selected_brand == 'pj') %}selected{% endif %}>PJ</option>
+                    <option value="bwise" {% if (edit_profile and edit_profile.default_brand == 'bwise') or (not edit_profile and selected_brand == 'bwise') %}selected{% endif %}>B-Wise</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="access-mode-grid">
+                <label class="access-mode-option">
+                  <input type="checkbox" name="is_admin" {% if edit_profile and edit_profile.is_admin %}checked{% endif %}>
+                  <div>
+                    <strong>Admin Account</strong>
+                    <span>Can manage profiles and view all ProGrade sessions.</span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="form-actions">
+                <button class="btn-success" type="submit">{% if edit_profile %}Save Changes{% else %}Create Profile{% endif %}</button>
+                {% if edit_profile %}
+                  <a class="btn-secondary" href="{{ url_for('prograde.account_landing', brand=selected_brand) }}">Cancel</a>
+                {% endif %}
+              </div>
+            </form>
+          {% else %}
+            <div class="empty-state">
+              <div class="empty-state-title">Admin Access Required</div>
+              <div class="empty-state-body">Select an administrator account to manage profile permissions and default brand mapping.</div>
+            </div>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="card-widget access-list-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <h3>Existing Profiles</h3>
+          </div>
+        </div>
+        <div class="panel-body">
+          {% if accounts %}
+            <div class="table-container">
+              <table class="settings-table access-profile-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Default Focus</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for profile in accounts %}
+                    <tr>
+                      <td>
+                        <strong>{{ profile.name }}</strong>
+                        {% if active_profile and profile.id == active_profile.id %}
+                          <span class="status-pill status-pill-muted">Active</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if profile.is_admin %}
+                          <span class="status-pill">Admin</span>
+                        {% else %}
+                          <span class="status-pill status-pill-muted">Planner</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ profile.default_brand_label }}</td>
+                      <td>{{ (profile.created_at or '-')|string|replace('T', ' ')|replace('Z', '') }}</td>
+                      <td class="access-actions-cell">
+                        {% if can_manage_accounts %}
+                          <a class="btn-ghost btn-xs" href="{{ url_for('prograde.account_landing', brand=selected_brand, edit_id=profile.id) }}">Edit</a>
+                          <form method="post" action="{{ url_for('prograde.account_delete') }}" onsubmit="return confirm('Delete this profile?');">
+                            <input type="hidden" name="brand" value="{{ selected_brand }}">
+                            <input type="hidden" name="profile_id" value="{{ profile.id }}">
+                            <button class="btn-danger btn-xs" type="submit">Delete</button>
+                          </form>
+                        {% else %}
+                          <span class="muted">-</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">No profiles found.</div>
+          {% endif %}
+        </div>
+      </article>
     </div>
 
     <script>
       (() => {
         const accounts = {{ accounts | tojson }};
         const select = document.getElementById("profile_id");
-        const title = document.getElementById("prograde-selected-title");
-        const subtitle = document.getElementById("prograde-selected-subtitle");
-        const icon = document.getElementById("prograde-selected-icon");
-        if (!select || !accounts.length) {
-          return;
-        }
+        const hiddenBrand = document.getElementById("prograde-selected-brand");
+        const brandDisplay = document.getElementById("profile-default-brand-display");
+        if (!select || !accounts.length) return;
 
+        const brandLabels = {
+          bigtex: "Big Tex",
+          pj: "PJ",
+          bwise: "B-Wise"
+        };
         const accountById = new Map(accounts.map((account) => [String(account.id), account]));
+
         function syncSelectedAccount() {
           const account = accountById.get(String(select.value));
-          if (!account) {
-            return;
-          }
-          if (title) title.textContent = account.name || "Unnamed";
-          if (subtitle) subtitle.textContent = account.role_label || "Planner Account";
-          if (icon) icon.textContent = account.is_admin ? "shield" : "person";
+          if (!account) return;
+          const brandKey = String(account.default_brand || "bigtex").toLowerCase();
+          if (hiddenBrand) hiddenBrand.value = brandKey;
+          if (brandDisplay) brandDisplay.value = brandLabels[brandKey] || "Big Tex";
         }
 
         select.addEventListener("change", syncSelectedAccount);

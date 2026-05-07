@@ -43,6 +43,18 @@
       </div>
       <div class="brand-focus-text">PJ</div>
     </a>
+    <a class="brand-focus-card {% if sidebar_brand == 'bwise' %}active{% endif %}"
+       href="{{ url_for('prograde.sessions', brand='bwise') }}">
+      <div class="brand-logo-frame brand-logo-frame-bwise">
+        <img
+          class="brand-logo-image brand-logo-image-bwise"
+          src="{{ url_for('prograde.static', filename='images/brand-logos/BWISE-LOGO_HOME-PAGE.png') }}"
+          alt="B-Wise Trailers logo"
+          loading="lazy"
+        />
+      </div>
+      <div class="brand-focus-text">B-Wise</div>
+    </a>
 
     <div class="nav-section-label">Sessions</div>
     <a class="nav-item {% if request.endpoint == 'prograde.sessions' %}active{% endif %}"

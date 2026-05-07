@@ -49,9 +49,13 @@ class ProgradeAccountSeedPersistenceTests(unittest.TestCase):
 
     def test_init_db_seeds_prograde_access_profiles_csv(self):
         self.db.init_db()
-        names = {str(row["name"]) for row in self.db.list_access_profiles()}
+        rows = list(self.db.list_access_profiles())
+        names = {str(row["name"]) for row in rows}
         self.assertIn("Planner One", names)
         self.assertIn("Planner Two", names)
+        planner_one = next((row for row in rows if str(row["name"]) == "Planner One"), None)
+        self.assertIsNotNone(planner_one)
+        self.assertEqual((planner_one["default_brand"] or "").lower(), "bigtex")
 
         count_before = len(list(self.db.list_access_profiles()))
         self.db.init_db()

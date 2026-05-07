@@ -223,6 +223,9 @@
 .sku-add-row.bt {
   grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr 1fr;
 }
+.sku-add-row.bw {
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 0.9fr;
+}
 .sku-add-col label {
   display: block;
   margin-bottom: 4px;
@@ -357,24 +360,35 @@
 }
 
 #pj-sku-table,
-#bt-sku-table {
+#bt-sku-table,
+#bw-sku-table {
   font-size: 13px;
 }
 #pj-sku-table th,
-#bt-sku-table th {
+#bt-sku-table th,
+#bw-sku-table th {
   font-size: 11px;
   padding: 9px 8px;
 }
 #pj-sku-table td,
-#bt-sku-table td {
+#bt-sku-table td,
+#bw-sku-table td {
   padding: 8px 8px;
 }
 #pj-sku-table .editable-cell,
 #pj-sku-table .editable-select,
-#bt-sku-table .editable-cell {
+#bt-sku-table .editable-cell,
+#bw-sku-table .editable-cell {
   font-size: 12px;
   min-height: 34px;
   padding: 6px 8px;
+}
+.bw-placeholder-row td {
+  background: rgba(250, 204, 21, 0.14);
+}
+.bw-placeholder-row .td-mono,
+.bw-placeholder-row strong {
+  color: #fde68a;
 }
 .pj-dump-height-note {
   color: var(--text-secondary);
@@ -424,7 +438,8 @@
     grid-template-columns: 1fr;
   }
   .sku-add-row.pj,
-  .sku-add-row.bt {
+  .sku-add-row.bt,
+  .sku-add-row.bw {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .sku-add-row .sku-add-col.full {
@@ -458,7 +473,7 @@
 
   <div class="pg-hero-shell">
     <h2 class="pg-hero-title">ProGrade Settings Command Center</h2>
-    <p class="pg-hero-subtitle">Use this page to maintain runtime assumptions used by the load canvas, validation rules, and SKU footprint math across both PJ and Big Tex paths.</p>
+    <p class="pg-hero-subtitle">Use this page to maintain runtime assumptions used by the load canvas, validation rules, and SKU footprint math across PJ, Big Tex, and B-Wise paths.</p>
     <div class="pg-hero-chips">
       <span class="pg-hero-chip">Live save with stale-session revalidation flagging</span>
       <span class="pg-hero-chip">Universal trailer geometry + brand-specific SKU standards</span>
@@ -474,6 +489,7 @@
     <button type="button" class="btn btn-secondary btn-sm pg-settings-tab active" data-settings-tab-btn="universal">Universal Settings</button>
     <button type="button" class="btn btn-secondary btn-sm pg-settings-tab" data-settings-tab-btn="pj">PJ Standards</button>
     <button type="button" class="btn btn-secondary btn-sm pg-settings-tab" data-settings-tab-btn="bt">Big Tex Standards</button>
+    <button type="button" class="btn btn-secondary btn-sm pg-settings-tab" data-settings-tab-btn="bwise">B-Wise Standards</button>
   </div>
 
   <div class="card pg-settings-intro" data-settings-tab="universal">
@@ -519,6 +535,20 @@
       </div>
     </div>
     <p>Big Tex uses category/model/item standards with footprint computed as bed length plus tongue. Stack constraint config remains active and feeds runtime zone length/clearance overlays and checks.</p>
+  </div>
+
+  <div class="card pg-settings-intro hidden" data-settings-tab="bwise">
+    <div class="card-header">
+      <div>
+        <div class="card-title">B-Wise Path Overview</div>
+      </div>
+    </div>
+    <p>B-Wise uses a dedicated SKU standards table with runtime behavior mapped to Big Tex logic for v1. Placeholder stack heights are marked in yellow until final heights are provided.</p>
+    <ul>
+      <li>Hierarchy: Major Category -> Family -> Old Model.</li>
+      <li>Identity key: Part Number (stored as Item #).</li>
+      <li>Footprint: computed as bed length plus tongue.</li>
+    </ul>
   </div>
 
   <div class="card pg-settings-section" data-settings-tab="universal">
@@ -906,6 +936,189 @@
     </div>
   </div>
 
+  <div class="card pg-settings-section hidden" data-settings-tab="bwise">
+    <div class="card-header">
+      <div>
+        <div class="card-title">B-Wise SKU Standards</div>
+        <div class="card-subtitle">Major Category -> Family -> Old Model hierarchy. Part # remains the SKU identity key.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+        <span class="settings-pill warn">Placeholder stack heights highlighted</span>
+        <span class="settings-pill">Total SKUs: {{ bw_skus|length }}</span>
+        <input type="text" id="bw-sku-search" class="form-control" placeholder="Filter category, family, old model, or part #..." style="width:260px" />
+        <div class="pj-bt-cheat-controls" aria-label="B-Wise cheat sheet hierarchy view">
+          <button type="button" class="cheat-view-btn" id="bw-collapse-models-btn">Models</button>
+          <button type="button" class="cheat-view-btn" id="bw-expand-items-btn">Items</button>
+        </div>
+      </div>
+    </div>
+
+    <form id="bw-add-sku-form" class="sku-add-shell">
+      <p class="sku-add-title">Add or Update B-Wise SKU</p>
+      <div class="sku-add-row bw">
+        <div class="sku-add-col">
+          <label for="bw-add-category">Major Category *</label>
+          <input id="bw-add-category" name="mcat" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bw-add-family">Family *</label>
+          <input id="bw-add-family" name="model" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bw-add-old-model">Old Model *</label>
+          <input id="bw-add-old-model" name="old_model" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bw-add-item-number">Part # *</label>
+          <input id="bw-add-item-number" name="item_number" type="text" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bw-add-bed-length">Bed Length (ft) *</label>
+          <input id="bw-add-bed-length" name="bed_length" type="number" min="0.25" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bw-add-tongue">Tongue (ft) *</label>
+          <input id="bw-add-tongue" name="tongue" type="number" min="0" step="0.25" class="form-control" required />
+        </div>
+        <div class="sku-add-col">
+          <label>Footprint (ft)</label>
+          <div id="bw-add-footprint" class="sku-add-readonly">0.0</div>
+        </div>
+        <div class="sku-add-col">
+          <label for="bw-add-stack-height">Stack Height (ft) *</label>
+          <input id="bw-add-stack-height" name="stack_height" type="number" min="0.25" step="0.25" class="form-control" value="2.0" required />
+        </div>
+        <div class="sku-add-col">
+          <label for="bw-add-placeholder">Placeholder</label>
+          <input id="bw-add-placeholder" name="stack_height_is_placeholder" type="checkbox" class="form-control" style="min-height:34px;" checked />
+        </div>
+      </div>
+      <div class="sku-add-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Add SKU</button>
+        <button type="reset" class="btn btn-secondary btn-sm">Clear</button>
+      </div>
+      <div class="sku-add-help">B-Wise uses catalog-only inventory mode in v1 and Big Tex runtime constraints/rendering.</div>
+    </form>
+
+    <div class="table-wrap">
+      <table id="bw-sku-table">
+        <thead>
+          <tr class="pg-group-row">
+            <th colspan="4">SKU Identity / Display</th>
+            <th colspan="5">Stacking Dimensions</th>
+          </tr>
+          <tr>
+            <th class="pg-ident-col">Major Category</th>
+            <th class="pg-ident-col">Family</th>
+            <th class="pg-ident-col">Old Model</th>
+            <th class="pg-ident-col">Part #</th>
+            <th>Bed Length (ft)</th>
+            <th>Tongue (ft)</th>
+            <th>Footprint (ft)</th>
+            <th>Stack Height (ft)</th>
+            <th>Placeholder</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% if bw_skus %}
+          {% for category_group in bw_skus | groupby('mcat') %}
+            {% set category_label = category_group.grouper or 'Uncategorized' %}
+            {% set category_items = category_group.list %}
+            {% set category_models = category_items | groupby('model') | list %}
+            <tr class="group-row bw-category-row"
+                data-bw-category="{{ category_label }}"
+                data-search="{{ category_label }}">
+              <td colspan="9">
+                <button type="button" class="group-toggle" data-bw-toggle-category="{{ category_label }}" aria-expanded="true">
+                  <span class="group-left">
+                    <span class="group-caret open" data-bw-caret></span>
+                    <span class="group-label">{{ category_label }}</span>
+                  </span>
+                  <span class="group-meta">{{ category_models | length }} families - {{ category_items | length }} items</span>
+                </button>
+              </td>
+            </tr>
+            {% for model_group in category_items | groupby('model') %}
+              {% set model_label = model_group.grouper or 'Unknown Family' %}
+              {% set model_items = model_group.list %}
+              <tr class="group-row model-row bw-model-row"
+                  data-bw-category="{{ category_label }}"
+                  data-bw-model="{{ model_label }}"
+                  data-search="{{ category_label }} {{ model_label }}">
+                <td colspan="9">
+                  <button type="button"
+                          class="group-toggle"
+                          data-bw-toggle-model="{{ category_label }}||{{ model_label }}"
+                          data-bw-category="{{ category_label }}"
+                          data-bw-model="{{ model_label }}"
+                          aria-expanded="false">
+                    <span class="group-left model">
+                      <span class="group-caret" data-bw-caret></span>
+                      <span class="group-label">{{ model_label }}</span>
+                    </span>
+                    <span class="group-meta">{{ model_items | length }} items</span>
+                  </button>
+                </td>
+              </tr>
+              {% for s in model_items %}
+              <tr class="bw-sku-row bw-item-row {% if s.stack_height_is_placeholder %}bw-placeholder-row{% endif %}"
+                  data-bw-item="{{ s.item_number }}"
+                  data-bw-category="{{ category_label }}"
+                  data-bw-model="{{ model_label }}"
+                  data-search="{{ s.item_number }} {{ s.model }} {{ s.old_model }} {{ s.mcat }}">
+                <td class="pg-ident-cell">
+                  <input type="text" class="editable-cell" style="min-width:130px"
+                         data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="mcat"
+                         value="{{ s.mcat or category_label }}" />
+                </td>
+                <td class="pg-ident-cell">
+                  <input type="text" class="editable-cell" style="min-width:130px"
+                         data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="model"
+                         value="{{ s.model or model_label }}" />
+                </td>
+                <td class="pg-ident-cell">
+                  <input type="text" class="editable-cell" style="min-width:130px"
+                         data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="old_model"
+                         value="{{ s.old_model or '' }}" />
+                </td>
+                <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
+                <td>
+                  <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                         data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="bed_length"
+                         value="{{ s.bed_length or '' }}" />
+                </td>
+                <td>
+                  <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                         data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="tongue"
+                         value="{{ s.tongue or '' }}" />
+                </td>
+                <td class="td-mono bw-footprint-cell"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+                <td>
+                  <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                         data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="stack_height"
+                         value="{{ s.stack_height or '' }}" />
+                </td>
+                <td style="text-align:center;">
+                  <input type="checkbox" class="editable-check"
+                         data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="stack_height_is_placeholder"
+                         {% if s.stack_height_is_placeholder %}checked{% endif %} />
+                </td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="9" style="text-align:center;color:var(--text-secondary);padding:14px;">
+              No B-Wise SKUs loaded yet. Use Add SKU to create the first entry.
+            </td>
+          </tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="card pg-settings-section hidden" data-settings-tab="bt">
     <div class="card-header">
       <div>
@@ -1134,6 +1347,11 @@ const BT_ADD_SKU_FORM = document.getElementById('bt-add-sku-form');
 const BT_COLLAPSE_MODELS_BTN = document.getElementById('bt-collapse-models-btn');
 const BT_EXPAND_ITEMS_BTN = document.getElementById('bt-expand-items-btn');
 
+const BW_SEARCH = document.getElementById('bw-sku-search');
+const BW_ADD_SKU_FORM = document.getElementById('bw-add-sku-form');
+const BW_COLLAPSE_MODELS_BTN = document.getElementById('bw-collapse-models-btn');
+const BW_EXPAND_ITEMS_BTN = document.getElementById('bw-expand-items-btn');
+
 let pjHierarchyMode = 'models';
 const pjCategoryExpanded = new Map();
 const pjModelExpanded = new Map();
@@ -1142,8 +1360,12 @@ let btHierarchyMode = 'models';
 const btCategoryExpanded = new Map();
 const btModelExpanded = new Map();
 
+let bwHierarchyMode = 'models';
+const bwCategoryExpanded = new Map();
+const bwModelExpanded = new Map();
+
 function setSettingsTab(tab) {
-  const activeTab = ['universal', 'pj', 'bt'].includes(tab) ? tab : 'universal';
+  const activeTab = ['universal', 'pj', 'bt', 'bwise'].includes(tab) ? tab : 'universal';
   SETTINGS_TAB_BTNS.forEach((btn) => {
     const isActive = btn.dataset.settingsTabBtn === activeTab;
     btn.classList.toggle('active', isActive);
@@ -1202,6 +1424,17 @@ async function saveField(table, pk, field, value, triggerRecompute) {
           });
         });
       }
+      if (data.recomputed_bwise) {
+        data.recomputed_bwise.forEach((r) => {
+          document.querySelectorAll('.bw-sku-row').forEach((row) => {
+            if ((row.dataset.bwItem || '') !== String(r.item_number || '')) return;
+            const cell = row.querySelector('.bw-footprint-cell');
+            if (cell) {
+              cell.innerHTML = '<strong>' + String(r.total_footprint ?? 0) + "'</strong>";
+            }
+          });
+        });
+      }
       setTimeout(() => setStatus('', ''), 2500);
     } else {
       setStatus('Error', 'error');
@@ -1223,6 +1456,12 @@ document.querySelectorAll('.editable-cell').forEach((input) => {
 document.querySelectorAll('.editable-check').forEach((cb) => {
   cb.addEventListener('change', function () {
     saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.checked ? 1 : 0, null);
+    if (this.dataset.table === 'bwise_skus' && this.dataset.field === 'stack_height_is_placeholder') {
+      const row = this.closest('.bw-sku-row');
+      if (row) {
+        row.classList.toggle('bw-placeholder-row', this.checked);
+      }
+    }
   });
 });
 
@@ -1564,6 +1803,172 @@ if (BT_SEARCH) {
   });
 }
 
+function bwModelKey(category, model) {
+  return `${String(category || '')}||${String(model || '')}`;
+}
+
+function bwUpdateViewButtons() {
+  if (BW_COLLAPSE_MODELS_BTN) {
+    BW_COLLAPSE_MODELS_BTN.classList.toggle('active', bwHierarchyMode === 'models');
+  }
+  if (BW_EXPAND_ITEMS_BTN) {
+    BW_EXPAND_ITEMS_BTN.classList.toggle('active', bwHierarchyMode === 'items');
+  }
+}
+
+function bwInitializeHierarchyState() {
+  document.querySelectorAll('.bw-category-row').forEach((row) => {
+    const category = String(row.dataset.bwCategory || '');
+    if (!bwCategoryExpanded.has(category)) {
+      bwCategoryExpanded.set(category, true);
+    }
+  });
+  document.querySelectorAll('.bw-model-row').forEach((row) => {
+    const category = String(row.dataset.bwCategory || '');
+    const model = String(row.dataset.bwModel || '');
+    const key = bwModelKey(category, model);
+    if (!bwModelExpanded.has(key)) {
+      bwModelExpanded.set(key, false);
+    }
+  });
+}
+
+function bwApplyHierarchy(rawQuery) {
+  const query = String(rawQuery || '').trim().toLowerCase();
+  const categoryRows = Array.from(document.querySelectorAll('.bw-category-row'));
+  const modelRows = Array.from(document.querySelectorAll('.bw-model-row'));
+  const itemRows = Array.from(document.querySelectorAll('.bw-item-row'));
+
+  modelRows.forEach((modelRow) => {
+    const category = String(modelRow.dataset.bwCategory || '');
+    const model = String(modelRow.dataset.bwModel || '');
+    const key = bwModelKey(category, model);
+    const categoryOpen = query ? true : (bwCategoryExpanded.get(category) !== false);
+    const relatedItems = itemRows.filter(
+      (itemRow) =>
+        String(itemRow.dataset.bwCategory || '') === category &&
+        String(itemRow.dataset.bwModel || '') === model
+    );
+    const matchingItems = relatedItems.filter((itemRow) => {
+      const search = String(itemRow.dataset.search || '').toLowerCase();
+      return !query || search.includes(query);
+    });
+    const modelMatches = !query || String(modelRow.dataset.search || '').toLowerCase().includes(query);
+    const modelVisible = query ? (modelMatches || matchingItems.length > 0) : true;
+    const modelOpen = query ? matchingItems.length > 0 : (bwModelExpanded.get(key) === true);
+
+    modelRow.classList.toggle('hidden-row', !modelVisible || !categoryOpen);
+    const modelToggle = modelRow.querySelector('[data-bw-toggle-model]');
+    const modelCaret = modelRow.querySelector('[data-bw-caret]');
+    if (modelToggle) {
+      modelToggle.setAttribute('aria-expanded', modelOpen ? 'true' : 'false');
+    }
+    if (modelCaret) {
+      modelCaret.classList.toggle('open', modelOpen);
+    }
+
+    relatedItems.forEach((itemRow) => {
+      const search = String(itemRow.dataset.search || '').toLowerCase();
+      const itemVisible = !query || search.includes(query);
+      const showRow = modelVisible && categoryOpen && modelOpen && itemVisible;
+      itemRow.classList.toggle('hidden-row', !showRow);
+    });
+  });
+
+  categoryRows.forEach((categoryRow) => {
+    const category = String(categoryRow.dataset.bwCategory || '');
+    const categoryOpen = query ? true : (bwCategoryExpanded.get(category) !== false);
+    const relatedModelRows = modelRows.filter(
+      (row) => String(row.dataset.bwCategory || '') === category
+    );
+    const categoryVisible = query
+      ? relatedModelRows.some((row) => !row.classList.contains('hidden-row'))
+      : true;
+    categoryRow.classList.toggle('hidden-row', !categoryVisible);
+
+    const categoryToggle = categoryRow.querySelector('[data-bw-toggle-category]');
+    const categoryCaret = categoryRow.querySelector('[data-bw-caret]');
+    if (categoryToggle) {
+      categoryToggle.setAttribute('aria-expanded', categoryOpen ? 'true' : 'false');
+    }
+    if (categoryCaret) {
+      categoryCaret.classList.toggle('open', categoryOpen);
+    }
+
+    if (!query && !categoryOpen) {
+      relatedModelRows.forEach((modelRow) => {
+        modelRow.classList.add('hidden-row');
+      });
+      itemRows.forEach((itemRow) => {
+        if (String(itemRow.dataset.bwCategory || '') === category) {
+          itemRow.classList.add('hidden-row');
+        }
+      });
+    }
+  });
+
+  bwUpdateViewButtons();
+}
+
+function bwSetHierarchyMode(mode) {
+  bwHierarchyMode = mode === 'items' ? 'items' : 'models';
+  document.querySelectorAll('.bw-category-row').forEach((row) => {
+    const category = String(row.dataset.bwCategory || '');
+    bwCategoryExpanded.set(category, true);
+  });
+  document.querySelectorAll('.bw-model-row').forEach((row) => {
+    const category = String(row.dataset.bwCategory || '');
+    const model = String(row.dataset.bwModel || '');
+    bwModelExpanded.set(bwModelKey(category, model), bwHierarchyMode === 'items');
+  });
+  bwApplyHierarchy(BW_SEARCH ? BW_SEARCH.value : '');
+}
+
+function bwBindHierarchyControls() {
+  bwInitializeHierarchyState();
+
+  if (BW_COLLAPSE_MODELS_BTN && BW_COLLAPSE_MODELS_BTN.dataset.bound !== '1') {
+    BW_COLLAPSE_MODELS_BTN.dataset.bound = '1';
+    BW_COLLAPSE_MODELS_BTN.addEventListener('click', () => bwSetHierarchyMode('models'));
+  }
+  if (BW_EXPAND_ITEMS_BTN && BW_EXPAND_ITEMS_BTN.dataset.bound !== '1') {
+    BW_EXPAND_ITEMS_BTN.dataset.bound = '1';
+    BW_EXPAND_ITEMS_BTN.addEventListener('click', () => bwSetHierarchyMode('items'));
+  }
+
+  document.querySelectorAll('[data-bw-toggle-category]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const category = String(btn.dataset.bwToggleCategory || '');
+      const current = bwCategoryExpanded.get(category) !== false;
+      bwCategoryExpanded.set(category, !current);
+      bwApplyHierarchy(BW_SEARCH ? BW_SEARCH.value : '');
+    });
+  });
+
+  document.querySelectorAll('[data-bw-toggle-model]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const category = String(btn.dataset.bwCategory || '');
+      const model = String(btn.dataset.bwModel || '');
+      const key = bwModelKey(category, model);
+      const current = bwModelExpanded.get(key) === true;
+      bwModelExpanded.set(key, !current);
+      bwApplyHierarchy(BW_SEARCH ? BW_SEARCH.value : '');
+    });
+  });
+
+  bwSetHierarchyMode('models');
+}
+
+if (BW_SEARCH) {
+  BW_SEARCH.addEventListener('input', function () {
+    bwApplyHierarchy(this.value);
+  });
+}
+
 function parseOptionalNumber(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -1626,6 +2031,22 @@ function bindSkuAddReadOnlyCalculations() {
     });
     BT_ADD_SKU_FORM.addEventListener('reset', () => setTimeout(refreshBt, 0));
     refreshBt();
+  }
+
+  if (BW_ADD_SKU_FORM) {
+    const bedInput = BW_ADD_SKU_FORM.querySelector('[name="bed_length"]');
+    const tongueInput = BW_ADD_SKU_FORM.querySelector('[name="tongue"]');
+    const fpEl = document.getElementById('bw-add-footprint');
+    const refreshBw = () => {
+      const bed = parseOptionalNumber(bedInput ? bedInput.value : null) || 0;
+      const tongue = parseOptionalNumber(tongueInput ? tongueInput.value : null) || 0;
+      if (fpEl) fpEl.textContent = formatFeet(bed + tongue);
+    };
+    [bedInput, tongueInput].forEach((el) => {
+      if (el) el.addEventListener('input', refreshBw);
+    });
+    BW_ADD_SKU_FORM.addEventListener('reset', () => setTimeout(refreshBw, 0));
+    refreshBw();
   }
 }
 
@@ -1705,8 +2126,48 @@ if (BT_ADD_SKU_FORM) {
   });
 }
 
+if (BW_ADD_SKU_FORM) {
+  BW_ADD_SKU_FORM.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const fd = new FormData(BW_ADD_SKU_FORM);
+    const payload = {
+      item_number: String(fd.get('item_number') || '').trim(),
+      model: String(fd.get('model') || '').trim(),
+      mcat: String(fd.get('mcat') || '').trim(),
+      old_model: String(fd.get('old_model') || '').trim(),
+      bed_length: parseOptionalNumber(fd.get('bed_length')),
+      tongue: parseOptionalNumber(fd.get('tongue')),
+      stack_height: parseOptionalNumber(fd.get('stack_height')),
+      stack_height_is_placeholder: fd.get('stack_height_is_placeholder') === 'on',
+    };
+    setStatus('Saving...', 'saving');
+    try {
+      const resp = await fetch("{{ url_for('prograde.api_add_bwise_sku') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'Add SKU failed');
+      }
+      if (data.sessions_flagged) {
+        STALE_ALERT.classList.add('visible');
+      }
+      const result = data.result || {};
+      setStatus('Saved OK', 'saved');
+      showToast(`${result.created ? 'Added' : 'Updated'} B-Wise SKU ${result.item_number || payload.item_number}`, 'success');
+      setTimeout(() => location.reload(), 300);
+    } catch (e) {
+      setStatus('Error', 'error');
+      showToast('B-Wise add SKU failed: ' + e.message, 'error');
+    }
+  });
+}
+
 pjBindHierarchyControls();
 btBindHierarchyControls();
+bwBindHierarchyControls();
 bindSkuAddReadOnlyCalculations();
 
 SETTINGS_TAB_BTNS.forEach((btn) => {
@@ -1716,7 +2177,7 @@ SETTINGS_TAB_BTNS.forEach((btn) => {
 let initialSettingsTab = 'universal';
 try {
   const savedTab = localStorage.getItem('prograde_settings_tab');
-  if (savedTab === 'universal' || savedTab === 'pj' || savedTab === 'bt') {
+  if (savedTab === 'universal' || savedTab === 'pj' || savedTab === 'bt' || savedTab === 'bwise') {
     initialSettingsTab = savedTab;
   }
 } catch (e) {}

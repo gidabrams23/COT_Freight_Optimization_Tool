@@ -1,7 +1,7 @@
 # Brand-level constants and structural definitions.
 # These are the defaults; live values are stored in carrier_configs and editable in Settings.
 
-BRANDS = ["pj", "bigtex"]
+BRANDS = ["pj", "bigtex", "bwise"]
 
 # Default carrier geometry (mirrors seed data in seed.py)
 CARRIER_DEFAULTS = {
@@ -50,6 +50,7 @@ CARRIER_DEFAULTS = {
 DECK_ZONES = {
     "pj": ["lower_deck", "upper_deck"],
     "bigtex": ["lower_deck", "upper_deck"],
+    "bwise": ["lower_deck", "upper_deck"],
 }
 
 ZONE_LABELS = {

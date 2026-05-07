@@ -19,12 +19,22 @@ from .services.pj_rules import (
 )
 from .services.bt_rules import compute_bt_length_metrics
 from .services.inventory_gap_finder import build_inventory_gap_data
+from .services.bt_sql_refresh import (
+    BtSqlRefreshError,
+    build_bt_inventory_upload_payload,
+    is_bt_sql_refresh_configured,
+)
+from .services.pj_sql_refresh import (
+    PjSqlRefreshError,
+    build_pj_inventory_upload_payload,
+    is_pj_sql_refresh_configured,
+)
 
 prograde_bp = Blueprint("prograde", __name__, url_prefix="/prograde", template_folder="templates", static_folder="static")
 _TRAILER_SHAPE_TEMPLATE_NAME = "prograde/macros/trailer_shapes.html"
 _TRAILER_SHAPE_SOURCE_PATH = Path(__file__).resolve().parents[2] / "trailer_shapes.html"
 _ALLOWED_ORDER_UPLOAD_EXTENSIONS = {".xlsx", ".xlsm", ".csv"}
-_VALID_BRANDS = {"pj", "bigtex"}
+_VALID_BRANDS = {"pj", "bigtex", "bwise"}
 _PJ_DUMP_CATEGORIES = {
     "dump_lowside",
     "dump_highside_3ft",
@@ -76,6 +86,7 @@ _GOOSENECK_FLUSH_DUMP_STACK_HEIGHT_FT = 6.0
 SESSION_PROFILE_ID_KEY = "prograde_profile_id"
 SESSION_PROFILE_NAME_KEY = "prograde_profile_name"
 SESSION_PROFILE_IS_ADMIN_KEY = "prograde_profile_is_admin"
+SESSION_PROFILE_DEFAULT_BRAND_KEY = "prograde_profile_default_brand"
 SESSION_ACCOUNT_NOTICE_KEY = "prograde_account_notice"
 COT_SESSION_PROFILE_NAME_KEY = "profile_name"
 COT_SESSION_ROLE_KEY = "role"
@@ -389,6 +400,9 @@ def _selected_brand(default="bigtex"):
     query_brand = (request.args.get("brand") or "").strip().lower()
     if query_brand in _VALID_BRANDS:
         return query_brand
+    form_brand = (request.form.get("brand") or "").strip().lower()
+    if form_brand in _VALID_BRANDS:
+        return form_brand
     fallback_brand = (default or "").strip().lower()
     if fallback_brand in _VALID_BRANDS:
         return fallback_brand
@@ -404,14 +418,21 @@ def _safe_next_url(value):
 
 def _empty_inventory_gap_data(*, brand, inventory_whse=""):
     selected = str(inventory_whse or "").strip().upper() or "ALL"
-    if brand in {"bigtex", "pj"}:
+    if brand in {"bigtex", "pj", "bwise"}:
         return {
             "rows": [],
             "stack_slots": [],
+            "total_inventory_qty": 0,
             "warehouse_options": [{"value": "ALL", "label": "ALL"}],
             "selected_warehouse": selected,
         }
-    return {"rows": [], "stack_slots": [], "warehouse_options": [], "selected_warehouse": "ALL"}
+    return {
+        "rows": [],
+        "stack_slots": [],
+        "total_inventory_qty": 0,
+        "warehouse_options": [],
+        "selected_warehouse": "ALL",
+    }
 
 
 def _set_account_notice(message, level="info"):
@@ -437,11 +458,17 @@ def _consume_account_notice():
 def _profile_to_view(profile):
     profile_map = dict(profile or {})
     is_admin = bool(profile_map.get("is_admin"))
+    default_brand = str(profile_map.get("default_brand") or "").strip().lower()
+    if default_brand not in _VALID_BRANDS:
+        default_brand = "bigtex"
+    brand_label = "PJ" if default_brand == "pj" else ("B-Wise" if default_brand == "bwise" else "Big Tex")
     return {
         "id": profile_map.get("id"),
         "name": (profile_map.get("name") or "Unnamed").strip() or "Unnamed",
         "is_admin": is_admin,
         "role_label": "Administrator Account" if is_admin else "Planner Account",
+        "default_brand": default_brand,
+        "default_brand_label": brand_label,
     }
 
 
@@ -454,11 +481,13 @@ def _get_active_profile():
         session.pop(SESSION_PROFILE_ID_KEY, None)
         session.pop(SESSION_PROFILE_NAME_KEY, None)
         session.pop(SESSION_PROFILE_IS_ADMIN_KEY, None)
+        session.pop(SESSION_PROFILE_DEFAULT_BRAND_KEY, None)
         return None
     view = _profile_to_view(profile)
     session[SESSION_PROFILE_ID_KEY] = int(view["id"])
     session[SESSION_PROFILE_NAME_KEY] = view["name"]
     session[SESSION_PROFILE_IS_ADMIN_KEY] = 1 if view["is_admin"] else 0
+    session[SESSION_PROFILE_DEFAULT_BRAND_KEY] = view["default_brand"]
     return view
 
 
@@ -467,7 +496,18 @@ def _set_active_profile(profile):
     session[SESSION_PROFILE_ID_KEY] = int(view["id"])
     session[SESSION_PROFILE_NAME_KEY] = view["name"]
     session[SESSION_PROFILE_IS_ADMIN_KEY] = 1 if view["is_admin"] else 0
+    session[SESSION_PROFILE_DEFAULT_BRAND_KEY] = view["default_brand"]
     return view
+
+
+def _active_profile_default_brand(active_profile, fallback="bigtex"):
+    brand = str((active_profile or {}).get("default_brand") or "").strip().lower()
+    if brand in _VALID_BRANDS:
+        return brand
+    stored = str(session.get(SESSION_PROFILE_DEFAULT_BRAND_KEY) or "").strip().lower()
+    if stored in _VALID_BRANDS:
+        return stored
+    return fallback if fallback in _VALID_BRANDS else "bigtex"
 
 
 def _cot_profile_hint():
@@ -633,7 +673,7 @@ def _normalize_zone_for_brand(brand: str, zone: str, *, carrier=None, carrier_ty
     if not zone_value:
         return zone_value
     brand_key = (brand or "").strip().lower()
-    if brand_key == "bigtex":
+    if brand_key in {"bigtex", "bwise"}:
         legacy_map = {
             "stack_1": "lower_deck",
             "stack_2": "lower_deck",
@@ -733,14 +773,18 @@ def _collapse_upper_deck_columns_to_lower_deck_no_collision(session_id):
 
 # -- Helpers ---------------------------------------------------------------
 
-def _build_bt_sku_map(item_numbers=None):
+def _build_bt_sku_map(item_numbers=None, *, brand="bigtex"):
     if item_numbers:
         normalized = {
             str(item).strip()
             for item in item_numbers
             if str(item or "").strip()
         }
+        if str(brand or "").strip().lower() == "bwise":
+            return db.get_bwise_skus_by_item_numbers(normalized)
         return db.get_bigtex_skus_by_item_numbers(normalized)
+    if str(brand or "").strip().lower() == "bwise":
+        return {r["item_number"]: dict(r) for r in db.get_bwise_skus()}
     return {r["item_number"]: dict(r) for r in db.get_bigtex_skus()}
 
 
@@ -836,7 +880,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None, pj_sku_ma
         p["stack_alignment"] = _extract_stack_alignment_override_reason(p.get("override_reason"))
         p["stack_anchor_mode"] = _extract_stack_anchor_override_reason(p.get("override_reason"))
         p["column_alignment"] = _extract_column_alignment_override_reason(p.get("override_reason"))
-    elif brand == "bigtex":
+    elif brand in {"bigtex", "bwise"}:
         bt_gooseneck_profile = _bt_sku_is_gooseneck_profile(sku)
         bt_deck_profile = _bt_render_deck_profile(sku)
         p["bed_length"] = round((sku.get("bed_length") or 0), 2)
@@ -893,7 +937,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None, pj_sku_ma
             p["height"] = _as_float(ref.get("gn_axle_dropped_ft"), top_height)
         else:
             p["height"] = top_height if top_height > 0 else mid_height
-    elif brand == "bigtex":
+    elif brand in {"bigtex", "bwise"}:
         p["height"] = sku.get("stack_height") or 0
     else:
         p["height"] = 0
@@ -2408,7 +2452,7 @@ def _assign_unit_sequence_numbers(enriched_positions):
 
 
 def _annotate_dump_nesting_candidates(zone_cols, *, brand):
-    if brand not in {"pj", "bigtex"}:
+    if brand not in {"pj", "bigtex", "bwise"}:
         return
     for cols in (zone_cols or {}).values():
         for col in (cols or {}).values():
@@ -2446,7 +2490,12 @@ def _annotate_dump_nesting_candidates(zone_cols, *, brand):
 def _format_session_display_id(session):
     session_dict = dict(session or {})
     brand_key = (session_dict.get("brand") or "").strip().lower()
-    prefix = "PJ" if brand_key == "pj" else "BT"
+    if brand_key == "pj":
+        prefix = "PJ"
+    elif brand_key == "bwise":
+        prefix = "BW"
+    else:
+        prefix = "BT"
     created_at_raw = (session_dict.get("created_at") or "").strip()
     date_label = "00-00-00"
     if created_at_raw:
@@ -2773,7 +2822,7 @@ def _render_export_pdf_bytes(*, session_row, carrier, canvas, session_display_id
             draw.ellipse((plus_cx - plus_r, plus_cy - plus_r, plus_cx + plus_r, plus_cy + plus_r), fill=(245, 158, 11), outline=(180, 83, 9), width=1)
             _draw_centered_text(draw, (plus_cx, plus_cy), "+", font=f_unit_plus, fill=(255, 255, 255))
 
-        if brand == "bigtex":
+        if brand in {"bigtex", "bwise"}:
             sku_label = str(pos.get("item_number") or pos.get("item_code") or "").strip().upper()
         else:
             sku_label = str(pos.get("item_code") or pos.get("item_number") or "").strip().upper()
@@ -3202,6 +3251,40 @@ def _build_pj_picker_skus():
     return picker_rows
 
 
+def _build_bwise_picker_skus():
+    picker_rows = []
+    rows = [dict(row) for row in db.get_bwise_skus()]
+    old_model_geometry = {}
+    for sku in rows:
+        old_model_key = str(sku.get("old_model") or "").strip().upper()
+        if not old_model_key:
+            continue
+        old_model_geometry.setdefault(old_model_key, set()).add(
+            (
+                round(_as_float(sku.get("bed_length"), 0.0), 3),
+                round(_as_float(sku.get("tongue"), 0.0), 3),
+                round(_as_float(sku.get("total_footprint"), 0.0), 3),
+            )
+        )
+    conflict_old_models = {
+        old_model
+        for old_model, geometry_set in old_model_geometry.items()
+        if len(geometry_set) > 1
+    }
+
+    for sku in rows:
+        old_model = str(sku.get("old_model") or "").strip()
+        item_number = str(sku.get("item_number") or "").strip().upper()
+        old_model_key = old_model.upper()
+        display_item = old_model or item_number
+        if old_model_key in conflict_old_models and item_number:
+            display_item = f"{display_item} ({item_number})"
+        sku["item_display"] = display_item
+        sku["picker_item_display"] = display_item
+        picker_rows.append(sku)
+    return picker_rows
+
+
 def _build_bt_inventory_gap_data(total_footprint, carrier_total_length):
     remaining_ft_raw = round(float(carrier_total_length or 0) - float(total_footprint or 0), 2)
     remaining_ft = max(remaining_ft_raw, 0.0)
@@ -3287,7 +3370,7 @@ def _build_canvas_data(
     """Build all zone/column data needed for the load canvas."""
     # Keep non-gooseneck lower-deck layers in a single flush lane for both
     # BT and PJ, then let right-pack logic move the full column footprint.
-    uniform_non_gooseneck_lane = brand in {"bigtex", "pj"}
+    uniform_non_gooseneck_lane = brand in {"bigtex", "pj", "bwise"}
     carrier_map = dict(carrier) if carrier else {}
     carrier_type = str(
         carrier_map.get("carrier_type")
@@ -3297,13 +3380,13 @@ def _build_canvas_data(
     ground_pull_mode = _is_ground_pull_carrier(carrier=carrier_map, carrier_type=carrier_type)
     height_ref  = db.get_pj_height_ref_dict() if brand == "pj" else {}
     bt_item_numbers = set()
-    if brand == "bigtex":
+    if brand in {"bigtex", "bwise"}:
         for p in positions:
             item_number = str((dict(p) if p is not None else {}).get("item_number") or "").strip()
             if item_number:
                 bt_item_numbers.add(item_number)
-    bt_sku_map  = _build_bt_sku_map(bt_item_numbers) if brand == "bigtex" else None
-    bt_configs  = {r["config_id"]: dict(r) for r in db.get_bt_stack_configs()} if brand == "bigtex" else {}
+    bt_sku_map  = _build_bt_sku_map(bt_item_numbers, brand=brand) if brand in {"bigtex", "bwise"} else None
+    bt_configs  = {r["config_id"]: dict(r) for r in db.get_bt_stack_configs()} if brand in {"bigtex", "bwise"} else {}
     pj_sku_map = {}
     if brand == "pj":
         pj_item_numbers = {
@@ -3447,7 +3530,7 @@ def _build_canvas_data(
                         else:
                             p["deck_component_height_ft"] = stacked_height_ft
                             p["deck_height_ft"] = stacked_height_ft
-            if brand in {"pj", "bigtex"} and zone_cols[z][seq]:
+            if brand in {"pj", "bigtex", "bwise"} and zone_cols[z][seq]:
                 col_rows = zone_cols[z][seq]
                 for idx in range(1, len(col_rows)):
                     lower = col_rows[idx - 1]
@@ -3467,7 +3550,7 @@ def _build_canvas_data(
             upper_zone="upper_deck",
         )
         _apply_dump_door_tongue_stuffing(zone_cols, lower_zone="lower_deck", upper_zone="upper_deck")
-    elif brand == "bigtex":
+    elif brand in {"bigtex", "bwise"}:
         _apply_bt_same_direction_tongue_stuffing(zone_cols)
 
     lower_left_overhang_ft = 0.0
@@ -3498,7 +3581,7 @@ def _build_canvas_data(
                 col_heights[z] = cols
 
     # For BT: sum stack_height per stack column
-    elif brand == "bigtex":
+    elif brand in {"bigtex", "bwise"}:
         for z in zones:
             for seq, col in zone_cols[z].items():
                 # Nested units render inside dump hosts and do not add to vertical stack.
@@ -3527,7 +3610,7 @@ def _build_canvas_data(
             upper_cap_ft=float(z_caps.get("upper_deck") or 12.0),
             height_ref=height_ref,
         )
-    elif brand == "bigtex":
+    elif brand in {"bigtex", "bwise"}:
         bt_skus = bt_sku_map or {}
         length_metrics = compute_bt_length_metrics(
             enriched,
@@ -3544,7 +3627,7 @@ def _build_canvas_data(
         # Step-seam blocked distance is retained separately in zone_blocked_ft for rule diagnostics.
 
     # BT: fill in caps from stack configs
-    if brand == "bigtex" and not ground_pull_mode:
+    if brand in {"bigtex", "bwise"} and not ground_pull_mode:
         for z in zones:
             # Use utility_3stack caps as default display cap
             cfg_key = f"utility_3stack_{z}"
@@ -3555,7 +3638,7 @@ def _build_canvas_data(
     clearances = _zone_clearances(carrier_map)
 
     # BT height caps
-    if brand == "bigtex" and not ground_pull_mode:
+    if brand in {"bigtex", "bwise"} and not ground_pull_mode:
         for z in zones:
             cfg_key = f"utility_3stack_{z}"
             if cfg_key in bt_configs and bt_configs[cfg_key].get("max_height_ft"):
@@ -3768,7 +3851,7 @@ def _build_canvas_data(
         # cab end - giving visual clarity when the user drops on the left zone.
         lower_seqs_sorted = sorted((zone_cols.get(lower_zone) or {}).keys())
         _skip_right_snap = False
-        if brand == "bigtex" and lower_seqs_sorted:
+        if brand in {"bigtex", "bwise"} and lower_seqs_sorted:
             _lower_base_rows = []
             for _seq in lower_seqs_sorted:
                 _col = (zone_cols.get(lower_zone) or {}).get(_seq) or []
@@ -4628,7 +4711,7 @@ def _build_canvas_data(
         "show_upper_zone": bool(show_upper_zone),
     }
 
-    if brand in {"pj", "bigtex"} and length_metrics:
+    if brand in {"pj", "bigtex", "bwise"} and length_metrics:
         total_footprint = round(float(length_metrics.get("effective_total_ft") or 0.0), 2)
     else:
         total_footprint = sum(zone_lengths.values())
@@ -4725,10 +4808,23 @@ def _build_canvas_data(
 
 # -- Page Routes -----------------------------------------------------------
 
+def _form_is_checked(name):
+    value = str(request.form.get(name) or "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _ensure_account_admin_or_redirect(selected_brand):
+    active_profile = _get_or_auto_active_profile()
+    if active_profile and bool(active_profile.get("is_admin")):
+        return active_profile, None
+    _set_account_notice("Only administrator accounts can manage ProGrade profiles.", level="error")
+    return active_profile, redirect(url_for("prograde.account_landing", brand=selected_brand))
+
+
 @prograde_bp.route("/")
 def index():
-    selected_brand = _selected_brand(default="bigtex")
     active_profile = _get_or_auto_active_profile()
+    selected_brand = _selected_brand(default=_active_profile_default_brand(active_profile))
     if active_profile:
         return redirect(url_for("prograde.sessions", brand=selected_brand))
     return account_landing()
@@ -4736,15 +4832,32 @@ def index():
 
 @prograde_bp.route("/account")
 def account_landing():
-    selected_brand = _selected_brand(default="bigtex")
     active_profile = _get_or_auto_active_profile()
+    selected_brand = _selected_brand(default=_active_profile_default_brand(active_profile))
     account_notice = _consume_account_notice()
     accounts = [_profile_to_view(row) for row in db.list_access_profiles()]
-    next_url = _safe_next_url(request.args.get("next")) or url_for("prograde.sessions", brand=selected_brand)
+    can_manage_accounts = bool(active_profile and active_profile.get("is_admin"))
+    edit_profile = None
+    edit_id_raw = request.args.get("edit_id")
+    if can_manage_accounts and edit_id_raw:
+        try:
+            edit_id = int(edit_id_raw)
+        except (TypeError, ValueError):
+            edit_id = None
+        if edit_id:
+            edit_row = db.get_access_profile(edit_id)
+            if edit_row:
+                edit_profile = _profile_to_view(edit_row)
+    next_url = _safe_next_url(request.args.get("next")) or url_for(
+        "prograde.sessions",
+        brand=_active_profile_default_brand(active_profile, selected_brand),
+    )
     return render_template(
         "prograde/account.html",
         accounts=accounts,
         active_profile=active_profile,
+        can_manage_accounts=can_manage_accounts,
+        edit_profile=edit_profile,
         account_notice=account_notice,
         selected_brand=selected_brand,
         next_url=next_url,
@@ -4753,8 +4866,8 @@ def account_landing():
 
 @prograde_bp.route("/sessions")
 def sessions():
-    selected_brand = _selected_brand(default="bigtex")
     active_profile = _get_or_auto_active_profile()
+    selected_brand = _selected_brand(default=_active_profile_default_brand(active_profile))
     if not active_profile:
         _set_account_notice("Select or create an account to continue.", level="warning")
         next_url = request.full_path if request.query_string else request.path
@@ -4815,6 +4928,7 @@ def account_select():
         _set_account_notice("Select a valid ProGrade account.", level="error")
         return redirect(url_for("prograde.account_landing", brand=selected_brand))
     selected = _set_active_profile(profile)
+    selected_brand = _active_profile_default_brand(selected, selected_brand)
     _set_account_notice(f"Using account: {selected['name']}", level="success")
     return redirect(next_url or url_for("prograde.sessions", brand=selected_brand))
 
@@ -4825,23 +4939,139 @@ def account_create():
     if selected_brand not in _VALID_BRANDS:
         selected_brand = _selected_brand(default="bigtex")
     next_url = _safe_next_url(request.form.get("next"))
+    requested_is_admin = _form_is_checked("is_admin")
+    request_manage_flow = str(request.form.get("manage_mode") or "").strip() == "1"
+    active_profile = _get_or_auto_active_profile()
+    can_manage_accounts = bool(active_profile and active_profile.get("is_admin"))
+    if request_manage_flow and not can_manage_accounts:
+        _set_account_notice("Only administrator accounts can manage ProGrade profiles.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+    if requested_is_admin and not can_manage_accounts:
+        _set_account_notice("Only administrator accounts can assign admin access.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+
+    default_brand = (request.form.get("default_brand") or "").strip().lower()
+    if default_brand not in _VALID_BRANDS:
+        default_brand = selected_brand
     name = (request.form.get("name") or "").strip()
     try:
-        profile_id = db.create_access_profile(name=name, is_admin=False)
+        profile_id = db.create_access_profile(
+            name=name,
+            is_admin=requested_is_admin and can_manage_accounts,
+            default_brand=default_brand,
+        )
     except ValueError as exc:
         _set_account_notice(str(exc), level="error")
         return redirect(url_for("prograde.account_landing", brand=selected_brand))
     profile = db.get_access_profile(profile_id)
-    if profile:
+    if profile and (not request_manage_flow or not active_profile):
         _set_active_profile(profile)
     _set_account_notice(f"Account created: {name}", level="success")
-    return redirect(next_url or url_for("prograde.sessions", brand=selected_brand))
+    if request_manage_flow and can_manage_accounts:
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+    resolved_brand = _active_profile_default_brand(_profile_to_view(profile) if profile else None, selected_brand)
+    return redirect(next_url or url_for("prograde.sessions", brand=resolved_brand))
+
+
+@prograde_bp.route("/account/update", methods=["POST"])
+def account_update():
+    selected_brand = _selected_brand(default="bigtex")
+    active_profile, denied_redirect = _ensure_account_admin_or_redirect(selected_brand)
+    if denied_redirect:
+        return denied_redirect
+
+    profile_id_raw = request.form.get("profile_id")
+    name = (request.form.get("name") or "").strip()
+    is_admin = _form_is_checked("is_admin")
+    default_brand = (request.form.get("default_brand") or "").strip().lower()
+    if default_brand not in _VALID_BRANDS:
+        default_brand = selected_brand
+    try:
+        profile_id = int(profile_id_raw)
+    except (TypeError, ValueError):
+        _set_account_notice("Select a valid profile to update.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+
+    profiles = [_profile_to_view(row) for row in db.list_access_profiles()]
+    target = next((row for row in profiles if int(row.get("id") or 0) == profile_id), None)
+    if not target:
+        _set_account_notice("Profile not found.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+    admin_count = sum(1 for row in profiles if row.get("is_admin"))
+    if target.get("is_admin") and not is_admin and admin_count <= 1:
+        _set_account_notice("At least one administrator account is required.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand, edit_id=profile_id))
+
+    try:
+        db.update_access_profile(
+            profile_id,
+            name=name,
+            is_admin=is_admin,
+            default_brand=default_brand,
+        )
+    except ValueError as exc:
+        _set_account_notice(str(exc), level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand, edit_id=profile_id))
+
+    refreshed = db.get_access_profile(profile_id)
+    if refreshed and active_profile and int(active_profile.get("id") or 0) == profile_id:
+        _set_active_profile(refreshed)
+    _set_account_notice("Account profile updated.", level="success")
+    return redirect(url_for("prograde.account_landing", brand=selected_brand))
+
+
+@prograde_bp.route("/account/delete", methods=["POST"])
+def account_delete():
+    selected_brand = _selected_brand(default="bigtex")
+    active_profile, denied_redirect = _ensure_account_admin_or_redirect(selected_brand)
+    if denied_redirect:
+        return denied_redirect
+
+    profile_id_raw = request.form.get("profile_id")
+    try:
+        profile_id = int(profile_id_raw)
+    except (TypeError, ValueError):
+        _set_account_notice("Select a valid profile to delete.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+
+    profiles = [_profile_to_view(row) for row in db.list_access_profiles()]
+    if len(profiles) <= 1:
+        _set_account_notice("At least one profile must remain.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+    target = next((row for row in profiles if int(row.get("id") or 0) == profile_id), None)
+    if not target:
+        _set_account_notice("Profile not found.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+    admin_count = sum(1 for row in profiles if row.get("is_admin"))
+    if target.get("is_admin") and admin_count <= 1:
+        _set_account_notice("At least one administrator account is required.", level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+
+    current_profile_id = int(active_profile.get("id") or 0) if active_profile else 0
+    if profile_id == current_profile_id:
+        replacement = next(
+            (row for row in profiles if row.get("id") != profile_id and row.get("is_admin")),
+            None,
+        ) or next((row for row in profiles if row.get("id") != profile_id), None)
+        if replacement:
+            replacement_row = db.get_access_profile(replacement["id"])
+            if replacement_row:
+                _set_active_profile(replacement_row)
+
+    try:
+        db.delete_access_profile(profile_id)
+    except ValueError as exc:
+        _set_account_notice(str(exc), level="error")
+        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+
+    _set_account_notice("Account profile deleted.", level="success")
+    return redirect(url_for("prograde.account_landing", brand=selected_brand))
 
 
 @prograde_bp.route("/session/new", methods=["GET", "POST"])
 def session_new():
-    brand = _selected_brand(default="bigtex")
     active_profile = _get_or_auto_active_profile()
+    brand = _selected_brand(default=_active_profile_default_brand(active_profile))
     if not active_profile:
         _set_account_notice("Select an account before creating a load.", level="warning")
         next_url = request.full_path if request.query_string else request.path
@@ -4972,6 +5202,8 @@ def load_builder(session_id):
         skus = []
     elif brand == "pj":
         skus = _build_pj_picker_skus()
+    elif brand == "bwise":
+        skus = _build_bwise_picker_skus()
     else:
         skus = [dict(s) for s in db.get_bigtex_skus()]
     pj_offsets = db.get_pj_offsets_dict() if brand == "pj" else {}
@@ -4982,7 +5214,7 @@ def load_builder(session_id):
     }
     session_display_id = _format_session_display_id(session_row)
     selected_brand = _selected_brand(default=brand)
-    active_profile = None if partial_refresh else _get_or_auto_active_profile()
+    active_profile = _get_or_auto_active_profile()
     carrier_options = _carrier_type_options_for_brand(brand)
 
     if partial_refresh:
@@ -5127,6 +5359,7 @@ def settings():
             pj_measurement_offsets=[],
             pj_skus=[],
             bt_skus=[],
+            bw_skus=[],
             bt_stack_configs=[],
             bt_workbook_path=str(bt_workbook_path) if bt_workbook_path else "",
             pj_workbook_path=str(pj_workbook_path) if pj_workbook_path else "",
@@ -5144,6 +5377,7 @@ def settings():
         pj_measurement_offsets = pj_measurement_offsets,
         pj_skus                = pj_skus,
         bt_skus                = db.get_bigtex_skus(),
+        bw_skus                = db.get_bwise_skus(),
         bt_stack_configs       = db.get_bt_stack_configs(),
         bt_workbook_path       = str(bt_workbook_path) if bt_workbook_path else "",
         pj_workbook_path       = str(pj_workbook_path) if pj_workbook_path else "",
@@ -5277,6 +5511,62 @@ def api_upload_bt_inventory(session_id):
             pass
 
 
+@prograde_bp.route("/api/session/<session_id>/inventory/sql-refresh", methods=["POST"])
+def api_sql_refresh_inventory(session_id):
+    session, err = _session_or_404(session_id)
+    if err:
+        return err
+
+    brand = (session["brand"] or "").strip().lower()
+    if brand not in {"pj", "bigtex"}:
+        return _json_error("SQL refresh is only supported for PJ and Big Tex sessions.", 400)
+
+    active_profile = _get_or_auto_active_profile()
+    if not active_profile or not bool(active_profile.get("is_admin")):
+        return _json_error("Only administrator accounts can run SQL refresh.", 403)
+
+    if brand == "pj":
+        if not is_pj_sql_refresh_configured():
+            return _json_error("PJ SQL refresh is not configured.", 400)
+        temp_path = Path(tempfile.gettempdir()) / f"prograde_pj_sql_inventory_{uuid.uuid4().hex}.csv"
+    else:
+        if not is_bt_sql_refresh_configured():
+            return _json_error("Big Tex SQL refresh is not configured.", 400)
+        temp_path = Path(tempfile.gettempdir()) / f"prograde_bigtex_sql_inventory_{uuid.uuid4().hex}.csv"
+
+    try:
+        if brand == "pj":
+            payload = build_pj_inventory_upload_payload()
+        else:
+            payload = build_bt_inventory_upload_payload()
+        temp_path.write_text(payload.file_stream.getvalue(), encoding="utf-8", newline="")
+        if brand == "pj":
+            result = db.import_pj_inventory_report(workbook_path=temp_path)
+            result["source_format"] = "pj_sql_inventory"
+        else:
+            result = db.import_bigtex_inventory_orders_workbook(workbook_path=temp_path, sheet_name="All.Orders.Quick")
+            result["source_format"] = "bigtex_sql_inventory"
+        result["source_filename"] = payload.filename
+        result["sql_row_count"] = payload.row_count
+        return jsonify(ok=True, import_result=result)
+    except PjSqlRefreshError as exc:
+        return _json_error(f"PJ SQL refresh failed: {exc}", 400)
+    except BtSqlRefreshError as exc:
+        return _json_error(f"Big Tex SQL refresh failed: {exc}", 400)
+    except FileNotFoundError as exc:
+        return _json_error(str(exc), 404)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    except Exception:
+        current_app.logger.exception("Failed SQL inventory refresh for brand=%s", brand)
+        return _json_error("Failed to refresh inventory from SQL", 500)
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 # -- Settings Save API -----------------------------------------------------
 
 ALLOWED_FIELDS = {
@@ -5287,6 +5577,7 @@ ALLOWED_FIELDS = {
     "pj_measurement_offsets": {"offset_ft", "notes"},
     "bt_stack_configs":    {"max_length_ft", "max_height_ft", "notes"},
     "bigtex_skus": {"mcat", "tier", "model", "gvwr", "floor_type", "bed_length", "width", "tongue", "stack_height"},
+    "bwise_skus": {"mcat", "model", "old_model", "bed_length", "tongue", "stack_height", "stack_height_is_placeholder"},
     "pj_skus": {
         "pj_category", "bed_length_measured", "tongue_feet", "height_mid_ft", "height_top_ft", "dump_side_height_ft",
         "can_nest_inside_dump", "gn_axle_droppable", "tongue_overlap_allowed", "pairing_rule", "notes",
@@ -5345,6 +5636,8 @@ def api_settings_save():
             if field in {"tier", "gvwr"} and value is not None:
                 value = int(value)
             db.update_bigtex_sku_field(pk, field, value)
+        elif table == "bwise_skus":
+            db.update_bwise_sku_field(pk, field, value)
         elif table == "pj_skus":
             if field == "pj_category":
                 existing = db.get_pj_sku(pk)
@@ -5356,6 +5649,7 @@ def api_settings_save():
 
         recomputed = None
         recomputed_bigtex = None
+        recomputed_bwise = None
         needs_pj_recompute = False
         if recompute == "pj_skus":
             if table == "pj_measurement_offsets":
@@ -5378,8 +5672,18 @@ def api_settings_save():
             refreshed = db.recompute_bigtex_footprint(pk)
             if refreshed:
                 recomputed_bigtex = [refreshed]
+        if table == "bwise_skus" and field in {"bed_length", "tongue"}:
+            refreshed = db.recompute_bwise_footprint(pk)
+            if refreshed:
+                recomputed_bwise = [refreshed]
 
-        return jsonify(ok=True, sessions_flagged=True, recomputed=recomputed, recomputed_bigtex=recomputed_bigtex)
+        return jsonify(
+            ok=True,
+            sessions_flagged=True,
+            recomputed=recomputed,
+            recomputed_bigtex=recomputed_bigtex,
+            recomputed_bwise=recomputed_bwise,
+        )
     except Exception:
         current_app.logger.exception("Failed to save ProGrade settings")
         return _json_error("Failed to save settings", 500)
@@ -5589,6 +5893,62 @@ def api_add_bigtex_sku():
         return _json_error("Failed to add Big Tex SKU", 500)
 
 
+@prograde_bp.route("/api/settings/bwise/sku", methods=["POST"])
+def api_add_bwise_sku():
+    data = request.get_json(silent=True) or {}
+
+    item_number = str(data.get("item_number") or "").strip().upper()
+    model = str(data.get("model") or "").strip()
+    mcat = str(data.get("mcat") or "").strip()
+    old_model = str(data.get("old_model") or "").strip()
+    if not item_number:
+        return _json_error("item_number is required")
+    if not model:
+        return _json_error("model is required")
+    if not mcat:
+        return _json_error("mcat is required")
+    if not old_model:
+        return _json_error("old_model is required")
+
+    try:
+        bed_length = float(data.get("bed_length"))
+        tongue = float(data.get("tongue"))
+        stack_height = float(data.get("stack_height"))
+    except (TypeError, ValueError):
+        return _json_error("Bed length, tongue, and stack height must be numeric")
+
+    if bed_length <= 0:
+        return _json_error("bed_length must be greater than 0")
+    if tongue < 0:
+        return _json_error("tongue must be 0 or greater")
+    if stack_height <= 0:
+        return _json_error("stack_height must be greater than 0")
+
+    stack_height_is_placeholder = (
+        1 if str(data.get("stack_height_is_placeholder") or "").strip().lower() in {"1", "true", "yes", "on"} else 0
+    )
+
+    payload = {
+        "item_number": item_number,
+        "mcat": mcat,
+        "model": model,
+        "old_model": old_model,
+        "bed_length": bed_length,
+        "tongue": tongue,
+        "stack_height": stack_height,
+        "stack_height_is_placeholder": stack_height_is_placeholder,
+    }
+    try:
+        result = db.upsert_bwise_sku(payload)
+        db.flag_all_draft_sessions_stale()
+        return jsonify(ok=True, sessions_flagged=True, result=result)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    except Exception:
+        current_app.logger.exception("Failed to add/update B-Wise SKU from settings form")
+        return _json_error("Failed to add B-Wise SKU", 500)
+
+
 @prograde_bp.route("/api/session/<session_id>/add", methods=["POST"])
 def api_add_unit(session_id):
     session, err = _session_or_404(session_id)
@@ -5623,7 +5983,12 @@ def api_add_unit(session_id):
     if deck_zone not in valid_zones:
         return _json_error("Invalid deck_zone")
 
-    sku = db.get_pj_sku(item_number) if brand == "pj" else db.get_bigtex_sku(item_number)
+    if brand == "pj":
+        sku = db.get_pj_sku(item_number)
+    elif brand == "bwise":
+        sku = db.get_bwise_sku(item_number)
+    else:
+        sku = db.get_bigtex_sku(item_number)
     if not sku:
         return _json_error("Item number not found")
 
@@ -5665,12 +6030,12 @@ def api_add_unit(session_id):
             is_flatbed_carrier = (
                 str(_row_to_dict(session).get("carrier_type") or "").strip().lower() == "53_flatbed"
             )
-            if brand in {"bigtex", "pj"} and deck_zone == "lower_deck":
+            if brand in {"bigtex", "pj", "bwise"} and deck_zone == "lower_deck":
                 existing_zone_sequences = sorted({int(p["sequence"]) for p in zone_positions})
                 if not existing_zone_sequences:
                     # For BT lower-deck picker adds with no explicit side, default to
                     # a left-anchored first stack so it does not snap right.
-                    if brand == "bigtex" and column_alignment is None:
+                    if brand in {"bigtex", "bwise"} and column_alignment is None:
                         column_alignment = "left"
                     seq = 1
                     layer = 1
@@ -5822,7 +6187,7 @@ def api_add_unit(session_id):
             override_reason = _build_add_source_override_reason(add_source, override_reason)
         if column_alignment:
             override_reason = _build_column_alignment_override_reason(column_alignment, override_reason)
-            if target is not None and brand != "bigtex":
+            if target is not None and brand not in {"bigtex", "bwise"}:
                 target_override_reason = target.get("override_reason")
                 updated_target_override_reason = _build_column_alignment_override_reason(
                     column_alignment,
@@ -5839,7 +6204,7 @@ def api_add_unit(session_id):
             override_reason = _build_stack_anchor_override_reason(stack_anchor_mode, override_reason)
 
         # Big Tex rule-of-thumb: add new units with tongues facing left by default.
-        default_is_rotated = 1 if brand == "bigtex" else 0
+        default_is_rotated = 1 if brand in {"bigtex", "bwise"} else 0
         db.add_position(
             position_id,
             session_id,
@@ -6027,7 +6392,7 @@ def api_nest_unit(session_id):
 
     session_map = dict(session_row or {})
     brand = (session_map.get("brand") or "").strip().lower()
-    if brand not in {"pj", "bigtex"}:
+    if brand not in {"pj", "bigtex", "bwise"}:
         return _json_error("Nesting is not available for this brand.", 400)
 
     data = request.get_json(silent=True) or {}
@@ -6070,8 +6435,11 @@ def api_nest_unit(session_id):
     if brand == "pj":
         host_sku = dict(db.get_pj_sku(host_map.get("item_number")) or {})
         host_is_dump = _pj_render_deck_profile(host_sku) == "dump"
-    else:
+    elif brand == "bigtex":
         host_sku = dict(db.get_bigtex_sku(host_map.get("item_number")) or {})
+        host_is_dump = _bt_render_deck_profile(host_sku) == "dump"
+    else:
+        host_sku = dict(db.get_bwise_sku(host_map.get("item_number")) or {})
         host_is_dump = _bt_render_deck_profile(host_sku) == "dump"
     if not host_is_dump:
         return _json_error("Selected host is not a dump profile.", 400)
@@ -6087,8 +6455,19 @@ def api_nest_unit(session_id):
             guest_sku.get("total_footprint"),
             _as_float(pos_map.get("render_footprint_ft"), _as_float(pos_map.get("footprint"), 0.0)),
         )
-    else:
+    elif brand == "bigtex":
         guest_sku = dict(db.get_bigtex_sku(pos_map.get("item_number")) or {})
+        guest_is_nestable = True
+        host_deck_len = _as_float(
+            host_sku.get("bed_length"),
+            _as_float(host_map.get("deck_length_ft"), _as_float(host_map.get("bed_length"), 0.0)),
+        )
+        guest_footprint = _as_float(
+            guest_sku.get("total_footprint"),
+            _as_float(pos_map.get("render_footprint_ft"), _as_float(pos_map.get("footprint"), 0.0)),
+        )
+    else:
+        guest_sku = dict(db.get_bwise_sku(pos_map.get("item_number")) or {})
         guest_is_nestable = True
         host_deck_len = _as_float(
             host_sku.get("bed_length"),

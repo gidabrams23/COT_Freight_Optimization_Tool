@@ -150,7 +150,9 @@
     <div class="card pg-sessions-list-card">
       <div class="card-header">
         <div>
-          <div class="card-title">{{ 'PJ' if selected_brand == 'pj' else 'Big Tex' }} Sessions</div>
+          <div class="card-title">
+            {% if selected_brand == 'pj' %}PJ{% elif selected_brand == 'bwise' %}B-Wise{% else %}Big Tex{% endif %} Sessions
+          </div>
           <div class="card-subtitle">
             {% if can_manage_sessions %}
             {{ sessions|length }} saved session{% if sessions|length != 1 %}s{% endif %} across all planners

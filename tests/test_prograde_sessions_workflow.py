@@ -42,8 +42,8 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["prograde_profile_id"] = int(profile_id)
 
-    def _create_planner_profile(self, name):
-        return int(self.db.create_access_profile(name=name, is_admin=False))
+    def _create_planner_profile(self, name, default_brand="bigtex"):
+        return int(self.db.create_access_profile(name=name, is_admin=False, default_brand=default_brand))
 
     def _set_cot_profile(self, name, role="planner"):
         with self.client.session_transaction() as sess:
@@ -199,6 +199,90 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertNotIn(bt_session_id, pj_html)
         self.assertIn('href="/prograde/session/new?brand=pj"', pj_html)
 
+    def test_all_sessions_filters_by_bwise_brand(self):
+        profile_id = self._create_planner_profile("BWise Brand Tester")
+        self._set_active_profile(profile_id)
+        bt_session_id = str(uuid.uuid4())
+        bw_session_id = str(uuid.uuid4())
+        self.db.create_session(
+            bt_session_id,
+            "bigtex",
+            "53_step_deck",
+            "BWise Brand Tester",
+            "BT Saved",
+            is_saved=True,
+            created_by_profile_id=profile_id,
+            created_by_name="BWise Brand Tester",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=bt_session_id,
+            brand="bigtex",
+            item_number="UNMAPPED-BW-BT",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.create_session(
+            bw_session_id,
+            "bwise",
+            "53_step_deck",
+            "BWise Brand Tester",
+            "BW Saved",
+            is_saved=True,
+            created_by_profile_id=profile_id,
+            created_by_name="BWise Brand Tester",
+        )
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=bw_session_id,
+            brand="bwise",
+            item_number="UNMAPPED-BW-1",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        bw_resp = self.client.get("/prograde/sessions?brand=bwise")
+        self.assertEqual(bw_resp.status_code, 200)
+        bw_html = bw_resp.get_data(as_text=True)
+        self.assertIn(bw_session_id, bw_html)
+        self.assertNotIn(bt_session_id, bw_html)
+        self.assertIn('href="/prograde/session/new?brand=bwise"', bw_html)
+
+    def test_bwise_picker_conflict_labels_append_part_number_only_for_conflicts(self):
+        with self.db.get_db() as conn:
+            conn.execute("DELETE FROM bwise_skus")
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bwise_skus
+                (item_number, mcat, model, old_model, bed_length, tongue, stack_height, total_footprint, stack_height_is_placeholder, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BW-CONFLICT-A", "Dumps", "FAM", "DMP-714", 14.0, 5.0, 2.0, 19.0, 1),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bwise_skus
+                (item_number, mcat, model, old_model, bed_length, tongue, stack_height, total_footprint, stack_height_is_placeholder, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BW-CONFLICT-B", "Dumps", "FAM", "DMP-714", 16.0, 5.0, 2.0, 21.0, 1),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bwise_skus
+                (item_number, mcat, model, old_model, bed_length, tongue, stack_height, total_footprint, stack_height_is_placeholder, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BW-CLEAN-1", "Utility", "UT", "UT-714", 14.0, 4.0, 2.0, 18.0, 1),
+            )
+
+        rows = {row["item_number"]: row for row in self.routes._build_bwise_picker_skus()}
+        self.assertEqual(rows["BW-CONFLICT-A"]["item_display"], "DMP-714 (BW-CONFLICT-A)")
+        self.assertEqual(rows["BW-CONFLICT-B"]["item_display"], "DMP-714 (BW-CONFLICT-B)")
+        self.assertEqual(rows["BW-CLEAN-1"]["item_display"], "UT-714")
+
     def test_all_sessions_shows_qty_column_from_position_count(self):
         profile_id = self._create_planner_profile("Qty Tester")
         self._set_active_profile(profile_id)
@@ -310,7 +394,8 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("Select Account", html)
-        self.assertIn('name="brand" value="pj"', html)
+        self.assertIn('name="brand"', html)
+        self.assertIn('value="pj"', html)
 
     def test_root_route_redirects_to_sessions_when_cot_profile_present(self):
         self._set_cot_profile("COT Auto Planner", role="planner")
@@ -322,8 +407,9 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         resp = self.client.get("/prograde/account?brand=bigtex")
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
+        self.assertIn("Access Profiles", html)
         self.assertIn("Select Account", html)
-        self.assertIn("Add New Account", html)
+        self.assertIn("Existing Profiles", html)
 
     def test_account_select_sets_active_profile_for_session(self):
         profile_id = self._create_planner_profile("Session Selection Tester")
@@ -361,6 +447,57 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         profile = self.db.get_access_profile(created_profile_id)
         self.assertIsNotNone(profile)
         self.assertEqual(profile["name"], "Quick Add Planner")
+        self.assertEqual((profile["default_brand"] or "").lower(), "pj")
+
+    def test_account_select_redirects_to_profile_default_brand(self):
+        profile_id = self._create_planner_profile("PJ Default Planner", default_brand="pj")
+        resp = self.client.post(
+            "/prograde/account/select",
+            data={"brand": "bigtex", "profile_id": str(profile_id)},
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/prograde/sessions?brand=pj", resp.headers.get("Location", ""))
+
+    def test_admin_can_update_profile_role_and_default_brand(self):
+        admin_id = int(self.db.create_access_profile(name="Workflow Admin", is_admin=True, default_brand="bigtex"))
+        planner_id = self._create_planner_profile("Planner Promote", default_brand="bigtex")
+        self._set_active_profile(admin_id)
+        resp = self.client.post(
+            "/prograde/account/update",
+            data={
+                "brand": "bigtex",
+                "profile_id": str(planner_id),
+                "name": "Planner Promote",
+                "is_admin": "on",
+                "default_brand": "bwise",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        row = self.db.get_access_profile(planner_id)
+        self.assertEqual(int(row["is_admin"] or 0), 1)
+        self.assertEqual((row["default_brand"] or "").lower(), "bwise")
+
+    def test_non_admin_cannot_update_profile_role(self):
+        planner_id = self._create_planner_profile("Planner One", default_brand="bigtex")
+        other_id = self._create_planner_profile("Planner Two", default_brand="pj")
+        self._set_active_profile(planner_id)
+        resp = self.client.post(
+            "/prograde/account/update",
+            data={
+                "brand": "bigtex",
+                "profile_id": str(other_id),
+                "name": "Planner Two",
+                "is_admin": "on",
+                "default_brand": "bwise",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        row = self.db.get_access_profile(other_id)
+        self.assertEqual(int(row["is_admin"] or 0), 0)
+        self.assertEqual((row["default_brand"] or "").lower(), "pj")
 
     def test_sessions_requires_active_account(self):
         resp = self.client.get("/prograde/sessions?brand=bigtex", follow_redirects=False)

@@ -33,7 +33,8 @@
   - else local fallback `data/db/prograde.db`
 - Landing page for ProGrade account access is `/prograde` (also available at `/prograde/account`) with:
   - account dropdown selection
-  - quick add account by name
+  - profile management panel for admin accounts (create/edit/delete, assign admin role)
+  - per-profile `Default Focus Brand` (`bigtex`, `pj`, or `bwise`) used when the account is selected
 - When a user is already signed into COT, ProGrade now attempts to auto-select (or auto-create) a matching ProGrade account from the active COT profile name.
 - Once selected, the active account persists in the current user session and is used for new load creation.
 - New loads inherit the currently selected ProGrade account as the builder, start as draft sessions, and become saved only after at least one trailer is added and the user saves.
@@ -44,7 +45,7 @@
 - Load Builder includes a `Truck` dropdown in the top header so planners can switch session carrier type between configured trailer profiles (`53_step_deck`, `53_flatbed`, and `ground_pull`).
 - `ground_pull` mode renders without a structural deck line; the first placed unit becomes the effective deck and drives the active total-length capacity.
 - Default admin account name is seeded from `PROGRADE_DEFAULT_ADMIN_NAME`; fallback is OS `USERNAME` (or `Admin`).
-- ProGrade SKU catalogs (`pj_skus`, `bigtex_skus`) are upserted from `data/seed/*.csv` on startup by default.
+- ProGrade SKU catalogs (`pj_skus`, `bigtex_skus`, `bwise_skus`) are upserted from `data/seed/*.csv` on startup by default.
 - ProGrade account profiles can be pre-seeded from `data/seed/prograde_access_profiles.csv` (override path with `PROGRADE_ACCESS_PROFILES_SEED_PATH`).
 - Optional preservation mode (future use): set `PROGRADE_PRESERVE_SKU_EDITS_ON_START=true` to seed only empty tables and avoid overwriting existing SKU edits on restart.
 - Optional SQLite lock tuning for ProGrade writes: `PROGRADE_SQLITE_BUSY_TIMEOUT_SEC` (falls back to `SQLITE_BUSY_TIMEOUT_SEC`, default `30`).

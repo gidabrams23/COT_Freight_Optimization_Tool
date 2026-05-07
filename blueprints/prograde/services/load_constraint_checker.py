@@ -17,7 +17,7 @@ def check_load(session_id: str) -> list:
 
     if session["brand"] == "pj":
         return pj_rules.check(positions, carrier)
-    elif session["brand"] == "bigtex":
+    elif session["brand"] in {"bigtex", "bwise"}:
         return bt_rules.check(positions, carrier)
     return []
 

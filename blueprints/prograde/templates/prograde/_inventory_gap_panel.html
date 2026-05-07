@@ -1,5 +1,6 @@
 {% set is_bt = session.brand == 'bigtex' %}
 {% set is_pj = session.brand == 'pj' %}
+{% set is_bw = session.brand == 'bwise' %}
 {% set can_upload_inventory = is_bt or is_pj %}
 {% set upload_accept = '.xlsx,.xlsm,.csv' if is_bt else '.csv' %}
 {% set stack_slots = (inventory_gap.stack_slots if inventory_gap and inventory_gap.stack_slots else []) %}
@@ -11,21 +12,24 @@
 {% set upload_uploaded_at = (upload_meta.uploaded_at if upload_meta and upload_meta.uploaded_at else '') %}
 {% set upload_iso_date = (upload_uploaded_at|string)[:10] if upload_uploaded_at else '' %}
 {% set upload_date = ((upload_iso_date[5:7] ~ '/' ~ upload_iso_date[8:10] ~ '/' ~ upload_iso_date[2:4]) if upload_iso_date|length == 10 else '') %}
-<div class="inventory-wrap card" id="pg-inventory-card" style="padding:0;overflow:hidden">
+{% set can_sql_refresh_inventory = (is_pj or is_bt) and active_profile and active_profile.is_admin %}
+<div class="inventory-wrap card" id="pg-inventory-card" style="padding:0;overflow:visible">
   <div class="card-header" style="padding:8px 10px;margin:0;border-radius:0">
     <div class="inventory-header-row">
       <div class="inventory-header-main">
         <div>
           <div class="inventory-title-row">
-            <div class="card-title">{{ 'BT' if is_bt else 'PJ' }} Inventory Gap Finder</div>
+            <div class="card-title">
+              {% if is_bt %}BT{% elif is_pj %}PJ{% else %}B-Wise{% endif %} Inventory Gap Finder
+            </div>
             {% if upload_date %}
             <span class="inventory-last-upload-pill">Uploaded {{ upload_date }}</span>
             {% endif %}
           </div>
         </div>
         <div class="inventory-header-stats">
-          <span class="inventory-header-stat">Rows: {{ (inventory_gap.rows | length) if inventory_gap else 0 }}</span>
-          <span class="inventory-header-stat">Stacks: {{ stack_slots | length }}</span>
+          <span class="inventory-header-stat">Items: {{ (inventory_gap.rows | length) if inventory_gap else 0 }}</span>
+          <span class="inventory-header-stat">Total Qty: {{ (inventory_gap.total_inventory_qty if inventory_gap and inventory_gap.total_inventory_qty is not none else 0) }}</span>
         </div>
       </div>
       <div class="inventory-header-actions">
@@ -39,9 +43,27 @@
         </select>
         {% endif %}
         <input type="file" id="inv-upload-input" accept="{{ upload_accept }}" style="display:none" />
-        <button type="button" class="btn btn-secondary btn-sm inventory-upload-btn" id="inv-upload-btn">
-          Upload Inventory
-        </button>
+        <div class="inventory-action-menu" id="inv-action-menu">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm inventory-upload-btn inventory-action-trigger"
+            id="inv-action-trigger"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            Refresh Inventory
+          </button>
+          <div class="inventory-action-list" id="inv-action-list">
+            <button type="button" class="inventory-action-item" id="inv-upload-btn">
+              Upload Inventory
+            </button>
+            {% if can_sql_refresh_inventory %}
+            <button type="button" class="inventory-action-item" id="inv-sql-refresh-btn">
+              Refresh from SQL
+            </button>
+            {% endif %}
+          </div>
+        </div>
         {% endif %}
       </div>
     </div>
@@ -127,6 +149,8 @@
                 Upload BT inventory (.xlsx/.xlsm or inventory CSV) to populate availability.
               {% elif inventory_mode == 'pj_upload' %}
                 Upload PJ inventory CSV (with inventsiteid warehouse values) to populate availability.
+              {% elif is_bw %}
+                B-Wise runs in catalog-only mode for v1; no inventory upload is required.
               {% else %}
                 PJ catalog suggestions are unavailable because no PJ SKUs are loaded.
               {% endif %}

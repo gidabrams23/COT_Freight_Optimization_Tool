@@ -46,6 +46,8 @@ def _default_prograde_db_path():
 
 DB_PATH = Path(os.environ.get("PROGRADE_DB_PATH", str(_default_prograde_db_path())))
 FALLBACK_SEED_DB_PATH = ROOT_DIR / "archive" / "prograde_source_drop_v03" / "prograde.db"
+_VALID_PROFILE_BRANDS = {"bigtex", "pj", "bwise"}
+DEFAULT_PROFILE_BRAND = "bigtex"
 PROGRADE_ACCESS_PROFILES_SEED_PATH = Path(
     os.environ.get(
         "PROGRADE_ACCESS_PROFILES_SEED_PATH",
@@ -335,6 +337,13 @@ def _normalize_profile_name(value):
     return " ".join(str(value or "").strip().split())
 
 
+def _normalize_profile_brand(value, *, default=DEFAULT_PROFILE_BRAND):
+    normalized = str(value or "").strip().lower()
+    if normalized in _VALID_PROFILE_BRANDS:
+        return normalized
+    return default
+
+
 def _default_admin_profile_name():
     name = (
         os.environ.get("PROGRADE_DEFAULT_ADMIN_NAME")
@@ -501,6 +510,7 @@ def init_db():
         "ALTER TABLE pj_inventory_upload_log ADD COLUMN unmatched_items INTEGER DEFAULT 0",
         "ALTER TABLE pj_skus ADD COLUMN height_mid_ft REAL",
         "ALTER TABLE pj_skus ADD COLUMN height_top_ft REAL",
+        "ALTER TABLE prograde_access_profiles ADD COLUMN default_brand TEXT",
     ]
     for m in migrations:
         try:
@@ -587,6 +597,19 @@ def init_db():
         updated_at DATETIME
     );
 
+    CREATE TABLE IF NOT EXISTS bwise_skus (
+        item_number TEXT PRIMARY KEY,
+        mcat TEXT,
+        model TEXT,
+        old_model TEXT,
+        bed_length REAL,
+        tongue REAL,
+        stack_height REAL,
+        total_footprint REAL,
+        stack_height_is_placeholder INTEGER DEFAULT 0,
+        updated_at DATETIME
+    );
+
     CREATE TABLE IF NOT EXISTS bt_stack_configs (
         config_id TEXT PRIMARY KEY,
         label TEXT,
@@ -630,6 +653,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE COLLATE NOCASE,
         is_admin INTEGER NOT NULL DEFAULT 0,
+        default_brand TEXT NOT NULL DEFAULT 'bigtex',
         created_at DATETIME,
         updated_at DATETIME
     );
@@ -952,26 +976,40 @@ def init_db():
         WHERE COALESCE(created_by_name, '') = '' AND COALESCE(planner_name, '') != ''
         """
     )
+    c.execute(
+        """
+        UPDATE prograde_access_profiles
+        SET default_brand=?
+        WHERE lower(COALESCE(default_brand, '')) NOT IN ('bigtex', 'pj', 'bwise')
+        """,
+        (DEFAULT_PROFILE_BRAND,),
+    )
 
     admin_name = _default_admin_profile_name()
     now = datetime.utcnow().isoformat()
     admin_row = c.execute(
-        "SELECT id, is_admin FROM prograde_access_profiles WHERE lower(name)=lower(?)",
+        "SELECT id, is_admin, default_brand FROM prograde_access_profiles WHERE lower(name)=lower(?)",
         (admin_name,),
     ).fetchone()
     if admin_row:
+        current_brand = _normalize_profile_brand(admin_row["default_brand"])
+        should_update = False
         if not int(admin_row["is_admin"] or 0):
+            should_update = True
+        if str(admin_row["default_brand"] or "").strip().lower() != current_brand:
+            should_update = True
+        if should_update:
             c.execute(
-                "UPDATE prograde_access_profiles SET is_admin=1, updated_at=? WHERE id=?",
-                (now, int(admin_row["id"])),
+                "UPDATE prograde_access_profiles SET is_admin=1, default_brand=?, updated_at=? WHERE id=?",
+                (current_brand, now, int(admin_row["id"])),
             )
     else:
         c.execute(
             """
-            INSERT INTO prograde_access_profiles (name, is_admin, created_at, updated_at)
-            VALUES (?, 1, ?, ?)
+            INSERT INTO prograde_access_profiles (name, is_admin, default_brand, created_at, updated_at)
+            VALUES (?, 1, ?, ?, ?)
             """,
-            (admin_name, now, now),
+            (admin_name, DEFAULT_PROFILE_BRAND, now, now),
         )
 
     conn.commit()
@@ -990,7 +1028,7 @@ def init_db():
 
 
 def _seed_skus_from_csv(conn, mode="bootstrap_if_empty"):
-    """Load pj_skus and bigtex_skus from bundled seed CSVs."""
+    """Load pj_skus, bigtex_skus, and bwise_skus from bundled seed CSVs."""
     import csv as _csv
 
     seed_dir = ROOT_DIR / "data" / "seed"
@@ -1044,9 +1082,11 @@ def _seed_skus_from_csv(conn, mode="bootstrap_if_empty"):
     if normalized_mode == "upsert":
         _upsert_seed_csv("pj_skus", "pj_skus.csv", "item_number")
         _upsert_seed_csv("bigtex_skus", "bigtex_skus.csv", "item_number")
+        _upsert_seed_csv("bwise_skus", "bwise_skus.csv", "item_number")
     else:
         _seed_if_table_empty("pj_skus", "pj_skus.csv")
         _seed_if_table_empty("bigtex_skus", "bigtex_skus.csv")
+        _seed_if_table_empty("bwise_skus", "bwise_skus.csv")
     conn.commit()
 
 
@@ -1066,9 +1106,10 @@ def _seed_access_profiles_from_csv(conn):
             if not name:
                 continue
             wants_admin = _is_truthy(row.get("is_admin"))
+            default_brand = _normalize_profile_brand(row.get("default_brand"))
             existing = c.execute(
                 """
-                SELECT id, is_admin
+                SELECT id, is_admin, default_brand
                 FROM prograde_access_profiles
                 WHERE lower(name)=lower(?)
                 LIMIT 1
@@ -1076,19 +1117,26 @@ def _seed_access_profiles_from_csv(conn):
                 (name,),
             ).fetchone()
             if existing:
-                if wants_admin and not int(existing["is_admin"] or 0):
+                existing_is_admin = int(existing["is_admin"] or 0)
+                existing_brand = _normalize_profile_brand(existing["default_brand"])
+                if wants_admin and not existing_is_admin:
                     c.execute(
                         "UPDATE prograde_access_profiles SET is_admin=1, updated_at=? WHERE id=?",
                         (now, int(existing["id"])),
+                    )
+                if existing_brand != default_brand:
+                    c.execute(
+                        "UPDATE prograde_access_profiles SET default_brand=?, updated_at=? WHERE id=?",
+                        (default_brand, now, int(existing["id"])),
                     )
                 continue
 
             c.execute(
                 """
-                INSERT INTO prograde_access_profiles (name, is_admin, created_at, updated_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO prograde_access_profiles (name, is_admin, default_brand, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (name, 1 if wants_admin else 0, now, now),
+                (name, 1 if wants_admin else 0, default_brand, now, now),
             )
             inserted += 1
 
@@ -1101,7 +1149,8 @@ def has_seed_data():
         carrier_count = conn.execute("SELECT COUNT(*) FROM carrier_configs").fetchone()[0]
         pj_count = conn.execute("SELECT COUNT(*) FROM pj_skus").fetchone()[0]
         bt_count = conn.execute("SELECT COUNT(*) FROM bigtex_skus").fetchone()[0]
-    return carrier_count > 0 and (pj_count > 0 or bt_count > 0)
+        bw_count = conn.execute("SELECT COUNT(*) FROM bwise_skus").fetchone()[0]
+    return carrier_count > 0 and (pj_count > 0 or bt_count > 0 or bw_count > 0)
 
 
 def _coerce_float(value, default=None):
@@ -1926,6 +1975,167 @@ def upsert_bigtex_sku(payload):
                 tongue,
                 stack_height,
                 total_footprint,
+                now,
+            ),
+        )
+    return {"item_number": item_number, "created": bool(existing is None), "total_footprint": total_footprint}
+
+
+def get_bwise_skus(search=None, mcat=None):
+    sql = "SELECT * FROM bwise_skus"
+    params = []
+    clauses = []
+    if search:
+        clauses.append("(mcat LIKE ? OR model LIKE ? OR old_model LIKE ? OR item_number LIKE ?)")
+        params += [f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"]
+    if mcat:
+        clauses.append("mcat=?")
+        params.append(mcat)
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    with get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
+    payload = []
+    for row in rows:
+        row_map = dict(row)
+        row_map["mcat"] = " ".join(str(row_map.get("mcat") or "").strip().split())
+        row_map["model"] = " ".join(str(row_map.get("model") or "").strip().split())
+        row_map["old_model"] = " ".join(str(row_map.get("old_model") or "").strip().split())
+        row_map["stack_height_is_placeholder"] = int(row_map.get("stack_height_is_placeholder") or 0)
+        payload.append(row_map)
+
+    payload.sort(
+        key=lambda r: (
+            str(r.get("mcat") or ""),
+            str(r.get("model") or ""),
+            str(r.get("old_model") or ""),
+            str(r.get("item_number") or ""),
+        )
+    )
+    return payload
+
+
+def get_bwise_sku(item_number):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM bwise_skus WHERE item_number=?", (item_number,)).fetchone()
+    if not row:
+        return None
+    payload = dict(row)
+    payload["mcat"] = " ".join(str(payload.get("mcat") or "").strip().split())
+    payload["model"] = " ".join(str(payload.get("model") or "").strip().split())
+    payload["old_model"] = " ".join(str(payload.get("old_model") or "").strip().split())
+    payload["stack_height_is_placeholder"] = int(payload.get("stack_height_is_placeholder") or 0)
+    return payload
+
+
+def get_bwise_skus_by_item_numbers(item_numbers):
+    normalized = sorted({
+        str(item).strip()
+        for item in (item_numbers or [])
+        if str(item or "").strip()
+    })
+    if not normalized:
+        return {}
+    placeholders = ",".join("?" for _ in normalized)
+    sql = f"SELECT * FROM bwise_skus WHERE item_number IN ({placeholders})"
+    with get_db() as conn:
+        rows = conn.execute(sql, normalized).fetchall()
+    payload = {}
+    for row in rows:
+        item_number = str(row["item_number"] or "").strip()
+        if not item_number:
+            continue
+        row_map = dict(row)
+        row_map["mcat"] = " ".join(str(row_map.get("mcat") or "").strip().split())
+        row_map["model"] = " ".join(str(row_map.get("model") or "").strip().split())
+        row_map["old_model"] = " ".join(str(row_map.get("old_model") or "").strip().split())
+        row_map["stack_height_is_placeholder"] = int(row_map.get("stack_height_is_placeholder") or 0)
+        payload[item_number] = row_map
+    return payload
+
+
+def update_bwise_sku_field(item_number, field, value):
+    if field in {"mcat", "model", "old_model"}:
+        value = " ".join(str(value or "").strip().split()) or None
+    if field == "stack_height_is_placeholder":
+        value = 1 if _is_truthy(value) or str(value).strip() == "1" else 0
+    with get_db() as conn:
+        conn.execute(
+            f"UPDATE bwise_skus SET {field}=?, updated_at=? WHERE item_number=?",
+            (value, datetime.utcnow().isoformat(), item_number)
+        )
+
+
+def recompute_bwise_footprint(item_number):
+    row = get_bwise_sku(item_number)
+    if not row:
+        return None
+    bed_length = _coerce_float(row["bed_length"], 0.0) or 0.0
+    tongue = _coerce_float(row["tongue"], 0.0) or 0.0
+    total_footprint = round(bed_length + tongue, 2)
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE bwise_skus SET total_footprint=?, updated_at=? WHERE item_number=?",
+            (total_footprint, datetime.utcnow().isoformat(), item_number),
+        )
+    return {
+        "item_number": item_number,
+        "bed_length": round(bed_length, 2),
+        "tongue": round(tongue, 2),
+        "total_footprint": total_footprint,
+    }
+
+
+def upsert_bwise_sku(payload):
+    item_number = str((payload or {}).get("item_number") or "").strip().upper()
+    if not item_number:
+        raise ValueError("item_number is required.")
+
+    now = datetime.utcnow().isoformat()
+    mcat = " ".join(str((payload or {}).get("mcat") or "").strip().split()) or None
+    model = " ".join(str((payload or {}).get("model") or "").strip().split()) or None
+    old_model = " ".join(str((payload or {}).get("old_model") or "").strip().split()) or None
+    bed_length = _coerce_float((payload or {}).get("bed_length"), 0.0) or 0.0
+    tongue = _coerce_float((payload or {}).get("tongue"), 0.0) or 0.0
+    stack_height = _coerce_float((payload or {}).get("stack_height"), None)
+    stack_height_is_placeholder = 1 if bool((payload or {}).get("stack_height_is_placeholder")) else 0
+    total_footprint = round(float(bed_length) + float(tongue), 2)
+
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT item_number FROM bwise_skus WHERE item_number=?",
+            (item_number,),
+        ).fetchone()
+        conn.execute(
+            """
+            INSERT INTO bwise_skus
+            (
+              item_number, mcat, model, old_model, bed_length, tongue,
+              stack_height, total_footprint, stack_height_is_placeholder, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(item_number) DO UPDATE SET
+              mcat=excluded.mcat,
+              model=excluded.model,
+              old_model=excluded.old_model,
+              bed_length=excluded.bed_length,
+              tongue=excluded.tongue,
+              stack_height=excluded.stack_height,
+              total_footprint=excluded.total_footprint,
+              stack_height_is_placeholder=excluded.stack_height_is_placeholder,
+              updated_at=excluded.updated_at
+            """,
+            (
+                item_number,
+                mcat,
+                model,
+                old_model,
+                bed_length,
+                tongue,
+                stack_height,
+                total_footprint,
+                stack_height_is_placeholder,
                 now,
             ),
         )
@@ -3579,7 +3789,7 @@ def list_access_profiles():
     with get_db() as conn:
         return conn.execute(
             """
-            SELECT id, name, is_admin, created_at, updated_at
+            SELECT id, name, is_admin, default_brand, created_at, updated_at
             FROM prograde_access_profiles
             ORDER BY lower(name), id
             """
@@ -3594,7 +3804,7 @@ def get_access_profile(profile_id):
     with get_db() as conn:
         return conn.execute(
             """
-            SELECT id, name, is_admin, created_at, updated_at
+            SELECT id, name, is_admin, default_brand, created_at, updated_at
             FROM prograde_access_profiles
             WHERE id=?
             """,
@@ -3609,7 +3819,7 @@ def get_access_profile_by_name(name):
     with get_db() as conn:
         return conn.execute(
             """
-            SELECT id, name, is_admin, created_at, updated_at
+            SELECT id, name, is_admin, default_brand, created_at, updated_at
             FROM prograde_access_profiles
             WHERE lower(name)=lower(?)
             LIMIT 1
@@ -3618,23 +3828,59 @@ def get_access_profile_by_name(name):
         ).fetchone()
 
 
-def create_access_profile(name, is_admin=False):
+def create_access_profile(name, is_admin=False, default_brand=DEFAULT_PROFILE_BRAND):
     normalized = _normalize_profile_name(name)
     if not normalized:
         raise ValueError("Account name is required.")
+    normalized_brand = _normalize_profile_brand(default_brand)
     now = datetime.utcnow().isoformat()
     try:
         with get_db() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO prograde_access_profiles (name, is_admin, created_at, updated_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO prograde_access_profiles (name, is_admin, default_brand, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (normalized, 1 if is_admin else 0, now, now),
+                (normalized, 1 if is_admin else 0, normalized_brand, now, now),
             )
             return int(cursor.lastrowid)
     except sqlite3.IntegrityError as exc:
         raise ValueError("Account name already exists.") from exc
+
+
+def update_access_profile(profile_id, name, is_admin=False, default_brand=DEFAULT_PROFILE_BRAND):
+    try:
+        normalized_id = int(profile_id)
+    except (TypeError, ValueError):
+        raise ValueError("Invalid account profile id.")
+    normalized_name = _normalize_profile_name(name)
+    if not normalized_name:
+        raise ValueError("Account name is required.")
+    normalized_brand = _normalize_profile_brand(default_brand)
+    now = datetime.utcnow().isoformat()
+    try:
+        with get_db() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE prograde_access_profiles
+                SET name=?, is_admin=?, default_brand=?, updated_at=?
+                WHERE id=?
+                """,
+                (normalized_name, 1 if is_admin else 0, normalized_brand, now, normalized_id),
+            )
+            if int(cursor.rowcount or 0) <= 0:
+                raise ValueError("Account profile was not found.")
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("Account name already exists.") from exc
+
+
+def delete_access_profile(profile_id):
+    try:
+        normalized_id = int(profile_id)
+    except (TypeError, ValueError):
+        raise ValueError("Invalid account profile id.")
+    with get_db() as conn:
+        conn.execute("DELETE FROM prograde_access_profiles WHERE id=?", (normalized_id,))
 
 
 def create_session(

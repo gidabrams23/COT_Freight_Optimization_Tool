@@ -156,6 +156,9 @@ button, input, select, textarea { font: inherit; }
 .brand-logo-frame-pj {
   background: #e5e7eb;
 }
+.brand-logo-frame-bwise {
+  background: #e5e7eb;
+}
 .brand-focus-card.active .brand-logo-frame {
   border-color: var(--accent-primary);
 }
@@ -170,6 +173,21 @@ button, input, select, textarea { font: inherit; }
 }
 .brand-logo-image-pj {
   max-height: 24px;
+}
+.brand-logo-image-bwise {
+  max-height: 24px;
+}
+.brand-logo-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.brand-logo-text-bwise {
+  color: #e2e8f0;
+  font-size: 22px;
 }
 .brand-focus-text {
   margin-top: var(--space-xs);
