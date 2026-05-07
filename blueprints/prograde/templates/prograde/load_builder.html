@@ -2098,17 +2098,17 @@ body.pg-sku-drag-active .pg-drag-hint-row {
   padding-bottom: 2px;
 }
 .manifest-table {
-  width: auto;
+  width: 100%;
   min-width: 100%;
   border-collapse: collapse;
-  table-layout: auto;
-  font-size: 12px;
+  table-layout: fixed;
+  font-size: 11.3px;
   line-height: 1.32;
 }
 .manifest-table th,
 .manifest-table td {
   border-bottom: 1px solid var(--border-subtle);
-  padding: 7px 8px;
+  padding: 6px 6px;
   text-align: left;
   vertical-align: middle;
   font-variant-numeric: tabular-nums;
@@ -2135,8 +2135,20 @@ body.pg-sku-drag-active .pg-drag-hint-row {
 }
 .manifest-table .manifest-col-num {
   text-align: right;
+  white-space: nowrap;
 }
-.manifest-table .manifest-col-unit { width: 38px; }
+.manifest-table .manifest-col-unit { width: 6%; min-width: 34px; }
+.manifest-table .manifest-col-item {
+  width: 34%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.15;
+}
+.manifest-table .manifest-col-bed,
+.manifest-table .manifest-col-tongue,
+.manifest-table .manifest-col-total,
+.manifest-table .manifest-col-height { width: 15%; min-width: 56px; }
 .manifest-table td.manifest-col-total {
   color: rgba(147, 197, 253, 0.98);
   font-weight: 700;
@@ -3273,7 +3285,7 @@ function applySkuHierarchyMode() {
   suppressSkuAutoCollapse = true;
   try {
     document.querySelectorAll(".sku-group").forEach((group) => {
-      group.open = true;
+      group.open = showItems;
     });
     document.querySelectorAll(".sku-model-group").forEach((group) => {
       group.open = showItems;
@@ -3478,9 +3490,7 @@ function renderSkuTree() {
   treeData.forEach((categoryGroup) => {
     const catDetails = document.createElement("details");
     catDetails.className = "sku-group";
-    if (["bigtex", "bwise"].includes(SESSION_BRAND)) {
-      catDetails.open = true;
-    }
+    catDetails.open = false;
 
     const catSummary = document.createElement("summary");
     catSummary.className = "sku-group-summary";

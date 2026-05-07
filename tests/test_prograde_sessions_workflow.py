@@ -407,9 +407,9 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         resp = self.client.get("/prograde/account?brand=bigtex")
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
-        self.assertIn("Access Profiles", html)
+        self.assertIn("LOGISTICS PORTAL", html)
         self.assertIn("Select Account", html)
-        self.assertIn("Existing Profiles", html)
+        self.assertIn("Add New Account", html)
 
     def test_account_select_sets_active_profile_for_session(self):
         profile_id = self._create_planner_profile("Session Selection Tester")

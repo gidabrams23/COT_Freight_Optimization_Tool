@@ -4836,10 +4836,34 @@ def account_landing():
     selected_brand = _selected_brand(default=_active_profile_default_brand(active_profile))
     account_notice = _consume_account_notice()
     accounts = [_profile_to_view(row) for row in db.list_access_profiles()]
-    can_manage_accounts = bool(active_profile and active_profile.get("is_admin"))
+    next_url = _safe_next_url(request.args.get("next")) or url_for(
+        "prograde.sessions",
+        brand=_active_profile_default_brand(active_profile, selected_brand),
+    )
+    return render_template(
+        "prograde/account.html",
+        accounts=accounts,
+        active_profile=active_profile,
+        account_notice=account_notice,
+        selected_brand=selected_brand,
+        next_url=next_url,
+    )
+
+
+@prograde_bp.route("/account/manage")
+def account_manage():
+    active_profile = _get_or_auto_active_profile()
+    selected_brand = _selected_brand(default=_active_profile_default_brand(active_profile))
+    active_profile, denied_redirect = _ensure_account_admin_or_redirect(selected_brand)
+    if denied_redirect:
+        return denied_redirect
+
+    account_notice = _consume_account_notice()
+    accounts = [_profile_to_view(row) for row in db.list_access_profiles()]
+    can_manage_accounts = True
     edit_profile = None
     edit_id_raw = request.args.get("edit_id")
-    if can_manage_accounts and edit_id_raw:
+    if edit_id_raw:
         try:
             edit_id = int(edit_id_raw)
         except (TypeError, ValueError):
@@ -4853,7 +4877,7 @@ def account_landing():
         brand=_active_profile_default_brand(active_profile, selected_brand),
     )
     return render_template(
-        "prograde/account.html",
+        "prograde/account_manage.html",
         accounts=accounts,
         active_profile=active_profile,
         can_manage_accounts=can_manage_accounts,
@@ -4962,13 +4986,15 @@ def account_create():
         )
     except ValueError as exc:
         _set_account_notice(str(exc), level="error")
+        if request_manage_flow:
+            return redirect(url_for("prograde.account_manage", brand=selected_brand))
         return redirect(url_for("prograde.account_landing", brand=selected_brand))
     profile = db.get_access_profile(profile_id)
     if profile and (not request_manage_flow or not active_profile):
         _set_active_profile(profile)
     _set_account_notice(f"Account created: {name}", level="success")
     if request_manage_flow and can_manage_accounts:
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
     resolved_brand = _active_profile_default_brand(_profile_to_view(profile) if profile else None, selected_brand)
     return redirect(next_url or url_for("prograde.sessions", brand=resolved_brand))
 
@@ -4990,17 +5016,17 @@ def account_update():
         profile_id = int(profile_id_raw)
     except (TypeError, ValueError):
         _set_account_notice("Select a valid profile to update.", level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
 
     profiles = [_profile_to_view(row) for row in db.list_access_profiles()]
     target = next((row for row in profiles if int(row.get("id") or 0) == profile_id), None)
     if not target:
         _set_account_notice("Profile not found.", level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
     admin_count = sum(1 for row in profiles if row.get("is_admin"))
     if target.get("is_admin") and not is_admin and admin_count <= 1:
         _set_account_notice("At least one administrator account is required.", level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand, edit_id=profile_id))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand, edit_id=profile_id))
 
     try:
         db.update_access_profile(
@@ -5011,13 +5037,13 @@ def account_update():
         )
     except ValueError as exc:
         _set_account_notice(str(exc), level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand, edit_id=profile_id))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand, edit_id=profile_id))
 
     refreshed = db.get_access_profile(profile_id)
     if refreshed and active_profile and int(active_profile.get("id") or 0) == profile_id:
         _set_active_profile(refreshed)
     _set_account_notice("Account profile updated.", level="success")
-    return redirect(url_for("prograde.account_landing", brand=selected_brand))
+    return redirect(url_for("prograde.account_manage", brand=selected_brand))
 
 
 @prograde_bp.route("/account/delete", methods=["POST"])
@@ -5032,20 +5058,20 @@ def account_delete():
         profile_id = int(profile_id_raw)
     except (TypeError, ValueError):
         _set_account_notice("Select a valid profile to delete.", level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
 
     profiles = [_profile_to_view(row) for row in db.list_access_profiles()]
     if len(profiles) <= 1:
         _set_account_notice("At least one profile must remain.", level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
     target = next((row for row in profiles if int(row.get("id") or 0) == profile_id), None)
     if not target:
         _set_account_notice("Profile not found.", level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
     admin_count = sum(1 for row in profiles if row.get("is_admin"))
     if target.get("is_admin") and admin_count <= 1:
         _set_account_notice("At least one administrator account is required.", level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
 
     current_profile_id = int(active_profile.get("id") or 0) if active_profile else 0
     if profile_id == current_profile_id:
@@ -5062,10 +5088,10 @@ def account_delete():
         db.delete_access_profile(profile_id)
     except ValueError as exc:
         _set_account_notice(str(exc), level="error")
-        return redirect(url_for("prograde.account_landing", brand=selected_brand))
+        return redirect(url_for("prograde.account_manage", brand=selected_brand))
 
     _set_account_notice("Account profile deleted.", level="success")
-    return redirect(url_for("prograde.account_landing", brand=selected_brand))
+    return redirect(url_for("prograde.account_manage", brand=selected_brand))
 
 
 @prograde_bp.route("/session/new", methods=["GET", "POST"])

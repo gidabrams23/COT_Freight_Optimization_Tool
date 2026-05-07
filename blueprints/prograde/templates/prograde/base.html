@@ -100,6 +100,11 @@
       <a class="nav-item" style="padding:6px 0;color:var(--text-secondary);" href="{{ url_for('prograde.account_landing', brand=sidebar_brand, next=url_for('prograde.sessions', brand=sidebar_brand)) }}">
         Switch Account
       </a>
+      {% if active_profile.is_admin %}
+      <a class="nav-item" style="padding:6px 0;color:var(--text-secondary);" href="{{ url_for('prograde.account_manage', brand=sidebar_brand) }}">
+        Manage Accounts
+      </a>
+      {% endif %}
       {% else %}
       <a class="nav-item" style="padding:6px 0;color:var(--text-secondary);" href="{{ url_for('prograde.account_landing', brand=sidebar_brand, next=url_for('prograde.sessions', brand=sidebar_brand)) }}">
         Select Account
