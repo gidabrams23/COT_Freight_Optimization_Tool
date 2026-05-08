@@ -442,11 +442,13 @@ Run at least:
 4. Open load detail and verify routing/schematic visibility.
 5. Generate export and verify file output integrity.
 
-## 8) Daily SKU Snapshot Export
+## 10) Daily SKU Snapshot Export
 
 ### Purpose
 
 The application exports a daily snapshot of SKU specifications to Azure Blob Storage for downstream analytics consumption. The `cot_utilization` scorer package in external projects reads this snapshot to score historical loads using the same utilization algorithm the app uses internally.
+
+This is a cross-repo contract with `trailers-data-pipeline`: the data pipeline installs the `cot-utilization` Python package from this repository and reads the blob snapshot below when publishing COT historical utilization fields in `processed/freight/loads.parquet`.
 
 ### Blob Destination
 
@@ -498,7 +500,16 @@ The script overwrites the existing blob. The last successful snapshot remains av
 
 The blob is a daily snapshot, not a real-time feed. Same-day SKU edits will appear in the next scheduled export. Emergency updates can be pushed via manual rerun.
 
-## 10) Known Constraints and Risk Areas
+### Downstream Package Contract
+
+- Package name: `cot-utilization`
+- Import surface: `from cot_utilization import UtilizationScorer`
+- Runtime dependency: `pandas`, via the package extra `cot-utilization[batch]`
+- Recommended downstream pin: a released tag or a specific commit on `main`
+
+Do not delete or rewrite the commit/tag consumed by `trailers-data-pipeline` until the data-pipeline requirement has been moved to a newer stable ref. The package core must stay free of Flask, SQLite, and app runtime dependencies so Airflow and validation jobs can import it without booting this web app.
+
+## 11) Known Constraints and Risk Areas
 
 - SQLite constraints:
   - Multi-instance scale-out is unsafe without DB architecture change.
@@ -517,7 +528,7 @@ The blob is a daily snapshot, not a real-time feed. Same-day SKU edits will appe
 - Schema-evolution risk:
   - `db.py` contains schema ensure/rebuild logic beyond the SQL files in `migrations/`; changes must be reviewed as both code and migration artifacts to keep production behavior deterministic.
 
-## 11) Appendices
+## 12) Appendices
 
 ### Appendix A - Functional Route Inventory
 
