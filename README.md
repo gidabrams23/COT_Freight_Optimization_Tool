@@ -10,6 +10,8 @@
 - `blueprints/prograde/templates/prograde/load_builder.html`: ProGrade stacking/schematic UI (markup + CSS + JS)
 - `db.py`: SQLite helpers (DB lives at `data/db/app.db`)
 - `services/`: business logic + optimization utilities
+- `cot_utilization/`: standalone pip-installable utilization scoring package (no Flask/DB dependency)
+- `pyproject.toml`: package metadata for `cot_utilization`
 - `templates/`: Jinja templates
 - `static/`: static assets (CSS, client-side data)
 - `scripts/`: one-off import/maintenance scripts
