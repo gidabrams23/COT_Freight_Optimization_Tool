@@ -34,6 +34,7 @@ from scripts.export_sku_snapshot import (
     BLOB_CONTAINER,
     BLOB_PATH,
     EXPORT_FIELDS,
+    SKUExportError,
     _serialize_snapshot,
     export_sku_snapshot,
     export_sku_snapshot_to_blob,
@@ -86,11 +87,11 @@ class TestExportLocal(unittest.TestCase):
 
 
 class TestExportToBlob(unittest.TestCase):
-    def test_returns_none_when_no_storage_account(self):
+    def test_raises_when_no_storage_account(self):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("SKU_EXPORT_STORAGE_ACCOUNT", None)
-            result = export_sku_snapshot_to_blob(storage_account="")
-            self.assertIsNone(result)
+            with self.assertRaises(SKUExportError):
+                export_sku_snapshot_to_blob(storage_account="")
 
     @patch("scripts.export_sku_snapshot.db.list_sku_specs", return_value=SAMPLE_SPECS)
     def test_uploads_to_correct_blob_path(self, _mock_db):
@@ -116,7 +117,7 @@ class TestExportToBlob(unittest.TestCase):
         self.assertIn(b"5X8GW", uploaded_content)
 
     @patch("scripts.export_sku_snapshot.db.list_sku_specs", return_value=SAMPLE_SPECS)
-    def test_returns_none_on_upload_failure(self, _mock_db):
+    def test_raises_on_upload_failure(self, _mock_db):
         with patch.dict("sys.modules", {
             "azure": MagicMock(),
             "azure.identity": MagicMock(
@@ -125,14 +126,13 @@ class TestExportToBlob(unittest.TestCase):
             "azure.storage": MagicMock(),
             "azure.storage.blob": MagicMock(),
         }):
-            result = export_sku_snapshot_to_blob(storage_account="teststorage")
-
-        self.assertIsNone(result)
+            with self.assertRaises(SKUExportError):
+                export_sku_snapshot_to_blob(storage_account="teststorage")
 
     @patch("scripts.export_sku_snapshot.db.list_sku_specs", return_value=[])
-    def test_returns_none_when_no_specs(self, _mock_db):
-        result = export_sku_snapshot_to_blob(storage_account="teststorage")
-        self.assertIsNone(result)
+    def test_raises_when_no_specs(self, _mock_db):
+        with self.assertRaises(SKUExportError):
+            export_sku_snapshot_to_blob(storage_account="teststorage")
 
 
 class TestFromCsvCompatibility(unittest.TestCase):

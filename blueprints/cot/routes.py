@@ -17708,6 +17708,41 @@ def get_optimization_loads(run_id):
     return jsonify({"loads": loads})
 
 
+@cot_bp.route("/admin/run-sku-export", methods=["POST"])
+def admin_run_sku_export():
+    """Token-gated trigger for the daily SKU snapshot blob export.
+
+    Invoked by the COT-Freight-Automation runbook on a daily schedule.
+    Authenticates via shared secret in the X-Trigger-Token header, compared
+    in constant time against SKU_EXPORT_TRIGGER_TOKEN.
+    """
+    import hmac
+
+    expected = os.environ.get("SKU_EXPORT_TRIGGER_TOKEN", "")
+    if not expected:
+        logger.error("SKU_EXPORT_TRIGGER_TOKEN not configured; refusing trigger.")
+        return jsonify(ok=False, error="trigger_not_configured"), 503
+
+    provided = request.headers.get("X-Trigger-Token", "")
+    if not hmac.compare_digest(provided, expected):
+        logger.warning("Rejected SKU export trigger: invalid or missing token.")
+        return jsonify(ok=False, error="unauthorized"), 401
+
+    from scripts.export_sku_snapshot import (
+        SKUExportError,
+        export_sku_snapshot_to_blob,
+    )
+
+    try:
+        url = export_sku_snapshot_to_blob()
+    except SKUExportError as exc:
+        logger.exception("SKU export trigger failed.")
+        return jsonify(ok=False, error=str(exc)), 500
+
+    logger.info("SKU export trigger succeeded; uploaded to %s", url)
+    return jsonify(ok=True, url=url), 200
+
+
 def _register_legacy_cot_endpoint_aliases(flask_app):
     endpoint_prefix = f"{cot_bp.name}."
     blueprint_rules = [

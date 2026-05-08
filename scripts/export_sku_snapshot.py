@@ -45,6 +45,10 @@ BLOB_CONTAINER = "resources"
 BLOB_PATH = "freight/cot_load_scoring/sku_specifications.csv"
 
 
+class SKUExportError(RuntimeError):
+    """Raised when the SKU snapshot blob export cannot complete."""
+
+
 def _serialize_snapshot(specs):
     """Serialize SKU specs to CSV string with metadata header."""
     generated_at = datetime.now(timezone.utc).isoformat()
@@ -87,27 +91,27 @@ def export_sku_snapshot_to_blob(storage_account=None):
     Uses DefaultAzureCredential (Managed Identity in production,
     Azure CLI fallback for local dev).
 
-    Returns the blob URL on success, or None on failure.
+    Returns the blob URL on success.
+    Raises SKUExportError when configuration is missing, the database
+    has no specs to export, or the upload itself fails.
     """
     account = storage_account or os.environ.get("SKU_EXPORT_STORAGE_ACCOUNT", "")
     if not account:
-        logger.error(
-            "SKU_EXPORT_STORAGE_ACCOUNT is not set. Cannot upload to blob storage."
+        raise SKUExportError(
+            "SKU_EXPORT_STORAGE_ACCOUNT is not set; cannot upload to blob storage."
         )
-        return None
 
     specs = db.list_sku_specs()
     if not specs:
-        logger.warning("No SKU specifications found in database.")
-        return None
+        raise SKUExportError("No SKU specifications found in database.")
 
     content = _serialize_snapshot(specs)
 
-    try:
-        from azure.identity import DefaultAzureCredential
-        from azure.storage.blob import BlobClient
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobClient
 
-        account_url = f"https://{account}.blob.core.windows.net"
+    account_url = f"https://{account}.blob.core.windows.net"
+    try:
         credential = DefaultAzureCredential()
         blob = BlobClient(
             account_url=account_url,
@@ -116,14 +120,12 @@ def export_sku_snapshot_to_blob(storage_account=None):
             credential=credential,
         )
         blob.upload_blob(content.encode("utf-8"), overwrite=True)
+    except Exception as exc:
+        raise SKUExportError(f"Failed to upload SKU snapshot: {exc}") from exc
 
-        blob_url = f"{account_url}/{BLOB_CONTAINER}/{BLOB_PATH}"
-        logger.info("Uploaded %d SKU specs to %s", len(specs), blob_url)
-        return blob_url
-
-    except Exception:
-        logger.exception("Failed to upload SKU snapshot to blob storage.")
-        return None
+    blob_url = f"{account_url}/{BLOB_CONTAINER}/{BLOB_PATH}"
+    logger.info("Uploaded %d SKU specs to %s", len(specs), blob_url)
+    return blob_url
 
 
 def main():
@@ -135,12 +137,12 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     if args.blob:
-        result = export_sku_snapshot_to_blob()
-        if result:
-            print(f"Snapshot uploaded to {result}")
-        else:
-            print("Blob export failed.", file=sys.stderr)
+        try:
+            result = export_sku_snapshot_to_blob()
+        except SKUExportError as exc:
+            print(f"Blob export failed: {exc}", file=sys.stderr)
             sys.exit(1)
+        print(f"Snapshot uploaded to {result}")
     else:
         result = export_sku_snapshot(args.output)
         if result:
