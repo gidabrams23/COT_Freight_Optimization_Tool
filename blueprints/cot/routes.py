@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -874,6 +875,88 @@ def _backfill_legacy_sessions():
 
 
 _backfill_legacy_sessions()
+
+
+_SKU_EXPORT_SCHEDULER_LOCK_FD = None
+
+
+def _run_sku_export_schedule_loop():
+    """Daily loop: sleep until next scheduled hour ET, run export, repeat."""
+    try:
+        tz = ZoneInfo("America/New_York")
+    except Exception:
+        tz = timezone.utc
+
+    raw_hour = os.environ.get("SKU_EXPORT_HOUR_ET", "1")
+    try:
+        export_hour = int(raw_hour)
+    except ValueError:
+        export_hour = 1
+    if not 0 <= export_hour <= 23:
+        logger.warning(
+            "SKU_EXPORT_HOUR_ET=%r out of range 0-23; falling back to 1.", raw_hour
+        )
+        export_hour = 1
+
+    while True:
+        now = datetime.now(tz)
+        next_run = now.replace(hour=export_hour, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        sleep_s = max(60.0, (next_run - now).total_seconds())
+        logger.info(
+            "Next SKU export scheduled at %s (in %.0fs)", next_run.isoformat(), sleep_s
+        )
+        time.sleep(sleep_s)
+        try:
+            from scripts.export_sku_snapshot import export_sku_snapshot_to_blob
+
+            url = export_sku_snapshot_to_blob()
+            logger.info("Scheduled SKU export uploaded to %s", url)
+        except Exception:
+            logger.exception("Scheduled SKU export failed (will retry tomorrow).")
+
+
+def _start_sku_export_scheduler():
+    """Start the daily SKU export scheduler in a daemon thread.
+
+    Guarded by a non-blocking file lock so that only one process runs the
+    schedule loop — gunicorn forks multiple workers, and without the lock each
+    would fire the daily export. The scheduler is Unix-only (fcntl) and skips
+    itself on Windows dev so module import stays cross-platform.
+    """
+    if os.environ.get("SKU_EXPORT_SCHEDULER_DISABLED", "").lower() in {"1", "true", "yes"}:
+        logger.info("SKU export scheduler disabled via SKU_EXPORT_SCHEDULER_DISABLED.")
+        return
+
+    try:
+        import fcntl
+    except ImportError:
+        logger.info("SKU export scheduler skipped: fcntl unavailable on this platform.")
+        return
+
+    global _SKU_EXPORT_SCHEDULER_LOCK_FD
+    lock_path = os.environ.get("SKU_EXPORT_LOCK_PATH", "/tmp/sku_export_scheduler.lock")
+    try:
+        lock_fd = open(lock_path, "w")
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, BlockingIOError):
+        logger.info(
+            "SKU export scheduler lock %s already held; skipping in this process.",
+            lock_path,
+        )
+        return
+
+    _SKU_EXPORT_SCHEDULER_LOCK_FD = lock_fd  # retain fd for process lifetime
+    threading.Thread(
+        target=_run_sku_export_schedule_loop,
+        daemon=True,
+        name="sku-export-scheduler",
+    ).start()
+    logger.info("SKU export scheduler thread started.")
+
+
+_start_sku_export_scheduler()
 
 
 @cot_bp.route("/session", methods=["GET", "POST"])
@@ -17706,41 +17789,6 @@ def get_optimization_loads(run_id):
         )
 
     return jsonify({"loads": loads})
-
-
-@cot_bp.route("/admin/run-sku-export", methods=["POST"])
-def admin_run_sku_export():
-    """Token-gated trigger for the daily SKU snapshot blob export.
-
-    Invoked by the COT-Freight-Automation runbook on a daily schedule.
-    Authenticates via shared secret in the X-Trigger-Token header, compared
-    in constant time against SKU_EXPORT_TRIGGER_TOKEN.
-    """
-    import hmac
-
-    expected = os.environ.get("SKU_EXPORT_TRIGGER_TOKEN", "")
-    if not expected:
-        logger.error("SKU_EXPORT_TRIGGER_TOKEN not configured; refusing trigger.")
-        return jsonify(ok=False, error="trigger_not_configured"), 503
-
-    provided = request.headers.get("X-Trigger-Token", "")
-    if not hmac.compare_digest(provided, expected):
-        logger.warning("Rejected SKU export trigger: invalid or missing token.")
-        return jsonify(ok=False, error="unauthorized"), 401
-
-    from scripts.export_sku_snapshot import (
-        SKUExportError,
-        export_sku_snapshot_to_blob,
-    )
-
-    try:
-        url = export_sku_snapshot_to_blob()
-    except SKUExportError as exc:
-        logger.exception("SKU export trigger failed.")
-        return jsonify(ok=False, error=str(exc)), 500
-
-    logger.info("SKU export trigger succeeded; uploaded to %s", url)
-    return jsonify(ok=True, url=url), 200
 
 
 def _register_legacy_cot_endpoint_aliases(flask_app):

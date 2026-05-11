@@ -253,6 +253,9 @@ flowchart LR
 | Variable | Default in Code | Current Value in This Environment | Notes |
 |---|---|---|---|
 | `SKU_EXPORT_STORAGE_ACCOUNT` | none | (empty) | Storage account name for daily SKU snapshot export. Required for `--blob` mode. See section 8. |
+| `SKU_EXPORT_HOUR_ET` | `1` | (empty) | Hour-of-day (ET) at which the in-process scheduler fires the daily export. |
+| `SKU_EXPORT_SCHEDULER_DISABLED` | (unset) | (empty) | Set to `1`/`true` to disable the in-process daily scheduler. |
+| `SKU_EXPORT_LOCK_PATH` | `/tmp/sku_export_scheduler.lock` | (empty) | File lock that prevents multiple gunicorn workers from running the schedule loop concurrently. |
 
 #### Entra SSO
 | Variable | Default in Code | Current Value in This Environment | Notes |
@@ -464,36 +467,32 @@ The export authenticates using `DefaultAzureCredential` (Managed Identity in pro
 
 ### Schedule
 
-The export runs once daily at **05:00 UTC**, before downstream analytics batch jobs consume the snapshot.
+The export runs once daily inside the Flask app process, scheduled by an in-process daemon thread (`blueprints/cot/routes.py::_start_sku_export_scheduler`). Default fire time is **01:00 America/New_York**.
 
-Implementation options (environment-specific):
-- Azure WebJob with CRON expression: `0 0 5 * * *`
-- Container-level cron job
-- Azure Logic App or Automation trigger
+| Env var | Default | Effect |
+|---|---|---|
+| `SKU_EXPORT_HOUR_ET` | `1` | Hour-of-day (ET) at which the scheduler fires |
+| `SKU_EXPORT_SCHEDULER_DISABLED` | (unset) | Set to `1` to disable the scheduler entirely |
+| `SKU_EXPORT_LOCK_PATH` | `/tmp/sku_export_scheduler.lock` | File lock path; gunicorn forks multiple workers and only the worker that acquires this lock runs the schedule loop |
 
-The export runs as a standalone script invocation inside the container — it does not require the Flask web process to be running:
-
-```bash
-python3 scripts/export_sku_snapshot.py --blob
-```
+No external runbook / WebJob / Automation trigger is required — the scheduler lives in the same container as the web app and uses the existing Managed Identity for blob auth.
 
 ### Manual Recovery
 
-If the scheduled export fails or an immediate refresh is needed, re-run manually:
+If the scheduled export fails or an immediate refresh is needed, re-run manually from inside the container (Kudu SSH or `az webapp ssh`):
 
 ```bash
-# Inside the container or from an SSH session:
 SKU_EXPORT_STORAGE_ACCOUNT=<account-name> python3 scripts/export_sku_snapshot.py --blob
 ```
 
-The script overwrites the existing blob. The last successful snapshot remains available until overwritten.
+The script overwrites the existing blob. The last successful snapshot remains available until overwritten. Alternatively, restarting the container will cause the scheduler thread to re-arm; the export will fire at the next scheduled hour.
 
 ### Monitoring and Failure Behavior
 
-- **Success log:** `Uploaded N SKU specs to https://<account>.blob.core.windows.net/resources/freight/cot_load_scoring/sku_specifications.csv`
-- **Failure log:** `Failed to upload SKU snapshot to blob storage.` with full traceback
-- **Missing config:** `SKU_EXPORT_STORAGE_ACCOUNT is not set. Cannot upload to blob storage.` (exits non-zero)
-- A failed export does not affect planner workflows (the export runs outside the web process)
+- **Success log:** `Scheduled SKU export uploaded to https://<account>.blob.core.windows.net/resources/freight/cot_load_scoring/sku_specifications.csv`
+- **Failure log:** `Scheduled SKU export failed (will retry tomorrow).` with full traceback
+- **Missing config:** `SKU_EXPORT_STORAGE_ACCOUNT is not set; cannot upload to blob storage.` (logged at error level; loop continues)
+- A failed export does not affect planner workflows — exceptions are caught inside the scheduler loop and the thread re-arms for the next day
 - Downstream consumers continue reading the last successful snapshot
 
 ### Freshness Contract
