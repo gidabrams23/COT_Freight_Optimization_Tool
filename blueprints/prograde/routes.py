@@ -1018,6 +1018,26 @@ def _ground_pull_first_deck_length_ft(enriched_positions):
     return None
 
 
+def _ground_pull_first_deck_surface_ft(enriched_positions):
+    if not enriched_positions:
+        return None
+    ordered = sorted(
+        [dict(p or {}) for p in enriched_positions],
+        key=lambda p: (
+            str(p.get("added_at") or "9999-12-31T23:59:59"),
+            str(p.get("position_id") or ""),
+        ),
+    )
+    for pos in ordered:
+        deck_height_ft = _as_float(
+            pos.get("deck_component_height_ft"),
+            _as_float(pos.get("height"), 0.0),
+        )
+        if deck_height_ft > 0:
+            return round(deck_height_ft, 3)
+    return None
+
+
 def _as_float(value, default=0.0):
     try:
         if value is None:
@@ -3412,10 +3432,13 @@ def _build_canvas_data(
         if dynamic_deck_len_ft and dynamic_deck_len_ft > 0:
             carrier_map["total_length_ft"] = dynamic_deck_len_ft
             carrier_map["lower_deck_length_ft"] = dynamic_deck_len_ft
+        # Ground pull deck reference is the top of the first placed unit.
+        # Height envelope is always 10 ft above that anchor.
+        anchor_surface_ft = _ground_pull_first_deck_surface_ft(enriched) or 0.0
         carrier_map["upper_deck_length_ft"] = 0.0
-        # Ground Pull has no fixed trailer deck surface; layer 1 unit is the deck.
-        carrier_map["lower_deck_ground_height_ft"] = 0.0
-        carrier_map["upper_deck_ground_height_ft"] = 0.0
+        carrier_map["lower_deck_ground_height_ft"] = anchor_surface_ft
+        carrier_map["upper_deck_ground_height_ft"] = anchor_surface_ft
+        carrier_map["max_height_ft"] = anchor_surface_ft + 10.0
 
     # Group positions: {zone: {seq: [positions sorted by layer]}}
     zone_cols: dict = {z: {} for z in zones}
@@ -4954,7 +4977,16 @@ def account_select():
     selected = _set_active_profile(profile)
     selected_brand = _active_profile_default_brand(selected, selected_brand)
     _set_account_notice(f"Using account: {selected['name']}", level="success")
-    return redirect(next_url or url_for("prograde.sessions", brand=selected_brand))
+    # Keep deep-link workflows, but normalize generic account-entry routes to the
+    # profile's assigned default brand.
+    if next_url:
+        lowered_next = next_url.lower()
+        if lowered_next.startswith("/prograde/sessions"):
+            return redirect(url_for("prograde.sessions", brand=selected_brand))
+        if lowered_next.startswith("/prograde/session/new"):
+            return redirect(url_for("prograde.session_new", brand=selected_brand))
+        return redirect(next_url)
+    return redirect(url_for("prograde.sessions", brand=selected_brand))
 
 
 @prograde_bp.route("/account/create", methods=["POST"])

@@ -459,6 +459,20 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/prograde/sessions?brand=pj", resp.headers.get("Location", ""))
 
+    def test_account_select_ignores_sessions_next_brand_and_uses_profile_default(self):
+        profile_id = self._create_planner_profile("BWise Default Planner", default_brand="bwise")
+        resp = self.client.post(
+            "/prograde/account/select",
+            data={
+                "brand": "bigtex",
+                "profile_id": str(profile_id),
+                "next": "/prograde/sessions?brand=bigtex",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/prograde/sessions?brand=bwise", resp.headers.get("Location", ""))
+
     def test_admin_can_update_profile_role_and_default_brand(self):
         admin_id = int(self.db.create_access_profile(name="Workflow Admin", is_admin=True, default_brand="bigtex"))
         planner_id = self._create_planner_profile("Planner Promote", default_brand="bigtex")
@@ -4261,6 +4275,10 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         trailer_geometry = dict(canvas.get("trailer_geometry") or {})
         self.assertAlmostEqual(float(trailer_geometry.get("total_length_ft") or 0.0), 40.0, places=3)
         self.assertAlmostEqual(float(canvas.get("z_caps", {}).get("lower_deck") or 0.0), 40.0, places=3)
+        self.assertAlmostEqual(float(trailer_geometry.get("lower_deck_surface_ft") or 0.0), 2.0, places=3)
+        self.assertAlmostEqual(float(trailer_geometry.get("max_height_ft") or 0.0), 12.0, places=3)
+        self.assertAlmostEqual(float(trailer_geometry.get("lower_clearance_ft") or 0.0), 10.0, places=3)
+        self.assertAlmostEqual(float((canvas.get("clearances") or {}).get("lower_deck") or 0.0), 10.0, places=3)
         self.assertTrue(bool(trailer_geometry.get("ground_pull_mode")))
         self.assertFalse(bool(trailer_geometry.get("has_structural_deck")))
         self.assertFalse(bool(trailer_geometry.get("show_upper_zone")))
@@ -4333,6 +4351,10 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         trailer_geometry = dict(canvas.get("trailer_geometry") or {})
         self.assertAlmostEqual(float(trailer_geometry.get("total_length_ft") or 0.0), 40.0, places=3)
         self.assertAlmostEqual(float(canvas.get("z_caps", {}).get("lower_deck") or 0.0), 40.0, places=3)
+        self.assertAlmostEqual(float(trailer_geometry.get("lower_deck_surface_ft") or 0.0), 6.0, places=3)
+        self.assertAlmostEqual(float(trailer_geometry.get("max_height_ft") or 0.0), 16.0, places=3)
+        self.assertAlmostEqual(float(trailer_geometry.get("lower_clearance_ft") or 0.0), 10.0, places=3)
+        self.assertAlmostEqual(float((canvas.get("clearances") or {}).get("lower_deck") or 0.0), 10.0, places=3)
         self.assertTrue(bool(trailer_geometry.get("ground_pull_mode")))
         self.assertFalse(bool(trailer_geometry.get("has_structural_deck")))
         self.assertFalse(bool(trailer_geometry.get("show_upper_zone")))

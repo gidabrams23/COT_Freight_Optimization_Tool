@@ -128,7 +128,7 @@
     </div>
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-    <a href="{{ url_for('prograde.account_landing', brand=selected_brand, next=url_for('prograde.sessions', brand=selected_brand)) }}" class="btn btn-secondary">Account</a>
+    <a href="{{ url_for('prograde.account_landing', brand=selected_brand, next=url_for('prograde.sessions')) }}" class="btn btn-secondary">Account</a>
     <a id="pg-create-load-btn" href="{{ url_for('prograde.session_new', brand=selected_brand) }}" class="btn btn-primary">Create Load</a>
   </div>
 </div>

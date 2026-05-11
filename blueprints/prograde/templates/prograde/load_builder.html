@@ -2829,6 +2829,18 @@ function completeSqlRefreshPopup(message, isError = false) {
   SQL_REFRESH_POPUP.actions.classList.add("open");
 }
 
+function getInventoryTotalQtyFromHeader() {
+  const stat = document.getElementById("inv-total-qty-stat");
+  if (!stat) return null;
+  const fromData = Number(stat.getAttribute("data-total-qty"));
+  if (Number.isFinite(fromData)) return fromData;
+  const text = String(stat.textContent || "");
+  const match = text.match(/(-?\d[\d,]*)/);
+  if (!match) return null;
+  const parsed = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function getRenderModeInputs() {
   return Array.from(document.querySelectorAll('input[name="render-mode"]'));
 }
@@ -3923,12 +3935,15 @@ function initInventoryUploadControls() {
         const loaded = Number(result.deduped_rows || result.valid_rows || result.sql_row_count || 0);
         const whseCount = Number(result.warehouse_count || 0);
         await refreshBuilderFragments();
+        const pillTotalQty = getInventoryTotalQtyFromHeader();
         let summaryMessage = `${brandLabel} SQL refresh complete: ${loaded} items loaded, ${result.distinct_items || 0} SKUs${whseCount ? `, ${whseCount} WHSE` : ""}.`;
         if (SESSION_BRAND === "pj") {
           const matchedRows = Number(result.matched_rows || 0);
           const matchedRatio = Number(result.matched_ratio || 0);
           const matchedPct = Number.isFinite(matchedRatio) ? Math.round(matchedRatio * 100) : 0;
           summaryMessage = `${brandLabel} SQL refresh complete: ${loaded} items loaded, ${result.distinct_items || 0} SKUs${whseCount ? `, ${whseCount} WHSE` : ""}, ${matchedRows} matched (${matchedPct}%).`;
+        } else if (pillTotalQty !== null) {
+          summaryMessage = `${brandLabel} SQL refresh complete: ${result.distinct_items || 0} SKUs${whseCount ? `, ${whseCount} WHSE` : ""}, Total Qty ${pillTotalQty}.`;
         }
         completeSqlRefreshPopup(summaryMessage, false);
         showToast(summaryMessage, "success");

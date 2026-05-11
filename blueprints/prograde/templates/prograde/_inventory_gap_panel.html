@@ -28,8 +28,10 @@
           </div>
         </div>
         <div class="inventory-header-stats">
-          <span class="inventory-header-stat">Items: {{ (inventory_gap.rows | length) if inventory_gap else 0 }}</span>
-          <span class="inventory-header-stat">Total Qty: {{ (inventory_gap.total_inventory_qty if inventory_gap and inventory_gap.total_inventory_qty is not none else 0) }}</span>
+          {% set inv_items = ((inventory_gap.rows | length) if inventory_gap else 0) %}
+          {% set inv_total_qty = (inventory_gap.total_inventory_qty if inventory_gap and inventory_gap.total_inventory_qty is not none else 0) %}
+          <span class="inventory-header-stat" id="inv-items-stat" data-items="{{ inv_items }}">Items: {{ inv_items }}</span>
+          <span class="inventory-header-stat" id="inv-total-qty-stat" data-total-qty="{{ inv_total_qty }}">Total Qty: {{ inv_total_qty }}</span>
         </div>
       </div>
       <div class="inventory-header-actions">
