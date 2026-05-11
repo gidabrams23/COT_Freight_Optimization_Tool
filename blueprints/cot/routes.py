@@ -9,7 +9,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("Verbose startup logging enabled.")
 
-import fcntl
 import json
 import math
 import os
@@ -888,9 +887,15 @@ def _run_sku_export_schedule_loop():
     except Exception:
         tz = timezone.utc
 
+    raw_hour = os.environ.get("SKU_EXPORT_HOUR_ET", "1")
     try:
-        export_hour = int(os.environ.get("SKU_EXPORT_HOUR_ET", "1"))
+        export_hour = int(raw_hour)
     except ValueError:
+        export_hour = 1
+    if not 0 <= export_hour <= 23:
+        logger.warning(
+            "SKU_EXPORT_HOUR_ET=%r out of range 0-23; falling back to 1.", raw_hour
+        )
         export_hour = 1
 
     while True:
@@ -917,10 +922,17 @@ def _start_sku_export_scheduler():
 
     Guarded by a non-blocking file lock so that only one process runs the
     schedule loop — gunicorn forks multiple workers, and without the lock each
-    would fire the daily export.
+    would fire the daily export. The scheduler is Unix-only (fcntl) and skips
+    itself on Windows dev so module import stays cross-platform.
     """
     if os.environ.get("SKU_EXPORT_SCHEDULER_DISABLED", "").lower() in {"1", "true", "yes"}:
         logger.info("SKU export scheduler disabled via SKU_EXPORT_SCHEDULER_DISABLED.")
+        return
+
+    try:
+        import fcntl
+    except ImportError:
+        logger.info("SKU export scheduler skipped: fcntl unavailable on this platform.")
         return
 
     global _SKU_EXPORT_SCHEDULER_LOCK_FD
