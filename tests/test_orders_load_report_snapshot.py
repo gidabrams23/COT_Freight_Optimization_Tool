@@ -18,6 +18,77 @@ def _set_authenticated_session(client):
 
 
 class OrdersLoadReportSnapshotTests(unittest.TestCase):
+    def test_build_single_load_sheet_template_export_polish_contract(self):
+        load_payload = {
+            "load_number": "15-26",
+            "display_load_id": "L#01",
+            "origin_plant": "VA",
+            "trailer_type": "step_deck",
+            "route_legs_to_stops": [100, 55.5],
+            "route_cumulative_to_stops": [100, 155.5],
+            "orders": [
+                {"state": "VA", "zip": "23350", "stop_order": 1},
+                {"state": "DE", "zip": "19934", "stop_order": 2},
+            ],
+            "lines": [
+                {
+                    "so_num": "12617750",
+                    "sku": "5x8GW2K",
+                    "qty": 2,
+                    "state": "VA",
+                    "zip": "23350",
+                    "city": "EXMORE",
+                    "address1": "4102 LANKFORD HWY",
+                    "cust_name": "ROMMEL'S ACE HOME CENTER",
+                },
+                {
+                    "so_num": "12617750",
+                    "sku": "4x6GW2K",
+                    "qty": 3,
+                    "state": "VA",
+                    "zip": "23350",
+                    "city": "EXMORE",
+                    "address1": "4102 LANKFORD HWY",
+                    "cust_name": "ROMMEL'S ACE HOME CENTER",
+                },
+                {
+                    "so_num": "12617799",
+                    "sku": "6x10TA",
+                    "qty": 1,
+                    "state": "DE",
+                    "zip": "19934",
+                    "city": "CAMDEN",
+                    "address1": "516 WALMART DRIVE",
+                    "cust_name": "LOWE'S OF CAMDEN, DE",
+                },
+            ],
+            "schematic": {
+                "positions": [
+                    {
+                        "deck": "lower",
+                        "items": [{"sku": "5x8GW2K", "units": 2, "stop_sequence": 1}],
+                    },
+                    {
+                        "deck": "lower",
+                        "items": [{"sku": "6x10TA", "units": 1, "stop_sequence": 2}],
+                    },
+                ],
+            },
+        }
+
+        wb = app_module._build_single_load_sheet_workbook(load_payload)
+        ws = wb[wb.sheetnames[0]]
+
+        self.assertEqual(ws.print_area, f"'{ws.title}'!$A$1:$H$65")
+        self.assertIsNone(ws.freeze_panes)
+        self.assertEqual(ws["A5"].value, "100mi / 100mi")
+        self.assertEqual(ws["B5"].value, "55.5mi / 155.5mi")
+        self.assertEqual(ws["A14"].value, "1 - 12617750")
+        self.assertEqual(ws["A15"].value, "5x8GW2K x2 | 4x6GW2K x3")
+        self.assertEqual(ws["B14"].value, "2 - 12617799")
+        self.assertEqual(ws["B15"].value, "6x10TA x1")
+        self.assertIn("Trailer Schematic", str(ws["A42"].value or ""))
+
     def test_build_orders_snapshot_uses_load_report_assignments(self):
         orders = [
             {"so_num": "1001", "due_date": "2026-01-01", "is_excluded": 0},

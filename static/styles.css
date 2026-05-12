@@ -18740,7 +18740,7 @@ body.loads-auto-sidebar .page.page-loads-index {
 
 .perf-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -18823,7 +18823,7 @@ body.loads-auto-sidebar .page.page-loads-index {
 
 .perf-row-top {
   flex: 55 1 0;
-  grid-template-columns: minmax(0, 2.45fr) minmax(220px, 0.7fr) minmax(220px, 0.7fr);
+  grid-template-columns: minmax(0, 2.45fr) minmax(320px, 1fr);
 }
 
 .perf-row-bottom {
@@ -18966,9 +18966,15 @@ body.loads-auto-sidebar .page.page-loads-index {
 
 .perf-trend-x-axis {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--perf-month-count, 12), minmax(0, 1fr));
   gap: 2px;
   margin-top: 6px;
+}
+
+.perf-cost-disclaimer {
+  margin: -2px 2px 0;
+  font-size: 10px;
+  color: rgba(226, 232, 240, 0.55);
 }
 
 .perf-trend-x-axis span {

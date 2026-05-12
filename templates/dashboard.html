@@ -72,6 +72,9 @@
         </article>
       {% endfor %}
     </div>
+    {% if cost_disclaimer %}
+      <p class="perf-cost-disclaimer">{{ cost_disclaimer }}</p>
+    {% endif %}
 
     <div class="perf-body">
       <div class="perf-row perf-row-top">
@@ -109,7 +112,7 @@
                   <path d="{{ trend_chart.prior_path }}" class="perf-trend-line perf-trend-line-prior"></path>
                   <path d="{{ trend_chart.current_path }}" class="perf-trend-line perf-trend-line-current" style="--line-color: {{ trend_chart.color }};"></path>
                 </svg>
-                <div class="perf-trend-x-axis">
+                <div class="perf-trend-x-axis" style="--perf-month-count: {{ trend_chart.labels|length if trend_chart.labels else 1 }};">
                   {% for label in trend_chart.labels %}
                     <span>{{ label }}</span>
                   {% endfor %}
@@ -121,29 +124,7 @@
           </div>
         </article>
 
-        <article class="perf-panel">
-          <div class="perf-panel-head">
-            <div>
-              <p class="perf-eyebrow">Utilization Bands</p>
-              <h2>Load Distribution</h2>
-            </div>
-          </div>
-          <div class="perf-band-list">
-            {% for band in utilization_bands %}
-              <div class="perf-bar-row">
-                <div class="perf-bar-label">
-                  <span>{{ band.label }}</span>
-                  <strong>{{ band.count }}</strong>
-                </div>
-                <div class="perf-bar-track">
-                  <span class="perf-bar-fill {{ band.class }}" style="width: {{ band.width }}%;"></span>
-                </div>
-              </div>
-            {% endfor %}
-          </div>
-        </article>
-
-        <article class="perf-panel">
+        <article class="perf-panel perf-panel-grade-expanded">
           <div class="perf-panel-head">
             <div>
               <p class="perf-eyebrow">Efficiency Grades</p>

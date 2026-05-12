@@ -38,7 +38,7 @@ from flask import (
 import csv
 import io
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 try:
     from openpyxl.drawing.image import Image as OpenPyxlImage
@@ -8299,6 +8299,7 @@ def _build_performance_dashboard_context():
                 return metrics_cache[key]
             if not normalized_plants:
                 empty = {
+                    "order_count": 0,
                     "load_count": 0,
                     "avg_utilization": None,
                     "total_spend": 0.0,
@@ -8351,7 +8352,21 @@ def _build_performance_dashboard_context():
                 """,
                 params,
             ).fetchone()
+            orders_row = connection.execute(
+                f"""
+                SELECT COUNT(DISTINCT COALESCE(ol.so_num, '')) AS order_count
+                FROM loads l
+                JOIN load_lines ll ON ll.load_id = l.id
+                JOIN order_lines ol ON ol.id = ll.order_line_id
+                WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+                  AND l.origin_plant IN ({plant_placeholders})
+                  AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+                  AND COALESCE(ol.is_excluded, 0) = 0
+                """,
+                params,
+            ).fetchone()
 
+            order_count = int(orders_row["order_count"] or 0) if orders_row else 0
             load_count = int(load_row["load_count"] or 0) if load_row else 0
             avg_utilization = (
                 float(load_row["avg_utilization"]) if load_row and load_row["avg_utilization"] is not None else None
@@ -8362,6 +8377,7 @@ def _build_performance_dashboard_context():
             total_units = float(units_row["total_units"] or 0.0) if units_row else 0.0
 
             metrics = {
+                "order_count": order_count,
                 "load_count": load_count,
                 "avg_utilization": avg_utilization,
                 "total_spend": total_spend,
@@ -8401,6 +8417,12 @@ def _build_performance_dashboard_context():
         )
 
         kpis = [
+            {
+                "label": "Orders Batched",
+                "value": _format_int(current_metrics["order_count"]),
+                "subtext": "Distinct assigned orders",
+                "delta": None,
+            },
             {
                 "label": "Loads Batched",
                 "value": _format_int(current_metrics["load_count"]),
@@ -8508,6 +8530,17 @@ def _build_performance_dashboard_context():
                     "color": _plant_color(plant),
                 }
             )
+        pinned_tail_order = {"TX": 0, "OR": 1}
+        if len(plant_cards) > 1:
+            non_all_cards = plant_cards[1:]
+            non_all_cards.sort(
+                key=lambda card: (
+                    card.get("code") in pinned_tail_order,
+                    pinned_tail_order.get(card.get("code"), 999),
+                    allowed_plants.index(card.get("code")) if card.get("code") in allowed_plants else 999,
+                )
+            )
+            plant_cards = [plant_cards[0]] + non_all_cards
 
         scope_placeholders = ", ".join("?" for _ in plant_scope) if plant_scope else "''"
         scope_params = list(approved_statuses) + list(plant_scope) + [
@@ -8638,6 +8671,15 @@ def _build_performance_dashboard_context():
             month_prior = _aggregate_metrics(plant_scope, prior_month_start, prior_month_end)
             current_series.append(month_current["cost_per_unit"])
             prior_series.append(month_prior["cost_per_unit"])
+        first_data_idx = None
+        for idx, (current_value, prior_value) in enumerate(zip(current_series, prior_series)):
+            if current_value is not None or prior_value is not None:
+                first_data_idx = idx
+                break
+        if first_data_idx is not None and first_data_idx > 0:
+            trend_months = trend_months[first_data_idx:]
+            current_series = current_series[first_data_idx:]
+            prior_series = prior_series[first_data_idx:]
 
         complete_month_anchor = _month_start(today)
         if today < _month_end(complete_month_anchor):
@@ -8744,7 +8786,23 @@ def _build_performance_dashboard_context():
             formatted = []
             for row in rows:
                 load = dict(row)
-                utilization_pct = round(float(load.get("utilization_pct") or 0.0), 1)
+                lines = db.list_load_lines(load["id"])
+                trailer_type = stack_calculator.normalize_trailer_type(
+                    load.get("trailer_type"),
+                    default="STEP_DECK",
+                )
+                schematic_result = _calculate_load_schematic_with_override(
+                    load["id"],
+                    lines,
+                    sku_specs,
+                    trailer_type,
+                    stop_sequence_map=None,
+                )
+                schematic = schematic_result.get("schematic") or {}
+                utilization_pct = round(
+                    float(schematic.get("utilization_pct", load.get("utilization_pct") or 0.0) or 0.0),
+                    1,
+                )
                 parsed_date = _parse_date(load.get("created_at"))
                 ship_date = parsed_date.strftime("%m/%d/%Y") if parsed_date else "--"
                 thumbnail = _build_load_thumbnail(load, sku_specs, stop_color_palette=stop_color_palette)
@@ -8846,6 +8904,7 @@ def _build_performance_dashboard_context():
         "prior_year": prior_year,
         "topbar_status": {"label": "Live", "detail": latest_label},
         "kpis": kpis,
+        "cost_disclaimer": "Estimated freight costs are generated from tool inputs. Finance reports actual incurred freight at month end.",
         "plant_cards": plant_cards,
         "trend_chart": trend_chart,
         "utilization_bands": utilization_bands,
@@ -12159,6 +12218,29 @@ def _build_load_report_rows(loads):
         ordered_stops = _ordered_stops_for_lines(lines, load.get("origin_plant"), zip_coords)
         ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
         ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
+        origin_coords = geo_utils.plant_coords_for_code(load.get("origin_plant"))
+        route_nodes = []
+        if origin_coords:
+            route_nodes.append({"coords": origin_coords, "type": "origin"})
+        for stop in ordered_stops:
+            coords = stop.get("coords")
+            if not coords and stop.get("lat") is not None and stop.get("lng") is not None:
+                coords = (stop.get("lat"), stop.get("lng"))
+            route_nodes.append({"coords": coords, "type": "customer"})
+        route_legs_to_stops = []
+        route_cumulative_to_stops = []
+        if len(route_nodes) >= 2:
+            route_metrics = _load_route_display_metrics(
+                load,
+                route_nodes,
+                use_cached_route=(not _is_load_route_reversed(load) and not _load_route_stop_order(load)),
+            )
+            cumulative_miles = 0.0
+            for leg in (route_metrics.get("route_legs") or [])[: len(ordered_stops)]:
+                leg_value = float(leg or 0)
+                cumulative_miles += leg_value
+                route_legs_to_stops.append(round(leg_value, 1))
+                route_cumulative_to_stops.append(round(cumulative_miles, 1))
         stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
         schematic, _, _ = _calculate_load_schematic(
             lines,
@@ -12387,6 +12469,8 @@ def _build_load_report_rows(loads):
                 "schematic_warning_count": len(schematic_warnings),
                 "has_custom_schematic": False,
                 "order_colors": order_colors,
+                "route_legs_to_stops": route_legs_to_stops,
+                "route_cumulative_to_stops": route_cumulative_to_stops,
                 "auto_trailer_label": "",
                 "auto_trailer_reason": "",
             }
@@ -12490,8 +12574,11 @@ def _build_load_sheet_stops(load):
                 "zip": (line.get("zip") or "").strip(),
                 "city": (line.get("city") or "").strip(),
                 "address": _format_street_address(line),
+                "phone": (line.get("phone") or "").strip(),
                 "customers": [],
+                "order_numbers": [],
                 "sku_entries": [],
+                "sku_rollups": {},
             }
 
         stop = stops_by_key[key]
@@ -12502,8 +12589,12 @@ def _build_load_sheet_stops(load):
             stop["city"] = (line.get("city") or "").strip()
         if not stop.get("address"):
             stop["address"] = _format_street_address(line)
+        if not stop.get("phone"):
+            stop["phone"] = (line.get("phone") or "").strip()
 
         so_num = (line.get("so_num") or "").strip()
+        if so_num and so_num not in stop["order_numbers"]:
+            stop["order_numbers"].append(so_num)
         sku = (line.get("sku") or "").strip()
         item = (line.get("item") or "").strip()
         qty_value = float(line.get("qty") or 0)
@@ -12512,6 +12603,15 @@ def _build_load_sheet_stops(load):
         entry = f"{so_num} / {descriptor} x{qty_text}" if so_num else f"{descriptor} x{qty_text}"
         if entry not in stop["sku_entries"]:
             stop["sku_entries"].append(entry)
+        if descriptor:
+            rollup = stop["sku_rollups"].get(descriptor)
+            if not rollup:
+                stop["sku_rollups"][descriptor] = {
+                    "sku": descriptor,
+                    "qty": float(qty_value or 0),
+                }
+            else:
+                rollup["qty"] = float(rollup.get("qty") or 0) + float(qty_value or 0)
 
     order_stops = {}
     for order in load.get("orders") or []:
@@ -12524,6 +12624,12 @@ def _build_load_sheet_stops(load):
     for stop in stops_by_key.values():
         stop_order = order_stops.get(stop["stop_key"])
         stop["stop_order"] = stop_order or 999
+        sku_rollups = []
+        for rollup in stop.get("sku_rollups", {}).values():
+            qty = float(rollup.get("qty") or 0)
+            qty_label = "{:,.0f}".format(qty) if qty.is_integer() else "{:,.1f}".format(qty)
+            sku_rollups.append(f"{rollup.get('sku') or 'SKU'} x{qty_label}")
+        stop["sku_rollup_labels"] = sku_rollups
         stop_rows.append(stop)
 
     stop_rows.sort(
@@ -12852,15 +12958,218 @@ def _write_load_sheet_block(
 
 
 def _build_single_load_sheet_workbook(load):
+    template_candidates = [
+        ROOT_DIR / "docs" / "reference" / "load_sheet_template_carryon_exact.xlsx",
+        ROOT_DIR / "docs" / "reference" / "load_sheet_template_carryon_exact_v2.xlsx",
+        ROOT_DIR / "docs" / "reference" / "SAMPLE_LOAD_SHEET_source.xlsx",
+    ]
+    workbook = None
+    for template_path in template_candidates:
+        if not template_path.exists():
+            continue
+        try:
+            workbook = load_workbook(template_path)
+            break
+        except (PermissionError, OSError):
+            continue
+
+    if workbook is not None:
+        template_sheet_name = workbook.sheetnames[0]
+        ws = workbook[template_sheet_name]
+        for name in list(workbook.sheetnames):
+            if name != template_sheet_name:
+                del workbook[name]
+        ws.title = (load.get("load_number") or "Load Sheet")[:31]
+        ws.print_area = "A1:H65"
+        ws.freeze_panes = None
+
+        route_stops = _build_load_sheet_stops(load)
+        route_legs_to_stops = list(load.get("route_legs_to_stops") or [])
+        route_cumulative_to_stops = list(load.get("route_cumulative_to_stops") or [])
+        start_zip = route_stops[0].get("zip") if route_stops else ""
+        end_zip = route_stops[-1].get("zip") if route_stops else ""
+        trailer_label = str(load.get("trailer_type") or "").replace("_", " ").title() or "Trailer"
+        ws["B1"] = load.get("origin_plant") or ""
+        ws["C1"] = load.get("load_number") or load.get("display_load_id") or ""
+        ws["D1"] = trailer_label
+        ws["A3"] = start_zip
+        ws["B3"] = end_zip
+        ws["C3"] = load.get("carrier_name") or load.get("carrier") or "TBD"
+        ws["E3"] = load.get("trailer_count") or 1
+        ws["F3"] = round(float(load.get("estimated_miles") or 0), 1)
+        ws["G3"] = round(float(load.get("return_miles") or 0), 1)
+        ws["H3"] = load.get("ship_date") or ""
+
+        def _format_miles_label(raw_value):
+            value = float(raw_value or 0)
+            if value <= 0:
+                return ""
+            if value.is_integer():
+                return str(int(value))
+            return f"{value:.1f}".rstrip("0").rstrip(".")
+
+        def _stop_orders_label(stop_idx, stop_row):
+            order_numbers = [value for value in (stop_row.get("order_numbers") or []) if value]
+            if not order_numbers:
+                return ""
+            return " | ".join([f"{stop_idx} - {so_num}" for so_num in order_numbers[:4]])
+
+        def _stop_items_label(stop_row):
+            labels = stop_row.get("sku_rollup_labels") or []
+            return " | ".join(labels[:4])
+
+        # Route miles row.
+        for col_no in range(1, 9):
+            ws.cell(row=5, column=col_no, value="")
+            ws.cell(row=27, column=col_no, value="")
+
+        for idx, stop in enumerate(route_stops[:12], start=1):
+            col_no = idx if idx <= 8 else idx - 8
+            base_row = 6 if idx <= 8 else 28
+            miles_row = 5 if idx <= 8 else 27
+            leg_miles = route_legs_to_stops[idx - 1] if idx - 1 < len(route_legs_to_stops) else 0
+            cumulative_miles = (
+                route_cumulative_to_stops[idx - 1]
+                if idx - 1 < len(route_cumulative_to_stops)
+                else 0
+            )
+            leg_label = _format_miles_label(leg_miles)
+            cumulative_label = _format_miles_label(cumulative_miles)
+            if leg_label and cumulative_label:
+                ws.cell(row=miles_row, column=col_no, value=f"{leg_label}mi / {cumulative_label}mi")
+
+            ws.cell(row=base_row, column=col_no, value=idx)
+            customers = stop.get("customers") or []
+            ws.cell(row=base_row + 1, column=col_no, value=", ".join(customers[:2]))
+            ws.cell(row=base_row + 2, column=col_no, value=stop.get("address") or "")
+            ws.cell(row=base_row + 3, column=col_no, value=stop.get("city") or "")
+            ws.cell(row=base_row + 4, column=col_no, value=stop.get("state") or "")
+            ws.cell(row=base_row + 5, column=col_no, value=stop.get("zip") or "")
+            ws.cell(row=base_row + 6, column=col_no, value=stop.get("phone") or "")
+            ws.cell(row=base_row + 7, column=col_no, value="COT Stickers")
+            ws.cell(row=base_row + 8, column=col_no, value=_stop_orders_label(idx, stop))
+            ws.cell(row=base_row + 9, column=col_no, value=_stop_items_label(stop))
+
+        # Blank all non-used stop columns/rows to avoid placeholder noise.
+        for col_no in range(1, 9):
+            if col_no > min(len(route_stops), 8):
+                for row_no in range(6, 16):
+                    ws.cell(row=row_no, column=col_no, value="")
+        for col_no in range(1, 5):
+            if col_no > max(min(len(route_stops) - 8, 4), 0):
+                for row_no in range(28, 38):
+                    ws.cell(row=row_no, column=col_no, value="")
+        for col_no in range(5, 9):
+            for row_no in range(28, 38):
+                ws.cell(row=row_no, column=col_no, value="")
+
+        # Trailer schematic: bordered, stop-colored, and positioned by deck/sequence from the tool layout.
+        schematic = load.get("schematic") or {}
+        positions = list(schematic.get("positions") or [])
+        schematic_title_fill = PatternFill(fill_type="solid", fgColor="FFE2E8F0")
+        deck_header_fill = PatternFill(fill_type="solid", fgColor="FFF8FAFC")
+        box_medium = Side(style="medium", color="FF334155")
+        box_thin = Side(style="thin", color="FF94A3B8")
+
+        for row_no in range(42, 55):
+            for col_no in range(1, 9):
+                ws.cell(row=row_no, column=col_no, value="")
+
+        ws.merge_cells(start_row=42, start_column=1, end_row=42, end_column=8)
+        title = ws.cell(
+            row=42,
+            column=1,
+            value=f"Trailer Schematic   |   Trailer Type: {trailer_label}",
+        )
+        title.font = Font(bold=True, color="FF0F172A")
+        title.alignment = Alignment(horizontal="center", vertical="center")
+        title.fill = schematic_title_fill
+
+        sections = []
+        upper_positions = [pos for pos in positions if (pos.get("deck") or "lower") == "upper"]
+        lower_positions = [pos for pos in positions if (pos.get("deck") or "lower") == "lower"]
+        if upper_positions:
+            sections.append(("Upper Deck", upper_positions))
+        sections.append(("Lower Deck" if upper_positions else "Deck", lower_positions or positions))
+
+        row_cursor = 43
+        stop_palette = _get_stop_color_palette()
+        for section_label, section_positions in sections:
+            if row_cursor > 53:
+                break
+            ws.merge_cells(start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=8)
+            header_cell = ws.cell(row=row_cursor, column=1, value=section_label)
+            header_cell.font = Font(bold=True, color="FF334155")
+            header_cell.alignment = Alignment(horizontal="left", vertical="center")
+            header_cell.fill = deck_header_fill
+            row_cursor += 1
+
+            for offset in range(0, len(section_positions), 8):
+                if row_cursor > 53:
+                    break
+                chunk = section_positions[offset : offset + 8]
+                ws.row_dimensions[row_cursor].height = 34
+                for col_no in range(1, 9):
+                    cell = ws.cell(row=row_cursor, column=col_no, value="")
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                    cell.font = Font(size=9, color="FF0F172A")
+                    if col_no <= len(chunk):
+                        position = chunk[col_no - 1]
+                        labels = []
+                        top_stop_sequence = 0
+                        for item in position.get("items") or []:
+                            sku = (item.get("sku") or item.get("item") or "SKU").strip()
+                            units = max(_coerce_int_value(item.get("units"), 1), 1)
+                            stop_sequence = _coerce_int_value(item.get("stop_sequence"), 0)
+                            if stop_sequence > top_stop_sequence:
+                                top_stop_sequence = stop_sequence
+                            labels.append(f"{sku} x{units}")
+                        if labels:
+                            prefix = f"S{top_stop_sequence} " if top_stop_sequence > 0 else ""
+                            display_label = " | ".join(labels[:2])
+                            if len(labels) > 2:
+                                display_label = f"{display_label} +{len(labels) - 2}"
+                            cell.value = f"{prefix}{display_label}"
+                            if top_stop_sequence > 0:
+                                stop_color = _color_for_stop_sequence(top_stop_sequence, stop_palette)
+                                cell.fill = PatternFill(
+                                    fill_type="solid",
+                                    fgColor=_hex_to_excel_argb(_lighten_hex_color(stop_color, ratio=0.74), fallback="#E2E8F0"),
+                                )
+                    cell.border = Border(left=box_thin, right=box_thin, top=box_thin, bottom=box_thin)
+                row_cursor += 1
+
+        for row_no in range(42, 54):
+            ws.cell(row=row_no, column=1).border = Border(
+                left=box_medium,
+                right=ws.cell(row=row_no, column=1).border.right,
+                top=ws.cell(row=row_no, column=1).border.top,
+                bottom=ws.cell(row=row_no, column=1).border.bottom,
+            )
+            ws.cell(row=row_no, column=8).border = Border(
+                left=ws.cell(row=row_no, column=8).border.left,
+                right=box_medium,
+                top=ws.cell(row=row_no, column=8).border.top,
+                bottom=ws.cell(row=row_no, column=8).border.bottom,
+            )
+        for col_no in range(1, 9):
+            ws.cell(row=42, column=col_no).border = Border(
+                left=ws.cell(row=42, column=col_no).border.left,
+                right=ws.cell(row=42, column=col_no).border.right,
+                top=box_medium,
+                bottom=ws.cell(row=42, column=col_no).border.bottom,
+            )
+            ws.cell(row=53, column=col_no).border = Border(
+                left=ws.cell(row=53, column=col_no).border.left,
+                right=ws.cell(row=53, column=col_no).border.right,
+                top=ws.cell(row=53, column=col_no).border.top,
+                bottom=box_medium,
+            )
+        return workbook
+
     workbook = Workbook()
-    sheet_name = (load.get("load_number") or "Load Sheet")[:31]
     ws = workbook.active
-    ws.title = sheet_name
-
-    for col_letter in ("A", "B", "C", "D", "E", "F", "G", "H"):
-        ws.column_dimensions[col_letter].width = 26
-    ws.sheet_view.showGridLines = True
-
+    ws.title = (load.get("load_number") or "Load Sheet")[:31]
     _write_load_sheet_block(
         ws,
         start_row=1,
