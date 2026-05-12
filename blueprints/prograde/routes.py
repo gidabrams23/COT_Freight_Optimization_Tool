@@ -6,6 +6,10 @@ import re
 from io import BytesIO
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, current_app, session, send_file
 from jinja2 import ChoiceLoader, DictLoader
+from openpyxl import load_workbook
+from openpyxl.drawing.image import Image as OpenPyxlImage
+from openpyxl.styles import Alignment, Font
+from openpyxl.worksheet.properties import PageSetupProperties
 
 from . import db
 from . import brand_config
@@ -5372,6 +5376,207 @@ def export_load_pdf(session_id):
     return send_file(
         BytesIO(pdf_bytes),
         mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+def _build_prograde_load_sheet_workbook(*, session_row, canvas):
+    root_dir = Path(__file__).resolve().parents[2]
+    template_path = root_dir / "docs" / "reference" / "SAMPLE_LOAD_SHEET_source.xlsx"
+    if not template_path.exists():
+        raise FileNotFoundError(f"Missing load sheet template: {template_path}")
+
+    workbook = load_workbook(template_path)
+    template_sheet_name = "Step.Deck (2)" if "Step.Deck (2)" in workbook.sheetnames else workbook.sheetnames[0]
+    ws = workbook[template_sheet_name]
+    for name in list(workbook.sheetnames):
+        if name != template_sheet_name:
+            del workbook[name]
+
+    load_label = _format_session_display_id(session_row) or str(session_row.get("session_id") or "Load")
+    ws.title = str(load_label)[:31]
+
+    for row_no in range(1, ws.max_row + 1):
+        for col_no in range(1, ws.max_column + 1):
+            cell = ws.cell(row=row_no, column=col_no)
+            if isinstance(cell.value, str) and cell.value.startswith("="):
+                cell.value = ""
+
+    ws["E5"] = load_label
+    ws["E4"] = ""
+    ws["E6"] = ""
+    ws["H15"] = ""
+    ws.freeze_panes = None
+
+    logo_path = root_dir / "blueprints" / "prograde" / "static" / "images" / "brand-logos" / "bigtex-trailers-logo.png"
+    if logo_path.exists():
+        try:
+            ws._images = []
+            logo = OpenPyxlImage(str(logo_path))
+            logo.width = 155
+            logo.height = 34
+            ws.add_image(logo, "A2")
+        except Exception:
+            pass
+
+    enriched_positions = list(canvas.get("enriched_positions") or [])
+    for row_no in range(8, 14):
+        ws[f"A{row_no}"] = ""
+        ws[f"E{row_no}"] = ""
+    for row_no in range(8, 13):
+        ws[f"H{row_no}"] = ""
+
+    lower_positions = [
+        dict(p or {})
+        for p in enriched_positions
+        if str((p or {}).get("deck_zone") or "").strip().lower() == "lower_deck"
+    ]
+    upper_positions = [
+        dict(p or {})
+        for p in enriched_positions
+        if str((p or {}).get("deck_zone") or "").strip().lower() == "upper_deck"
+    ]
+    if not lower_positions:
+        lower_positions = [dict(p or {}) for p in enriched_positions]
+
+    stacks = {}
+    for pos in lower_positions:
+        seq = int(_as_float(pos.get("sequence"), 0))
+        layer = int(_as_float(pos.get("layer"), 0))
+        if seq <= 0:
+            seq = 1
+        stacks.setdefault(seq, []).append((layer, pos))
+
+    stack_keys = sorted(stacks.keys())
+    left_key = stack_keys[0] if stack_keys else None
+    right_key = stack_keys[1] if len(stack_keys) > 1 else None
+
+    def _arrow_label(pos_map):
+        sku = str(pos_map.get("item_number") or "").strip().upper()
+        if not sku:
+            return ""
+        return f"<< {sku}" if bool(pos_map.get("is_rotated")) else f"{sku} >>"
+
+    left_labels = []
+    right_labels = []
+    if left_key is not None:
+        left_items = sorted(stacks.get(left_key) or [], key=lambda pair: pair[0], reverse=True)
+        left_labels = [_arrow_label(pos_map) for _, pos_map in left_items]
+    if right_key is not None:
+        right_items = sorted(stacks.get(right_key) or [], key=lambda pair: pair[0], reverse=True)
+        right_labels = [_arrow_label(pos_map) for _, pos_map in right_items]
+    if not left_labels and lower_positions:
+        left_labels = [_arrow_label(pos) for pos in lower_positions[:6]]
+
+    lower_rows = [13, 12, 11, 10, 9, 8]
+    for idx, row_no in enumerate(lower_rows):
+        if idx < len(left_labels):
+            ws[f"A{row_no}"] = left_labels[idx]
+        if idx < len(right_labels):
+            ws[f"E{row_no}"] = right_labels[idx]
+
+    upper_labels = []
+    if upper_positions:
+        upper_sorted = sorted(
+            upper_positions,
+            key=lambda p: (int(_as_float(p.get("sequence"), 0)), int(_as_float(p.get("layer"), 0))),
+        )
+        upper_labels = [_arrow_label(pos) for pos in upper_sorted if _arrow_label(pos)]
+    upper_rows = [12, 11, 10, 9, 8]
+    for idx, row_no in enumerate(upper_rows):
+        if idx < len(upper_labels):
+            ws[f"H{row_no}"] = upper_labels[idx]
+
+    ws["D14"] = "41'"
+    ws["E14"] = "length includes tongues"
+    ws["H13"] = "12'"
+
+    manifest_rows = list(canvas.get("manifest_rows") or [])
+    weight_by_model = {}
+    for sku in db.get_bigtex_skus() or []:
+        sku_map = dict(sku)
+        model = str(sku_map.get("model") or "").strip().upper()
+        item_num = str(sku_map.get("item_number") or "").strip().upper()
+        weight_value = sku_map.get("weight_lbs")
+        if model:
+            weight_by_model[model] = weight_value
+        if item_num:
+            weight_by_model[item_num] = weight_value
+
+    for row_no in range(17, 42):
+        ws.cell(row=row_no, column=4, value="")
+        ws.cell(row=row_no, column=10, value="")
+
+    for idx, row in enumerate(manifest_rows[:25], start=17):
+        model = str(row.get("item_number") or row.get("item_code") or "").strip().upper()
+        ws.cell(row=idx, column=4, value=model)
+        weight = weight_by_model.get(model)
+        ws.cell(row=idx, column=10, value=weight if weight not in (None, "") else "")
+        ws.cell(row=idx, column=10).number_format = "#,##0"
+
+    qty = len([r for r in manifest_rows if str(r.get("item_number") or r.get("item_code") or "").strip()])
+    ws["H14"] = f"Qty: {qty}"
+
+    ws.row_dimensions[16].height = 33
+    for row_no in range(17, 42):
+        ws.row_dimensions[row_no].height = 24
+    for col_no in range(1, 25):
+        ws.cell(row=16, column=col_no).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for ref in ("A8", "A9", "A10", "A11", "A12", "A13", "E8", "E9", "E10", "E11", "E12", "E13", "E14", "H8", "H9", "H10", "H11", "H12"):
+        ws[ref].alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        ws[ref].font = Font(name="Calibri", size=10, bold=True, color="FF0F172A")
+
+    ws.print_area = "A2:X48"
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 1
+    ws.page_setup.paperSize = ws.PAPERSIZE_LETTER
+    ws.page_setup.horizontalCentered = True
+    ws.page_setup.verticalCentered = False
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_margins.left = 0.25
+    ws.page_margins.right = 0.25
+    ws.page_margins.top = 0.3
+    ws.page_margins.bottom = 0.3
+    ws.page_margins.header = 0.2
+    ws.page_margins.footer = 0.2
+    ws.sheet_view.showGridLines = True
+    return workbook
+
+
+@prograde_bp.route("/session/<session_id>/export-load-sheet.xlsx")
+def export_load_sheet_xlsx(session_id):
+    session_row, err = _session_page_or_redirect(session_id)
+    if err:
+        return err
+    session_dict = dict(session_row)
+    session_dict["builder_name"] = _resolve_session_builder_name(session_row)
+
+    brand = session_dict["brand"]
+    carrier_type = session_dict["carrier_type"]
+    carrier = db.get_carrier_config(carrier_type)
+    if not carrier:
+        return "Carrier configuration not found", 400
+    zones = brand_config.DECK_ZONES[brand]
+    raw_positions = db.get_positions(session_id)
+    canvas = _build_canvas_data(session_id, session_dict, carrier, zones, raw_positions, brand)
+
+    try:
+        workbook = _build_prograde_load_sheet_workbook(session_row=session_dict, canvas=canvas)
+    except FileNotFoundError as exc:
+        return str(exc), 500
+    except Exception:
+        current_app.logger.exception("Failed to generate XLSX load sheet for ProGrade session %s", session_id)
+        return "Failed to generate XLSX load sheet", 500
+
+    out = BytesIO()
+    workbook.save(out)
+    out.seek(0)
+    filename = _pdf_safe_filename(f"{_format_session_display_id(session_row)}_load_sheet") + ".xlsx"
+    return send_file(
+        out,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=filename,
     )

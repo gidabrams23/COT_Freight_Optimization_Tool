@@ -49,6 +49,8 @@
         <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetSession()">Reset Load</button>
         <a href="{{ url_for('prograde.export_load_pdf', session_id=session.session_id, brand=selected_brand) }}"
            class="btn btn-secondary btn-sm pg-action-btn">Download PDF</a>
+        <a href="{{ url_for('prograde.export_load_sheet_xlsx', session_id=session.session_id, brand=selected_brand) }}"
+           class="btn btn-secondary btn-sm pg-action-btn">Export Load Sheet</a>
         <a href="{{ url_for('prograde.sessions', brand=selected_brand) }}" class="btn btn-ghost btn-sm pg-action-btn">Back to Sessions</a>
       </div>
     </div>
