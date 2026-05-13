@@ -4270,6 +4270,15 @@ def update_load_trailer_type(load_id, trailer_type):
         connection.commit()
 
 
+def update_load_utilization_pct(load_id, utilization_pct):
+    with get_connection() as connection:
+        connection.execute(
+            "UPDATE loads SET utilization_pct = ? WHERE id = ?",
+            (utilization_pct, load_id),
+        )
+        connection.commit()
+
+
 def update_load_carrier_override(load_id, carrier_key=None, updated_by=None):
     key = (carrier_key or "").strip().lower() or None
     updater = (updated_by or "").strip() or None

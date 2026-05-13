@@ -561,7 +561,7 @@ Do not delete or rewrite the commit/tag consumed by `trailers-data-pipeline` unt
 - `/load-report/<int:session_id>`, `/load-report/<int:session_id>/export.xlsx`, `/load-report/<int:session_id>/load/<int:load_id>/sheet.xlsx`
 
 #### Settings, Lookup, Feedback, Tutorial
-- `/`, `/dashboard`, `/tutorial`, `/rates`, `/settings`, `/skus`, `/lookups`, `/feedback`, `/feedback/app`
+- `/`, `/dashboard`, `/dashboard/export.xlsx`, `/tutorial`, `/rates`, `/settings`, `/skus`, `/lookups`, `/feedback`, `/feedback/app`
 - Save/mutation routes under `/settings/*`, `/rates/*`, `/skus/*`, `/lookups/*`, `/plants/save`, `/feedback/app/*`
 - Planning settings mutation endpoint: `/planning-tools/save`
 

@@ -5595,6 +5595,413 @@ def _period_range(period, today):
     return start, end
 
 
+def _dashboard_period_options():
+    return [
+        ("this_month", "This Month"),
+        ("last_30_days", "Last 30 Days"),
+        ("last_quarter", "Last Quarter"),
+        ("ytd", "YTD"),
+    ]
+
+
+def _resolve_dashboard_scope_from_request():
+    allowed_plants = _get_allowed_plants()
+    plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
+    plant_scope = plant_filters or allowed_plants
+
+    period_options = _dashboard_period_options()
+    period_label_map = dict(period_options)
+    period = (request.args.get("period") or "last_30_days").strip().lower()
+    if period not in period_label_map:
+        period = "last_30_days"
+
+    today = date.today()
+    start_date, end_date = _period_range(period, today)
+    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
+    plant_scope_label = (
+        ", ".join([PLANT_NAMES.get(code, code) for code in plant_filters])
+        if plant_filters
+        else "All Plants"
+    )
+    period_label = period_label_map.get(period, "Last 30 Days")
+    date_range_label = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
+
+    return {
+        "allowed_plants": allowed_plants,
+        "plant_filters": plant_filters,
+        "plant_scope": plant_scope,
+        "period": period,
+        "period_options": period_options,
+        "period_label": period_label,
+        "start_date": start_date,
+        "end_date": end_date,
+        "plant_filter_param": plant_filter_param,
+        "plant_scope_label": plant_scope_label,
+        "date_range_label": date_range_label,
+    }
+
+
+def _list_dashboard_scoped_loads(plant_scope, start_date, end_date, approved_statuses=None):
+    approved_statuses = tuple(approved_statuses or ())
+    normalized_scope = [str(code or "").strip().upper() for code in (plant_scope or []) if str(code or "").strip()]
+    if not normalized_scope:
+        return []
+
+    scope_placeholders = ", ".join("?" for _ in normalized_scope)
+    where_clauses = [f"origin_plant IN ({scope_placeholders})", "DATE(created_at) BETWEEN DATE(?) AND DATE(?)"]
+    query_params = list(normalized_scope) + [start_date.isoformat(), end_date.isoformat()]
+    if approved_statuses:
+        status_placeholders = ", ".join("?" for _ in approved_statuses)
+        where_clauses.insert(0, f"COALESCE(UPPER(status), '') IN ({status_placeholders})")
+        query_params = list(approved_statuses) + query_params
+
+    with db.get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT
+                id,
+                load_number,
+                draft_sequence,
+                planning_session_id,
+                origin_plant,
+                destination_state,
+                estimated_miles,
+                rate_per_mile,
+                estimated_cost,
+                route_provider,
+                route_profile,
+                route_total_miles,
+                route_legs_json,
+                route_geometry_json,
+                route_fallback,
+                route_reversed,
+                route_stop_order_json,
+                standalone_cost,
+                consolidation_savings,
+                fragility_score,
+                status,
+                trailer_type,
+                utilization_pct,
+                optimization_score,
+                build_source,
+                created_by,
+                created_at
+            FROM loads
+            WHERE {" AND ".join(where_clauses)}
+            ORDER BY DATE(created_at) DESC, id DESC
+            """,
+            query_params,
+        ).fetchall()
+
+    loads = [dict(row) for row in rows]
+    if not loads:
+        return loads
+
+    load_ids = [entry["id"] for entry in loads if entry.get("id")]
+    lines_by_load_id = db.list_load_lines_for_load_ids(load_ids)
+    for load in loads:
+        load["lines"] = lines_by_load_id.get(load.get("id"), [])
+    return loads
+
+
+def _format_dashboard_sku_mix(lines):
+    sku_totals = {}
+    for line in lines or []:
+        sku_code = (line.get("sku") or line.get("item") or "UNKNOWN").strip()
+        if not sku_code:
+            sku_code = "UNKNOWN"
+        qty = float(line.get("qty") or 0.0)
+        sku_totals[sku_code] = sku_totals.get(sku_code, 0.0) + qty
+
+    if not sku_totals:
+        return ""
+
+    def _qty_label(value):
+        rounded = round(float(value or 0.0), 3)
+        if abs(rounded - int(rounded)) <= 1e-9:
+            return str(int(rounded))
+        return f"{rounded:.2f}".rstrip("0").rstrip(".")
+
+    segments = []
+    for sku_code, qty in sorted(sku_totals.items(), key=lambda item: (-item[1], item[0])):
+        segments.append(f"{sku_code} (x{_qty_label(qty)})")
+    return " | ".join(segments)
+
+
+def _build_dashboard_load_export_workbook(report_rows, export_scope):
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Load Summary"
+
+    header_fill = PatternFill(fill_type="solid", fgColor="FFE5E7EB")
+    header_font = Font(bold=True, color="FF1F2937")
+    body_font = Font(color="FF111827")
+    thin_side = Side(style="thin", color="FFCBD5E1")
+    border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    headers = [
+        "Load Number",
+        "Date Planned",
+        "Planned Ship Date",
+        "Status",
+        "Plant",
+        "Trailer",
+        "SO Count",
+        "SO Numbers",
+        "Distinct SKU Count",
+        "SKU Mix",
+        "Total Units",
+        "Utilized Feet",
+        "Total Linear Feet",
+        "Capacity Feet",
+        "Utilization %",
+        "Utilization Grade",
+        "Stops",
+        "Estimated Miles",
+        "Estimated Cost",
+        "Cost / Unit",
+        "Customers",
+        "Destinations",
+        "Schematic Warnings",
+    ]
+    summary.append(headers)
+    for cell in summary[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for row_idx, load in enumerate(report_rows or [], start=2):
+        so_numbers = list(dict.fromkeys([str(so).strip() for so in (load.get("order_numbers") or []) if str(so).strip()]))
+        lines = load.get("lines") or []
+        skus = {
+            (line.get("sku") or line.get("item") or "").strip()
+            for line in lines
+            if (line.get("sku") or line.get("item"))
+        }
+        schematic = load.get("schematic") or {}
+        warnings = [str(entry).strip() for entry in (load.get("schematic_warnings") or []) if str(entry).strip()]
+        created_at_est = _to_est_datetime(load.get("created_at"))
+        created_date = created_at_est.date().isoformat() if created_at_est else ""
+        ship_date = (load.get("ship_date") or "").strip()
+        utilization_pct = float(load.get("display_utilization_pct") or load.get("utilization_pct") or 0.0)
+        utilized_feet = float(schematic.get("utilization_credit_ft") or 0.0)
+        total_linear_feet = float(schematic.get("total_linear_feet") or 0.0)
+        capacity_feet = float(schematic.get("capacity_feet") or 0.0)
+        total_units = float(load.get("total_units") or 0.0)
+        estimated_cost = float(load.get("estimated_cost") or 0.0)
+        estimated_miles = float(load.get("estimated_miles") or 0.0)
+        cost_per_unit = (estimated_cost / total_units) if total_units > 0 else None
+        destinations = list(
+            dict.fromkeys(
+                [
+                    str(order.get("destination_label") or "").strip()
+                    for order in (load.get("orders") or [])
+                    if str(order.get("destination_label") or "").strip()
+                ]
+            )
+        )
+        customers = list(dict.fromkeys([str(c).strip() for c in (load.get("customers") or []) if str(c).strip()]))
+
+        summary.append(
+            [
+                load.get("load_number") or load.get("display_load_id") or "",
+                created_date,
+                ship_date,
+                load.get("status") or "",
+                load.get("origin_plant") or "",
+                load.get("trailer_type") or "",
+                len(so_numbers),
+                ", ".join(so_numbers),
+                len(skus),
+                _format_dashboard_sku_mix(lines),
+                total_units,
+                utilized_feet,
+                total_linear_feet,
+                capacity_feet,
+                utilization_pct,
+                load.get("schematic_grade") or "",
+                int(load.get("stop_count") or 0),
+                estimated_miles,
+                estimated_cost,
+                cost_per_unit,
+                " | ".join(customers),
+                " | ".join(destinations),
+                "; ".join(warnings),
+            ]
+        )
+
+        for col_idx in range(1, len(headers) + 1):
+            cell = summary.cell(row=row_idx, column=col_idx)
+            cell.border = border
+            cell.font = body_font
+            cell.alignment = Alignment(
+                horizontal="right" if col_idx in {7, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20} else "left",
+                vertical="center",
+                wrap_text=col_idx in {8, 10, 21, 22, 23},
+            )
+
+        summary.cell(row=row_idx, column=11).number_format = "#,##0.0"
+        summary.cell(row=row_idx, column=12).number_format = "#,##0.0"
+        summary.cell(row=row_idx, column=13).number_format = "#,##0.0"
+        summary.cell(row=row_idx, column=14).number_format = "#,##0.0"
+        summary.cell(row=row_idx, column=15).number_format = "0.0%"
+        summary.cell(row=row_idx, column=15).value = utilization_pct / 100.0
+        summary.cell(row=row_idx, column=18).number_format = "#,##0.0"
+        summary.cell(row=row_idx, column=19).number_format = "$#,##0.00"
+        summary.cell(row=row_idx, column=20).number_format = "$#,##0.00"
+
+    summary.freeze_panes = "A2"
+    summary.auto_filter.ref = f"A1:W{max(len(report_rows or []), 1) + 1}"
+    column_widths = {
+        "A": 16,
+        "B": 13,
+        "C": 15,
+        "D": 11,
+        "E": 8,
+        "F": 13,
+        "G": 9,
+        "H": 30,
+        "I": 10,
+        "J": 34,
+        "K": 11,
+        "L": 12,
+        "M": 14,
+        "N": 11,
+        "O": 12,
+        "P": 12,
+        "Q": 7,
+        "R": 13,
+        "S": 13,
+        "T": 11,
+        "U": 30,
+        "V": 30,
+        "W": 36,
+    }
+    for col, width in column_widths.items():
+        summary.column_dimensions[col].width = width
+
+    line_sheet = workbook.create_sheet(title="Load Lines")
+    line_headers = [
+        "Load Number",
+        "Date Planned",
+        "SO Number",
+        "Stop",
+        "Due Date",
+        "Customer",
+        "Destination",
+        "SKU",
+        "SKU Qty",
+        "Item",
+        "Item Description",
+        "Total Length (ft)",
+        "Unit Length (ft)",
+        "Line Utilization %",
+    ]
+    line_sheet.append(line_headers)
+    for cell in line_sheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    line_row = 2
+    for load in report_rows or []:
+        created_at_est = _to_est_datetime(load.get("created_at"))
+        created_date = created_at_est.date().isoformat() if created_at_est else ""
+        stop_by_so = {}
+        due_by_so = {}
+        dest_by_so = {}
+        cust_by_so = {}
+        for order in load.get("orders") or []:
+            so_num = str(order.get("so_num") or "").strip()
+            if not so_num:
+                continue
+            stop_by_so[so_num] = order.get("stop_order_display") or "--"
+            due_by_so[so_num] = order.get("due_date") or ""
+            dest_by_so[so_num] = order.get("destination_label") or ""
+            cust_by_so[so_num] = order.get("cust_name") or ""
+        for line in load.get("lines") or []:
+            so_num = str(line.get("so_num") or "").strip()
+            line_sheet.append(
+                [
+                    load.get("load_number") or load.get("display_load_id") or "",
+                    created_date,
+                    so_num,
+                    stop_by_so.get(so_num, "--"),
+                    due_by_so.get(so_num, line.get("due_date") or ""),
+                    cust_by_so.get(so_num, line.get("cust_name") or ""),
+                    dest_by_so.get(so_num, ""),
+                    line.get("sku") or "",
+                    float(line.get("qty") or 0.0),
+                    line.get("item") or "",
+                    line.get("item_desc") or "",
+                    float(line.get("total_length_ft") or line.get("line_total_feet") or 0.0),
+                    float(line.get("unit_length_ft") or 0.0),
+                    float(line.get("utilization_pct") or 0.0) / 100.0,
+                ]
+            )
+            for col_idx in range(1, len(line_headers) + 1):
+                cell = line_sheet.cell(row=line_row, column=col_idx)
+                cell.border = border
+                cell.font = body_font
+                cell.alignment = Alignment(
+                    horizontal="right" if col_idx in {9, 12, 13, 14} else "left",
+                    vertical="center",
+                    wrap_text=col_idx in {11},
+                )
+            line_sheet.cell(row=line_row, column=9).number_format = "#,##0.0"
+            line_sheet.cell(row=line_row, column=12).number_format = "#,##0.0"
+            line_sheet.cell(row=line_row, column=13).number_format = "#,##0.0"
+            line_sheet.cell(row=line_row, column=14).number_format = "0.0%"
+            line_row += 1
+
+    line_sheet.freeze_panes = "A2"
+    line_sheet.auto_filter.ref = f"A1:N{max(line_row - 1, 1)}"
+    line_widths = {
+        "A": 16,
+        "B": 13,
+        "C": 13,
+        "D": 8,
+        "E": 12,
+        "F": 28,
+        "G": 22,
+        "H": 13,
+        "I": 10,
+        "J": 16,
+        "K": 38,
+        "L": 13,
+        "M": 13,
+        "N": 15,
+    }
+    for col, width in line_widths.items():
+        line_sheet.column_dimensions[col].width = width
+
+    metadata = workbook.create_sheet(title="Filters Applied")
+    metadata_rows = [
+        ("Generated On (ET)", _format_est_datetime_label(datetime.utcnow())),
+        ("Period", export_scope.get("period_label") or ""),
+        ("Date Range", export_scope.get("date_range_label") or ""),
+        ("Plant Scope", export_scope.get("plant_scope_label") or ""),
+        ("Plants (codes)", ", ".join(export_scope.get("plant_scope") or [])),
+        ("Load Statuses", "APPROVED only"),
+        ("Load Count", len(report_rows or [])),
+    ]
+    for idx, (label, value) in enumerate(metadata_rows, start=1):
+        metadata.cell(row=idx, column=1, value=label).font = header_font
+        metadata.cell(row=idx, column=1).fill = header_fill
+        metadata.cell(row=idx, column=1).border = border
+        metadata.cell(row=idx, column=1).alignment = Alignment(horizontal="left", vertical="center")
+        metadata.cell(row=idx, column=2, value=value)
+        metadata.cell(row=idx, column=2).font = body_font
+        metadata.cell(row=idx, column=2).border = border
+        metadata.cell(row=idx, column=2).alignment = Alignment(horizontal="left", vertical="center")
+    metadata.column_dimensions["A"].width = 24
+    metadata.column_dimensions["B"].width = 56
+
+    return workbook
+
+
 def _build_load_thumbnail(load, sku_specs, stop_color_palette=None, max_blocks=4):
     lines = db.list_load_lines(load["id"])
     if not lines:
@@ -8137,23 +8544,19 @@ def inject_session_context():
 
 
 def _build_performance_dashboard_context():
-    allowed_plants = _get_allowed_plants()
-    plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
-    plant_scope = plant_filters or allowed_plants
-
-    period_options = [
-        ("this_month", "This Month"),
-        ("last_30_days", "Last 30 Days"),
-        ("last_quarter", "Last Quarter"),
-        ("ytd", "YTD"),
-    ]
-    period_label_map = dict(period_options)
-    period = (request.args.get("period") or "last_30_days").strip().lower()
-    if period not in period_label_map:
-        period = "last_30_days"
-
+    dashboard_scope = _resolve_dashboard_scope_from_request()
+    allowed_plants = dashboard_scope["allowed_plants"]
+    plant_filters = dashboard_scope["plant_filters"]
+    plant_scope = dashboard_scope["plant_scope"]
+    period = dashboard_scope["period"]
+    period_options = dashboard_scope["period_options"]
+    period_label = dashboard_scope["period_label"]
+    start_date = dashboard_scope["start_date"]
+    end_date = dashboard_scope["end_date"]
+    plant_filter_param = dashboard_scope["plant_filter_param"]
+    plant_scope_label = dashboard_scope["plant_scope_label"]
+    date_range_label = dashboard_scope["date_range_label"]
     today = date.today()
-    start_date, end_date = _period_range(period, today)
 
     def _shift_year(value, years=-1):
         target_year = value.year + years
@@ -8169,15 +8572,11 @@ def _build_performance_dashboard_context():
     prior_end = _shift_year(end_date, years=-1)
     prior_year = prior_start.year
 
-    plant_filter_param = ",".join(plant_filters) if plant_filters else ""
-    plant_scope_label = (
-        ", ".join([PLANT_NAMES.get(code, code) for code in plant_filters])
-        if plant_filters
-        else "All Plants"
-    )
-    period_label = period_label_map.get(period, "Last 30 Days")
-    date_range_label = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
     prior_date_range_label = f"{prior_start.strftime('%b %d, %Y')} - {prior_end.strftime('%b %d, %Y')}"
+    export_params = {"period": period}
+    if plant_filter_param:
+        export_params["plants"] = plant_filter_param
+    export_url = url_for("dashboard_load_export", **export_params)
 
     def _format_int(value):
         try:
@@ -8276,6 +8675,18 @@ def _build_performance_dashboard_context():
         return " ".join(commands)
 
     approved_statuses = ("APPROVED", "SHIPPED")
+    scoped_dashboard_loads = _list_dashboard_scoped_loads(
+        plant_scope,
+        start_date,
+        end_date,
+        approved_statuses=approved_statuses,
+    )
+    scoped_dashboard_rows = _build_load_report_rows(scoped_dashboard_loads) if scoped_dashboard_loads else []
+    _sync_load_utilization_from_report_rows(
+        scoped_dashboard_loads,
+        scoped_dashboard_rows,
+        persist=True,
+    )
 
     with db.get_connection() as connection:
         load_columns = {
@@ -8762,10 +9173,19 @@ def _build_performance_dashboard_context():
         sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
         stop_color_palette = _get_stop_color_palette()
 
-        def _fetch_review_loads(limit, ascending=False, max_utilization=None):
+        def _fetch_review_loads(limit=None, ascending=False, max_utilization=None):
             if not plant_scope:
                 return []
             util_clause = " AND COALESCE(l.utilization_pct, 0) < ?" if max_utilization is not None else ""
+            limit_clause = "LIMIT ?" if limit is not None else ""
+            query_params = (
+                list(approved_statuses)
+                + list(plant_scope)
+                + [start_date.isoformat(), end_date.isoformat()]
+                + ([float(max_utilization)] if max_utilization is not None else [])
+            )
+            if limit is not None:
+                query_params.append(int(limit))
             rows = connection.execute(
                 f"""
                 SELECT l.id, l.load_number, l.origin_plant, l.utilization_pct, l.created_at, l.trailer_type
@@ -8775,13 +9195,9 @@ def _build_performance_dashboard_context():
                   AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
                   {util_clause}
                 ORDER BY COALESCE(l.utilization_pct, 0) {"ASC" if ascending else "DESC"}, DATE(l.created_at) DESC
-                LIMIT ?
+                {limit_clause}
                 """,
-                list(approved_statuses)
-                + list(plant_scope)
-                + [start_date.isoformat(), end_date.isoformat()]
-                + ([float(max_utilization)] if max_utilization is not None else [])
-                + [int(limit)],
+                query_params,
             ).fetchall()
             formatted = []
             for row in rows:
@@ -8828,14 +9244,35 @@ def _build_performance_dashboard_context():
                     util_class = "negative"
                 elif utilization_pct < 85:
                     util_class = "neutral"
+                so_numbers = sorted(
+                    {
+                        str(line.get("so_num")).strip()
+                        for line in lines
+                        if str(line.get("so_num") or "").strip()
+                    }
+                )
+                total_qty = round(
+                    sum(float(line.get("qty") or 0.0) for line in lines),
+                    1,
+                )
+                if len(so_numbers) > 4:
+                    so_numbers_display = ", ".join(so_numbers[:4]) + f" (+{len(so_numbers) - 4})"
+                else:
+                    so_numbers_display = ", ".join(so_numbers)
                 formatted.append(
                     {
                         "id": load["id"],
                         "load_number": load.get("load_number") or f"Load {load['id']}",
                         "origin_plant": load.get("origin_plant") or "--",
+                        "trailer_type": trailer_type,
+                        "created_at": load.get("created_at"),
                         "utilization_pct": utilization_pct,
+                        "utilization_grade": schematic.get("utilization_grade") or _utilization_grade(utilization_pct),
                         "utilization_class": util_class,
-                        "ship_date": ship_date,
+                        "date_planned": ship_date,
+                        "so_numbers": so_numbers,
+                        "so_numbers_display": so_numbers_display,
+                        "total_qty": total_qty,
                         "schematic_segments": schematic_segments,
                         "has_schematic": bool(schematic_segments),
                         "fallback_width": max(0.0, min(100.0, utilization_pct)),
@@ -8843,8 +9280,13 @@ def _build_performance_dashboard_context():
                 )
             return formatted
 
-        top_loads = _fetch_review_loads(limit=5, ascending=False)
-        problem_loads = _fetch_review_loads(limit=5, ascending=True, max_utilization=70.0)
+        load_review_rows = sorted(
+            _fetch_review_loads(limit=150, ascending=False),
+            key=lambda entry: entry.get("created_at") or "",
+            reverse=True,
+        )
+        highest_loads = sorted(load_review_rows, key=lambda entry: float(entry.get("utilization_pct") or 0.0), reverse=True)
+        lowest_loads = sorted(load_review_rows, key=lambda entry: float(entry.get("utilization_pct") or 0.0))
 
         latest_row = connection.execute(
             f"""
@@ -8901,6 +9343,10 @@ def _build_performance_dashboard_context():
         "prior_date_range_label": prior_date_range_label,
         "plant_filter_param": plant_filter_param,
         "plant_scope_label": plant_scope_label,
+        "plant_scope": list(plant_scope),
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "export_url": export_url,
         "prior_year": prior_year,
         "topbar_status": {"label": "Live", "detail": latest_label},
         "kpis": kpis,
@@ -8909,8 +9355,9 @@ def _build_performance_dashboard_context():
         "trend_chart": trend_chart,
         "utilization_bands": utilization_bands,
         "efficiency_grades": efficiency_grades,
-        "top_loads": top_loads,
-        "problem_loads": problem_loads,
+        "load_review_rows": load_review_rows,
+        "highest_loads": highest_loads,
+        "lowest_loads": lowest_loads,
         "savings": savings,
     }
 
@@ -8939,25 +9386,22 @@ def dashboard():
     context.setdefault("period", "last_30_days")
     context.setdefault(
         "period_options",
-        [
-            ("this_month", "This Month"),
-            ("last_30_days", "Last 30 Days"),
-            ("last_quarter", "Last Quarter"),
-            ("ytd", "YTD"),
-        ],
+        _dashboard_period_options(),
     )
     context.setdefault("period_label", "Last 30 Days")
     context.setdefault("date_range_label", "--")
     context.setdefault("plant_filter_param", "")
     context.setdefault("plant_scope_label", "All Plants")
+    context.setdefault("export_url", url_for("dashboard_load_export", period=context.get("period") or "last_30_days"))
 
     for list_key in (
         "plant_cards",
         "kpis",
         "utilization_bands",
         "efficiency_grades",
-        "top_loads",
-        "problem_loads",
+        "load_review_rows",
+        "highest_loads",
+        "lowest_loads",
     ):
         if not isinstance(context.get(list_key), list):
             context[list_key] = []
@@ -8988,6 +9432,43 @@ def dashboard():
 
     context.setdefault("savings", None)
     return render_template("dashboard.html", **context)
+
+
+@cot_bp.route("/dashboard/export.xlsx")
+def dashboard_load_export():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    if request.args.get("plants") is None and request.args.get("plant") is None:
+        _resolve_plant_filters("ALL")
+
+    scope = _resolve_dashboard_scope_from_request()
+    loads = _list_dashboard_scoped_loads(
+        scope.get("plant_scope") or [],
+        scope["start_date"],
+        scope["end_date"],
+        approved_statuses=(STATUS_APPROVED,),
+    )
+    report_rows = _build_load_report_rows(loads)
+    _sync_load_utilization_from_report_rows(loads, report_rows, persist=True)
+    workbook = _build_dashboard_load_export_workbook(report_rows, scope)
+
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    if scope.get("plant_filters"):
+        plant_segment = "-".join(scope.get("plant_filters") or []).lower()
+    else:
+        plant_segment = "all-plants"
+    period_segment = (scope.get("period") or "last_30_days").strip().lower()
+    filename = f"dashboard_load_export_{period_segment}_{plant_segment}_{date.today().isoformat()}.xlsx"
+
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @cot_bp.route("/tutorial")
@@ -11598,6 +12079,25 @@ def planning_sessions():
 
     sessions = visible_sessions
 
+    # Keep session-history utilization aligned with load-detail schematic math,
+    # including any saved schematic override edits.
+    for session in sessions:
+        session_id = _coerce_int_value(session.get("id"), 0)
+        if session_id <= 0:
+            continue
+        session_loads = load_builder.list_loads(
+            None,
+            session_id=session_id,
+            include_stack_metrics=False,
+        )
+        if not session_loads:
+            session["avg_utilization"] = 0.0
+            continue
+        session_rows = _build_load_report_rows(session_loads)
+        _sync_load_utilization_from_report_rows(session_loads, session_rows, persist=True)
+        util_values = [float(load.get("utilization_pct") or 0.0) for load in session_loads]
+        session["avg_utilization"] = round(sum(util_values) / len(util_values), 1) if util_values else 0.0
+
     total_sessions = len(sessions)
     avg_efficiency = 0.0
     loads_optimized = 0
@@ -12483,6 +12983,40 @@ def _build_load_report_rows(loads):
         for order in row.get("orders") or []:
             order["display_load_id"] = display_id
     return rows
+
+
+def _sync_load_utilization_from_report_rows(loads, report_rows, persist=True):
+    metric_by_id = {}
+    for row in report_rows or []:
+        try:
+            load_id = int(row.get("id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if load_id <= 0:
+            continue
+        util_pct = round(float(row.get("display_utilization_pct") or row.get("utilization_pct") or 0.0), 1)
+        metric_by_id[load_id] = {
+            "utilization_pct": util_pct,
+            "utilization_grade": (row.get("schematic_grade") or _utilization_grade(util_pct)).upper(),
+        }
+
+    for load in loads or []:
+        try:
+            load_id = int(load.get("id") or 0)
+        except (TypeError, ValueError):
+            continue
+        metrics = metric_by_id.get(load_id)
+        if not metrics:
+            continue
+        old_util = float(load.get("utilization_pct") or 0.0)
+        new_util = float(metrics["utilization_pct"])
+        load["utilization_pct"] = new_util
+        load["display_utilization_pct"] = new_util
+        if isinstance(load.get("schematic"), dict):
+            load["schematic"]["utilization_pct"] = new_util
+            load["schematic"]["utilization_grade"] = metrics["utilization_grade"]
+        if persist and abs(old_util - new_util) >= 0.05:
+            db.update_load_utilization_pct(load_id, new_util)
 
 
 def _build_load_report_preview_rows(report_rows, limit=8):
@@ -13468,15 +14002,17 @@ def _build_load_report_workbook(planning_session, report_rows):
 def _get_session_report_data(session_id):
     planning_session = _get_scoped_planning_session_or_404(session_id)
 
-    loads = load_builder.list_loads(None, session_id=session_id)
+    loads = load_builder.list_loads(None, session_id=session_id, include_stack_metrics=False)
     session_status = _sync_planning_session_status(session_id, loads=loads)
     session_status = _normalize_session_status(session_status or planning_session.get("status"))
     planning_session["status"] = session_status
+    all_rows = _build_load_report_rows(loads)
+    _sync_load_utilization_from_report_rows(loads, all_rows, persist=True)
     approved_loads = [
         load for load in loads
         if (load.get("status") or "").strip().upper() == STATUS_APPROVED
     ]
-    report_rows = _build_load_report_rows(approved_loads)
+    report_rows = [row for row in all_rows if (row.get("status") or "").strip().upper() == STATUS_APPROVED]
     return planning_session, report_rows
 
 
@@ -13583,7 +14119,9 @@ def planning_session_detail(session_id):
         except json.JSONDecodeError:
             session_config = {}
 
-    loads = load_builder.list_loads(None, session_id=session_id)
+    loads = load_builder.list_loads(None, session_id=session_id, include_stack_metrics=False)
+    report_rows = _build_load_report_rows(loads)
+    _sync_load_utilization_from_report_rows(loads, report_rows, persist=True)
     session_status = _sync_planning_session_status(session_id, loads=loads)
     planning_session["status"] = _normalize_session_status(session_status or planning_session.get("status"))
     rollup = _build_planning_session_rollup(loads)
@@ -13613,7 +14151,9 @@ def planning_session_summary(session_id):
     if not planning_session or not _can_access_planning_session(planning_session):
         return jsonify({"error": "Session not found"}), 404
 
-    loads = load_builder.list_loads(None, session_id=session_id)
+    loads = load_builder.list_loads(None, session_id=session_id, include_stack_metrics=False)
+    report_rows = _build_load_report_rows(loads)
+    _sync_load_utilization_from_report_rows(loads, report_rows, persist=True)
     rollup = _build_planning_session_rollup(loads)
     avg_util = round(
         sum((load.get("utilization_pct") or 0) for load in loads) / len(loads), 1
@@ -15223,6 +15763,10 @@ def update_load_trailer(load_id):
         is_invalid=bool(warnings),
         updated_by=_get_session_profile_name() or _get_session_role(),
     )
+    db.update_load_utilization_pct(
+        load_id,
+        round(float(remapped_schematic.get("utilization_pct") or 0.0), 1),
+    )
     return ("", 204)
 
 
@@ -15523,6 +16067,7 @@ def _build_load_schematic_payload(load_id):
     )
     load["auto_trailer_label"] = auto_label
     load["auto_trailer_reason"] = auto_reason
+    previous_utilization_pct = float(load.get("utilization_pct") or 0.0)
     utilization_pct = schematic.get("utilization_pct", load.get("utilization_pct", 0)) or 0
     exceeds_capacity = schematic.get("exceeds_capacity", False)
     over_capacity = exceeds_capacity and len(order_numbers) <= 1
@@ -15538,6 +16083,8 @@ def _build_load_schematic_payload(load_id):
     load["schematic_warning_count"] = len(schematic_warnings)
     load["schematic_is_invalid"] = bool((override or {}).get("is_invalid")) if override else False
     load["stack_assumptions"] = assumptions
+    if abs(previous_utilization_pct - float(utilization_pct or 0.0)) >= 0.05:
+        db.update_load_utilization_pct(load_id, round(float(utilization_pct or 0.0), 1))
     return load
 
 

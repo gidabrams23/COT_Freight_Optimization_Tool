@@ -86,6 +86,18 @@ Optional flags:
 .\scripts\dev.ps1 -NoReload
 ```
 
+## Dashboard Load Export
+
+- The Performance Dashboard now includes an **Export Loads** button that downloads a workbook at `/dashboard/export.xlsx`.
+- Export scope follows the active dashboard filters:
+  - `plants` selection in the plant strip
+  - `period` toggle (`This Month`, `Last 30 Days`, `Last Quarter`, `YTD`)
+- Export includes only `APPROVED` loads within that scope.
+- The workbook includes:
+  - `Load Summary` (load number, SOs, SKU mix, utilized feet, utilization grade, planned dates, miles/cost, etc.)
+  - `Load Lines` (line-level SO/SKU details for reconciliation)
+  - `Filters Applied` (the exact period/plant scope used to produce the export)
+
 ## Daily Open Orders Refresh Workflow
 
 The Orders page now shows an **Up to Date / Outdated** intake status and a step-by-step guide modal.

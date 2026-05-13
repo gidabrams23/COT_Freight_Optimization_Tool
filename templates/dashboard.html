@@ -151,20 +151,34 @@
         <article class="perf-panel perf-panel-table">
           <div class="perf-panel-head">
             <div>
-              <p class="perf-eyebrow">Top Load Review</p>
-              <h2>Highest Utilization Loads</h2>
+              <p class="perf-eyebrow">Load Review</p>
+              <h2>Individual Load Review</h2>
+            </div>
+            <div class="perf-review-tools">
+              <div class="perf-review-pills" role="tablist" aria-label="Load review filter">
+                <button type="button" class="perf-review-pill is-active" data-review-filter="all">All Loads</button>
+                <button type="button" class="perf-review-pill" data-review-filter="highest">Highest Utilized</button>
+                <button type="button" class="perf-review-pill" data-review-filter="lowest">Lowest Utilized</button>
+              </div>
+              <a class="perf-date-btn perf-export-btn" href="{{ export_url or url_for('dashboard_load_export') }}">
+                Export Loads
+              </a>
             </div>
           </div>
           <div class="perf-table-wrap">
             <table class="data-table perf-table">
-              <thead><tr><th>Load</th><th>Plant</th><th>Util</th><th>Date</th><th>Schematic</th></tr></thead>
-              <tbody>
-                {% for load in top_loads %}
+              <thead><tr><th>Load</th><th>Plant</th><th>Trailer</th><th>SO's</th><th>Total Qty</th><th>Util</th><th>Grade</th><th>Date Planned</th><th>Schematic</th></tr></thead>
+              <tbody data-review-table="all">
+                {% for load in load_review_rows %}
                   <tr>
                     <td>{{ load.load_number }}</td>
                     <td>{{ load.origin_plant }}</td>
+                    <td>{{ load.trailer_type | replace('_', ' ') }}</td>
+                    <td>{{ load.so_numbers_display or '--' }}</td>
+                    <td>{{ load.total_qty | round(1) }}</td>
                     <td class="{{ load.utilization_class }}">{{ load.utilization_pct }}%</td>
-                    <td>{{ load.ship_date }}</td>
+                    <td>{{ load.utilization_grade }}</td>
+                    <td>{{ load.date_planned }}</td>
                     <td>
                       {% if load.has_schematic %}
                         <span class="perf-schematic-mini">
@@ -178,30 +192,20 @@
                     </td>
                   </tr>
                 {% else %}
-                  <tr><td colspan="5" class="muted">No loads in this period.</td></tr>
+                  <tr><td colspan="9" class="muted">No approved loads in this period.</td></tr>
                 {% endfor %}
               </tbody>
-            </table>
-          </div>
-        </article>
-
-        <article class="perf-panel perf-panel-table">
-          <div class="perf-panel-head">
-            <div>
-              <p class="perf-eyebrow">Problem Load Review</p>
-              <h2>Lowest Utilization (&lt;70%)</h2>
-            </div>
-          </div>
-          <div class="perf-table-wrap">
-            <table class="data-table perf-table">
-              <thead><tr><th>Load</th><th>Plant</th><th>Util</th><th>Date</th><th>Schematic</th></tr></thead>
-              <tbody>
-                {% for load in problem_loads %}
+              <tbody data-review-table="highest" class="hidden">
+                {% for load in highest_loads[:75] %}
                   <tr>
                     <td>{{ load.load_number }}</td>
                     <td>{{ load.origin_plant }}</td>
+                    <td>{{ load.trailer_type | replace('_', ' ') }}</td>
+                    <td>{{ load.so_numbers_display or '--' }}</td>
+                    <td>{{ load.total_qty | round(1) }}</td>
                     <td class="{{ load.utilization_class }}">{{ load.utilization_pct }}%</td>
-                    <td>{{ load.ship_date }}</td>
+                    <td>{{ load.utilization_grade }}</td>
+                    <td>{{ load.date_planned }}</td>
                     <td>
                       {% if load.has_schematic %}
                         <span class="perf-schematic-mini">
@@ -215,7 +219,34 @@
                     </td>
                   </tr>
                 {% else %}
-                  <tr><td colspan="5" class="muted">No sub-70% loads in this period.</td></tr>
+                  <tr><td colspan="9" class="muted">No approved loads in this period.</td></tr>
+                {% endfor %}
+              </tbody>
+              <tbody data-review-table="lowest" class="hidden">
+                {% for load in lowest_loads[:75] %}
+                  <tr>
+                    <td>{{ load.load_number }}</td>
+                    <td>{{ load.origin_plant }}</td>
+                    <td>{{ load.trailer_type | replace('_', ' ') }}</td>
+                    <td>{{ load.so_numbers_display or '--' }}</td>
+                    <td>{{ load.total_qty | round(1) }}</td>
+                    <td class="{{ load.utilization_class }}">{{ load.utilization_pct }}%</td>
+                    <td>{{ load.utilization_grade }}</td>
+                    <td>{{ load.date_planned }}</td>
+                    <td>
+                      {% if load.has_schematic %}
+                        <span class="perf-schematic-mini">
+                          {% for segment in load.schematic_segments %}
+                            <span style="width: {{ segment.width_pct }}%; background: {{ segment.color }};"></span>
+                          {% endfor %}
+                        </span>
+                      {% else %}
+                        <span class="perf-fallback-bar"><span style="width: {{ load.fallback_width }}%;"></span></span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="9" class="muted">No approved loads in this period.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -289,6 +320,30 @@
           window.location.assign(url.toString());
         });
       });
+    })();
+
+    (function() {
+      const pills = Array.from(document.querySelectorAll('[data-review-filter]'));
+      const tables = Array.from(document.querySelectorAll('[data-review-table]'));
+      if (!pills.length || !tables.length) return;
+
+      function setMode(mode) {
+        pills.forEach((pill) => {
+          pill.classList.toggle('is-active', pill.dataset.reviewFilter === mode);
+        });
+        tables.forEach((table) => {
+          table.classList.toggle('hidden', table.dataset.reviewTable !== mode);
+        });
+      }
+
+      pills.forEach((pill) => {
+        pill.addEventListener('click', () => {
+          const mode = (pill.dataset.reviewFilter || 'all').trim().toLowerCase();
+          setMode(mode);
+        });
+      });
+
+      setMode('all');
     })();
   </script>
 {% endblock %}

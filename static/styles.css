@@ -18646,6 +18646,9 @@ body.loads-auto-sidebar .page.page-loads-index {
 }
 
 .perf-date-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(71, 85, 105, 0.7);
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.55);
@@ -18656,6 +18659,7 @@ body.loads-auto-sidebar .page.page-loads-index {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .perf-date-btn:hover {
@@ -18667,6 +18671,10 @@ body.loads-auto-sidebar .page.page-loads-index {
   border-color: rgba(96, 165, 250, 0.85);
   background: rgba(37, 99, 235, 0.32);
   color: #eff6ff;
+}
+
+.perf-export-btn {
+  min-height: 30px;
 }
 
 .perf-plant-strip {
@@ -18828,11 +18836,11 @@ body.loads-auto-sidebar .page.page-loads-index {
 
 .perf-row-bottom {
   flex: 45 1 0;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(300px, 0.85fr);
+  grid-template-columns: minmax(0, 1.8fr) minmax(300px, 0.85fr);
 }
 
 .perf-row-bottom.no-savings {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .perf-panel {
@@ -18859,6 +18867,45 @@ body.loads-auto-sidebar .page.page-loads-index {
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.perf-review-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.perf-review-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.perf-review-pill {
+  border: 1px solid rgba(71, 85, 105, 0.7);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(226, 232, 240, 0.7);
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.perf-review-pill:hover {
+  color: var(--text-primary);
+  border-color: rgba(96, 165, 250, 0.7);
+}
+
+.perf-review-pill.is-active {
+  border-color: rgba(96, 165, 250, 0.85);
+  background: rgba(37, 99, 235, 0.32);
+  color: #eff6ff;
 }
 
 .perf-panel-sub {
@@ -19058,6 +19105,7 @@ body.loads-auto-sidebar .page.page-loads-index {
 .perf-table td {
   font-size: 11px;
   padding: 7px 8px;
+  vertical-align: top;
 }
 
 .perf-table td.positive {
