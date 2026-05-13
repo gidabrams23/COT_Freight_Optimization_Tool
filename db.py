@@ -1168,6 +1168,29 @@ def init_db():
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS upload_load_discrepancies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                upload_id INTEGER NOT NULL,
+                so_num TEXT NOT NULL,
+                plant TEXT,
+                discrepancy_type TEXT NOT NULL,
+                source_prev_load_number TEXT,
+                source_current_load_number TEXT,
+                tool_load_id INTEGER,
+                tool_load_number TEXT,
+                tool_load_status TEXT,
+                resolution_action TEXT,
+                resolution_notes TEXT,
+                resolved_at TEXT,
+                resolved_by TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (upload_id) REFERENCES upload_history(id),
+                FOREIGN KEY (tool_load_id) REFERENCES loads(id)
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS app_feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 category TEXT NOT NULL,
@@ -1596,6 +1619,15 @@ def init_db():
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_load_report_assignments_so_num ON load_report_assignments(so_num)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_upload_load_discrepancies_upload ON upload_load_discrepancies(upload_id)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_upload_load_discrepancies_resolved ON upload_load_discrepancies(resolved_at)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_upload_load_discrepancies_so_num ON upload_load_discrepancies(so_num)"
         )
         connection.commit()
         _seed_plants(connection)
@@ -3385,6 +3417,174 @@ def list_latest_load_report_assignments_by_so_nums(so_nums):
             for row in rows
             if row["so_num"] and row["load_number"]
         }
+
+
+def list_approved_load_memberships_by_so_nums(so_nums):
+    cleaned = [str(value).strip() for value in so_nums or [] if str(value or "").strip()]
+    if not cleaned:
+        return []
+    placeholders = ", ".join("?" for _ in cleaned)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT DISTINCT
+                ol.so_num AS so_num,
+                l.id AS load_id,
+                l.load_number AS load_number,
+                l.origin_plant AS origin_plant,
+                l.status AS load_status
+            FROM loads l
+            JOIN load_lines ll ON ll.load_id = l.id
+            JOIN order_lines ol ON ol.id = ll.order_line_id
+            WHERE COALESCE(UPPER(l.status), '') = 'APPROVED'
+              AND ol.so_num IN ({placeholders})
+            ORDER BY ol.so_num ASC, l.id ASC
+            """,
+            cleaned,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def add_upload_load_discrepancies(upload_id, discrepancies):
+    if not upload_id or not discrepancies:
+        return 0
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
+    rows = []
+    for entry in discrepancies:
+        so_num = str(entry.get("so_num") or "").strip()
+        discrepancy_type = str(entry.get("discrepancy_type") or "").strip()
+        if not so_num or not discrepancy_type:
+            continue
+        rows.append(
+            (
+                upload_id,
+                so_num,
+                (entry.get("plant") or "").strip() or None,
+                discrepancy_type,
+                (entry.get("source_prev_load_number") or "").strip() or None,
+                (entry.get("source_current_load_number") or "").strip() or None,
+                entry.get("tool_load_id"),
+                (entry.get("tool_load_number") or "").strip() or None,
+                (entry.get("tool_load_status") or "").strip() or None,
+                created_at,
+            )
+        )
+    if not rows:
+        return 0
+    with get_connection() as connection:
+        connection.executemany(
+            """
+            INSERT INTO upload_load_discrepancies (
+                upload_id,
+                so_num,
+                plant,
+                discrepancy_type,
+                source_prev_load_number,
+                source_current_load_number,
+                tool_load_id,
+                tool_load_number,
+                tool_load_status,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
+        connection.commit()
+    return len(rows)
+
+
+def list_upload_load_discrepancies(upload_id, unresolved_only=False):
+    if not upload_id:
+        return []
+    where = ["upload_id = ?"]
+    params = [upload_id]
+    if unresolved_only:
+        where.append("resolved_at IS NULL")
+    where_clause = " AND ".join(where)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT
+                id,
+                upload_id,
+                so_num,
+                plant,
+                discrepancy_type,
+                source_prev_load_number,
+                source_current_load_number,
+                tool_load_id,
+                tool_load_number,
+                tool_load_status,
+                resolution_action,
+                resolution_notes,
+                resolved_at,
+                resolved_by,
+                created_at
+            FROM upload_load_discrepancies
+            WHERE {where_clause}
+            ORDER BY created_at ASC, id ASC
+            """,
+            params,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_upload_load_discrepancy(discrepancy_id):
+    if not discrepancy_id:
+        return None
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                upload_id,
+                so_num,
+                plant,
+                discrepancy_type,
+                source_prev_load_number,
+                source_current_load_number,
+                tool_load_id,
+                tool_load_number,
+                tool_load_status,
+                resolution_action,
+                resolution_notes,
+                resolved_at,
+                resolved_by,
+                created_at
+            FROM upload_load_discrepancies
+            WHERE id = ?
+            """,
+            (discrepancy_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def resolve_upload_load_discrepancy(discrepancy_id, resolved_by, resolution_action, resolution_notes=None):
+    if not discrepancy_id:
+        return 0
+    resolved_at = datetime.utcnow().isoformat(timespec="seconds")
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+            UPDATE upload_load_discrepancies
+            SET resolved_at = ?,
+                resolved_by = ?,
+                resolution_action = ?,
+                resolution_notes = ?
+            WHERE id = ?
+              AND resolved_at IS NULL
+            """,
+            (
+                resolved_at,
+                (resolved_by or "").strip() or None,
+                (resolution_action or "").strip() or None,
+                (resolution_notes or "").strip() or None,
+                discrepancy_id,
+            ),
+        )
+        connection.commit()
+        return int(cursor.rowcount or 0)
 
 
 def clear_load_report_data():

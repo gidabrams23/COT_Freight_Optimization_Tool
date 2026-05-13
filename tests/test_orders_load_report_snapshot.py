@@ -252,6 +252,21 @@ class OrdersLoadReportSnapshotTests(unittest.TestCase):
             "add_upload_unmapped_items",
         ), patch.object(
             app_module.db,
+            "list_latest_load_report_assignments_by_so_nums",
+            return_value={},
+        ), patch.object(
+            app_module.db,
+            "list_approved_load_memberships_by_so_nums",
+            return_value=[],
+        ), patch.object(
+            app_module.db,
+            "add_upload_load_discrepancies",
+        ), patch.object(
+            app_module.db,
+            "list_upload_load_discrepancies",
+            return_value=[],
+        ), patch.object(
+            app_module.db,
             "add_load_report_upload",
             return_value=202,
         ) as add_load_upload, patch.object(
@@ -278,6 +293,146 @@ class OrdersLoadReportSnapshotTests(unittest.TestCase):
             {("SO-1", "GA26-1001"), ("SO-3", "GA26-2001")},
         )
 
+    def test_handle_order_upload_builds_source_and_tool_assignment_discrepancies(self):
+        parse_summary = {
+            "orders": [
+                {"so_num": "SO-1", "plant": "GA"},
+                {"so_num": "SO-2", "plant": "GA"},
+                {"so_num": "SO-3", "plant": "GA"},
+            ],
+            "order_lines": [
+                {"so_num": "SO-1", "load_num": "Not On Load"},
+                {"so_num": "SO-2", "load_num": "Not On Load"},
+                {"so_num": "SO-3", "load_num": "GA26-2003"},
+            ],
+            "unmapped_items": [],
+            "total_rows": 3,
+            "mapping_rate": 100.0,
+        }
+        fake_file = SimpleNamespace(filename="orders.csv")
+        fake_importer = SimpleNamespace(parse_csv=lambda _stream: parse_summary)
+
+        captured_discrepancies = []
+        serialized_rows = [
+            {
+                "id": 7001,
+                "upload_id": 101,
+                "so_num": "SO-1",
+                "plant": "GA",
+                "discrepancy_type": app_module.UPLOAD_DISCREPANCY_SOURCE_REMOVED,
+                "source_prev_load_number": "GA26-1001",
+                "source_current_load_number": "",
+                "tool_load_id": None,
+                "tool_load_number": "",
+                "tool_load_status": "",
+                "resolved_at": None,
+                "resolved_by": None,
+            },
+            {
+                "id": 7002,
+                "upload_id": 101,
+                "so_num": "SO-2",
+                "plant": "GA",
+                "discrepancy_type": app_module.UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED,
+                "source_prev_load_number": "GA26-2002",
+                "source_current_load_number": "",
+                "tool_load_id": 44,
+                "tool_load_number": "GA26-9001",
+                "tool_load_status": "APPROVED",
+                "resolved_at": None,
+                "resolved_by": None,
+            },
+        ]
+
+        def _capture_discrepancies(_upload_id, entries):
+            captured_discrepancies.extend(entries)
+
+        with patch.object(app_module, "OrderImporter", return_value=fake_importer), patch.object(
+            app_module.db,
+            "list_orders_by_so_nums_any",
+            return_value=[],
+        ), patch.object(
+            app_module.db,
+            "upsert_order_lines",
+        ), patch.object(
+            app_module.db,
+            "upsert_orders",
+        ), patch.object(
+            app_module.db,
+            "mark_orders_seen",
+        ), patch.object(
+            app_module.db,
+            "list_open_order_so_nums",
+            return_value=[],
+        ), patch.object(
+            app_module.db,
+            "mark_orders_closed",
+        ), patch.object(
+            app_module.db,
+            "purge_closed_orders",
+        ), patch.object(
+            app_module.db,
+            "add_upload_history",
+            return_value=101,
+        ), patch.object(
+            app_module.db,
+            "add_upload_order_changes",
+        ), patch.object(
+            app_module.db,
+            "update_orders_upload_meta",
+        ), patch.object(
+            app_module.db,
+            "add_upload_unmapped_items",
+        ), patch.object(
+            app_module.db,
+            "list_latest_load_report_assignments_by_so_nums",
+            return_value={"SO-1": "GA26-1001", "SO-2": "GA26-2002"},
+        ), patch.object(
+            app_module.db,
+            "list_approved_load_memberships_by_so_nums",
+            return_value=[
+                {
+                    "so_num": "SO-2",
+                    "load_id": 44,
+                    "load_number": "GA26-9001",
+                    "origin_plant": "GA",
+                    "load_status": "APPROVED",
+                }
+            ],
+        ), patch.object(
+            app_module.db,
+            "add_upload_load_discrepancies",
+            side_effect=_capture_discrepancies,
+        ), patch.object(
+            app_module.db,
+            "list_upload_load_discrepancies",
+            return_value=serialized_rows,
+        ), patch.object(
+            app_module.db,
+            "add_load_report_upload",
+            return_value=202,
+        ), patch.object(
+            app_module.db,
+            "replace_latest_load_report_assignments",
+        ):
+            summary = app_module._handle_order_upload(fake_file)
+
+        self.assertEqual(len(captured_discrepancies), 3)
+        types = {entry["discrepancy_type"] for entry in captured_discrepancies}
+        self.assertEqual(
+            types,
+            {
+                app_module.UPLOAD_DISCREPANCY_SOURCE_REMOVED,
+                app_module.UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED,
+            },
+        )
+        payload = summary.get("upload_discrepancies") or {}
+        counts = payload.get("counts") or {}
+        self.assertEqual(counts.get("source_removed_from_load"), 1)
+        self.assertEqual(counts.get("source_unassigned_but_tool_assigned"), 1)
+        self.assertEqual(len(payload.get("source_removed_from_load") or []), 1)
+        self.assertEqual(len(payload.get("source_unassigned_but_tool_assigned") or []), 1)
+
     def test_orders_load_report_upload_route_redirects_to_single_file_notice(self):
         client = app_module.app.test_client()
         _set_authenticated_session(client)
@@ -287,6 +442,48 @@ class OrdersLoadReportSnapshotTests(unittest.TestCase):
         location = response.headers.get("Location") or ""
         self.assertIn("/orders", location)
         self.assertIn("intake_notice=load-report-deprecated", location)
+
+    def test_api_orders_upload_response_includes_discrepancy_payload(self):
+        client = app_module.app.test_client()
+        _set_authenticated_session(client)
+
+        with patch.object(
+            app_module,
+            "_handle_order_upload",
+            return_value={
+                "upload_id": 77,
+                "total_rows": 2,
+                "orders": [{"so_num": "SO-1"}, {"so_num": "SO-2"}],
+                "mapping_rate": 100.0,
+                "unmapped_items": [],
+                "new_orders": 0,
+                "changed_orders": 0,
+                "unchanged_orders": 2,
+                "reopened_orders": 0,
+                "dropped_orders": 0,
+                "upload_discrepancies": {
+                    "upload_id": 77,
+                    "source_removed_from_load": [{"id": 1, "so_num": "SO-1"}],
+                    "source_unassigned_but_tool_assigned": [{"id": 2, "so_num": "SO-2"}],
+                    "counts": {
+                        "source_removed_from_load": 1,
+                        "source_unassigned_but_tool_assigned": 1,
+                        "total": 2,
+                    },
+                },
+            },
+        ):
+            response = client.post(
+                "/api/orders/upload",
+                data={"file": (io.BytesIO(b"shipvia,plant,item,qty,state,zip,bin\n"), "orders.csv")},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json() or {}
+        self.assertEqual(payload.get("upload_id"), 77)
+        discrepancy_payload = payload.get("upload_discrepancies") or {}
+        self.assertEqual((discrepancy_payload.get("counts") or {}).get("total"), 2)
 
 
 if __name__ == "__main__":

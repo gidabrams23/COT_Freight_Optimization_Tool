@@ -820,6 +820,24 @@
               <div class="upload-summary-item"><span>Unchanged</span><strong data-summary-unchanged>--</strong></div>
             </div>
           </div>
+          <div class="upload-discrepancies hidden" data-upload-discrepancies-panel>
+            <div class="upload-summary-title">Load Assignment Discrepancies</div>
+            <div class="upload-discrepancy-section" data-source-removed-panel>
+              <div class="upload-discrepancy-header">
+                <div class="upload-discrepancy-label">Previously Taken Off Source Loads</div>
+                <span class="upload-unmapped-count" data-source-removed-count>0</span>
+              </div>
+              <div class="upload-discrepancy-list" data-source-removed-list></div>
+            </div>
+            <div class="upload-discrepancy-section" data-source-unassigned-tool-panel>
+              <div class="upload-discrepancy-header">
+                <div class="upload-discrepancy-label">Source Not On Load, But On Approved Tool Loads</div>
+                <span class="upload-unmapped-count" data-source-unassigned-tool-count>0</span>
+              </div>
+              <div class="upload-discrepancy-list" data-source-unassigned-tool-list></div>
+            </div>
+            <div class="upload-discrepancy-status" data-upload-discrepancy-status></div>
+          </div>
           <div class="upload-unmapped hidden" data-unmapped-panel>
             <div class="upload-unmapped-header-row">
               <div class="upload-unmapped-title-row">
@@ -3346,6 +3364,14 @@
       const unmappedStatus = modal.querySelector('[data-unmapped-status]');
       const unmappedSaveButton = modal.querySelector('[data-unmapped-save]');
       const unmappedCount = modal.querySelector('[data-unmapped-count]');
+      const discrepancyPanel = modal.querySelector('[data-upload-discrepancies-panel]');
+      const sourceRemovedPanel = modal.querySelector('[data-source-removed-panel]');
+      const sourceRemovedCount = modal.querySelector('[data-source-removed-count]');
+      const sourceRemovedList = modal.querySelector('[data-source-removed-list]');
+      const sourceUnassignedToolPanel = modal.querySelector('[data-source-unassigned-tool-panel]');
+      const sourceUnassignedToolCount = modal.querySelector('[data-source-unassigned-tool-count]');
+      const sourceUnassignedToolList = modal.querySelector('[data-source-unassigned-tool-list]');
+      const discrepancyStatus = modal.querySelector('[data-upload-discrepancy-status]');
       const summaryFields = {
         totalRows: modal.querySelector('[data-summary-total-rows]'),
         totalOrders: modal.querySelector('[data-summary-total-orders]'),
@@ -3360,6 +3386,7 @@
       let activeRequest = null;
       let processingTimer = null;
       let closeShouldReload = false;
+      let currentUploadId = null;
 
       const setProgress = (pct) => {
         const safe = Math.max(0, Math.min(100, pct));
@@ -3413,6 +3440,126 @@
         if (unmappedList) unmappedList.innerHTML = '';
         if (unmappedStatus) unmappedStatus.textContent = '';
         if (unmappedCount) unmappedCount.textContent = '0';
+      };
+
+      const hideDiscrepancies = () => {
+        currentUploadId = null;
+        if (discrepancyPanel) discrepancyPanel.classList.add('hidden');
+        if (sourceRemovedList) sourceRemovedList.innerHTML = '';
+        if (sourceUnassignedToolList) sourceUnassignedToolList.innerHTML = '';
+        if (sourceRemovedCount) sourceRemovedCount.textContent = '0';
+        if (sourceUnassignedToolCount) sourceUnassignedToolCount.textContent = '0';
+        if (discrepancyStatus) discrepancyStatus.textContent = '';
+      };
+
+      const renderUploadDiscrepancies = (summaryPayload) => {
+        if (!discrepancyPanel) return;
+        const discrepancies = (summaryPayload && summaryPayload.upload_discrepancies) || {};
+        const sourceRemoved = Array.isArray(discrepancies.source_removed_from_load)
+          ? discrepancies.source_removed_from_load
+          : [];
+        const sourceUnassignedTool = Array.isArray(discrepancies.source_unassigned_but_tool_assigned)
+          ? discrepancies.source_unassigned_but_tool_assigned
+          : [];
+        const totalCount = sourceRemoved.length + sourceUnassignedTool.length;
+
+        if (!totalCount) {
+          hideDiscrepancies();
+          return;
+        }
+
+        currentUploadId = discrepancies.upload_id || summaryPayload?.upload_id || null;
+        if (sourceRemovedCount) sourceRemovedCount.textContent = String(sourceRemoved.length);
+        if (sourceUnassignedToolCount) sourceUnassignedToolCount.textContent = String(sourceUnassignedTool.length);
+        if (sourceRemovedList) sourceRemovedList.innerHTML = '';
+        if (sourceUnassignedToolList) sourceUnassignedToolList.innerHTML = '';
+        if (discrepancyStatus) discrepancyStatus.textContent = '';
+
+        if (sourceRemovedPanel) {
+          sourceRemovedPanel.classList.toggle('hidden', sourceRemoved.length === 0);
+        }
+        if (sourceUnassignedToolPanel) {
+          sourceUnassignedToolPanel.classList.toggle('hidden', sourceUnassignedTool.length === 0);
+        }
+
+        sourceRemoved.forEach((entry) => {
+          if (!sourceRemovedList) return;
+          const row = document.createElement('div');
+          row.className = 'upload-discrepancy-row upload-discrepancy-row-info';
+          row.innerHTML = `
+            <div class="upload-discrepancy-main">
+              <strong>SO #${escapeHtml(entry.so_num || '--')}</strong>
+              <span class="upload-discrepancy-meta">Previous source load: ${escapeHtml(entry.source_prev_load_number || '--')}</span>
+            </div>
+          `;
+          sourceRemovedList.appendChild(row);
+        });
+
+        sourceUnassignedTool.forEach((entry) => {
+          if (!sourceUnassignedToolList) return;
+          const row = document.createElement('div');
+          row.className = 'upload-discrepancy-row upload-discrepancy-row-action';
+          const buttonDisabled = !(currentUploadId && entry.id);
+          row.innerHTML = `
+            <div class="upload-discrepancy-main">
+              <strong>SO #${escapeHtml(entry.so_num || '--')}</strong>
+              <span class="upload-discrepancy-meta">Approved load #${escapeHtml(entry.tool_load_number || '--')}</span>
+            </div>
+            <div class="upload-discrepancy-actions">
+              <span class="upload-discrepancy-row-status" data-discrepancy-row-status></span>
+              <button
+                class="btn-secondary btn-xs"
+                type="button"
+                data-discrepancy-resolve
+                ${buttonDisabled ? 'disabled' : ''}
+              >
+                Remove SO #${escapeHtml(entry.so_num || '--')} from load #${escapeHtml(entry.tool_load_number || '--')}
+              </button>
+            </div>
+          `;
+          const actionButton = row.querySelector('[data-discrepancy-resolve]');
+          const rowStatus = row.querySelector('[data-discrepancy-row-status]');
+          if (buttonDisabled && rowStatus) {
+            rowStatus.textContent = 'Upload id missing. Refresh and retry.';
+          }
+          if (actionButton && !buttonDisabled) {
+            actionButton.addEventListener('click', async () => {
+              actionButton.disabled = true;
+              if (rowStatus) rowStatus.textContent = 'Removing...';
+              try {
+                const response = await fetch(
+                  `/api/uploads/${encodeURIComponent(currentUploadId)}/discrepancies/${encodeURIComponent(entry.id)}/resolve-remove`,
+                  {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                  }
+                );
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                  throw new Error(payload.error || 'Failed to remove order from approved load.');
+                }
+                if (rowStatus) {
+                  if (payload.already_removed) {
+                    rowStatus.textContent = 'Already removed.';
+                  } else if (payload.archived_load) {
+                    rowStatus.textContent = 'Removed. Load archived.';
+                  } else {
+                    rowStatus.textContent = 'Removed from load.';
+                  }
+                }
+                row.classList.add('is-resolved');
+                actionButton.textContent = payload.archived_load ? 'Removed & Archived' : 'Removed';
+                actionButton.disabled = true;
+              } catch (err) {
+                actionButton.disabled = false;
+                if (rowStatus) rowStatus.textContent = err.message || 'Failed to remove order from load.';
+              }
+            });
+          }
+          sourceUnassignedToolList.appendChild(row);
+        });
+
+        discrepancyPanel.classList.remove('hidden');
       };
 
       const renderUnmappedItems = (items) => {
@@ -3672,6 +3819,7 @@
           setStatus('Upload canceled.');
           setProgress(0);
           hideSummary();
+          hideDiscrepancies();
         }
         modal.classList.add('hidden');
         if (reload) {
@@ -3707,6 +3855,7 @@
         setProgress(0);
         setStatus('Uploading file...');
         hideSummary();
+        hideDiscrepancies();
         hideUnmapped();
         openModal();
 
@@ -3750,6 +3899,7 @@
               setStatus(`${file.name} has been successfully uploaded.`);
               if (payload && Object.keys(payload).length) {
                 showSummary(payload);
+                renderUploadDiscrepancies(payload);
                 renderUnmappedItems(payload.unmapped_items || []);
               }
               setNextActionMode('reload');
@@ -3764,10 +3914,12 @@
               setStatus(errorMessage);
               if (payload && Object.keys(payload).length) {
                 showSummary(payload);
+                renderUploadDiscrepancies(payload);
                 renderUnmappedItems(payload.unmapped_items || []);
                 if (payload.blocked) setNextActionMode('reload');
               } else {
                 hideSummary();
+                hideDiscrepancies();
                 hideUnmapped();
                 setNextActionMode('close');
               }
@@ -3781,6 +3933,7 @@
           stopProcessingSteps();
           setStatus('Upload failed. Please try again.');
           hideSummary();
+          hideDiscrepancies();
           setNextActionMode('close');
         });
 
@@ -3802,6 +3955,7 @@
         setProgress(8);
         setStatus('Requesting SQL refresh...');
         hideSummary();
+        hideDiscrepancies();
         hideUnmapped();
         openModal();
         startProcessingSteps();
@@ -3829,6 +3983,7 @@
             const lineCount = payload.total_rows ?? payload.sql_row_count ?? 0;
             setStatus(`SQL refresh complete. ${lineCount} rows processed.`);
             showSummary(payload);
+            renderUploadDiscrepancies(payload);
             renderUnmappedItems(payload.unmapped_items || []);
             setNextActionMode('reload');
           } else {
@@ -3840,10 +3995,12 @@
             }
             if (payload && Object.keys(payload).length) {
               showSummary(payload);
+              renderUploadDiscrepancies(payload);
               renderUnmappedItems(payload.unmapped_items || []);
               if (payload.blocked) setNextActionMode('reload');
             } else {
               hideSummary();
+              hideDiscrepancies();
               hideUnmapped();
               setNextActionMode('close');
             }

@@ -112,6 +112,11 @@ Guide checklist:
 4. Click **Upload Orders** in Intake Hub and select today's export from the Exports folder
 5. Wait for processing and complete upload
 
+Upload summary modal discrepancy handling:
+- If an SO was previously on a source load and now arrives as **Not on Load**, the modal shows it under **Previously Taken Off Source Loads** (informational).
+- If an SO arrives as **Not on Load** but is still assigned to an **approved** tool load, the modal shows a one-click action to remove that SO from the approved load.
+- Removing from an approved load through this workflow does not trigger re-optimization. If removal empties the approved load, the load is archived for recordkeeping.
+
 ### Optional: SQL Refresh (manual + scheduled)
 
 For local/manual testing, signed-in users can use **Refresh from SQL** in the Orders page Data Intake Hub.
