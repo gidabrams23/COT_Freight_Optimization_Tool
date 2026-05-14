@@ -1536,15 +1536,89 @@ def _build_unmapped_suggestions(unmapped_items):
     return suggestions
 
 
+def _build_upload_discrepancy_entries(summary):
+    summary = summary or {}
+    orders = summary.get("orders") or []
+    order_lines = summary.get("order_lines") or []
+    assignment_snapshot = _build_load_assignments_from_order_lines(order_lines)
+
+    current_so_nums = sorted(
+        {
+            _normalize_so_num_for_load_report_match(order.get("so_num"))
+            for order in orders
+            if _normalize_so_num_for_load_report_match(order.get("so_num"))
+        }
+    )
+    if not current_so_nums:
+        return [], assignment_snapshot
+
+    source_assignment_map = {}
+    for entry in assignment_snapshot.get("assignments") or []:
+        so_key = _normalize_so_num_for_load_report_match(entry.get("so_num"))
+        if not so_key:
+            continue
+        source_assignment_map[so_key] = str(entry.get("load_number") or "").strip()
+
+    prior_source_assignment_map = db.list_latest_load_report_assignments_by_so_nums(current_so_nums)
+
+    order_plant_by_so = {}
+    for order in orders:
+        so_key = _normalize_so_num_for_load_report_match(order.get("so_num"))
+        if not so_key or so_key in order_plant_by_so:
+            continue
+        order_plant_by_so[so_key] = (order.get("plant") or "").strip()
+
+    discrepancy_entries = []
+    for so_num in current_so_nums:
+        previous_load_number = str(prior_source_assignment_map.get(so_num) or "").strip()
+        current_load_number = str(source_assignment_map.get(so_num) or "").strip()
+        if previous_load_number and not current_load_number:
+            discrepancy_entries.append(
+                {
+                    "so_num": so_num,
+                    "plant": order_plant_by_so.get(so_num, ""),
+                    "discrepancy_type": UPLOAD_DISCREPANCY_SOURCE_REMOVED,
+                    "source_prev_load_number": previous_load_number,
+                    "source_current_load_number": "",
+                    "tool_load_id": None,
+                    "tool_load_number": "",
+                    "tool_load_status": "",
+                }
+            )
+
+    source_unassigned_so_nums = sorted(so_num for so_num in current_so_nums if so_num not in source_assignment_map)
+    if source_unassigned_so_nums:
+        approved_memberships = db.list_approved_load_memberships_by_so_nums(source_unassigned_so_nums)
+        for membership in approved_memberships:
+            so_num = _normalize_so_num_for_load_report_match(membership.get("so_num"))
+            if not so_num:
+                continue
+            discrepancy_entries.append(
+                {
+                    "so_num": so_num,
+                    "plant": order_plant_by_so.get(so_num, "") or (membership.get("origin_plant") or ""),
+                    "discrepancy_type": UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED,
+                    "source_prev_load_number": str(prior_source_assignment_map.get(so_num) or "").strip(),
+                    "source_current_load_number": "",
+                    "tool_load_id": membership.get("load_id"),
+                    "tool_load_number": str(membership.get("load_number") or "").strip(),
+                    "tool_load_status": str(membership.get("load_status") or "").strip().upper(),
+                }
+            )
+    return discrepancy_entries, assignment_snapshot
+
+
 def _handle_order_upload(file):
     importer = OrderImporter()
     summary = importer.parse_csv(file)
+    discrepancy_entries, assignment_snapshot = _build_upload_discrepancy_entries(summary)
+    summary["upload_discrepancies"] = _serialize_upload_discrepancies(discrepancy_entries)
     unmapped_items = summary.get("unmapped_items") or []
     if unmapped_items:
         raise UploadValidationError(
             (
                 "Upload blocked: some SKUs are unmapped or missing required dimensions/stack limits. "
-                "Add SKU specs, then re-upload."
+                "Add SKU specs below, then continue to complete refresh."
             ),
             summary=summary,
         )
@@ -1653,11 +1727,8 @@ def _handle_order_upload(file):
     if so_nums:
         db.update_orders_upload_meta(so_nums, upload_id, changed_keys)
     db.add_upload_unmapped_items(upload_id, summary.get("unmapped_items") or [])
-    assignment_snapshot = _build_load_assignments_from_order_lines(summary.get("order_lines") or [])
     current_so_nums = {
-        _normalize_so_num_for_load_report_match(value)
-        for value in so_nums
-        if _normalize_so_num_for_load_report_match(value)
+        _normalize_so_num_for_load_report_match(value) for value in so_nums if _normalize_so_num_for_load_report_match(value)
     }
     source_assignment_map = {}
     for entry in assignment_snapshot.get("assignments") or []:
@@ -1665,58 +1736,6 @@ def _handle_order_upload(file):
         if not so_key:
             continue
         source_assignment_map[so_key] = str(entry.get("load_number") or "").strip()
-
-    prior_source_assignment_map = (
-        db.list_latest_load_report_assignments_by_so_nums(list(current_so_nums))
-        if current_so_nums
-        else {}
-    )
-    order_plant_by_so = {}
-    for order in orders:
-        so_key = _normalize_so_num_for_load_report_match(order.get("so_num"))
-        if not so_key or so_key in order_plant_by_so:
-            continue
-        order_plant_by_so[so_key] = (order.get("plant") or "").strip()
-
-    discrepancy_entries = []
-    for so_num in sorted(current_so_nums):
-        previous_load_number = str(prior_source_assignment_map.get(so_num) or "").strip()
-        current_load_number = str(source_assignment_map.get(so_num) or "").strip()
-        if previous_load_number and not current_load_number:
-            discrepancy_entries.append(
-                {
-                    "so_num": so_num,
-                    "plant": order_plant_by_so.get(so_num, ""),
-                    "discrepancy_type": UPLOAD_DISCREPANCY_SOURCE_REMOVED,
-                    "source_prev_load_number": previous_load_number,
-                    "source_current_load_number": "",
-                    "tool_load_id": None,
-                    "tool_load_number": "",
-                    "tool_load_status": "",
-                }
-            )
-
-    source_unassigned_so_nums = sorted(
-        so_num for so_num in current_so_nums if so_num not in source_assignment_map
-    )
-    if source_unassigned_so_nums:
-        approved_memberships = db.list_approved_load_memberships_by_so_nums(source_unassigned_so_nums)
-        for membership in approved_memberships:
-            so_num = _normalize_so_num_for_load_report_match(membership.get("so_num"))
-            if not so_num:
-                continue
-            discrepancy_entries.append(
-                {
-                    "so_num": so_num,
-                    "plant": order_plant_by_so.get(so_num, "") or (membership.get("origin_plant") or ""),
-                    "discrepancy_type": UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED,
-                    "source_prev_load_number": str(prior_source_assignment_map.get(so_num) or "").strip(),
-                    "source_current_load_number": "",
-                    "tool_load_id": membership.get("load_id"),
-                    "tool_load_number": str(membership.get("load_number") or "").strip(),
-                    "tool_load_status": str(membership.get("load_status") or "").strip().upper(),
-                }
-            )
 
     assigned_so_nums = set(source_assignment_map.keys())
     matched_open_orders = sum(1 for so_num in assigned_so_nums if so_num in current_so_nums)
@@ -1768,11 +1787,13 @@ def _normalize_so_num_for_load_report_match(value):
 def _serialize_upload_discrepancies(rows, upload_id=None):
     source_removed = []
     source_unassigned_tool_assigned = []
+    combined_by_so = {}
     for row in rows or []:
         discrepancy_type = str(row.get("discrepancy_type") or "").strip()
+        so_num = _normalize_so_num_for_load_report_match(row.get("so_num"))
         payload = {
             "id": row.get("id"),
-            "so_num": _normalize_so_num_for_load_report_match(row.get("so_num")),
+            "so_num": so_num,
             "plant": (row.get("plant") or "").strip(),
             "source_prev_load_number": (row.get("source_prev_load_number") or "").strip(),
             "source_current_load_number": (row.get("source_current_load_number") or "").strip(),
@@ -1786,10 +1807,48 @@ def _serialize_upload_discrepancies(rows, upload_id=None):
             source_removed.append(payload)
         elif discrepancy_type == UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED:
             source_unassigned_tool_assigned.append(payload)
+        if not so_num:
+            continue
+        combined_entry = combined_by_so.get(so_num)
+        if not combined_entry:
+            combined_entry = {
+                "so_num": so_num,
+                "plant": payload["plant"],
+                "source_prev_load_number": payload["source_prev_load_number"],
+                "source_current_load_number": payload["source_current_load_number"],
+                "source_removed": False,
+                "tool_assigned": False,
+                "tool_load_id": None,
+                "tool_load_number": "",
+                "tool_load_status": "",
+                "discrepancy_id": None,
+                "resolved_at": None,
+                "resolved_by": None,
+            }
+            combined_by_so[so_num] = combined_entry
+        if not combined_entry["plant"] and payload["plant"]:
+            combined_entry["plant"] = payload["plant"]
+        if not combined_entry["source_prev_load_number"] and payload["source_prev_load_number"]:
+            combined_entry["source_prev_load_number"] = payload["source_prev_load_number"]
+        if discrepancy_type == UPLOAD_DISCREPANCY_SOURCE_REMOVED:
+            combined_entry["source_removed"] = True
+        if discrepancy_type == UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED:
+            combined_entry["tool_assigned"] = True
+            combined_entry["tool_load_id"] = payload["tool_load_id"]
+            combined_entry["tool_load_number"] = payload["tool_load_number"]
+            combined_entry["tool_load_status"] = payload["tool_load_status"]
+            combined_entry["discrepancy_id"] = payload["id"]
+            combined_entry["resolved_at"] = payload["resolved_at"]
+            combined_entry["resolved_by"] = payload["resolved_by"]
+        combined_entry["requires_tool_removal"] = bool(
+            combined_entry["tool_assigned"] and not combined_entry["resolved_at"]
+        )
+    combined = sorted(combined_by_so.values(), key=lambda entry: (entry.get("so_num") or ""))
     return {
         "upload_id": upload_id,
         "source_removed_from_load": source_removed,
         "source_unassigned_but_tool_assigned": source_unassigned_tool_assigned,
+        "combined": combined,
         "counts": {
             "source_removed_from_load": len(source_removed),
             "source_unassigned_but_tool_assigned": len(source_unassigned_tool_assigned),
@@ -1829,7 +1888,7 @@ def _build_blocked_upload_response(exc, filename="", source=""):
         "filename": filename,
         "upload_id": blocked_summary.get("upload_id"),
         "total_rows": blocked_summary.get("total_rows") or 0,
-        "total_orders": 0,
+        "total_orders": len(blocked_summary.get("orders") or []),
         "mapping_rate": round(blocked_summary.get("mapping_rate") or 0, 2),
         "unmapped_count": len(unmapped_items),
         "new_orders": 0,
@@ -1838,10 +1897,8 @@ def _build_blocked_upload_response(exc, filename="", source=""):
         "reopened_orders": 0,
         "dropped_orders": 0,
         "unmapped_items": unmapped_suggestions,
-        "upload_discrepancies": _serialize_upload_discrepancies(
-            [],
-            upload_id=blocked_summary.get("upload_id"),
-        ),
+        "upload_discrepancies": blocked_summary.get("upload_discrepancies")
+        or _serialize_upload_discrepancies([], upload_id=blocked_summary.get("upload_id")),
     }
     if source:
         response["source"] = source
@@ -5603,6 +5660,7 @@ def _serialize_session_config(form_data, params):
             "algorithm_version": params.get("algorithm_version") or "v2",
             "compare_algorithms": bool(params.get("compare_algorithms")),
             "optimize_mode": params.get("optimize_mode") or "auto",
+            "optimize_focus": params.get("optimize_focus") or "balanced",
             "manual_order_input": form_data.get("manual_order_input") or "",
             "selected_so_nums": params.get("selected_so_nums") or [],
             "order_category_scope": order_categories.primary_order_category_scope(
@@ -8406,6 +8464,10 @@ def _reoptimize_form_data(plant_code, session_id=None):
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
     form_data["optimize_mode"] = optimize_mode
+    optimize_focus = (session_config.get("optimize_focus") or "balanced").strip().lower()
+    if optimize_focus not in {"balanced", "utilization_first"}:
+        optimize_focus = "balanced"
+    form_data["optimize_focus"] = optimize_focus
     form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
         session_config.get("order_category_scopes"),
         fallback=session_config.get("order_category_scope"),
@@ -9689,25 +9751,34 @@ def api_resolve_upload_discrepancy_remove(discrepancy_id, upload_id):
     if session_redirect:
         return session_redirect
 
-    discrepancy = db.get_upload_load_discrepancy(discrepancy_id)
-    if not discrepancy or int(discrepancy.get("upload_id") or 0) != int(upload_id):
-        return jsonify({"error": "Discrepancy not found for this upload."}), 404
+    payload, status_code = _resolve_upload_discrepancy_remove(
+        discrepancy_id=discrepancy_id,
+        upload_id=upload_id,
+    )
+    return jsonify(payload), status_code
 
-    if (discrepancy.get("discrepancy_type") or "").strip() != UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED:
-        return jsonify({"error": "This discrepancy type is informational only."}), 400
 
-    if discrepancy.get("resolved_at"):
-        return jsonify(
-            {
-                "ok": True,
-                "already_resolved": True,
-                "discrepancy_id": discrepancy_id,
-                "upload_id": upload_id,
-            }
-        )
+@cot_bp.route("/api/orders/discrepancies/resolve-remove", methods=["POST"])
+def api_resolve_order_discrepancy_remove():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
 
-    so_num = _normalize_so_num_for_load_report_match(discrepancy.get("so_num"))
-    load_id = discrepancy.get("tool_load_id")
+    payload = request.get_json(silent=True) or {}
+    discrepancy_id = payload.get("discrepancy_id")
+    upload_id = payload.get("upload_id")
+    so_num = payload.get("so_num")
+    load_id = payload.get("tool_load_id") or payload.get("load_id")
+    response_payload, status_code = _resolve_upload_discrepancy_remove(
+        discrepancy_id=discrepancy_id,
+        upload_id=upload_id,
+        so_num=so_num,
+        load_id=load_id,
+    )
+    return jsonify(response_payload), status_code
+
+
+def _resolve_upload_discrepancy_remove(discrepancy_id=None, upload_id=None, so_num=None, load_id=None):
     resolver_label = (
         _get_session_profile_name()
         or _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY))
@@ -9715,76 +9786,119 @@ def api_resolve_upload_discrepancy_remove(discrepancy_id, upload_id):
         or "system"
     )
 
-    if not so_num or not load_id:
-        db.resolve_upload_load_discrepancy(
-            discrepancy_id,
-            resolved_by=resolver_label,
-            resolution_action="invalid_target",
-            resolution_notes="Discrepancy target was missing.",
-        )
-        return jsonify(
-            {
+    resolved_discrepancy_id = None
+    resolved_upload_id = None
+    if discrepancy_id:
+        try:
+            discrepancy_id = int(discrepancy_id)
+        except (TypeError, ValueError):
+            discrepancy_id = None
+        discrepancy = db.get_upload_load_discrepancy(discrepancy_id) if discrepancy_id else None
+        if not discrepancy:
+            return {"error": "Discrepancy not found."}, 404
+
+        resolved_upload_id = int(discrepancy.get("upload_id") or 0) or None
+        if upload_id:
+            try:
+                requested_upload_id = int(upload_id)
+            except (TypeError, ValueError):
+                requested_upload_id = None
+            if requested_upload_id and resolved_upload_id != requested_upload_id:
+                return {"error": "Discrepancy not found for this upload."}, 404
+
+        if (discrepancy.get("discrepancy_type") or "").strip() != UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED:
+            return {"error": "This discrepancy type is informational only."}, 400
+
+        if discrepancy.get("resolved_at"):
+            return {
                 "ok": True,
-                "removed": False,
-                "archived_load": False,
-                "already_removed": True,
+                "already_resolved": True,
                 "discrepancy_id": discrepancy_id,
-                "upload_id": upload_id,
-            }
-        )
+                "upload_id": resolved_upload_id,
+            }, 200
+
+        resolved_discrepancy_id = discrepancy_id
+        so_num = _normalize_so_num_for_load_report_match(discrepancy.get("so_num"))
+        load_id = discrepancy.get("tool_load_id")
+    else:
+        so_num = _normalize_so_num_for_load_report_match(so_num)
+        if upload_id:
+            try:
+                resolved_upload_id = int(upload_id)
+            except (TypeError, ValueError):
+                resolved_upload_id = None
+
+    try:
+        load_id = int(load_id) if load_id is not None else None
+    except (TypeError, ValueError):
+        load_id = None
+
+    if not so_num or not load_id:
+        if resolved_discrepancy_id:
+            db.resolve_upload_load_discrepancy(
+                resolved_discrepancy_id,
+                resolved_by=resolver_label,
+                resolution_action="invalid_target",
+                resolution_notes="Discrepancy target was missing.",
+            )
+        return {
+            "ok": True,
+            "removed": False,
+            "archived_load": False,
+            "already_removed": True,
+            "discrepancy_id": resolved_discrepancy_id,
+            "upload_id": resolved_upload_id,
+        }, 200
 
     load = db.get_load(load_id)
     if not load:
-        db.resolve_upload_load_discrepancy(
-            discrepancy_id,
-            resolved_by=resolver_label,
-            resolution_action="load_missing",
-            resolution_notes=f"Load {load_id} no longer exists.",
-        )
-        return jsonify(
-            {
-                "ok": True,
-                "removed": False,
-                "archived_load": False,
-                "already_removed": True,
-                "discrepancy_id": discrepancy_id,
-                "upload_id": upload_id,
-            }
-        )
+        if resolved_discrepancy_id:
+            db.resolve_upload_load_discrepancy(
+                resolved_discrepancy_id,
+                resolved_by=resolver_label,
+                resolution_action="load_missing",
+                resolution_notes=f"Load {load_id} no longer exists.",
+            )
+        return {
+            "ok": True,
+            "removed": False,
+            "archived_load": False,
+            "already_removed": True,
+            "discrepancy_id": resolved_discrepancy_id,
+            "upload_id": resolved_upload_id,
+        }, 200
 
     access_reason = _load_access_failure_reason(load)
     if access_reason:
-        return jsonify({"error": _load_access_error_message(access_reason)}), 403
+        return {"error": _load_access_error_message(access_reason)}, 403
 
     load_status = (load.get("status") or STATUS_PROPOSED).upper()
     if load_status != STATUS_APPROVED:
-        return jsonify({"error": "Only approved loads can be changed from this upload workflow."}), 409
+        return {"error": "Only approved loads can be changed from this upload workflow."}, 409
 
     load_lines = db.list_load_lines(load_id)
     has_target_so = any(
-        _normalize_so_num_for_load_report_match(line.get("so_num")) == so_num
-        for line in load_lines
+        _normalize_so_num_for_load_report_match(line.get("so_num")) == so_num for line in load_lines
     )
     if not has_target_so:
-        db.resolve_upload_load_discrepancy(
-            discrepancy_id,
-            resolved_by=resolver_label,
-            resolution_action="already_removed",
-            resolution_notes=f"SO #{so_num} was not on load #{load.get('load_number') or load_id}.",
-        )
-        return jsonify(
-            {
-                "ok": True,
-                "removed": False,
-                "archived_load": False,
-                "already_removed": True,
-                "discrepancy_id": discrepancy_id,
-                "upload_id": upload_id,
-                "load_id": load_id,
-                "load_number": load.get("load_number"),
-                "so_num": so_num,
-            }
-        )
+        if resolved_discrepancy_id:
+            db.resolve_upload_load_discrepancy(
+                resolved_discrepancy_id,
+                resolved_by=resolver_label,
+                resolution_action="already_removed",
+                resolution_notes=f"SO #{so_num} was not on load #{load.get('load_number') or load_id}.",
+            )
+        return {
+            "ok": True,
+            "removed": False,
+            "archived_load": False,
+            "already_removed": True,
+            "discrepancy_id": resolved_discrepancy_id,
+            "upload_id": resolved_upload_id,
+            "load_id": load_id,
+            "load_number": load.get("load_number"),
+            "so_num": so_num,
+        }, 200
 
     db.add_load_feedback(
         load_id,
@@ -9805,28 +9919,27 @@ def api_resolve_upload_discrepancy_remove(discrepancy_id, upload_id):
         db.update_load_status(load_id, STATUS_ARCHIVED, load.get("load_number"))
         archived_load = True
 
-    db.resolve_upload_load_discrepancy(
-        discrepancy_id,
-        resolved_by=resolver_label,
-        resolution_action="removed_and_archived" if archived_load else "removed",
-        resolution_notes=(
-            f"Removed SO #{so_num} from load #{load.get('load_number') or load_id}"
-            + (" and archived empty load." if archived_load else ".")
-        ),
-    )
-    return jsonify(
-        {
-            "ok": True,
-            "removed": True,
-            "archived_load": archived_load,
-            "already_removed": False,
-            "discrepancy_id": discrepancy_id,
-            "upload_id": upload_id,
-            "load_id": load_id,
-            "load_number": load.get("load_number"),
-            "so_num": so_num,
-        }
-    )
+    if resolved_discrepancy_id:
+        db.resolve_upload_load_discrepancy(
+            resolved_discrepancy_id,
+            resolved_by=resolver_label,
+            resolution_action="removed_and_archived" if archived_load else "removed",
+            resolution_notes=(
+                f"Removed SO #{so_num} from load #{load.get('load_number') or load_id}"
+                + (" and archived empty load." if archived_load else ".")
+            ),
+        )
+    return {
+        "ok": True,
+        "removed": True,
+        "archived_load": archived_load,
+        "already_removed": False,
+        "discrepancy_id": resolved_discrepancy_id,
+        "upload_id": resolved_upload_id,
+        "load_id": load_id,
+        "load_number": load.get("load_number"),
+        "so_num": so_num,
+    }, 200
 
 
 @cot_bp.route("/api/orders/sql-refresh", methods=["POST"])
@@ -10165,6 +10278,12 @@ def orders():
             optimize_defaults["orders_start_date"] = config_start_date or optimize_defaults["orders_start_date"]
             optimize_defaults["algorithm_version"] = "v2"
             optimize_defaults["compare_algorithms"] = False
+            config_mode = (config.get("optimize_mode") or "").strip().lower()
+            if config_mode in {"auto", "manual"}:
+                optimize_defaults["optimize_mode"] = config_mode
+            config_focus = (config.get("optimize_focus") or "").strip().lower()
+            if config_focus in {"balanced", "utilization_first"}:
+                optimize_defaults["optimize_focus"] = config_focus
 
     optimize_defaults["trailer_type"] = stack_calculator.normalize_trailer_type(
         optimize_defaults.get("trailer_type"),
@@ -10441,6 +10560,7 @@ def orders_optimize():
         return session_redirect
 
     role = _get_session_role()
+    is_admin = role == ROLE_ADMIN
     profile_default_plants = session.get(SESSION_PROFILE_DEFAULT_PLANTS_KEY) or []
     allowed_plants = _get_allowed_plants()
     active_session_id = _get_active_planning_session_id()
@@ -10451,6 +10571,8 @@ def orders_optimize():
         active_session_id = None
     active_session_status = _normalize_session_status(active_session.get("status")) if active_session else ""
     optimize_form = request.form.copy()
+    if not is_admin:
+        optimize_form["optimize_focus"] = "balanced"
     origin_plant = _normalize_plant_code(optimize_form.get("origin_plant"))
     optimize_mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
     if optimize_mode not in {"auto", "manual"}:
@@ -10586,6 +10708,10 @@ def orders_optimize():
         form_data["compare_algorithms"] = False
         mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
         form_data["optimize_mode"] = mode if mode in {"auto", "manual"} else "auto"
+        focus = (optimize_form.get("optimize_focus") or "balanced").strip().lower()
+        form_data["optimize_focus"] = focus if focus in {"balanced", "utilization_first"} else "balanced"
+        if not is_admin:
+            form_data["optimize_focus"] = "balanced"
         form_data["manual_order_input"] = optimize_form.get("manual_order_input", "")
         form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
             optimize_form.getlist("order_category_scopes"),
@@ -10659,6 +10785,9 @@ def orders_optimize():
         session_id = result.get("session_id")
         _set_active_planning_session_id(session_id)
         redirect_args = {"plants": resolved_origin_plant, "session_id": session_id}
+        selected_focus = (result.get("form_data") or {}).get("optimize_focus") or "balanced"
+        if is_admin and str(selected_focus).strip().lower() == "utilization_first":
+            redirect_args["sort"] = "util"
         comparison = result.get("algorithm_comparison") or {}
         v1 = comparison.get("v1") or {}
         v2 = comparison.get("v2") or {}
@@ -11107,6 +11236,7 @@ def loads():
     if session_redirect:
         return session_redirect
 
+    viewer_is_admin = _get_session_role() == ROLE_ADMIN
     allowed_plants = _get_allowed_plants()
     plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
     plant_scope = plant_filters or allowed_plants
@@ -11217,9 +11347,19 @@ def loads():
             plant_filters = list(plant_scope)
     tab = (request.args.get("tab") or "").strip().lower()
     status_filter = (request.args.get("status") or "").strip().upper()
-    sort_mode = (request.args.get("sort") or "flow").strip().lower()
+    sort_mode = (request.args.get("sort") or "").strip().lower()
     if sort_mode not in {"flow", "util"}:
-        sort_mode = "flow"
+        sort_mode = ""
+    if not sort_mode:
+        default_sort_mode = "util"
+        if viewer_is_admin and not replay_mode and active_session and active_session.get("config_json"):
+            try:
+                session_config = json.loads(active_session.get("config_json") or "{}")
+            except json.JSONDecodeError:
+                session_config = {}
+            if (session_config.get("optimize_focus") or "").strip().lower() == "utilization_first":
+                default_sort_mode = "util"
+        sort_mode = default_sort_mode
     today_override = _resolve_today_override(request.args.get("today"))
     today = today_override or date.today()
     reopt_status = request.args.get("reopt", "")
@@ -14763,6 +14903,91 @@ def _capacity_for_trailer(trailer_type):
         return 53.0
 
 
+def _manual_add_fit_assessments(
+    load,
+    plant_code,
+    trailer_type,
+    existing_lines,
+    candidate_lines_by_so,
+    sku_specs,
+    zip_coords,
+    base_used_ft,
+    capacity_ft,
+):
+    assessments = {}
+    assumptions = _get_stack_capacity_assumptions()
+    normalized_trailer = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
+    base_used = max(_coerce_float_value(base_used_ft, 0.0), 0.0)
+    capacity = max(_coerce_float_value(capacity_ft, 0.0), 0.0)
+
+    for so_num, candidate_lines in (candidate_lines_by_so or {}).items():
+        normalized_so = _normalize_order_identifier(so_num)
+        if not normalized_so:
+            continue
+        if not candidate_lines:
+            assessments[normalized_so] = {
+                "available": False,
+                "fits_in_capacity": None,
+                "over_capacity_by_ft": 0.0,
+                "projected_used_ft": round(base_used, 1),
+                "projected_remaining_ft": round(max(capacity - base_used, 0.0), 1),
+                "effective_added_ft": 0.0,
+            }
+            continue
+
+        try:
+            trial_lines = list(existing_lines or []) + list(candidate_lines or [])
+            ordered_stops = _ordered_stops_for_lines(trial_lines, plant_code, zip_coords)
+            ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
+            ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
+            stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
+            projected_schematic, _, _ = _calculate_load_schematic(
+                trial_lines,
+                sku_specs,
+                normalized_trailer,
+                stop_sequence_map=stop_sequence_map,
+                assumptions=assumptions,
+            )
+            overflow_ft = max(
+                _coerce_float_value(stack_calculator.capacity_overflow_feet(projected_schematic), 0.0),
+                0.0,
+            )
+            projected_used_ft = _coerce_float_value(
+                projected_schematic.get("lower_deck_used_length_ft"),
+                0.0,
+            ) + _coerce_float_value(
+                projected_schematic.get("upper_deck_effective_length_ft"),
+                0.0,
+            )
+            if projected_used_ft <= 0.0:
+                projected_used_ft = _coerce_float_value(projected_schematic.get("total_linear_feet"), 0.0)
+            effective_added_ft = max(projected_used_ft - base_used, 0.0)
+            assessments[normalized_so] = {
+                "available": True,
+                "fits_in_capacity": not bool(projected_schematic.get("exceeds_capacity")),
+                "over_capacity_by_ft": round(overflow_ft, 1),
+                "projected_used_ft": round(projected_used_ft, 1),
+                "projected_remaining_ft": round(max(capacity - projected_used_ft, 0.0), 1),
+                "effective_added_ft": round(effective_added_ft, 1),
+            }
+        except Exception:
+            logger.exception(
+                "Manual add fit assessment failed for load_id=%s so_num=%s",
+                load.get("id"),
+                normalized_so,
+            )
+            assessments[normalized_so] = {
+                "available": False,
+                "fits_in_capacity": None,
+                "over_capacity_by_ft": 0.0,
+                "projected_used_ft": round(base_used, 1),
+                "projected_remaining_ft": round(max(capacity - base_used, 0.0), 1),
+                "effective_added_ft": 0.0,
+            }
+
+    return assessments
+
+
 @cot_bp.route("/loads/<int:load_id>/manual_add/suggestions")
 def manual_add_suggestions(load_id):
     session_redirect = _require_session()
@@ -14919,11 +15144,14 @@ def manual_add_suggestions(load_id):
         plant_code,
         list(existing_so_nums) + candidate_so_nums,
     )
+    candidate_line_map = {}
     sku_rollups = {}
     for line in sku_lines:
-        so_num = str(line.get("so_num") or "").strip()
+        so_num = _normalize_order_identifier(line.get("so_num"))
         if not so_num:
             continue
+        if so_num in seen_candidate_so_nums:
+            candidate_line_map.setdefault(so_num, []).append(line)
         sku_key = str(line.get("sku") or line.get("item") or "").strip() or "UNKNOWN"
         so_rollup = sku_rollups.setdefault(so_num, {})
         sku_entry = so_rollup.setdefault(
@@ -14953,6 +15181,19 @@ def manual_add_suggestions(load_id):
             )
         entries.sort(key=lambda item: (-(item.get("ft") or 0), item.get("sku") or ""))
         return entries
+
+    sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
+    fit_assessments = _manual_add_fit_assessments(
+        load=load,
+        plant_code=plant_code,
+        trailer_type=trailer_type,
+        existing_lines=lines,
+        candidate_lines_by_so=candidate_line_map,
+        sku_specs=sku_specs,
+        zip_coords=zip_coords,
+        base_used_ft=used_ft,
+        capacity_ft=capacity_ft,
+    )
 
     existing_segments = []
     existing_order_sort = sorted(
@@ -15001,6 +15242,17 @@ def manual_add_suggestions(load_id):
             )
 
         total_length_ft = float(order.get("total_length_ft") or 0)
+        fit_assessment = fit_assessments.get(so_num) or {
+            "available": False,
+            "fits_in_capacity": None,
+            "over_capacity_by_ft": 0.0,
+            "projected_used_ft": round(used_ft, 1),
+            "projected_remaining_ft": round(max(capacity_ft - used_ft, 0.0), 1),
+            "effective_added_ft": round(total_length_ft, 1),
+        }
+        stack_added_ft = fit_assessment.get("effective_added_ft")
+        if stack_added_ft is None:
+            stack_added_ft = total_length_ft
         sku_breakdown = _serialize_sku_rollup(so_num)
 
         suggestions.append(
@@ -15012,12 +15264,13 @@ def manual_add_suggestions(load_id):
                 "state": order.get("state") or "",
                 "zip": order.get("zip") or "",
                 "total_length_ft": total_length_ft,
-                "stack_added_ft": round(total_length_ft, 1),
+                "stack_added_ft": round(_coerce_float_value(stack_added_ft, total_length_ft), 1),
                 "utilization_pct": order.get("utilization_pct") or 0,
                 "distance_miles": round(dist, 1) if dist is not None else None,
                 "sku_breakdown": sku_breakdown,
                 "strategic_key": str((matched_strategic or {}).get("key") or ""),
                 "strategic_label": str((matched_strategic or {}).get("label") or ""),
+                "fit_assessment": fit_assessment,
             }
         )
 

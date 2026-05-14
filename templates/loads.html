@@ -3810,6 +3810,17 @@
         utilization_pct: Number(order.utilization_pct || 0),
         distance_miles: order.distance_miles,
         sku_breakdown: normalizeSkuBreakdown(order.sku_breakdown),
+        fit_assessment: {
+          available: Boolean(order.fit_assessment && order.fit_assessment.available),
+          fits_in_capacity:
+            order.fit_assessment && typeof order.fit_assessment.fits_in_capacity === 'boolean'
+              ? order.fit_assessment.fits_in_capacity
+              : null,
+          over_capacity_by_ft: Number((order.fit_assessment && order.fit_assessment.over_capacity_by_ft) || 0),
+          projected_used_ft: Number((order.fit_assessment && order.fit_assessment.projected_used_ft) || 0),
+          projected_remaining_ft: Number((order.fit_assessment && order.fit_assessment.projected_remaining_ft) || 0),
+          effective_added_ft: Number((order.fit_assessment && order.fit_assessment.effective_added_ft) || 0),
+        },
       });
 
       const setError = (message) => {
@@ -3858,7 +3869,7 @@
       const getSelectedTotalFt = () => {
         let total = 0;
         selectedOrders.forEach((order) => {
-          total += toFeet(order.total_length_ft);
+          total += toFeet(order.stack_added_ft || order.total_length_ft);
         });
         return total;
       };
@@ -3877,7 +3888,10 @@
         const capacity = toFeet(cachedSpace.capacity_ft);
         const baseUsed = toFeet(cachedSpace.used_ft);
         const selectedList = Array.from(selectedOrders.values());
-        const selectedTotal = selectedList.reduce((sum, order) => sum + toFeet(order.total_length_ft), 0);
+        const selectedTotal = selectedList.reduce(
+          (sum, order) => sum + toFeet(order.stack_added_ft || order.total_length_ft),
+          0,
+        );
         const projectedUsed = baseUsed + selectedTotal;
         const overByProjected = capacity ? Math.max(projectedUsed - capacity, 0) : 0;
         const remainingProjected = capacity ? Math.max(capacity - projectedUsed, 0) : 0;
@@ -4035,7 +4049,7 @@
         const overflowByOrder = {};
         let remainingWithin = Math.max(capacity - baseWithin, 0);
         selectedList.forEach((order) => {
-          const orderFt = toFeet(order.total_length_ft);
+          const orderFt = toFeet(order.stack_added_ft || order.total_length_ft);
           if (orderFt <= 0.02) return;
           const withinFt = Math.min(orderFt, remainingWithin);
           const overflowFt = Math.max(orderFt - withinFt, 0);
@@ -4059,7 +4073,7 @@
             chip.style.setProperty('--chip-accent', orderColor(order.so_num));
             const extra = overflowByOrder[order.so_num] ? ` (${formatFeet(overflowByOrder[order.so_num])} over)` : '';
             if (overflowByOrder[order.so_num]) chip.classList.add('is-over');
-            chip.textContent = `#${order.so_num} +${formatFeet(order.total_length_ft)}${extra}`;
+            chip.textContent = `#${order.so_num} +${formatFeet(order.stack_added_ft || order.total_length_ft)}${extra}`;
             selectedStrip.appendChild(chip);
           });
         }
@@ -4085,12 +4099,23 @@
       };
 
       const evaluateFitState = (order, soNum) => {
+        const fitAssessment = order.fit_assessment || {};
+        if (fitAssessment.available && fitAssessment.fits_in_capacity === true) {
+          return { className: 'ok', text: 'Within Capacity' };
+        }
+        if (fitAssessment.available && fitAssessment.fits_in_capacity === false) {
+          return {
+            className: 'over',
+            text: `Over Capacity by ${toFeet(fitAssessment.over_capacity_by_ft).toFixed(1)} ft`,
+          };
+        }
+
         const capacity = toFeet(cachedSpace.capacity_ft);
         if (!capacity) {
           return { className: 'unknown', text: 'Capacity Unknown' };
         }
         const baseUsed = toFeet(cachedSpace.used_ft);
-        const orderFt = toFeet(order.total_length_ft);
+        const orderFt = toFeet(order.stack_added_ft || order.total_length_ft);
         const currentlySelected = getSelectedTotalFt();
         const alreadySelected = selectedOrders.has(soNum);
         const projected = baseUsed + currentlySelected + (alreadySelected ? 0 : orderFt);

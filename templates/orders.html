@@ -102,6 +102,28 @@
                           </button>
                         </div>
                       </div>
+                      {% if is_admin %}
+                        <label class="checkbox-pill" title="Prioritize high-utilization loads and defer weak tail loads when feasible.">
+                          <input
+                            type="radio"
+                            name="optimize_focus"
+                            value="utilization_first"
+                            {% if (optimize_defaults.optimize_focus or 'balanced') == 'utilization_first' %}checked{% endif %}
+                          >
+                          <span>Utilization First</span>
+                        </label>
+                        <label class="checkbox-pill" title="Current optimization behavior.">
+                          <input
+                            type="radio"
+                            name="optimize_focus"
+                            value="balanced"
+                            {% if (optimize_defaults.optimize_focus or 'balanced') != 'utilization_first' %}checked{% endif %}
+                          >
+                          <span>Balanced</span>
+                        </label>
+                      {% else %}
+                        <input type="hidden" name="optimize_focus" value="balanced">
+                      {% endif %}
                       <span class="workbench-top-hint">
                         {% if active_session and active_session.session_code %}
                           Session {{ active_session.session_code }}
@@ -650,14 +672,6 @@
                 <span class="intake-time-chip intake-time-chip-import">Last Import {{ last_upload.uploaded_at_display or last_upload.uploaded_at }}</span>
               {% endif %}
             </div>
-            {% if is_admin %}
-              <form class="intake-clear-form" method="post" action="{{ url_for('clear_orders') }}" onsubmit="return confirm('Delete all orders? This cannot be undone.');">
-                <button class="btn-danger btn-xs" type="submit">
-                  <span class="material-symbols-outlined">delete_forever</span>
-                  Delete All Orders
-                </button>
-              </form>
-            {% endif %}
           </div>
         </div>
         <div class="panel-body">
@@ -822,20 +836,12 @@
           </div>
           <div class="upload-discrepancies hidden" data-upload-discrepancies-panel>
             <div class="upload-summary-title">Load Assignment Discrepancies</div>
-            <div class="upload-discrepancy-section" data-source-removed-panel>
-              <div class="upload-discrepancy-header">
-                <div class="upload-discrepancy-label">Previously Taken Off Source Loads</div>
-                <span class="upload-unmapped-count" data-source-removed-count>0</span>
-              </div>
-              <div class="upload-discrepancy-list" data-source-removed-list></div>
+            <div class="upload-discrepancy-header upload-discrepancy-header-wrap">
+              <span class="upload-discrepancy-pill" data-source-removed-pill>0 total orders taken off loads in source</span>
+              <span class="upload-discrepancy-pill" data-source-unassigned-tool-pill>0 orders on approved loads in tool</span>
+              <button class="btn-secondary btn-xs" type="button" data-discrepancy-remove-all hidden>Remove all</button>
             </div>
-            <div class="upload-discrepancy-section" data-source-unassigned-tool-panel>
-              <div class="upload-discrepancy-header">
-                <div class="upload-discrepancy-label">Source Not On Load, But On Approved Tool Loads</div>
-                <span class="upload-unmapped-count" data-source-unassigned-tool-count>0</span>
-              </div>
-              <div class="upload-discrepancy-list" data-source-unassigned-tool-list></div>
-            </div>
+            <div class="upload-discrepancy-list" data-discrepancy-combined-list></div>
             <div class="upload-discrepancy-status" data-upload-discrepancy-status></div>
           </div>
           <div class="upload-unmapped hidden" data-unmapped-panel>
@@ -3365,12 +3371,10 @@
       const unmappedSaveButton = modal.querySelector('[data-unmapped-save]');
       const unmappedCount = modal.querySelector('[data-unmapped-count]');
       const discrepancyPanel = modal.querySelector('[data-upload-discrepancies-panel]');
-      const sourceRemovedPanel = modal.querySelector('[data-source-removed-panel]');
-      const sourceRemovedCount = modal.querySelector('[data-source-removed-count]');
-      const sourceRemovedList = modal.querySelector('[data-source-removed-list]');
-      const sourceUnassignedToolPanel = modal.querySelector('[data-source-unassigned-tool-panel]');
-      const sourceUnassignedToolCount = modal.querySelector('[data-source-unassigned-tool-count]');
-      const sourceUnassignedToolList = modal.querySelector('[data-source-unassigned-tool-list]');
+      const sourceRemovedPill = modal.querySelector('[data-source-removed-pill]');
+      const sourceUnassignedToolPill = modal.querySelector('[data-source-unassigned-tool-pill]');
+      const discrepancyRemoveAllButton = modal.querySelector('[data-discrepancy-remove-all]');
+      const discrepancyCombinedList = modal.querySelector('[data-discrepancy-combined-list]');
       const discrepancyStatus = modal.querySelector('[data-upload-discrepancy-status]');
       const summaryFields = {
         totalRows: modal.querySelector('[data-summary-total-rows]'),
@@ -3387,6 +3391,8 @@
       let processingTimer = null;
       let closeShouldReload = false;
       let currentUploadId = null;
+      let latestUploadFile = null;
+      let latestUploadSource = null;
 
       const setProgress = (pct) => {
         const safe = Math.max(0, Math.min(100, pct));
@@ -3445,11 +3451,26 @@
       const hideDiscrepancies = () => {
         currentUploadId = null;
         if (discrepancyPanel) discrepancyPanel.classList.add('hidden');
-        if (sourceRemovedList) sourceRemovedList.innerHTML = '';
-        if (sourceUnassignedToolList) sourceUnassignedToolList.innerHTML = '';
-        if (sourceRemovedCount) sourceRemovedCount.textContent = '0';
-        if (sourceUnassignedToolCount) sourceUnassignedToolCount.textContent = '0';
+        if (discrepancyCombinedList) discrepancyCombinedList.innerHTML = '';
+        if (sourceRemovedPill) sourceRemovedPill.textContent = '0 total orders taken off loads in source';
+        if (sourceUnassignedToolPill) sourceUnassignedToolPill.textContent = '0 orders on approved loads in tool';
+        if (discrepancyRemoveAllButton) {
+          discrepancyRemoveAllButton.classList.add('hidden');
+          discrepancyRemoveAllButton.disabled = false;
+        }
         if (discrepancyStatus) discrepancyStatus.textContent = '';
+      };
+
+      const getPendingDiscrepancyButtons = () => {
+        if (!discrepancyCombinedList) return [];
+        return Array.from(discrepancyCombinedList.querySelectorAll('[data-discrepancy-resolve]'))
+          .filter((button) => !button.disabled && typeof button._resolveDiscrepancy === 'function');
+      };
+
+      const updateRemoveAllVisibility = () => {
+        if (!discrepancyRemoveAllButton) return;
+        const pendingButtons = getPendingDiscrepancyButtons();
+        discrepancyRemoveAllButton.classList.toggle('hidden', pendingButtons.length === 0);
       };
 
       const renderUploadDiscrepancies = (summaryPayload) => {
@@ -3461,7 +3482,17 @@
         const sourceUnassignedTool = Array.isArray(discrepancies.source_unassigned_but_tool_assigned)
           ? discrepancies.source_unassigned_but_tool_assigned
           : [];
-        const totalCount = sourceRemoved.length + sourceUnassignedTool.length;
+        const combinedRows = Array.isArray(discrepancies.combined) ? discrepancies.combined : [];
+        const totalCount = combinedRows.length;
+        const counts = discrepancies.counts || {};
+        const sourceRemovedTotal = Number(
+          counts.source_removed_from_load != null ? counts.source_removed_from_load : sourceRemoved.length
+        ) || 0;
+        const sourceUnassignedTotal = Number(
+          counts.source_unassigned_but_tool_assigned != null
+            ? counts.source_unassigned_but_tool_assigned
+            : sourceUnassignedTool.length
+        ) || 0;
 
         if (!totalCount) {
           hideDiscrepancies();
@@ -3469,41 +3500,29 @@
         }
 
         currentUploadId = discrepancies.upload_id || summaryPayload?.upload_id || null;
-        if (sourceRemovedCount) sourceRemovedCount.textContent = String(sourceRemoved.length);
-        if (sourceUnassignedToolCount) sourceUnassignedToolCount.textContent = String(sourceUnassignedTool.length);
-        if (sourceRemovedList) sourceRemovedList.innerHTML = '';
-        if (sourceUnassignedToolList) sourceUnassignedToolList.innerHTML = '';
+        if (sourceRemovedPill) {
+          sourceRemovedPill.textContent = `${sourceRemovedTotal} total orders taken off loads in source`;
+        }
+        if (sourceUnassignedToolPill) {
+          sourceUnassignedToolPill.textContent = `${sourceUnassignedTotal} orders on approved loads in tool`;
+        }
+        if (discrepancyCombinedList) discrepancyCombinedList.innerHTML = '';
         if (discrepancyStatus) discrepancyStatus.textContent = '';
 
-        if (sourceRemovedPanel) {
-          sourceRemovedPanel.classList.toggle('hidden', sourceRemoved.length === 0);
-        }
-        if (sourceUnassignedToolPanel) {
-          sourceUnassignedToolPanel.classList.toggle('hidden', sourceUnassignedTool.length === 0);
-        }
-
-        sourceRemoved.forEach((entry) => {
-          if (!sourceRemovedList) return;
+        combinedRows.forEach((entry) => {
+          if (!discrepancyCombinedList) return;
           const row = document.createElement('div');
-          row.className = 'upload-discrepancy-row upload-discrepancy-row-info';
+          const requiresRemoval = Boolean(entry && entry.requires_tool_removal && entry.tool_load_id);
+          row.className = `upload-discrepancy-row ${requiresRemoval ? 'upload-discrepancy-row-action' : 'upload-discrepancy-row-info'}`;
+          const sourceLoadLabel = entry.source_prev_load_number || 'Not on source load';
+          const toolLoadLabel = entry.tool_assigned
+            ? `Approved load #${escapeHtml(entry.tool_load_number || '--')}`
+            : 'Not on approved tool load';
+          const buttonDisabled = !requiresRemoval;
           row.innerHTML = `
             <div class="upload-discrepancy-main">
               <strong>SO #${escapeHtml(entry.so_num || '--')}</strong>
-              <span class="upload-discrepancy-meta">Previous source load: ${escapeHtml(entry.source_prev_load_number || '--')}</span>
-            </div>
-          `;
-          sourceRemovedList.appendChild(row);
-        });
-
-        sourceUnassignedTool.forEach((entry) => {
-          if (!sourceUnassignedToolList) return;
-          const row = document.createElement('div');
-          row.className = 'upload-discrepancy-row upload-discrepancy-row-action';
-          const buttonDisabled = !(currentUploadId && entry.id);
-          row.innerHTML = `
-            <div class="upload-discrepancy-main">
-              <strong>SO #${escapeHtml(entry.so_num || '--')}</strong>
-              <span class="upload-discrepancy-meta">Approved load #${escapeHtml(entry.tool_load_number || '--')}</span>
+              <span class="upload-discrepancy-meta">Source: ${escapeHtml(sourceLoadLabel)} | ${toolLoadLabel}</span>
             </div>
             <div class="upload-discrepancy-actions">
               <span class="upload-discrepancy-row-status" data-discrepancy-row-status></span>
@@ -3519,21 +3538,24 @@
           `;
           const actionButton = row.querySelector('[data-discrepancy-resolve]');
           const rowStatus = row.querySelector('[data-discrepancy-row-status]');
-          if (buttonDisabled && rowStatus) {
-            rowStatus.textContent = 'Upload id missing. Refresh and retry.';
+          if (buttonDisabled && rowStatus && entry.tool_assigned && !entry.requires_tool_removal) {
+            rowStatus.textContent = 'Already resolved.';
           }
           if (actionButton && !buttonDisabled) {
-            actionButton.addEventListener('click', async () => {
+            actionButton._resolveDiscrepancy = async () => {
               actionButton.disabled = true;
               if (rowStatus) rowStatus.textContent = 'Removing...';
               try {
-                const response = await fetch(
-                  `/api/uploads/${encodeURIComponent(currentUploadId)}/discrepancies/${encodeURIComponent(entry.id)}/resolve-remove`,
-                  {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                  }
-                );
+                const response = await fetch('/api/orders/discrepancies/resolve-remove', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                  body: JSON.stringify({
+                    upload_id: currentUploadId,
+                    discrepancy_id: entry.discrepancy_id || entry.id || null,
+                    so_num: entry.so_num,
+                    tool_load_id: entry.tool_load_id,
+                  }),
+                });
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
                   throw new Error(payload.error || 'Failed to remove order from approved load.');
@@ -3550,17 +3572,51 @@
                 row.classList.add('is-resolved');
                 actionButton.textContent = payload.archived_load ? 'Removed & Archived' : 'Removed';
                 actionButton.disabled = true;
+                updateRemoveAllVisibility();
+                return payload;
               } catch (err) {
                 actionButton.disabled = false;
                 if (rowStatus) rowStatus.textContent = err.message || 'Failed to remove order from load.';
+                throw err;
+              }
+            };
+            actionButton.addEventListener('click', async () => {
+              try {
+                await actionButton._resolveDiscrepancy();
+              } catch (err) {
+                // Keep the row interactive when an action fails.
               }
             });
           }
-          sourceUnassignedToolList.appendChild(row);
+          discrepancyCombinedList.appendChild(row);
         });
 
+        updateRemoveAllVisibility();
         discrepancyPanel.classList.remove('hidden');
       };
+
+      if (discrepancyRemoveAllButton) {
+        discrepancyRemoveAllButton.addEventListener('click', async () => {
+          const pendingButtons = getPendingDiscrepancyButtons();
+          if (!pendingButtons.length) return;
+          discrepancyRemoveAllButton.disabled = true;
+          if (discrepancyStatus) discrepancyStatus.textContent = `Removing ${pendingButtons.length} orders from approved loads...`;
+          let completed = 0;
+          for (const button of pendingButtons) {
+            try {
+              await button._resolveDiscrepancy();
+              completed += 1;
+            } catch (err) {
+              // Continue with remaining rows even if one removal fails.
+            }
+          }
+          if (discrepancyStatus) {
+            discrepancyStatus.textContent = `Completed ${completed} of ${pendingButtons.length} removal actions.`;
+          }
+          discrepancyRemoveAllButton.disabled = false;
+          updateRemoveAllVisibility();
+        });
+      }
 
       const renderUnmappedItems = (items) => {
         if (!unmappedPanel || !unmappedList) return;
@@ -3849,6 +3905,8 @@
 
       const runUpload = (file) => {
         if (!file || activeRequest) return;
+        latestUploadFile = file;
+        latestUploadSource = 'file';
 
         if (filenameEl) filenameEl.textContent = file.name || 'Selected file';
         setNextActionMode('close');
@@ -3916,7 +3974,10 @@
                 showSummary(payload);
                 renderUploadDiscrepancies(payload);
                 renderUnmappedItems(payload.unmapped_items || []);
-                if (payload.blocked) setNextActionMode('reload');
+                if (payload.blocked) {
+                  setStatus('Upload blocked: resolve discrepancies and save SKU specs below to continue.');
+                  setNextActionMode('close');
+                }
               } else {
                 hideSummary();
                 hideDiscrepancies();
@@ -3942,6 +4003,8 @@
 
       const runSqlRefresh = async () => {
         if (activeRequest) return;
+        latestUploadFile = null;
+        latestUploadSource = 'sql';
 
         const abortController = new AbortController();
         activeRequest = abortController;
@@ -4049,9 +4112,17 @@
               throw new Error((payload && payload.error) || 'Failed to save SKU specs.');
             }
             if (unmappedStatus) {
-              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs. Re-run Refresh from SQL to import orders.`;
+              unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs.`;
             }
-            setNextActionMode('reload');
+            if (latestUploadSource === 'file' && latestUploadFile) {
+              if (unmappedStatus) unmappedStatus.textContent = `${unmappedStatus.textContent} Reprocessing upload...`;
+              runUpload(latestUploadFile);
+              return;
+            }
+            if (unmappedStatus) {
+              unmappedStatus.textContent = `${unmappedStatus.textContent} Re-run Refresh from SQL to import orders.`;
+            }
+            setNextActionMode('close');
           } catch (err) {
             if (unmappedStatus) unmappedStatus.textContent = err.message || 'Failed to save SKU specs.';
           }

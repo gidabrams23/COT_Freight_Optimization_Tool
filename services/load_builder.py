@@ -22,6 +22,7 @@ DEFAULT_BUILD_PARAMS = {
     "algorithm_version": "v2",
     "compare_algorithms": False,
     "optimize_mode": "auto",
+    "optimize_focus": "balanced",
     "manual_order_input": "",
     "ignore_due_date": False,
     "order_category_scope": order_categories.ORDER_CATEGORY_SCOPE_ALL,
@@ -354,6 +355,9 @@ def build_loads(
     optimize_mode = _clean_value(form.get("optimize_mode", "auto")).lower() if form else "auto"
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
+    optimize_focus = _clean_value(form.get("optimize_focus", "balanced")).lower() if form else "balanced"
+    if optimize_focus not in {"balanced", "utilization_first"}:
+        optimize_focus = "balanced"
     reopt_speed = _clean_value(form.get("__reopt_speed", "")).lower() if form else ""
     fast_reopt = reopt_speed == "fast"
     manual_order_input = _clean_value(form.get("manual_order_input", "")) if form else ""
@@ -422,6 +426,7 @@ def build_loads(
         "algorithm_version": algorithm_version,
         "compare_algorithms": compare_algorithms,
         "optimize_mode": optimize_mode,
+        "optimize_focus": optimize_focus,
         "manual_order_input": manual_order_input,
         "order_category_scope": selected_order_category_scope,
         "order_category_scopes": selected_order_category_scopes,
@@ -548,6 +553,7 @@ def build_loads(
         "customer_filters": [] if optimize_mode == "manual" else customer_filters,
         "selected_so_nums": selected_so_nums,
         "optimize_mode": optimize_mode,
+        "optimize_focus": optimize_focus,
         "order_category_scope": form_data["order_category_scope"],
         "order_category_scopes": form_data["order_category_scopes"],
         "order_category_tokens": form_data["order_category_tokens"],
@@ -588,6 +594,14 @@ def build_loads(
         "v2_home_length_priority_weight": 1.0,
         "v2_home_length_priority_max_bonus": 12.0,
     }
+
+    if optimize_focus == "utilization_first":
+        # Keep full assignment behavior, but bias merge/scoring toward stronger utilization outcomes.
+        params["v2_low_util_threshold"] = 80.0
+        params["v2_lambda_low_util_count"] = 900.0
+        params["v2_lambda_low_util_depth"] = 40.0
+        params["v2_grade_rescue_passes"] = max(int(params.get("v2_grade_rescue_passes") or 0), 6)
+        params["v2_fd_target_util"] = max(float(params.get("v2_fd_target_util") or 0), 65.0)
 
     flex_days = params["time_window_days"] if enforce_time_window else 0
     if batch_horizon_enabled and batch_end_date:

@@ -12290,12 +12290,29 @@ button.plant-card {
   margin-bottom: 6px;
 }
 
+.upload-discrepancy-header-wrap {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
 .upload-discrepancy-label {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-secondary);
   font-weight: 600;
+}
+
+.upload-discrepancy-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: rgba(15, 23, 42, 0.72);
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .upload-discrepancy-list {

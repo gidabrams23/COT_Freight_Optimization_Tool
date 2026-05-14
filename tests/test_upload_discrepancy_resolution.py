@@ -140,3 +140,53 @@ def test_resolve_upload_discrepancy_rejects_non_approved_load(monkeypatch):
     assert response.status_code == 409
     payload = response.get_json() or {}
     assert "approved loads" in (payload.get("error") or "").lower()
+
+
+def test_resolve_order_discrepancy_remove_without_persisted_upload_discrepancy(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    calls = {"feedback": 0, "removed": 0, "resolve": 0}
+
+    monkeypatch.setattr(
+        app_module.db,
+        "get_load",
+        lambda load_id: {
+            "id": load_id,
+            "status": app_module.STATUS_APPROVED,
+            "origin_plant": "GA",
+            "load_number": "GA26-1111",
+        },
+    )
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: [{"so_num": "SO-1"}])
+    monkeypatch.setattr(
+        app_module.db,
+        "add_load_feedback",
+        lambda *args, **kwargs: calls.update({"feedback": calls["feedback"] + 1}),
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "remove_order_from_load",
+        lambda *_args, **_kwargs: calls.update({"removed": calls["removed"] + 1}),
+    )
+    monkeypatch.setattr(app_module.db, "count_load_lines", lambda _load_id: 1)
+    monkeypatch.setattr(
+        app_module.db,
+        "resolve_upload_load_discrepancy",
+        lambda *_args, **_kwargs: calls.update({"resolve": calls["resolve"] + 1}),
+    )
+
+    response = client.post(
+        "/api/orders/discrepancies/resolve-remove",
+        json={"so_num": "SO-1", "tool_load_id": 11},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json() or {}
+    assert payload.get("ok") is True
+    assert payload.get("removed") is True
+    assert payload.get("discrepancy_id") is None
+    assert calls["feedback"] == 1
+    assert calls["removed"] == 1
+    assert calls["resolve"] == 0

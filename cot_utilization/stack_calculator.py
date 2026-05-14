@@ -373,6 +373,85 @@ def _position_size_priority(position):
     return (-length_ft, -units_count, -capacity_used)
 
 
+def _position_length_priority(position):
+    # Larger stack length should render closer to trailer rear/right.
+    length_ft = _coerce_non_negative_float(position.get("length_ft"), 0.0)
+    return -length_ft
+
+
+def _position_later_stop_priority(position):
+    sequence = _coerce_stop_sequence((position or {}).get("top_stop_sequence"))
+    if sequence is None:
+        return -1
+    return int(sequence)
+
+
+def _position_group_affinity_priority(position, incoming_order_id=None, incoming_stop_sequence=None):
+    incoming_order = str(incoming_order_id or "").strip()
+    if incoming_order.upper() == "__UNSPECIFIED__":
+        incoming_order = ""
+
+    order_ids = {
+        str(item.get("order_id") or "").strip()
+        for item in ((position or {}).get("items") or [])
+        if str(item.get("order_id") or "").strip()
+    }
+    if incoming_order:
+        if order_ids == {incoming_order}:
+            order_rank = 0
+        elif not order_ids:
+            order_rank = 1
+        elif incoming_order in order_ids:
+            order_rank = 2
+        else:
+            order_rank = 3
+    else:
+        order_rank = 0 if not order_ids else 1
+
+    incoming_stop = _coerce_stop_sequence(incoming_stop_sequence)
+    stop_sequences = {
+        _coerce_stop_sequence(item.get("stop_sequence"))
+        for item in ((position or {}).get("items") or [])
+        if _coerce_stop_sequence(item.get("stop_sequence")) is not None
+    }
+    if incoming_stop is None:
+        stop_rank = 0 if not stop_sequences else 1
+    else:
+        if stop_sequences == {incoming_stop}:
+            stop_rank = 0
+        elif not stop_sequences:
+            stop_rank = 1
+        elif incoming_stop in stop_sequences:
+            stop_rank = 2
+        else:
+            stop_rank = 3
+
+    return (order_rank, stop_rank)
+
+
+def _reorder_positions_for_display(positions, order_rank):
+    upper_positions = [
+        pos for pos in (positions or [])
+        if str((pos or {}).get("deck") or "lower").strip().lower() == "upper"
+    ]
+    lower_positions = [
+        pos for pos in (positions or [])
+        if str((pos or {}).get("deck") or "lower").strip().lower() != "upper"
+    ]
+    lower_positions = sorted(
+        lower_positions,
+        key=lambda pos: (
+            _coerce_non_negative_float(pos.get("length_ft"), 0.0),
+            -_position_stop_priority(pos),
+            _position_order_priority(pos, order_rank),
+            _position_size_priority(pos),
+        ),
+    )
+    if upper_positions:
+        return upper_positions + lower_positions
+    return lower_positions
+
+
 def _resolve_trailer_config(trailer_type, capacity_feet=None):
     trailer_key = normalize_trailer_type(trailer_type, default="STEP_DECK")
     base = dict(TRAILER_CONFIGS.get(trailer_key, TRAILER_CONFIGS["STEP_DECK"]))
@@ -1374,12 +1453,41 @@ def calculate_stack_configuration(
                     candidates.sort(
                         key=lambda entry: (
                             _dump_stack_preference_rank(entry[1], item),
+                            _position_group_affinity_priority(
+                                entry[1],
+                                item.get("order_id"),
+                                item_stop_sequence,
+                            ),
                             entry[0],
                             entry[1]["length_ft"],
                             -(1.0 - entry[1]["capacity_used"]),
                         )
                     )
-                    target = candidates[0][1]
+                    preferred_target = candidates[0][1]
+                    incoming_order_id = item.get("order_id")
+                    order_affinity_rank, _ = _position_group_affinity_priority(
+                        preferred_target,
+                        incoming_order_id,
+                        item_stop_sequence,
+                    )
+                    # Soft grouping rule: when this unit has an order id and only
+                    # cross-order mixing options are available, start a fresh
+                    # stack instead of blending colors/orders.
+                    if incoming_order_id and order_affinity_rank >= 3:
+                        target = {
+                            "length_ft": length_ft,
+                            "items": [],
+                            "capacity_used": 0.0,
+                            "overflow_units_used": 0,
+                            "overflow_applied": False,
+                            "units_count": 0,
+                            "top_stop_sequence": None,
+                            "top_length_ft": length_ft,
+                            "top_deck_length_ft": deck_length_ft,
+                        }
+                        positions.append(target)
+                    else:
+                        target = preferred_target
                 else:
                     target = {
                         "length_ft": length_ft,
@@ -1496,30 +1604,52 @@ def calculate_stack_configuration(
                     if not _stop_access_compatible(target, item_stop_sequence):
                         cursor += 1
                         continue
-                    current_pref_rank = _dump_stack_preference_rank(target, item)
-                    if current_pref_rank > 0:
-                        found_better_pref_target = False
-                        for probe_idx in range(cursor + 1, len(positions)):
-                            probe = positions[probe_idx]
-                            if probe.get("length_ft", 0) < length_ft:
-                                continue
-                            if float(probe.get("capacity_used") or 0.0) >= (1.0 - 1e-6):
-                                continue
-                            if not _length_stack_compatible(
-                                probe,
-                                length_ft,
-                                incoming_deck_length_ft=deck_length_ft,
-                                equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
-                            ):
-                                continue
-                            if not _stop_access_compatible(probe, item_stop_sequence):
-                                continue
-                            if _dump_stack_preference_rank(probe, item) < current_pref_rank:
-                                found_better_pref_target = True
-                                break
-                        if found_better_pref_target:
-                            cursor += 1
+                    incoming_order_id = order_id
+
+                    def _placement_rank(pos, pos_idx):
+                        return (
+                            _dump_stack_preference_rank(pos, item),
+                            _position_group_affinity_priority(
+                                pos,
+                                incoming_order_id,
+                                item_stop_sequence,
+                            ),
+                            pos_idx,
+                            pos.get("length_ft", 0),
+                            -(1.0 - float(pos.get("capacity_used") or 0.0)),
+                        )
+
+                    current_rank = _placement_rank(target, cursor)
+                    found_better_pref_target = False
+                    for probe_idx in range(cursor + 1, len(positions)):
+                        probe = positions[probe_idx]
+                        if probe.get("length_ft", 0) < length_ft:
                             continue
+                        if float(probe.get("capacity_used") or 0.0) >= (1.0 - 1e-6):
+                            continue
+                        if not _length_stack_compatible(
+                            probe,
+                            length_ft,
+                            incoming_deck_length_ft=deck_length_ft,
+                            equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+                        ):
+                            continue
+                        if not _stop_access_compatible(probe, item_stop_sequence):
+                            continue
+                        if _placement_rank(probe, probe_idx) < current_rank:
+                            found_better_pref_target = True
+                            break
+                    if found_better_pref_target:
+                        cursor += 1
+                        continue
+                    current_order_rank, _ = _position_group_affinity_priority(
+                        target,
+                        incoming_order_id,
+                        item_stop_sequence,
+                    )
+                    if incoming_order_id and current_order_rank >= 3:
+                        cursor = len(positions)
+                        continue
 
                     target.setdefault("overflow_units_used", 0)
                     target.setdefault("overflow_applied", False)
@@ -1572,9 +1702,8 @@ def calculate_stack_configuration(
         equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
     )
 
-    # Keep schematic columns deterministic by earliest accessible stop first.
-    # UI renders right-to-left, so earliest stops land on the right/rear.
-    # Within the same stop/order bucket, place larger stacks toward the rear.
+    # Keep schematic columns deterministic before deck assignment.
+    # Final lower-deck display ordering is applied after upper/lower assignment.
     order_rank = _build_order_rank(order_lines if has_order_ids else [])
     positions = sorted(
         positions,
@@ -1644,6 +1773,7 @@ def calculate_stack_configuration(
                 int(math.ceil(max(_upper_capacity_used_for_position(pos) - 1e-9, 0.0))),
                 1,
             )
+            later_stop_priority = _position_later_stop_priority(pos)
             two_across_eligible = (
                 upper_two_across_max_length_ft > 0
                 and length_ft <= (upper_two_across_max_length_ft + 1e-6)
@@ -1653,6 +1783,7 @@ def calculate_stack_configuration(
             two_across_gain = (required_stacks - 1) if two_across_eligible else 0
             return (
                 two_across_gain,
+                later_stop_priority,
                 required_stacks,
                 -length_ft,
             )
@@ -1696,6 +1827,7 @@ def calculate_stack_configuration(
                     break
                 active_upper_positions.sort(
                     key=lambda pos: (
+                        _position_stop_priority(pos),
                         -_coerce_non_negative_float(
                             pos.get("effective_length_ft"),
                             pos.get("length_ft"),
@@ -1751,6 +1883,8 @@ def calculate_stack_configuration(
             trailer_config,
             upper_two_across_max_length_ft,
         )
+
+    positions = _reorder_positions_for_display(positions, order_rank)
 
     for pos in positions:
         _promote_high_side_items_within_equal_length(pos)

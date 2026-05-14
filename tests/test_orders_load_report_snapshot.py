@@ -432,6 +432,56 @@ class OrdersLoadReportSnapshotTests(unittest.TestCase):
         self.assertEqual(counts.get("source_unassigned_but_tool_assigned"), 1)
         self.assertEqual(len(payload.get("source_removed_from_load") or []), 1)
         self.assertEqual(len(payload.get("source_unassigned_but_tool_assigned") or []), 1)
+        self.assertEqual(len(payload.get("combined") or []), 2)
+
+    def test_handle_order_upload_blocked_response_includes_discrepancy_payload(self):
+        parse_summary = {
+            "orders": [
+                {"so_num": "SO-1", "plant": "GA"},
+                {"so_num": "SO-2", "plant": "GA"},
+            ],
+            "order_lines": [
+                {"so_num": "SO-1", "load_num": "Not On Load"},
+                {"so_num": "SO-2", "load_num": "Not On Load"},
+            ],
+            "unmapped_items": [{"item": "UNMAPPED-1", "bin": "GEN", "desc": "Test"}],
+            "total_rows": 2,
+            "mapping_rate": 99.5,
+        }
+        fake_file = SimpleNamespace(filename="orders.csv")
+        fake_importer = SimpleNamespace(parse_csv=lambda _stream: parse_summary)
+
+        with patch.object(app_module, "OrderImporter", return_value=fake_importer), patch.object(
+            app_module.db,
+            "list_latest_load_report_assignments_by_so_nums",
+            return_value={"SO-1": "GA26-1001"},
+        ), patch.object(
+            app_module.db,
+            "list_approved_load_memberships_by_so_nums",
+            return_value=[
+                {
+                    "so_num": "SO-2",
+                    "load_id": 44,
+                    "load_number": "GA26-9001",
+                    "origin_plant": "GA",
+                    "load_status": "APPROVED",
+                }
+            ],
+        ):
+            with self.assertRaises(app_module.UploadValidationError) as context:
+                app_module._handle_order_upload(fake_file)
+
+        blocked_summary = (context.exception.summary or {})
+        discrepancy_payload = blocked_summary.get("upload_discrepancies") or {}
+        counts = discrepancy_payload.get("counts") or {}
+        self.assertEqual(counts.get("source_removed_from_load"), 1)
+        self.assertEqual(counts.get("source_unassigned_but_tool_assigned"), 1)
+        combined_rows = discrepancy_payload.get("combined") or []
+        self.assertEqual(len(combined_rows), 2)
+        needs_removal = [row for row in combined_rows if row.get("requires_tool_removal")]
+        self.assertEqual(len(needs_removal), 1)
+        self.assertEqual(needs_removal[0].get("so_num"), "SO-2")
+        self.assertEqual(needs_removal[0].get("tool_load_id"), 44)
 
     def test_orders_load_report_upload_route_redirects_to_single_file_notice(self):
         client = app_module.app.test_client()

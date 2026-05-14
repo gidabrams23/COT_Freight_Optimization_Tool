@@ -196,3 +196,231 @@ def test_remove_order_return_to_pool_excludes_order_before_reopt(monkeypatch):
     assert response.status_code in {301, 302}
     assert calls["excluded_args"] == ("ATL", "SO-88", True)
     assert calls["reopt"] == ("ATL", 9)
+
+
+def test_manual_add_suggestions_reports_stack_aware_fit(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 30,
+        "origin_plant": "ATL",
+        "planning_session_id": 11,
+        "status": "DRAFT",
+        "trailer_type": "STEP_DECK",
+    }
+
+    existing_line = {
+        "so_num": "SO-BASE",
+        "item": "BASE",
+        "item_desc": "Base item",
+        "qty": 1,
+        "sku": "SKU-BASE",
+        "unit_length_ft": 10.0,
+        "total_length_ft": 10.0,
+        "state": "TX",
+        "zip": "75001",
+    }
+    candidate_line = {
+        "so_num": "SO-NEW",
+        "item": "NEW",
+        "item_desc": "New item",
+        "qty": 1,
+        "sku": "SKU-NEW",
+        "unit_length_ft": 6.0,
+        "total_length_ft": 6.0,
+        "state": "TX",
+        "zip": "75001",
+    }
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: load if load_id == 30 else None)
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: [existing_line])
+    monkeypatch.setattr(
+        app_module.db,
+        "list_orders_by_so_nums",
+        lambda _plant, _so_nums: [{"so_num": "SO-BASE", "due_date": "2026-05-14", "total_length_ft": 50.0}],
+    )
+    monkeypatch.setattr(
+        app_module,
+        "_build_load_schematic_payload",
+        lambda _load_id: {
+            "schematic": {
+                "capacity_feet": 53.0,
+                "total_linear_feet": 50.0,
+                "lower_deck_used_length_ft": 50.0,
+                "upper_deck_effective_length_ft": 0.0,
+                "positions": [],
+            }
+        },
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "list_eligible_manual_orders",
+        lambda _plant, search=None, limit=None: [
+            {
+                "so_num": "SO-NEW",
+                "cust_name": "Stack Fit Customer",
+                "due_date": "2026-05-15",
+                "city": "Dallas",
+                "state": "TX",
+                "zip": "75001",
+                "total_length_ft": 6.0,
+                "utilization_pct": 11.0,
+            }
+        ],
+    )
+    monkeypatch.setattr(app_module, "_get_effective_planning_setting", lambda _key: {"value_text": ""})
+    monkeypatch.setattr(app_module, "_parse_strategic_customers", lambda _value: [])
+    monkeypatch.setattr(
+        app_module.db,
+        "list_order_lines_for_so_nums",
+        lambda _plant, _so_nums: [existing_line, candidate_line],
+    )
+    monkeypatch.setattr(app_module.db, "list_sku_specs", lambda: [])
+    monkeypatch.setattr(app_module.geo_utils, "load_zip_coordinates", lambda: {})
+    monkeypatch.setattr(app_module, "_ordered_stops_for_lines", lambda _lines, _plant, _coords: [])
+    monkeypatch.setattr(app_module, "_apply_route_stop_order", lambda ordered_stops, load=None, stop_order=None: ordered_stops)
+    monkeypatch.setattr(
+        app_module,
+        "_apply_load_route_direction",
+        lambda ordered_stops, load=None, reverse_route=None: ordered_stops,
+    )
+    monkeypatch.setattr(
+        app_module,
+        "_calculate_load_schematic",
+        lambda *_args, **_kwargs: (
+            {
+                "exceeds_capacity": False,
+                "lower_deck_used_length_ft": 52.0,
+                "upper_deck_effective_length_ft": 0.0,
+                "total_linear_feet": 52.0,
+            },
+            [],
+            {"SO-BASE", "SO-NEW"},
+        ),
+    )
+    monkeypatch.setattr(app_module.stack_calculator, "capacity_overflow_feet", lambda _schematic: 0.0)
+
+    response = client.get("/loads/30/manual_add/suggestions")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload["suggestions"]) == 1
+    suggestion = payload["suggestions"][0]
+    assert suggestion["so_num"] == "SO-NEW"
+    assert suggestion["stack_added_ft"] == 2.0
+    assert suggestion["fit_assessment"]["available"] is True
+    assert suggestion["fit_assessment"]["fits_in_capacity"] is True
+    assert suggestion["fit_assessment"]["over_capacity_by_ft"] == 0.0
+
+
+def test_manual_add_suggestions_reports_stack_overflow_amount(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 31,
+        "origin_plant": "ATL",
+        "planning_session_id": 12,
+        "status": "DRAFT",
+        "trailer_type": "STEP_DECK",
+    }
+    line = {
+        "so_num": "SO-BASE",
+        "item": "BASE",
+        "item_desc": "Base item",
+        "qty": 1,
+        "sku": "SKU-BASE",
+        "unit_length_ft": 10.0,
+        "total_length_ft": 10.0,
+        "state": "TX",
+        "zip": "75001",
+    }
+    candidate = {
+        "so_num": "SO-OVER",
+        "item": "OVER",
+        "item_desc": "Overflow item",
+        "qty": 1,
+        "sku": "SKU-OVER",
+        "unit_length_ft": 8.0,
+        "total_length_ft": 8.0,
+        "state": "TX",
+        "zip": "75001",
+    }
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: load if load_id == 31 else None)
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: [line])
+    monkeypatch.setattr(
+        app_module.db,
+        "list_orders_by_so_nums",
+        lambda _plant, _so_nums: [{"so_num": "SO-BASE", "due_date": "2026-05-14", "total_length_ft": 50.0}],
+    )
+    monkeypatch.setattr(
+        app_module,
+        "_build_load_schematic_payload",
+        lambda _load_id: {
+            "schematic": {
+                "capacity_feet": 53.0,
+                "total_linear_feet": 50.0,
+                "lower_deck_used_length_ft": 50.0,
+                "upper_deck_effective_length_ft": 0.0,
+                "positions": [],
+            }
+        },
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "list_eligible_manual_orders",
+        lambda _plant, search=None, limit=None: [
+            {
+                "so_num": "SO-OVER",
+                "cust_name": "Overflow Customer",
+                "due_date": "2026-05-16",
+                "city": "Dallas",
+                "state": "TX",
+                "zip": "75001",
+                "total_length_ft": 8.0,
+                "utilization_pct": 15.0,
+            }
+        ],
+    )
+    monkeypatch.setattr(app_module, "_get_effective_planning_setting", lambda _key: {"value_text": ""})
+    monkeypatch.setattr(app_module, "_parse_strategic_customers", lambda _value: [])
+    monkeypatch.setattr(app_module.db, "list_order_lines_for_so_nums", lambda _plant, _so_nums: [line, candidate])
+    monkeypatch.setattr(app_module.db, "list_sku_specs", lambda: [])
+    monkeypatch.setattr(app_module.geo_utils, "load_zip_coordinates", lambda: {})
+    monkeypatch.setattr(app_module, "_ordered_stops_for_lines", lambda _lines, _plant, _coords: [])
+    monkeypatch.setattr(app_module, "_apply_route_stop_order", lambda ordered_stops, load=None, stop_order=None: ordered_stops)
+    monkeypatch.setattr(
+        app_module,
+        "_apply_load_route_direction",
+        lambda ordered_stops, load=None, reverse_route=None: ordered_stops,
+    )
+    monkeypatch.setattr(
+        app_module,
+        "_calculate_load_schematic",
+        lambda *_args, **_kwargs: (
+            {
+                "exceeds_capacity": True,
+                "lower_deck_used_length_ft": 55.0,
+                "upper_deck_effective_length_ft": 0.0,
+                "total_linear_feet": 55.0,
+            },
+            [],
+            {"SO-BASE", "SO-OVER"},
+        ),
+    )
+    monkeypatch.setattr(app_module.stack_calculator, "capacity_overflow_feet", lambda _schematic: 2.3)
+
+    response = client.get("/loads/31/manual_add/suggestions")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload["suggestions"]) == 1
+    suggestion = payload["suggestions"][0]
+    assert suggestion["so_num"] == "SO-OVER"
+    assert suggestion["fit_assessment"]["available"] is True
+    assert suggestion["fit_assessment"]["fits_in_capacity"] is False
+    assert suggestion["fit_assessment"]["over_capacity_by_ft"] == 2.3

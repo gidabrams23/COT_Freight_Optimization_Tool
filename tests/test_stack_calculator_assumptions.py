@@ -165,6 +165,151 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
         )
 
     @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_order_grouping_prefers_separate_stack_over_cross_order_mix(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "ORDER-A",
+                "sku": "5X8G",
+                "order_id": "A",
+                "qty": 3,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 2,
+                "category": "USA",
+                "stop_sequence": 2,
+            },
+            {
+                "item": "ORDER-B",
+                "sku": "5X8W",
+                "order_id": "B",
+                "qty": 1,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 2,
+                "category": "USA",
+                "stop_sequence": 1,
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="FLATBED",
+            preserve_order_contiguity=False,
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+
+        positions = config.get("positions") or []
+        self.assertGreaterEqual(len(positions), 3)
+        for pos in positions:
+            order_ids = {
+                str(item.get("order_id") or "").strip()
+                for item in (pos.get("items") or [])
+                if str(item.get("order_id") or "").strip()
+            }
+            self.assertLessEqual(len(order_ids), 1)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_lower_deck_display_orders_rightmost_as_largest_then_earliest_stop(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "GREEN-16",
+                "sku": "6X12GREEN",
+                "order_id": "S1-16",
+                "qty": 1,
+                "unit_length_ft": 16.0,
+                "max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 1,
+            },
+            {
+                "item": "GREEN-14",
+                "sku": "5X10GREEN",
+                "order_id": "S1-14",
+                "qty": 1,
+                "unit_length_ft": 14.0,
+                "max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 1,
+            },
+            {
+                "item": "MIX-14",
+                "sku": "5X10MIX",
+                "order_id": "S2-14",
+                "qty": 1,
+                "unit_length_ft": 14.0,
+                "max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 2,
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="FLATBED",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+
+        lower_positions = [
+            pos for pos in (config.get("positions") or [])
+            if (pos.get("deck") or "lower").strip().lower() == "lower"
+        ]
+        self.assertEqual(len(lower_positions), 3)
+        ordered_pairs = [
+            (
+                float(pos.get("length_ft") or 0.0),
+                int(pos.get("top_stop_sequence") or 0),
+            )
+            for pos in lower_positions
+        ]
+        self.assertEqual(
+            ordered_pairs,
+            [
+                (14.0, 2),
+                (14.0, 1),
+                (16.0, 1),
+            ],
+        )
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_step_deck_upper_candidate_prefers_later_stop_when_tied(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "EARLY-STOP",
+                "sku": "EARLY",
+                "order_id": "S1",
+                "qty": 1,
+                "unit_length_ft": 9.0,
+                "max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 1,
+            },
+            {
+                "item": "LATE-STOP",
+                "sku": "LATE",
+                "order_id": "S2",
+                "qty": 1,
+                "unit_length_ft": 9.0,
+                "max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 2,
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+        )
+
+        upper_positions = [
+            pos for pos in (config.get("positions") or [])
+            if (pos.get("deck") or "lower").strip().lower() == "upper"
+        ]
+        self.assertEqual(len(upper_positions), 1)
+        self.assertEqual(int(upper_positions[0].get("top_stop_sequence") or 0), 2)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
     def test_equal_total_length_deck_rule_applies_on_upper_deck(self, _mock_get_setting):
         positions = [
             {

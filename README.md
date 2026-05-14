@@ -113,8 +113,11 @@ Guide checklist:
 5. Wait for processing and complete upload
 
 Upload summary modal discrepancy handling:
-- If an SO was previously on a source load and now arrives as **Not on Load**, the modal shows it under **Previously Taken Off Source Loads** (informational).
-- If an SO arrives as **Not on Load** but is still assigned to an **approved** tool load, the modal shows a one-click action to remove that SO from the approved load.
+- The modal now shows a single discrepancy list with two count pills:
+  - total orders taken off loads in source
+  - orders on approved loads in the tool
+- Rows that are still on approved tool loads include one-click removal and a **Remove all** action in the same section.
+- When an upload is blocked by unmapped SKUs, planners can add SKU specs in the same modal and the same file is reprocessed automatically (no second file upload required).
 - Removing from an approved load through this workflow does not trigger re-optimization. If removal empties the approved load, the load is archived for recordkeeping.
 
 ### Optional: SQL Refresh (manual + scheduled)
