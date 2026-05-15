@@ -839,7 +839,7 @@
             <div class="upload-discrepancy-header upload-discrepancy-header-wrap">
               <span class="upload-discrepancy-pill" data-source-removed-pill>0 total orders taken off loads in source</span>
               <span class="upload-discrepancy-pill" data-source-unassigned-tool-pill>0 orders on approved loads in tool</span>
-              <button class="btn-secondary btn-xs" type="button" data-discrepancy-remove-all hidden>Remove all</button>
+              <button class="btn-secondary btn-xs" type="button" data-discrepancy-remove-all hidden>Release all</button>
             </div>
             <div class="upload-discrepancy-list" data-discrepancy-combined-list></div>
             <div class="upload-discrepancy-status" data-upload-discrepancy-status></div>
@@ -3390,9 +3390,11 @@
       let activeRequest = null;
       let processingTimer = null;
       let closeShouldReload = false;
+      let nextButtonTriggersFinalize = false;
       let currentUploadId = null;
       let latestUploadFile = null;
       let latestUploadSource = null;
+      let blockedUploadAwaitingFinalize = false;
 
       const setProgress = (pct) => {
         const safe = Math.max(0, Math.min(100, pct));
@@ -3406,8 +3408,31 @@
 
       const setNextActionMode = (mode = 'close') => {
         closeShouldReload = mode === 'reload';
+        nextButtonTriggersFinalize = mode === 'finalize';
         if (!nextButton) return;
-        nextButton.textContent = closeShouldReload ? 'Continue' : 'Close';
+        nextButton.textContent = (closeShouldReload || nextButtonTriggersFinalize) ? 'Continue' : 'Close';
+      };
+
+      const pendingUnmappedApprovalCount = () => {
+        if (!unmappedList) return 0;
+        const cards = Array.from(unmappedList.querySelectorAll('.upload-unmapped-card'));
+        return cards.filter((card) => card.dataset.approved !== 'true').length;
+      };
+
+      const tryFinalizeBlockedUpload = () => {
+        if (!blockedUploadAwaitingFinalize) return false;
+        if (!latestUploadFile || latestUploadSource !== 'file' || activeRequest) return false;
+        const pendingCount = pendingUnmappedApprovalCount();
+        if (pendingCount > 0) {
+          const message = `Please save or approve ${pendingCount} remaining SKU${pendingCount === 1 ? '' : 's'} before continuing.`;
+          if (unmappedStatus) unmappedStatus.textContent = message;
+          setStatus(message);
+          return false;
+        }
+        if (unmappedStatus) unmappedStatus.textContent = 'Finalizing upload...';
+        setStatus('Finalizing upload with saved SKU specs...');
+        runUpload(latestUploadFile);
+        return true;
       };
 
       const startProcessingSteps = () => {
@@ -3532,7 +3557,7 @@
                 data-discrepancy-resolve
                 ${buttonDisabled ? 'disabled' : ''}
               >
-                Remove SO #${escapeHtml(entry.so_num || '--')} from load #${escapeHtml(entry.tool_load_number || '--')}
+                Release SO #${escapeHtml(entry.so_num || '--')} for future planning
               </button>
             </div>
           `;
@@ -3544,7 +3569,7 @@
           if (actionButton && !buttonDisabled) {
             actionButton._resolveDiscrepancy = async () => {
               actionButton.disabled = true;
-              if (rowStatus) rowStatus.textContent = 'Removing...';
+              if (rowStatus) rowStatus.textContent = 'Releasing...';
               try {
                 const response = await fetch('/api/orders/discrepancies/resolve-remove', {
                   method: 'POST',
@@ -3558,25 +3583,25 @@
                 });
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                  throw new Error(payload.error || 'Failed to remove order from approved load.');
+                  throw new Error(payload.error || 'Failed to release order for future planning.');
                 }
                 if (rowStatus) {
-                  if (payload.already_removed) {
-                    rowStatus.textContent = 'Already removed.';
-                  } else if (payload.archived_load) {
-                    rowStatus.textContent = 'Removed. Load archived.';
+                  if (payload.already_released) {
+                    rowStatus.textContent = 'Already released.';
+                  } else if (payload.released) {
+                    rowStatus.textContent = 'Released for future planning.';
                   } else {
-                    rowStatus.textContent = 'Removed from load.';
+                    rowStatus.textContent = 'No change.';
                   }
                 }
                 row.classList.add('is-resolved');
-                actionButton.textContent = payload.archived_load ? 'Removed & Archived' : 'Removed';
+                actionButton.textContent = 'Released';
                 actionButton.disabled = true;
                 updateRemoveAllVisibility();
                 return payload;
               } catch (err) {
                 actionButton.disabled = false;
-                if (rowStatus) rowStatus.textContent = err.message || 'Failed to remove order from load.';
+                if (rowStatus) rowStatus.textContent = err.message || 'Failed to release order.';
                 throw err;
               }
             };
@@ -3600,7 +3625,7 @@
           const pendingButtons = getPendingDiscrepancyButtons();
           if (!pendingButtons.length) return;
           discrepancyRemoveAllButton.disabled = true;
-          if (discrepancyStatus) discrepancyStatus.textContent = `Removing ${pendingButtons.length} orders from approved loads...`;
+          if (discrepancyStatus) discrepancyStatus.textContent = `Releasing ${pendingButtons.length} orders for future planning...`;
           let completed = 0;
           for (const button of pendingButtons) {
             try {
@@ -3611,7 +3636,7 @@
             }
           }
           if (discrepancyStatus) {
-            discrepancyStatus.textContent = `Completed ${completed} of ${pendingButtons.length} removal actions.`;
+            discrepancyStatus.textContent = `Completed ${completed} of ${pendingButtons.length} release actions.`;
           }
           discrepancyRemoveAllButton.disabled = false;
           updateRemoveAllVisibility();
@@ -3777,6 +3802,13 @@
                 });
                 approveButton.textContent = 'Approved';
                 if (cardStatus) cardStatus.textContent = 'Approved.';
+                if (blockedUploadAwaitingFinalize) {
+                  const pendingCount = pendingUnmappedApprovalCount();
+                  if (pendingCount === 0) {
+                    if (unmappedStatus) unmappedStatus.textContent = 'All SKU specs saved. Click Continue to finalize upload.';
+                    setNextActionMode('finalize');
+                  }
+                }
               } catch (err) {
                 approveButton.disabled = false;
                 if (cardStatus) cardStatus.textContent = err.message || 'Failed to save SKU.';
@@ -3889,6 +3921,10 @@
 
       if (nextButton) {
         nextButton.addEventListener('click', () => {
+          if (nextButtonTriggersFinalize) {
+            tryFinalizeBlockedUpload();
+            return;
+          }
           closeModal({ reload: closeShouldReload });
         });
       }
@@ -3907,6 +3943,7 @@
         if (!file || activeRequest) return;
         latestUploadFile = file;
         latestUploadSource = 'file';
+        blockedUploadAwaitingFinalize = false;
 
         if (filenameEl) filenameEl.textContent = file.name || 'Selected file';
         setNextActionMode('close');
@@ -3953,6 +3990,7 @@
           }
           const finalize = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
+              blockedUploadAwaitingFinalize = false;
               setProgress(100);
               setStatus(`${file.name} has been successfully uploaded.`);
               if (payload && Object.keys(payload).length) {
@@ -3975,8 +4013,9 @@
                 renderUploadDiscrepancies(payload);
                 renderUnmappedItems(payload.unmapped_items || []);
                 if (payload.blocked) {
+                  blockedUploadAwaitingFinalize = true;
                   setStatus('Upload blocked: resolve discrepancies and save SKU specs below to continue.');
-                  setNextActionMode('close');
+                  setNextActionMode('finalize');
                 }
               } else {
                 hideSummary();
@@ -4005,6 +4044,7 @@
         if (activeRequest) return;
         latestUploadFile = null;
         latestUploadSource = 'sql';
+        blockedUploadAwaitingFinalize = false;
 
         const abortController = new AbortController();
         activeRequest = abortController;
@@ -4092,6 +4132,11 @@
         unmappedSaveButton.addEventListener('click', async () => {
           const specs = collectUnmappedSpecs();
           if (!specs.length) {
+            if (blockedUploadAwaitingFinalize && pendingUnmappedApprovalCount() === 0) {
+              if (unmappedStatus) unmappedStatus.textContent = 'All SKU specs saved. Click Continue to finalize upload.';
+              setNextActionMode('finalize');
+              return;
+            }
             if (unmappedStatus) unmappedStatus.textContent = 'No unmapped SKUs to save.';
             return;
           }
@@ -4115,8 +4160,9 @@
               unmappedStatus.textContent = `Saved ${payload.created || 0} SKU specs.`;
             }
             if (latestUploadSource === 'file' && latestUploadFile) {
-              if (unmappedStatus) unmappedStatus.textContent = `${unmappedStatus.textContent} Reprocessing upload...`;
-              runUpload(latestUploadFile);
+              if (unmappedStatus) unmappedStatus.textContent = `${unmappedStatus.textContent} Click Continue to finalize upload.`;
+              blockedUploadAwaitingFinalize = true;
+              setNextActionMode('finalize');
               return;
             }
             if (unmappedStatus) {

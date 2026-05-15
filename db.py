@@ -1191,6 +1191,24 @@ def init_db():
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS load_order_release_overrides (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                load_id INTEGER NOT NULL,
+                so_num TEXT NOT NULL,
+                source TEXT,
+                reason TEXT,
+                notes TEXT,
+                released_at TEXT NOT NULL DEFAULT (datetime('now')),
+                released_by TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(load_id, so_num),
+                FOREIGN KEY (load_id) REFERENCES loads(id)
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS app_feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 category TEXT NOT NULL,
@@ -1628,6 +1646,12 @@ def init_db():
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_upload_load_discrepancies_so_num ON upload_load_discrepancies(so_num)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_load_order_release_overrides_load_so ON load_order_release_overrides(load_id, so_num)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_load_order_release_overrides_active ON load_order_release_overrides(is_active)"
         )
         connection.commit()
         _seed_plants(connection)
@@ -2468,6 +2492,17 @@ def list_assigned_so_nums_for_active_loads(origin_plant, include_approved=True):
             LEFT JOIN planning_sessions ps ON ps.id = l.planning_session_id
             WHERE l.origin_plant = ?
               AND COALESCE(UPPER(l.status), '') IN ({placeholders})
+              AND NOT (
+                COALESCE(UPPER(l.status), '') = 'APPROVED'
+                AND EXISTS (
+                  SELECT 1
+                  FROM load_order_release_overrides lro
+                  WHERE lro.load_id = l.id
+                    AND lro.so_num = ol.so_num
+                    AND COALESCE(lro.is_active, 1) = 1
+                  LIMIT 1
+                )
+              )
               AND (
                 l.planning_session_id IS NULL
                 OR (
@@ -2563,6 +2598,17 @@ def list_order_lines_for_optimization(origin_plant, min_due_date=None, session_i
                 WHERE assigned.so_num = ol.so_num
                   AND l.origin_plant = ol.plant
                   AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT', 'APPROVED')
+                  AND NOT (
+                    COALESCE(UPPER(l.status), '') = 'APPROVED'
+                    AND EXISTS (
+                      SELECT 1
+                      FROM load_order_release_overrides lro
+                      WHERE lro.load_id = l.id
+                        AND lro.so_num = assigned.so_num
+                        AND COALESCE(lro.is_active, 1) = 1
+                      LIMIT 1
+                    )
+                  )
                   AND (
                     l.planning_session_id IS NULL
                     OR (
@@ -2616,6 +2662,17 @@ def list_orders_for_optimization(origin_plant, session_id=None):
                 WHERE assigned.so_num = orders.so_num
                   AND l.origin_plant = orders.plant
                   AND COALESCE(UPPER(l.status), '') IN ('PROPOSED', 'DRAFT', 'APPROVED')
+                  AND NOT (
+                    COALESCE(UPPER(l.status), '') = 'APPROVED'
+                    AND EXISTS (
+                      SELECT 1
+                      FROM load_order_release_overrides lro
+                      WHERE lro.load_id = l.id
+                        AND lro.so_num = assigned.so_num
+                        AND COALESCE(lro.is_active, 1) = 1
+                      LIMIT 1
+                    )
+                  )
                   AND (
                     l.planning_session_id IS NULL
                     OR (
@@ -3438,11 +3495,272 @@ def list_approved_load_memberships_by_so_nums(so_nums):
             JOIN order_lines ol ON ol.id = ll.order_line_id
             WHERE COALESCE(UPPER(l.status), '') = 'APPROVED'
               AND ol.so_num IN ({placeholders})
+              AND NOT EXISTS (
+                SELECT 1
+                FROM load_order_release_overrides lro
+                WHERE lro.load_id = l.id
+                  AND lro.so_num = ol.so_num
+                  AND COALESCE(lro.is_active, 1) = 1
+                LIMIT 1
+              )
             ORDER BY ol.so_num ASC, l.id ASC
             """,
             cleaned,
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def upsert_load_order_release_override(
+    load_id,
+    so_num,
+    released_by=None,
+    source="upload_discrepancy",
+    reason=None,
+    notes=None,
+):
+    so_key = str(so_num or "").strip()
+    if not load_id or not so_key:
+        return 0
+    released_at = datetime.utcnow().isoformat(timespec="seconds")
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO load_order_release_overrides (
+                load_id,
+                so_num,
+                source,
+                reason,
+                notes,
+                released_at,
+                released_by,
+                is_active,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(load_id, so_num) DO UPDATE SET
+                source = excluded.source,
+                reason = excluded.reason,
+                notes = excluded.notes,
+                released_at = excluded.released_at,
+                released_by = excluded.released_by,
+                is_active = 1
+            """,
+            (
+                int(load_id),
+                so_key,
+                (source or "").strip() or None,
+                (reason or "").strip() or None,
+                (notes or "").strip() or None,
+                released_at,
+                (released_by or "").strip() or None,
+                released_at,
+            ),
+        )
+        connection.commit()
+    return 1
+
+
+def list_active_load_order_release_overrides(load_id=None, so_nums=None):
+    where = ["COALESCE(is_active, 1) = 1"]
+    params = []
+    if load_id:
+        where.append("load_id = ?")
+        params.append(int(load_id))
+    cleaned_so_nums = [str(value).strip() for value in (so_nums or []) if str(value or "").strip()]
+    if cleaned_so_nums:
+        placeholders = ", ".join("?" for _ in cleaned_so_nums)
+        where.append(f"so_num IN ({placeholders})")
+        params.extend(cleaned_so_nums)
+    where_clause = " AND ".join(where)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT
+                id,
+                load_id,
+                so_num,
+                source,
+                reason,
+                notes,
+                released_at,
+                released_by,
+                is_active,
+                created_at
+            FROM load_order_release_overrides
+            WHERE {where_clause}
+            ORDER BY released_at DESC, id DESC
+            """,
+            params,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def recover_upload_discrepancy_removed_orders(recovered_by=None):
+    recovered_by_text = (recovered_by or "").strip() or "system"
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    candidate_pairs = {}
+    restored_pairs = set()
+    reactivated_loads = set()
+
+    with get_connection() as connection:
+        discrepancy_rows = connection.execute(
+            """
+            SELECT DISTINCT
+                tool_load_id AS load_id,
+                so_num
+            FROM upload_load_discrepancies
+            WHERE discrepancy_type = 'source_unassigned_but_tool_assigned'
+              AND resolution_action IN ('removed', 'removed_and_archived')
+              AND tool_load_id IS NOT NULL
+              AND TRIM(COALESCE(so_num, '')) != ''
+            """
+        ).fetchall()
+        for row in discrepancy_rows:
+            pair = (int(row["load_id"]), str(row["so_num"]).strip())
+            candidate_pairs[pair] = "upload_discrepancy_legacy_remove"
+
+        feedback_rows = connection.execute(
+            """
+            SELECT DISTINCT
+                load_id,
+                order_id AS so_num
+            FROM load_feedback
+            WHERE action_type = 'order_removed_upload_discrepancy'
+              AND load_id IS NOT NULL
+              AND TRIM(COALESCE(order_id, '')) != ''
+            """
+        ).fetchall()
+        for row in feedback_rows:
+            pair = (int(row["load_id"]), str(row["so_num"]).strip())
+            candidate_pairs.setdefault(pair, "load_feedback_legacy_remove")
+
+        for (load_id, so_num), source in candidate_pairs.items():
+            if not load_id or not so_num:
+                continue
+            load = connection.execute(
+                "SELECT id, origin_plant, status, load_number FROM loads WHERE id = ?",
+                (load_id,),
+            ).fetchone()
+            if not load:
+                continue
+
+            connection.execute(
+                """
+                INSERT INTO load_order_release_overrides (
+                    load_id, so_num, source, reason, notes, released_at, released_by, is_active, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+                ON CONFLICT(load_id, so_num) DO UPDATE SET
+                    source = excluded.source,
+                    reason = excluded.reason,
+                    notes = excluded.notes,
+                    released_at = excluded.released_at,
+                    released_by = excluded.released_by,
+                    is_active = 1
+                """,
+                (
+                    load_id,
+                    so_num,
+                    source,
+                    "Released for future planning",
+                    "Recovered legacy upload-discrepancy removal; load history preserved.",
+                    now,
+                    recovered_by_text,
+                    now,
+                ),
+            )
+
+            existing_membership = connection.execute(
+                """
+                SELECT 1
+                FROM load_lines ll
+                JOIN order_lines ol ON ol.id = ll.order_line_id
+                WHERE ll.load_id = ?
+                  AND ol.so_num = ?
+                LIMIT 1
+                """,
+                (load_id, so_num),
+            ).fetchone()
+            if existing_membership:
+                continue
+
+            order_lines = connection.execute(
+                """
+                SELECT id, total_length_ft, unit_length_ft, qty
+                FROM order_lines
+                WHERE so_num = ?
+                  AND (? IS NULL OR plant = ?)
+                ORDER BY id ASC
+                """,
+                (so_num, load["origin_plant"], load["origin_plant"]),
+            ).fetchall()
+            if not order_lines:
+                continue
+
+            existing_line_ids = {
+                int(row["order_line_id"])
+                for row in connection.execute(
+                    "SELECT order_line_id FROM load_lines WHERE load_id = ?",
+                    (load_id,),
+                ).fetchall()
+                if row["order_line_id"] is not None
+            }
+            rows_to_insert = []
+            for line in order_lines:
+                order_line_id = int(line["id"])
+                if order_line_id in existing_line_ids:
+                    continue
+                total_length = line["total_length_ft"]
+                if total_length is None:
+                    qty = float(line["qty"] or 0.0)
+                    unit_length = float(line["unit_length_ft"] or 0.0)
+                    total_length = qty * unit_length
+                rows_to_insert.append((load_id, order_line_id, float(total_length or 0.0), now))
+            if not rows_to_insert:
+                continue
+
+            connection.executemany(
+                """
+                INSERT INTO load_lines (load_id, order_line_id, line_total_feet, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                rows_to_insert,
+            )
+            connection.execute(
+                "DELETE FROM load_schematic_overrides WHERE load_id = ?",
+                (load_id,),
+            )
+            connection.execute(
+                """
+                UPDATE loads
+                SET route_reversed = 0,
+                    route_stop_order_json = NULL,
+                    route_provider = NULL,
+                    route_profile = NULL,
+                    route_total_miles = NULL,
+                    route_legs_json = '[]',
+                    route_geometry_json = '[]',
+                    route_fallback = 1
+                WHERE id = ?
+                """,
+                (load_id,),
+            )
+
+            if str(load["status"] or "").strip().upper() == "ARCHIVED":
+                connection.execute(
+                    "UPDATE loads SET status = 'APPROVED' WHERE id = ?",
+                    (load_id,),
+                )
+                reactivated_loads.add(load_id)
+            restored_pairs.add((load_id, so_num))
+
+        connection.commit()
+
+    return {
+        "candidate_pairs": len(candidate_pairs),
+        "restored_pairs": len(restored_pairs),
+        "reactivated_loads": len(reactivated_loads),
+    }
 
 
 def add_upload_load_discrepancies(upload_id, discrepancies):

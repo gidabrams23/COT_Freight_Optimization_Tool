@@ -116,9 +116,9 @@ Upload summary modal discrepancy handling:
 - The modal now shows a single discrepancy list with two count pills:
   - total orders taken off loads in source
   - orders on approved loads in the tool
-- Rows that are still on approved tool loads include one-click removal and a **Remove all** action in the same section.
+- Rows that are still on approved tool loads include one-click **Release for future planning** and a **Release all** action in the same section.
 - When an upload is blocked by unmapped SKUs, planners can add SKU specs in the same modal and the same file is reprocessed automatically (no second file upload required).
-- Removing from an approved load through this workflow does not trigger re-optimization. If removal empties the approved load, the load is archived for recordkeeping.
+- Releasing through this workflow does not mutate approved load composition. Historical load utilization/session history remains intact while released SOs are eligible for future planning.
 
 ### Optional: SQL Refresh (manual + scheduled)
 

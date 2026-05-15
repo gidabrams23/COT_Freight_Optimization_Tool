@@ -27,12 +27,15 @@
           {% if plant_filter_param %}
             <input type="hidden" name="plants" value="{{ plant_filter_param }}">
           {% endif %}
+          {% if summary_chart.granularity %}
+            <input type="hidden" name="granularity" value="{{ summary_chart.granularity }}">
+          {% endif %}
           {% for value, label in period_options %}
             <button
               type="submit"
               name="period"
               value="{{ value }}"
-              class="perf-date-btn{% if period == value %} is-active{% endif %}"
+              class="perf-chip-btn{% if period == value %} is-active{% endif %}"
             >
               {{ label }}
             </button>
@@ -61,16 +64,35 @@
     </div>
 
     <div class="perf-kpi-strip">
-      {% for kpi in kpis %}
-        <article class="perf-kpi-card">
-          <p class="perf-eyebrow">{{ kpi.label }}</p>
-          <strong class="perf-kpi-value">{{ kpi.value }}</strong>
-          {% if kpi.delta and kpi.delta.available %}
-            <span class="perf-delta-pill {{ kpi.delta.class }}">{{ kpi.delta.display }}</span>
-          {% endif %}
-          <p class="perf-kpi-subtext">{{ kpi.subtext }}</p>
-        </article>
-      {% endfor %}
+      <article class="perf-kpi-card perf-kpi-card-load-summary">
+        <div class="perf-kpi-cost-head">
+          <p class="perf-eyebrow">{{ load_utilization_summary.title }}</p>
+        </div>
+        <div class="perf-load-summary-grid">
+          {% for item in load_utilization_summary["items"] %}
+            <div class="perf-load-summary-item">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <em>{{ item.subtext }}</em>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+      <article class="perf-kpi-card perf-kpi-card-cost-summary">
+        <div class="perf-kpi-cost-head">
+          <p class="perf-eyebrow">{{ cost_summary.label }}</p>
+          <span class="perf-cost-estimate-tag">{{ cost_summary.tag }}</span>
+        </div>
+        <div class="perf-cost-summary-grid">
+          {% for item in cost_summary["items"] %}
+            <div class="perf-cost-summary-item">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+        <p class="perf-kpi-subtext">{{ cost_summary.subtext }}</p>
+      </article>
     </div>
     {% if cost_disclaimer %}
       <p class="perf-cost-disclaimer">{{ cost_disclaimer }}</p>
@@ -81,45 +103,70 @@
         <article class="perf-panel perf-panel-trend">
           <div class="perf-panel-head">
             <div>
-              <p class="perf-eyebrow">YoY Trend</p>
-              <h2>{{ trend_chart.metric_label }}</h2>
-              <p class="perf-panel-sub">{{ trend_chart.current_month_label }} {{ trend_chart.compare_label }}</p>
+              <p class="perf-eyebrow">Planning Summary</p>
+              <h2>{{ summary_chart.title }}</h2>
+              <p class="perf-panel-sub">{{ summary_chart.subtitle }}</p>
             </div>
-            <div class="perf-trend-chips">
-              {% for chip in trend_chart.delta_chips %}
-                <div class="perf-trend-chip">
-                  <span>{{ chip.label }}</span>
-                  <strong>{{ chip.value }}</strong>
-                  {% if chip.delta.available %}
-                    <em class="{{ chip.delta.class }}">{{ chip.delta.display }}</em>
-                  {% else %}
-                    <em class="neutral">PY n/a</em>
-                  {% endif %}
-                </div>
+            <form class="perf-granularity-toggle" method="get">
+              {% if period %}
+                <input type="hidden" name="period" value="{{ period }}">
+              {% endif %}
+              {% if plant_filter_param %}
+                <input type="hidden" name="plants" value="{{ plant_filter_param }}">
+              {% endif %}
+              {% for value, label in summary_chart.granularity_options %}
+                <button
+                  type="submit"
+                  name="granularity"
+                  value="{{ value }}"
+                  class="perf-chip-btn{% if summary_chart.granularity == value %} is-active{% endif %}"
+                >
+                  {{ label }}
+                </button>
               {% endfor %}
-            </div>
+            </form>
           </div>
 
-          <div class="perf-trend-chart-wrap">
-            {% if trend_chart.current_path or trend_chart.prior_path %}
-              <div class="perf-trend-y-axis">
-                <span>{{ trend_chart.y_max_label }}</span>
-                <span>{{ trend_chart.y_mid_label }}</span>
-                <span>{{ trend_chart.y_min_label }}</span>
+          <div class="perf-summary-chart-wrap">
+            {% if summary_chart.series %}
+              <div class="perf-summary-load-axis">
+                <span>{{ summary_chart.max_load_count_label }}</span>
+                <span>{{ summary_chart.mid_load_count_label }}</span>
+                <span>0</span>
               </div>
-              <div class="perf-trend-chart">
-                <svg viewBox="0 0 {{ trend_chart.width }} {{ trend_chart.height }}" preserveAspectRatio="none" aria-label="Cost per unit trend">
-                  <path d="{{ trend_chart.prior_path }}" class="perf-trend-line perf-trend-line-prior"></path>
-                  <path d="{{ trend_chart.current_path }}" class="perf-trend-line perf-trend-line-current" style="--line-color: {{ trend_chart.color }};"></path>
-                </svg>
-                <div class="perf-trend-x-axis" style="--perf-month-count: {{ trend_chart.labels|length if trend_chart.labels else 1 }};">
-                  {% for label in trend_chart.labels %}
-                    <span>{{ label }}</span>
+              <div class="perf-summary-chart-body">
+                <div class="perf-summary-legend">
+                  <span class="perf-summary-legend-bar">Loads</span>
+                  <span class="perf-summary-legend-line">Avg Utilization</span>
+                </div>
+                <div class="perf-summary-chart">
+                  <svg class="perf-summary-line-svg" viewBox="0 0 {{ summary_chart.width }} {{ summary_chart.height }}" preserveAspectRatio="none" aria-label="Average utilization trend">
+                    <path d="{{ summary_chart.util_line_path }}" class="perf-summary-line" style="--line-color: {{ summary_chart.line_color }};"></path>
+                    {% for point in summary_chart.util_points %}
+                      <circle cx="{{ point.x }}" cy="{{ point.y }}" r="4.2" class="perf-summary-point"></circle>
+                    {% endfor %}
+                  </svg>
+                  <div class="perf-summary-bars" style="--perf-bucket-count: {{ summary_chart.series|length if summary_chart.series else 1 }};">
+                    {% for bucket in summary_chart.series %}
+                      <div class="perf-summary-col">
+                        <span class="perf-summary-bar" style="--bar-height: {{ bucket.load_height_pct }}%;" title="{{ bucket.label }} | {{ bucket.load_count }} loads | {{ bucket.avg_util_display }}"></span>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                <div class="perf-summary-labels" style="--perf-bucket-count: {{ summary_chart.series|length if summary_chart.series else 1 }};">
+                  {% for bucket in summary_chart.series %}
+                    <span>{{ bucket.label }}</span>
                   {% endfor %}
                 </div>
               </div>
+              <div class="perf-summary-util-axis">
+                <span>{{ summary_chart.util_max_label }}</span>
+                <span>{{ summary_chart.util_mid_label }}</span>
+                <span>{{ summary_chart.util_min_label }}</span>
+              </div>
             {% else %}
-              <p class="perf-empty-state">No monthly data available for the selected plant scope.</p>
+              <p class="perf-empty-state">No loads available in the selected period and plant scope.</p>
             {% endif %}
           </div>
         </article>
@@ -147,7 +194,7 @@
         </article>
       </div>
 
-      <div class="perf-row perf-row-bottom{% if not savings %} no-savings{% endif %}">
+      <div class="perf-row perf-row-bottom no-savings">
         <article class="perf-panel perf-panel-table">
           <div class="perf-panel-head">
             <div>
@@ -160,7 +207,8 @@
                 <button type="button" class="perf-review-pill" data-review-filter="highest">Highest Utilized</button>
                 <button type="button" class="perf-review-pill" data-review-filter="lowest">Lowest Utilized</button>
               </div>
-              <a class="perf-date-btn perf-export-btn" href="{{ export_url or url_for('dashboard_load_export') }}">
+              <a class="perf-export-btn" href="{{ export_url or url_for('dashboard_load_export') }}">
+                <span class="material-symbols-outlined" aria-hidden="true">download</span>
                 Export Loads
               </a>
             </div>
@@ -252,30 +300,6 @@
             </table>
           </div>
         </article>
-
-        {% if savings %}
-          <article class="perf-panel perf-panel-savings">
-            <div class="perf-panel-head">
-              <div>
-                <p class="perf-eyebrow">Savings</p>
-                <h2>Year over Year Impact</h2>
-              </div>
-              <span class="perf-delta-pill {{ savings.tone }}">{{ savings.total_display }}</span>
-            </div>
-            <div class="perf-savings-grid">
-              <div class="perf-savings-item">
-                <span>Utilization Gains</span>
-                <strong>{{ savings.utilization_gains_display }}</strong>
-                <p>{{ savings.utilization_formula }}</p>
-              </div>
-              <div class="perf-savings-item">
-                <span>Rate &amp; Routing Efficiency</span>
-                <strong>{{ savings.rate_routing_efficiency_display }}</strong>
-                <p>{{ savings.rate_formula }}</p>
-              </div>
-            </div>
-          </article>
-        {% endif %}
       </div>
     </div>
   </section>

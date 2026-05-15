@@ -56,6 +56,13 @@ def _build_optimization_fixture_db():
             so_num TEXT,
             load_number TEXT
         );
+
+        CREATE TABLE load_order_release_overrides (
+            id INTEGER PRIMARY KEY,
+            load_id INTEGER,
+            so_num TEXT,
+            is_active INTEGER DEFAULT 1
+        );
         """
     )
     connection.execute(

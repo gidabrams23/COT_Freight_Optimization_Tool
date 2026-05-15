@@ -14,11 +14,11 @@ def _set_authenticated_session(client):
         session_state[app_module.SESSION_PROFILE_ID_KEY] = profiles[0]["id"]
 
 
-def test_resolve_upload_discrepancy_removes_so_and_archives_empty_approved_load(monkeypatch):
+def test_resolve_upload_discrepancy_releases_so_and_preserves_approved_load(monkeypatch):
     client = app_module.app.test_client()
     _set_authenticated_session(client)
 
-    calls = {"feedback": 0, "removed": 0, "status_updates": [], "resolve": 0}
+    calls = {"feedback": 0, "released": 0, "status_updates": [], "resolve": 0}
 
     monkeypatch.setattr(
         app_module.db,
@@ -52,10 +52,9 @@ def test_resolve_upload_discrepancy_removes_so_and_archives_empty_approved_load(
     )
     monkeypatch.setattr(
         app_module.db,
-        "remove_order_from_load",
-        lambda *_args, **_kwargs: calls.update({"removed": calls["removed"] + 1}),
+        "upsert_load_order_release_override",
+        lambda *_args, **_kwargs: calls.update({"released": calls["released"] + 1}),
     )
-    monkeypatch.setattr(app_module.db, "count_load_lines", lambda _load_id: 0)
     monkeypatch.setattr(
         app_module.db,
         "update_load_status",
@@ -74,12 +73,12 @@ def test_resolve_upload_discrepancy_removes_so_and_archives_empty_approved_load(
     assert response.status_code == 200
     payload = response.get_json() or {}
     assert payload.get("ok") is True
-    assert payload.get("removed") is True
-    assert payload.get("archived_load") is True
+    assert payload.get("released") is True
+    assert payload.get("preserved_load") is True
     assert calls["feedback"] == 1
-    assert calls["removed"] == 1
+    assert calls["released"] == 1
     assert calls["resolve"] == 1
-    assert calls["status_updates"] == [(11, app_module.STATUS_ARCHIVED, "GA26-1111")]
+    assert calls["status_updates"] == []
 
 
 def test_resolve_upload_discrepancy_is_idempotent_when_already_resolved(monkeypatch):
@@ -146,7 +145,7 @@ def test_resolve_order_discrepancy_remove_without_persisted_upload_discrepancy(m
     client = app_module.app.test_client()
     _set_authenticated_session(client)
 
-    calls = {"feedback": 0, "removed": 0, "resolve": 0}
+    calls = {"feedback": 0, "released": 0, "resolve": 0}
 
     monkeypatch.setattr(
         app_module.db,
@@ -167,10 +166,9 @@ def test_resolve_order_discrepancy_remove_without_persisted_upload_discrepancy(m
     )
     monkeypatch.setattr(
         app_module.db,
-        "remove_order_from_load",
-        lambda *_args, **_kwargs: calls.update({"removed": calls["removed"] + 1}),
+        "upsert_load_order_release_override",
+        lambda *_args, **_kwargs: calls.update({"released": calls["released"] + 1}),
     )
-    monkeypatch.setattr(app_module.db, "count_load_lines", lambda _load_id: 1)
     monkeypatch.setattr(
         app_module.db,
         "resolve_upload_load_discrepancy",
@@ -185,8 +183,30 @@ def test_resolve_order_discrepancy_remove_without_persisted_upload_discrepancy(m
     assert response.status_code == 200
     payload = response.get_json() or {}
     assert payload.get("ok") is True
-    assert payload.get("removed") is True
+    assert payload.get("released") is True
     assert payload.get("discrepancy_id") is None
     assert calls["feedback"] == 1
-    assert calls["removed"] == 1
+    assert calls["released"] == 1
     assert calls["resolve"] == 0
+
+
+def test_recover_discrepancy_load_history_endpoint_returns_summary(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    monkeypatch.setattr(
+        app_module.db,
+        "recover_upload_discrepancy_removed_orders",
+        lambda recovered_by=None: {
+            "candidate_pairs": 5,
+            "restored_pairs": 4,
+            "reactivated_loads": 1,
+        },
+    )
+
+    response = client.post("/api/orders/discrepancies/recover-load-history")
+    assert response.status_code == 200
+    payload = response.get_json() or {}
+    assert payload.get("ok") is True
+    assert payload.get("candidate_pairs") == 5
+    assert payload.get("restored_pairs") == 4

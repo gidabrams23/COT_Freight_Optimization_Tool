@@ -4,6 +4,16 @@
 
 This document specifies the **Dashboard** page for the Load Planning Tool. The dashboard serves as a **reporting and visibility snapshot** for shipping managers and load planners, providing at-a-glance performance metrics across plants, order status tracking, and highlights of successful/unsuccessful loads.
 
+### Dashboard Update (May 15, 2026)
+
+- The primary headline metrics are now **Loads Planned** and **Avg Utilization**.
+- The large trend panel now shows a **Loads + Utilization Summary** chart:
+  - bars = load count
+  - line = average utilization
+  - user-selectable granularity via URL-backed `granularity=day|week|month` (default `week`)
+- Cost metrics are grouped into one **Cost Summary (Estimated)** card with explicit estimate labeling.
+- Prior-year (`PY`) comparison copy has been removed from the dashboard tab.
+
 ---
 
 ## Visual Design System (Apply App-Wide)

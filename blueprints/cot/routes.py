@@ -349,8 +349,9 @@ STATUS_APPROVED = "APPROVED"
 STATUS_ARCHIVED = "ARCHIVED"
 UPLOAD_DISCREPANCY_SOURCE_REMOVED = "source_removed_from_load"
 UPLOAD_DISCREPANCY_SOURCE_UNASSIGNED_TOOL_ASSIGNED = "source_unassigned_but_tool_assigned"
-UPLOAD_DISCREPANCY_DEFAULT_REASON_CATEGORY = "Source report not on load"
-UPLOAD_DISCREPANCY_DEFAULT_ACTION_TYPE = "order_removed_upload_discrepancy"
+UPLOAD_DISCREPANCY_DEFAULT_REASON_CATEGORY = "Released for future planning"
+UPLOAD_DISCREPANCY_DEFAULT_ACTION_TYPE = "order_released_upload_discrepancy"
+UPLOAD_DISCREPANCY_LEGACY_REMOVAL_ACTION_TYPE = "order_removed_upload_discrepancy"
 LOAD_NUMBER_START_PATTERN = re.compile(r"^\d{4}$")
 OPTIMIZER_V2_ENABLED = (
     os.environ.get("OPTIMIZER_V2_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
@@ -5770,16 +5771,135 @@ def _dashboard_period_options():
     ]
 
 
+def _dashboard_granularity_options():
+    return [
+        ("day", "Day"),
+        ("week", "Week"),
+        ("month", "Month"),
+    ]
+
+
+def _normalize_dashboard_granularity(value):
+    normalized = str(value or "").strip().lower()
+    if normalized not in {"day", "week", "month"}:
+        return "week"
+    return normalized
+
+
+def _month_start(value):
+    return date(value.year, value.month, 1)
+
+
+def _add_months(month_start, offset):
+    index = (month_start.year * 12) + (month_start.month - 1) + offset
+    year = index // 12
+    month = (index % 12) + 1
+    return date(year, month, 1)
+
+
+def _bucket_start_for_date(value, granularity):
+    if granularity == "day":
+        return value
+    if granularity == "month":
+        return _month_start(value)
+    return value - timedelta(days=value.weekday())
+
+
+def _next_bucket_start(value, granularity):
+    if granularity == "day":
+        return value + timedelta(days=1)
+    if granularity == "month":
+        return _add_months(value, 1)
+    return value + timedelta(days=7)
+
+
+def _dashboard_bucket_label(bucket_start, granularity, range_start=None, range_end=None):
+    if granularity == "day":
+        return f"{bucket_start.strftime('%b')} {bucket_start.day}"
+    if granularity == "month":
+        return bucket_start.strftime("%b %Y")
+
+    week_end = bucket_start + timedelta(days=6)
+    if range_start:
+        week_start_display = max(bucket_start, range_start)
+    else:
+        week_start_display = bucket_start
+    if range_end:
+        week_end = min(week_end, range_end)
+    return (
+        f"{week_start_display.strftime('%b')} {week_start_display.day}-"
+        f"{week_end.day}"
+    )
+
+
+def _build_dashboard_summary_buckets(daily_rows, start_date, end_date, granularity):
+    normalized_rows = {}
+    for raw_date, row in (daily_rows or {}).items():
+        if isinstance(raw_date, str):
+            parsed = _parse_date(raw_date)
+        else:
+            parsed = raw_date
+        if isinstance(parsed, datetime):
+            parsed = parsed.date()
+        if not isinstance(parsed, date):
+            continue
+        load_count = int(row.get("load_count") or 0)
+        utilization_sum = float(row.get("utilization_sum") or 0.0)
+        normalized_rows[parsed] = {
+            "load_count": load_count,
+            "utilization_sum": utilization_sum,
+        }
+
+    cursor = _bucket_start_for_date(start_date, granularity)
+    final_bucket = _bucket_start_for_date(end_date, granularity)
+    buckets = []
+    while cursor <= final_bucket:
+        bucket_end = _next_bucket_start(cursor, granularity) - timedelta(days=1)
+        effective_start = max(cursor, start_date)
+        effective_end = min(bucket_end, end_date)
+
+        load_count = 0
+        utilization_sum = 0.0
+        day_cursor = effective_start
+        while day_cursor <= effective_end:
+            row = normalized_rows.get(day_cursor)
+            if row:
+                load_count += int(row.get("load_count") or 0)
+                utilization_sum += float(row.get("utilization_sum") or 0.0)
+            day_cursor += timedelta(days=1)
+
+        avg_utilization = (utilization_sum / load_count) if load_count > 0 else None
+        buckets.append(
+            {
+                "start": cursor,
+                "end": effective_end,
+                "label": _dashboard_bucket_label(
+                    cursor,
+                    granularity,
+                    range_start=start_date,
+                    range_end=end_date,
+                ),
+                "load_count": load_count,
+                "avg_utilization": avg_utilization,
+            }
+        )
+        cursor = _next_bucket_start(cursor, granularity)
+
+    return buckets
+
+
 def _resolve_dashboard_scope_from_request():
     allowed_plants = _get_allowed_plants()
     plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
     plant_scope = plant_filters or allowed_plants
 
     period_options = _dashboard_period_options()
+    granularity_options = _dashboard_granularity_options()
     period_label_map = dict(period_options)
     period = (request.args.get("period") or "last_30_days").strip().lower()
     if period not in period_label_map:
         period = "last_30_days"
+    granularity = _normalize_dashboard_granularity(request.args.get("granularity"))
 
     today = date.today()
     start_date, end_date = _period_range(period, today)
@@ -5798,6 +5918,8 @@ def _resolve_dashboard_scope_from_request():
         "plant_scope": plant_scope,
         "period": period,
         "period_options": period_options,
+        "granularity": granularity,
+        "granularity_options": granularity_options,
         "period_label": period_label,
         "start_date": start_date,
         "end_date": end_date,
@@ -8720,29 +8842,14 @@ def _build_performance_dashboard_context():
     plant_scope = dashboard_scope["plant_scope"]
     period = dashboard_scope["period"]
     period_options = dashboard_scope["period_options"]
+    granularity = dashboard_scope.get("granularity") or "week"
+    granularity_options = dashboard_scope.get("granularity_options") or _dashboard_granularity_options()
     period_label = dashboard_scope["period_label"]
     start_date = dashboard_scope["start_date"]
     end_date = dashboard_scope["end_date"]
     plant_filter_param = dashboard_scope["plant_filter_param"]
     plant_scope_label = dashboard_scope["plant_scope_label"]
     date_range_label = dashboard_scope["date_range_label"]
-    today = date.today()
-
-    def _shift_year(value, years=-1):
-        target_year = value.year + years
-        day = value.day
-        while day >= 1:
-            try:
-                return date(target_year, value.month, day)
-            except ValueError:
-                day -= 1
-        return date(target_year, value.month, 1)
-
-    prior_start = _shift_year(start_date, years=-1)
-    prior_end = _shift_year(end_date, years=-1)
-    prior_year = prior_start.year
-
-    prior_date_range_label = f"{prior_start.strftime('%b %d, %Y')} - {prior_end.strftime('%b %d, %Y')}"
     export_params = {"period": period}
     if plant_filter_param:
         export_params["plants"] = plant_filter_param
@@ -8785,40 +8892,6 @@ def _build_performance_dashboard_context():
             return "--"
         return f"${float(amount):,.{decimals}f}"
 
-    def _delta_percent(current, previous):
-        if current is None or previous is None:
-            return None
-        current = float(current or 0.0)
-        previous = float(previous or 0.0)
-        if abs(previous) <= 1e-9:
-            return None
-        return ((current - previous) / abs(previous)) * 100.0
-
-    def _build_delta_payload(current, previous, lower_is_better):
-        delta_pct = _delta_percent(current, previous)
-        if delta_pct is None:
-            return {"available": False, "display": "", "class": "neutral"}
-        improved = delta_pct < 0 if lower_is_better else delta_pct > 0
-        if abs(delta_pct) < 1e-6:
-            return {"available": True, "display": "0.0% YoY", "class": "neutral"}
-        return {
-            "available": True,
-            "display": f"{delta_pct:+.1f}% YoY",
-            "class": "positive" if improved else "negative",
-        }
-
-    def _month_start(value):
-        return date(value.year, value.month, 1)
-
-    def _add_months(month_start, offset):
-        index = (month_start.year * 12) + (month_start.month - 1) + offset
-        year = index // 12
-        month = (index % 12) + 1
-        return date(year, month, 1)
-
-    def _month_end(month_start):
-        return _add_months(month_start, 1) - timedelta(days=1)
-
     def _build_svg_path(values, min_value, max_value, width, height):
         if not values:
             return ""
@@ -8843,6 +8916,28 @@ def _build_performance_dashboard_context():
             commands.append(("L" if drawing else "M") + f"{point[0]},{point[1]}")
             drawing = True
         return " ".join(commands)
+
+    def _build_svg_points(values, min_value, max_value, width, height):
+        if not values:
+            return []
+        span = max_value - min_value
+        if span <= 1e-9:
+            span = 1.0
+        count = len(values)
+        points = []
+        for idx, raw in enumerate(values):
+            if raw is None:
+                continue
+            x = (idx / max(count - 1, 1)) * float(width)
+            y = float(height) - ((float(raw) - min_value) / span) * float(height)
+            points.append(
+                {
+                    "x": round(x, 2),
+                    "y": round(y, 2),
+                    "value": float(raw),
+                }
+            )
+        return points
 
     approved_statuses = ("APPROVED", "SHIPPED")
     scoped_dashboard_loads = _list_dashboard_scoped_loads(
@@ -8974,73 +9069,50 @@ def _build_performance_dashboard_context():
             return metrics
 
         current_metrics = _aggregate_metrics(plant_scope, start_date, end_date)
-        prior_metrics = _aggregate_metrics(plant_scope, prior_start, prior_end)
 
-        cost_unit_delta = _build_delta_payload(
-            current_metrics["cost_per_unit"],
-            prior_metrics["cost_per_unit"],
-            lower_is_better=True,
-        )
-        rate_mile_delta = _build_delta_payload(
-            current_metrics["rate_per_mile"],
-            prior_metrics["rate_per_mile"],
-            lower_is_better=True,
-        )
-        miles_load_delta = _build_delta_payload(
-            current_metrics["miles_per_load"],
-            prior_metrics["miles_per_load"],
-            lower_is_better=True,
-        )
-        trailers_load_delta = _build_delta_payload(
-            current_metrics["trailers_per_load"],
-            prior_metrics["trailers_per_load"],
-            lower_is_better=False,
-        )
-
-        kpis = [
-            {
-                "label": "Orders Batched",
-                "value": _format_int(current_metrics["order_count"]),
-                "subtext": "Distinct assigned orders",
-                "delta": None,
-            },
-            {
-                "label": "Loads Batched",
-                "value": _format_int(current_metrics["load_count"]),
-                "subtext": "Approved/shipped loads",
-                "delta": None,
-            },
-            {
-                "label": "Avg Utilization",
-                "value": _format_percent(current_metrics["avg_utilization"], decimals=1),
-                "subtext": "Mean space-based utilization",
-                "delta": None,
-            },
-            {
-                "label": "Total Freight Spend",
-                "value": _format_compact_currency(current_metrics["total_spend"]),
-                "subtext": "Estimated all-in freight cost",
-                "delta": None,
-            },
-            {
-                "label": "Cost / Unit",
-                "value": _format_currency(current_metrics["cost_per_unit"], decimals=2),
-                "subtext": f"vs same period {prior_year}",
-                "delta": cost_unit_delta,
-            },
-            {
-                "label": "Effective Rate / Mile",
-                "value": _format_currency(current_metrics["rate_per_mile"], decimals=2),
-                "subtext": "All-in cost per mile",
-                "delta": rate_mile_delta,
-            },
-            {
-                "label": "Miles / Load",
-                "value": _format_number(current_metrics["miles_per_load"], decimals=1),
-                "subtext": f"vs same period {prior_year}",
-                "delta": miles_load_delta,
-            },
-        ]
+        load_utilization_summary = {
+            "title": "Load Utilization Summary",
+            "items": [
+                {
+                    "label": "Loads Planned",
+                    "value": _format_int(current_metrics["load_count"]),
+                    "subtext": "Approved/shipped loads",
+                },
+                {
+                    "label": "Orders Batched",
+                    "value": _format_int(current_metrics["order_count"]),
+                    "subtext": "Distinct assigned orders",
+                },
+                {
+                    "label": "Avg Utilization",
+                    "value": _format_percent(current_metrics["avg_utilization"], decimals=1),
+                    "subtext": "Mean space-based utilization",
+                },
+            ],
+        }
+        cost_summary = {
+            "label": "Cost Summary",
+            "tag": "Estimated",
+            "subtext": "Based on tool embedded cost assumptions",
+            "items": [
+                {
+                    "label": "Total Freight Spend",
+                    "value": _format_compact_currency(current_metrics["total_spend"]),
+                },
+                {
+                    "label": "Cost / Unit",
+                    "value": _format_currency(current_metrics["cost_per_unit"], decimals=2),
+                },
+                {
+                    "label": "Rate / Mile",
+                    "value": _format_currency(current_metrics["rate_per_mile"], decimals=2),
+                },
+                {
+                    "label": "Miles / Load",
+                    "value": _format_number(current_metrics["miles_per_load"], decimals=1),
+                },
+            ],
+        }
 
         def _plant_color(code):
             if not code:
@@ -9240,104 +9312,92 @@ def _build_performance_dashboard_context():
             },
         ]
 
-        trend_month_anchor = _month_start(today)
-        trend_months = [_add_months(trend_month_anchor, offset) for offset in range(-11, 1)]
-        current_series = []
-        prior_series = []
-        for month_start in trend_months:
-            month_end = _month_end(month_start)
-            prior_month_start = _shift_year(month_start, years=-1)
-            prior_month_end = _shift_year(month_end, years=-1)
-            month_current = _aggregate_metrics(plant_scope, month_start, month_end)
-            month_prior = _aggregate_metrics(plant_scope, prior_month_start, prior_month_end)
-            current_series.append(month_current["cost_per_unit"])
-            prior_series.append(month_prior["cost_per_unit"])
-        first_data_idx = None
-        for idx, (current_value, prior_value) in enumerate(zip(current_series, prior_series)):
-            if current_value is not None or prior_value is not None:
-                first_data_idx = idx
-                break
-        if first_data_idx is not None and first_data_idx > 0:
-            trend_months = trend_months[first_data_idx:]
-            current_series = current_series[first_data_idx:]
-            prior_series = prior_series[first_data_idx:]
-
-        complete_month_anchor = _month_start(today)
-        if today < _month_end(complete_month_anchor):
-            complete_month_anchor = _add_months(complete_month_anchor, -1)
-        complete_month_end = _month_end(complete_month_anchor)
-        complete_prior_start = _shift_year(complete_month_anchor, years=-1)
-        complete_prior_end = _shift_year(complete_month_end, years=-1)
-        complete_current_metrics = _aggregate_metrics(
-            plant_scope,
-            complete_month_anchor,
-            complete_month_end,
+        daily_rows = connection.execute(
+            f"""
+            SELECT
+                DATE(l.created_at) AS planned_day,
+                COUNT(*) AS load_count,
+                SUM(COALESCE(l.utilization_pct, 0)) AS utilization_sum
+            FROM loads l
+            WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
+              AND l.origin_plant IN ({scope_placeholders})
+              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY DATE(l.created_at)
+            ORDER BY DATE(l.created_at) ASC
+            """,
+            scope_params,
+        ).fetchall() if plant_scope else []
+        daily_metrics = {}
+        for row in daily_rows:
+            daily_metrics[row["planned_day"]] = {
+                "load_count": int(row["load_count"] or 0),
+                "utilization_sum": float(row["utilization_sum"] or 0.0),
+            }
+        summary_buckets = _build_dashboard_summary_buckets(
+            daily_metrics,
+            start_date,
+            end_date,
+            granularity,
         )
-        complete_prior_metrics = _aggregate_metrics(
-            plant_scope,
-            complete_prior_start,
-            complete_prior_end,
-        )
-        trend_delta_chips = [
-            {
-                "label": "Cost/Unit",
-                "value": _format_currency(complete_current_metrics["cost_per_unit"], decimals=2),
-                "delta": _build_delta_payload(
-                    complete_current_metrics["cost_per_unit"],
-                    complete_prior_metrics["cost_per_unit"],
-                    lower_is_better=True,
-                ),
-            },
-            {
-                "label": "Rate/Mi",
-                "value": _format_currency(complete_current_metrics["rate_per_mile"], decimals=2),
-                "delta": _build_delta_payload(
-                    complete_current_metrics["rate_per_mile"],
-                    complete_prior_metrics["rate_per_mile"],
-                    lower_is_better=True,
-                ),
-            },
-            {
-                "label": "Miles/Load",
-                "value": _format_number(complete_current_metrics["miles_per_load"], decimals=1),
-                "delta": _build_delta_payload(
-                    complete_current_metrics["miles_per_load"],
-                    complete_prior_metrics["miles_per_load"],
-                    lower_is_better=True,
-                ),
-            },
-            {
-                "label": "Trailers/Load",
-                "value": _format_number(complete_current_metrics["trailers_per_load"], decimals=2),
-                "delta": _build_delta_payload(
-                    complete_current_metrics["trailers_per_load"],
-                    complete_prior_metrics["trailers_per_load"],
-                    lower_is_better=False,
-                ),
-            },
+        summary_buckets = [bucket for bucket in summary_buckets if int(bucket.get("load_count") or 0) > 0]
+        max_load_count = max([bucket["load_count"] for bucket in summary_buckets], default=0)
+        util_values = [
+            float(bucket["avg_utilization"])
+            for bucket in summary_buckets
+            if bucket.get("avg_utilization") is not None
         ]
-        line_values = [float(value) for value in (current_series + prior_series) if value is not None]
-        line_min = min(line_values) if line_values else 0.0
-        line_max = max(line_values) if line_values else 1.0
-        if abs(line_max - line_min) <= 1e-9:
-            line_max = line_min + 1.0
-        chart_width = 860
-        chart_height = 260
-        trend_chart = {
-            "metric_label": "Cost / Unit",
-            "current_path": _build_svg_path(current_series, line_min, line_max, chart_width, chart_height),
-            "prior_path": _build_svg_path(prior_series, line_min, line_max, chart_width, chart_height),
-            "labels": [entry.strftime("%b") for entry in trend_months],
-            "y_max_label": _format_currency(line_max, decimals=2),
-            "y_mid_label": _format_currency((line_max + line_min) / 2, decimals=2),
-            "y_min_label": _format_currency(line_min, decimals=2),
-            "delta_chips": trend_delta_chips,
-            "color": _plant_color(plant_filters[0]) if len(plant_filters) == 1 else "var(--primary)",
-            "compare_label": f"vs same month {complete_prior_start.year}",
-            "current_month_label": complete_month_anchor.strftime("%b %Y"),
-            "prior_month_label": complete_prior_start.strftime("%b %Y"),
+        util_min = max(0.0, min(util_values) - 5.0) if util_values else 0.0
+        util_max = min(120.0, max(util_values) + 5.0) if util_values else 100.0
+        if util_max - util_min < 10.0:
+            midpoint = (util_max + util_min) / 2.0
+            util_min = max(0.0, midpoint - 5.0)
+            util_max = min(120.0, midpoint + 5.0)
+
+        chart_width = 920
+        chart_height = 210
+        summary_chart_series = []
+        for bucket in summary_buckets:
+            bucket_load_count = int(bucket.get("load_count") or 0)
+            load_height_pct = (bucket_load_count / max_load_count * 100.0) if max_load_count > 0 else 0.0
+            avg_utilization = bucket.get("avg_utilization")
+            summary_chart_series.append(
+                {
+                    "label": bucket.get("label") or "--",
+                    "load_count": bucket_load_count,
+                    "load_height_pct": round(load_height_pct, 2),
+                    "avg_utilization": avg_utilization,
+                    "avg_util_display": _format_percent(avg_utilization, decimals=1) if avg_utilization is not None else "--",
+                }
+            )
+        util_series_values = [entry.get("avg_utilization") for entry in summary_chart_series]
+        summary_chart = {
+            "title": "Loads & Utilization Summary",
+            "subtitle": "Bars show load count. Line shows average utilization.",
+            "granularity": granularity,
+            "granularity_options": granularity_options,
+            "series": summary_chart_series,
+            "util_line_path": _build_svg_path(
+                util_series_values,
+                util_min,
+                util_max,
+                chart_width,
+                chart_height,
+            ),
+            "util_points": _build_svg_points(
+                util_series_values,
+                util_min,
+                util_max,
+                chart_width,
+                chart_height,
+            ),
+            "util_min_label": _format_percent(util_min, decimals=1),
+            "util_mid_label": _format_percent((util_min + util_max) / 2.0, decimals=1),
+            "util_max_label": _format_percent(util_max, decimals=1),
+            "max_load_count_label": _format_int(max_load_count),
+            "mid_load_count_label": _format_int(max_load_count / 2.0),
             "width": chart_width,
             "height": chart_height,
+            "line_color": _plant_color(plant_filters[0]) if len(plant_filters) == 1 else "var(--primary)",
         }
 
         sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
@@ -9470,65 +9530,30 @@ def _build_performance_dashboard_context():
         latest_value = latest_row["latest_created_at"] if latest_row else None
         latest_label = _format_est_datetime_label(latest_value) if latest_value else "No approved load activity"
 
-        has_prior_data = (
-            prior_metrics["load_count"] > 0
-            and prior_metrics["cost_per_unit"] is not None
-            and prior_metrics["rate_per_mile"] is not None
-        )
-        savings = None
-        if (
-            has_prior_data
-            and current_metrics["load_count"] > 0
-            and current_metrics["cost_per_unit"] is not None
-            and current_metrics["rate_per_mile"] is not None
-            and current_metrics["miles_per_load"] is not None
-            and current_metrics["total_units"] > 0
-        ):
-            utilization_gains = (
-                (prior_metrics["cost_per_unit"] - current_metrics["cost_per_unit"])
-                * current_metrics["total_units"]
-            )
-            rate_routing_efficiency = (
-                (prior_metrics["rate_per_mile"] - current_metrics["rate_per_mile"])
-                * current_metrics["miles_per_load"]
-                * current_metrics["load_count"]
-            )
-            savings = {
-                "utilization_gains": utilization_gains,
-                "rate_routing_efficiency": rate_routing_efficiency,
-                "total": utilization_gains + rate_routing_efficiency,
-                "utilization_gains_display": _format_currency(utilization_gains, decimals=0),
-                "rate_routing_efficiency_display": _format_currency(rate_routing_efficiency, decimals=0),
-                "total_display": _format_currency(utilization_gains + rate_routing_efficiency, decimals=0),
-                "utilization_formula": "(prior period cost/unit - current cost/unit) x units shipped",
-                "rate_formula": "(prior period rate/mile - current rate/mile) x avg miles/load x load count",
-                "tone": "positive" if (utilization_gains + rate_routing_efficiency) >= 0 else "negative",
-            }
-
     return {
         "period": period,
         "period_options": period_options,
+        "granularity": granularity,
+        "granularity_options": granularity_options,
         "period_label": period_label,
         "date_range_label": date_range_label,
-        "prior_date_range_label": prior_date_range_label,
         "plant_filter_param": plant_filter_param,
         "plant_scope_label": plant_scope_label,
         "plant_scope": list(plant_scope),
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
         "export_url": export_url,
-        "prior_year": prior_year,
         "topbar_status": {"label": "Live", "detail": latest_label},
-        "kpis": kpis,
+        "load_utilization_summary": load_utilization_summary,
+        "cost_summary": cost_summary,
         "cost_disclaimer": "Estimated freight costs are generated from tool inputs. Finance reports actual incurred freight at month end.",
         "plant_cards": plant_cards,
-        "trend_chart": trend_chart,
+        "summary_chart": summary_chart,
         "utilization_bands": utilization_bands,
         "efficiency_grades": efficiency_grades,
         "load_review_rows": load_review_rows,
         "highest_loads": highest_loads,
         "lowest_loads": lowest_loads,
-        "savings": savings,
     }
 
 
@@ -9558,6 +9583,8 @@ def dashboard():
         "period_options",
         _dashboard_period_options(),
     )
+    context.setdefault("granularity", _normalize_dashboard_granularity(request.args.get("granularity")))
+    context.setdefault("granularity_options", _dashboard_granularity_options())
     context.setdefault("period_label", "Last 30 Days")
     context.setdefault("date_range_label", "--")
     context.setdefault("plant_filter_param", "")
@@ -9566,7 +9593,6 @@ def dashboard():
 
     for list_key in (
         "plant_cards",
-        "kpis",
         "utilization_bands",
         "efficiency_grades",
         "load_review_rows",
@@ -9584,23 +9610,47 @@ def dashboard():
         "detail": topbar_status.get("detail") or "Awaiting refresh",
     }
 
-    trend_defaults = {
-        "metric_label": "Cost / Unit",
-        "deltas": [],
-        "months": [],
-        "current_points": [],
-        "prior_points": [],
-        "current_path": "",
-        "prior_path": "",
-        "y_min": 0.0,
-        "y_max": 1.0,
+    cost_summary_defaults = {
+        "label": "Cost Summary",
+        "tag": "Estimated",
+        "subtext": "Based on tool embedded cost assumptions",
+        "items": [],
     }
-    trend_chart = context.get("trend_chart")
-    if not isinstance(trend_chart, dict):
-        trend_chart = {}
-    context["trend_chart"] = {**trend_defaults, **trend_chart}
+    cost_summary = context.get("cost_summary")
+    if not isinstance(cost_summary, dict):
+        cost_summary = {}
+    context["cost_summary"] = {**cost_summary_defaults, **cost_summary}
 
-    context.setdefault("savings", None)
+    load_summary_defaults = {
+        "title": "Load Utilization Summary",
+        "items": [],
+    }
+    load_utilization_summary = context.get("load_utilization_summary")
+    if not isinstance(load_utilization_summary, dict):
+        load_utilization_summary = {}
+    context["load_utilization_summary"] = {**load_summary_defaults, **load_utilization_summary}
+
+    summary_chart_defaults = {
+        "title": "Loads & Utilization Summary",
+        "subtitle": "Bars show load count. Line shows average utilization.",
+        "granularity": context.get("granularity") or "week",
+        "granularity_options": context.get("granularity_options") or _dashboard_granularity_options(),
+        "series": [],
+        "util_line_path": "",
+        "util_points": [],
+        "util_min_label": "--",
+        "util_mid_label": "--",
+        "util_max_label": "--",
+        "max_load_count_label": "0",
+        "mid_load_count_label": "0",
+        "width": 920,
+        "height": 210,
+        "line_color": "var(--primary)",
+    }
+    summary_chart = context.get("summary_chart")
+    if not isinstance(summary_chart, dict):
+        summary_chart = {}
+    context["summary_chart"] = {**summary_chart_defaults, **summary_chart}
     return render_template("dashboard.html", **context)
 
 
@@ -9778,6 +9828,29 @@ def api_resolve_order_discrepancy_remove():
     return jsonify(response_payload), status_code
 
 
+@cot_bp.route("/api/orders/discrepancies/recover-load-history", methods=["POST"])
+def api_recover_discrepancy_load_history():
+    session_redirect = _require_session()
+    if session_redirect:
+        return session_redirect
+    if _get_session_role() != ROLE_ADMIN:
+        return jsonify({"error": "Only admin accounts can run load-history recovery."}), 403
+
+    recovered_by = (
+        _get_session_profile_name()
+        or _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY))
+        or "admin"
+    )
+    summary = db.recover_upload_discrepancy_removed_orders(recovered_by=recovered_by)
+    return jsonify(
+        {
+            "ok": True,
+            "message": "Legacy discrepancy removals were recovered and marked released for future planning.",
+            **summary,
+        }
+    )
+
+
 def _resolve_upload_discrepancy_remove(discrepancy_id=None, upload_id=None, so_num=None, load_id=None):
     resolver_label = (
         _get_session_profile_name()
@@ -9843,9 +9916,9 @@ def _resolve_upload_discrepancy_remove(discrepancy_id=None, upload_id=None, so_n
             )
         return {
             "ok": True,
-            "removed": False,
-            "archived_load": False,
-            "already_removed": True,
+            "released": False,
+            "preserved_load": True,
+            "already_released": True,
             "discrepancy_id": resolved_discrepancy_id,
             "upload_id": resolved_upload_id,
         }, 200
@@ -9861,9 +9934,9 @@ def _resolve_upload_discrepancy_remove(discrepancy_id=None, upload_id=None, so_n
             )
         return {
             "ok": True,
-            "removed": False,
-            "archived_load": False,
-            "already_removed": True,
+            "released": False,
+            "preserved_load": True,
+            "already_released": True,
             "discrepancy_id": resolved_discrepancy_id,
             "upload_id": resolved_upload_id,
         }, 200
@@ -9885,14 +9958,14 @@ def _resolve_upload_discrepancy_remove(discrepancy_id=None, upload_id=None, so_n
             db.resolve_upload_load_discrepancy(
                 resolved_discrepancy_id,
                 resolved_by=resolver_label,
-                resolution_action="already_removed",
+                resolution_action="already_released_or_missing",
                 resolution_notes=f"SO #{so_num} was not on load #{load.get('load_number') or load_id}.",
             )
         return {
             "ok": True,
-            "removed": False,
-            "archived_load": False,
-            "already_removed": True,
+            "released": False,
+            "preserved_load": True,
+            "already_released": True,
             "discrepancy_id": resolved_discrepancy_id,
             "upload_id": resolved_upload_id,
             "load_id": load_id,
@@ -9900,40 +9973,45 @@ def _resolve_upload_discrepancy_remove(discrepancy_id=None, upload_id=None, so_n
             "so_num": so_num,
         }, 200
 
+    db.upsert_load_order_release_override(
+        load_id,
+        so_num,
+        released_by=resolver_label,
+        source="upload_discrepancy",
+        reason=UPLOAD_DISCREPANCY_DEFAULT_REASON_CATEGORY,
+        notes=(
+            "Released from approved load for future planning via upload discrepancy workflow. "
+            "Historical approved load composition preserved."
+        ),
+    )
     db.add_load_feedback(
         load_id,
         order_id=so_num,
         action_type=UPLOAD_DISCREPANCY_DEFAULT_ACTION_TYPE,
         reason_category=UPLOAD_DISCREPANCY_DEFAULT_REASON_CATEGORY,
         details=(
-            "Removed from approved load via upload discrepancy workflow: "
-            f"source report marked SO #{so_num} as not on a load."
+            "Released for future planning via upload discrepancy workflow: "
+            f"source report marked SO #{so_num} as not on a load. "
+            "Approved load history was preserved."
         ),
         planner_id=resolver_label,
     )
-    db.remove_order_from_load(load_id, so_num)
-
-    archived_load = False
-    remaining_lines = int(db.count_load_lines(load_id) or 0)
-    if remaining_lines == 0:
-        db.update_load_status(load_id, STATUS_ARCHIVED, load.get("load_number"))
-        archived_load = True
 
     if resolved_discrepancy_id:
         db.resolve_upload_load_discrepancy(
             resolved_discrepancy_id,
             resolved_by=resolver_label,
-            resolution_action="removed_and_archived" if archived_load else "removed",
+            resolution_action="released_for_future_planning",
             resolution_notes=(
-                f"Removed SO #{so_num} from load #{load.get('load_number') or load_id}"
-                + (" and archived empty load." if archived_load else ".")
+                f"Released SO #{so_num} from approved load #{load.get('load_number') or load_id} "
+                "for future planning without mutating approved load history."
             ),
         )
     return {
         "ok": True,
-        "removed": True,
-        "archived_load": archived_load,
-        "already_removed": False,
+        "released": True,
+        "preserved_load": True,
+        "already_released": False,
         "discrepancy_id": resolved_discrepancy_id,
         "upload_id": resolved_upload_id,
         "load_id": load_id,
