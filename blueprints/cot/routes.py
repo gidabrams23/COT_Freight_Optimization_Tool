@@ -8910,7 +8910,7 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
             return "--"
         return f"${float(amount):,.{decimals}f}"
 
-    def _build_svg_path(values, min_value, max_value, width, height):
+    def _build_svg_path(values, min_value, max_value, width, height, use_bucket_centers=False):
         if not values:
             return ""
         span = max_value - min_value
@@ -8922,7 +8922,10 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
             if raw is None:
                 points.append(None)
                 continue
-            x = (idx / max(count - 1, 1)) * float(width)
+            if use_bucket_centers:
+                x = ((idx + 0.5) / max(count, 1)) * float(width)
+            else:
+                x = (idx / max(count - 1, 1)) * float(width)
             y = float(height) - ((float(raw) - min_value) / span) * float(height)
             points.append((round(x, 2), round(y, 2)))
         commands = []
@@ -9407,6 +9410,7 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
                 util_max,
                 chart_width,
                 chart_height,
+                use_bucket_centers=True,
             ),
             "util_points": _build_svg_points(
                 util_series_values,
@@ -9428,11 +9432,18 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
         sku_specs = {spec["sku"]: spec for spec in db.list_sku_specs()}
         stop_color_palette = _get_stop_color_palette()
 
-        def _fetch_review_loads(limit=None, ascending=False, max_utilization=None):
+        def _fetch_review_loads(limit=None, sort_mode="recent", max_utilization=None):
             if not plant_scope:
                 return []
             util_clause = " AND COALESCE(l.utilization_pct, 0) < ?" if max_utilization is not None else ""
             limit_clause = "LIMIT ?" if limit is not None else ""
+            normalized_mode = (sort_mode or "recent").strip().lower()
+            if normalized_mode == "high":
+                order_by_clause = "COALESCE(l.utilization_pct, 0) DESC, DATE(l.created_at) DESC, l.id DESC"
+            elif normalized_mode == "low":
+                order_by_clause = "COALESCE(l.utilization_pct, 0) ASC, DATE(l.created_at) DESC, l.id DESC"
+            else:
+                order_by_clause = "DATE(l.created_at) DESC, l.id DESC"
             query_params = (
                 list(approved_statuses)
                 + list(plant_scope)
@@ -9449,7 +9460,7 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
                   AND l.origin_plant IN ({scope_placeholders})
                   AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
                   {util_clause}
-                ORDER BY COALESCE(l.utilization_pct, 0) {"ASC" if ascending else "DESC"}, DATE(l.created_at) DESC
+                ORDER BY {order_by_clause}
                 {limit_clause}
                 """,
                 query_params,
@@ -9535,13 +9546,9 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
                 )
             return formatted
 
-        load_review_rows = sorted(
-            _fetch_review_loads(limit=150, ascending=False),
-            key=lambda entry: entry.get("created_at") or "",
-            reverse=True,
-        )
-        highest_loads = sorted(load_review_rows, key=lambda entry: float(entry.get("utilization_pct") or 0.0), reverse=True)
-        lowest_loads = sorted(load_review_rows, key=lambda entry: float(entry.get("utilization_pct") or 0.0))
+        load_review_rows = _fetch_review_loads(limit=150, sort_mode="recent")
+        highest_loads = _fetch_review_loads(limit=75, sort_mode="high")
+        lowest_loads = _fetch_review_loads(limit=75, sort_mode="low")
 
         latest_row = connection.execute(
             f"""

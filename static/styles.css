@@ -19210,9 +19210,9 @@ body.loads-auto-sidebar .page.page-loads-index {
   inset: 0;
   display: grid;
   grid-template-columns: repeat(var(--perf-bucket-count, 1), minmax(0, 1fr));
-  gap: 6px;
+  gap: 0;
   align-items: stretch;
-  padding: 10px 8px;
+  padding: 0;
 }
 
 .perf-summary-col {
