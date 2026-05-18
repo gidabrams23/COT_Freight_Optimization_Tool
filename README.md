@@ -98,6 +98,27 @@ Optional flags:
   - `Load Lines` (line-level SO/SKU details for reconciliation)
   - `Filters Applied` (the exact period/plant scope used to produce the export)
 
+## Public Dashboard Share Link (No SSO)
+
+- Public route: `/dashboard/public`
+- By default, this route does **not** require login or token.
+- Optional: set a token to gate access:
+
+```bash
+PUBLIC_DASHBOARD_SHARE_TOKEN=<long-random-token>
+```
+
+- Share link format (when token is configured):
+
+```text
+/dashboard/public?token=<PUBLIC_DASHBOARD_SHARE_TOKEN>&period=last_30_days&granularity=week
+```
+
+Security note:
+- Without a token, anyone with the URL can access the dashboard.
+- If you set a token, keep it private.
+- Rotating the token invalidates previously shared links.
+
 ## Daily Open Orders Refresh Workflow
 
 The Orders page now shows an **Up to Date / Outdated** intake status and a step-by-step guide modal.

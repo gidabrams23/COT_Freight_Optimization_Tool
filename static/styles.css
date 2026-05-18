@@ -18901,8 +18901,9 @@ body.loads-auto-sidebar .page.page-loads-index {
 }
 
 .perf-kpi-card-load-summary {
-  border-color: rgba(96, 165, 250, 0.75);
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(15, 23, 42, 0.72));
+  border-color: rgba(148, 163, 184, 0.62);
+  background: rgba(15, 23, 42, 0.66);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
 }
 
 .perf-kpi-cost-head {
@@ -18919,9 +18920,9 @@ body.loads-auto-sidebar .page.page-loads-index {
 }
 
 .perf-load-summary-item {
-  border: 1px solid rgba(96, 165, 250, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.32);
   border-radius: 8px;
-  background: rgba(13, 27, 56, 0.62);
+  background: rgba(15, 23, 42, 0.72);
   padding: 5px 6px;
   display: grid;
   gap: 1px;
@@ -19236,16 +19237,24 @@ body.loads-auto-sidebar .page.page-loads-index {
   border: 1px solid rgba(96, 165, 250, 0.45);
 }
 
+.perf-summary-point-marker {
+  position: absolute;
+  left: 50%;
+  top: var(--util-y, 50%);
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 1.4px solid rgba(15, 23, 42, 0.95);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+  pointer-events: none;
+}
+
 .perf-summary-line {
   fill: none;
   stroke-width: 2.4px;
   stroke: var(--line-color, var(--primary));
-}
-
-.perf-summary-point {
-  fill: var(--line-color, var(--primary));
-  stroke: rgba(15, 23, 42, 0.95);
-  stroke-width: 1.4px;
 }
 
 .perf-summary-labels {
@@ -19309,13 +19318,17 @@ body.loads-auto-sidebar .page.page-loads-index {
 }
 
 .perf-bar-fill.band-red,
-.perf-bar-fill.grade-df {
+.perf-bar-fill.grade-f {
   background: #ef4444;
 }
 
 .perf-bar-fill.band-amber,
 .perf-bar-fill.grade-c {
   background: #f59e0b;
+}
+
+.perf-bar-fill.grade-d {
+  background: #f97316;
 }
 
 .perf-bar-fill.band-blue,

@@ -246,6 +246,7 @@ ENTRA_SSO_ACTIVE = bool(
     and ENTRA_CLIENT_SECRET
     and msal is not None
 )
+PUBLIC_DASHBOARD_SHARE_TOKEN = (os.environ.get("PUBLIC_DASHBOARD_SHARE_TOKEN") or "").strip()
 if ENTRA_SSO_ENABLED and not ENTRA_SSO_ACTIVE:
     logger.warning(
         "ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); "
@@ -5888,9 +5889,19 @@ def _build_dashboard_summary_buckets(daily_rows, start_date, end_date, granulari
     return buckets
 
 
-def _resolve_dashboard_scope_from_request():
-    allowed_plants = _get_allowed_plants()
-    plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
+def _resolve_dashboard_scope_from_request(allowed_plants_override=None):
+    if allowed_plants_override is not None:
+        allowed_plants = [
+            _normalize_plant_code(code) for code in (allowed_plants_override or []) if _normalize_plant_code(code) in PLANT_CODES
+        ]
+        raw_filter = _parse_plant_filters(request.args.get("plants") or request.args.get("plant"))
+        if raw_filter is None:
+            plant_filters = []
+        else:
+            plant_filters = [code for code in raw_filter if code in allowed_plants]
+    else:
+        allowed_plants = _get_allowed_plants()
+        plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
     plant_scope = plant_filters or allowed_plants
 
     period_options = _dashboard_period_options()
@@ -8138,6 +8149,13 @@ def _require_session():
     return None
 
 
+def _has_valid_public_dashboard_token():
+    if not PUBLIC_DASHBOARD_SHARE_TOKEN:
+        return True
+    provided = (request.args.get("token") or request.headers.get("X-Dashboard-Token") or "").strip()
+    return bool(provided and provided == PUBLIC_DASHBOARD_SHARE_TOKEN)
+
+
 def _require_admin():
     if _get_session_role() != ROLE_ADMIN:
         abort(403)
@@ -8835,8 +8853,8 @@ def inject_session_context():
 
 
 
-def _build_performance_dashboard_context():
-    dashboard_scope = _resolve_dashboard_scope_from_request()
+def _build_performance_dashboard_context(allowed_plants_override=None):
+    dashboard_scope = _resolve_dashboard_scope_from_request(allowed_plants_override=allowed_plants_override)
     allowed_plants = dashboard_scope["allowed_plants"]
     plant_filters = dashboard_scope["plant_filters"]
     plant_scope = dashboard_scope["plant_scope"]
@@ -9261,54 +9279,56 @@ def _build_performance_dashboard_context():
             },
         ]
 
-        grade_row = connection.execute(
-            f"""
-            SELECT
-                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 95 THEN 1 ELSE 0 END) AS grade_a,
-                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 85 AND COALESCE(l.utilization_pct, 0) < 95 THEN 1 ELSE 0 END) AS grade_b,
-                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) >= 70 AND COALESCE(l.utilization_pct, 0) < 85 THEN 1 ELSE 0 END) AS grade_c,
-                SUM(CASE WHEN COALESCE(l.utilization_pct, 0) < 70 THEN 1 ELSE 0 END) AS grade_df,
-                COUNT(*) AS total
-            FROM loads l
-            WHERE COALESCE(UPPER(l.status), '') IN ({status_placeholders})
-              AND l.origin_plant IN ({scope_placeholders})
-              AND DATE(l.created_at) BETWEEN DATE(?) AND DATE(?)
-            """,
-            scope_params,
-        ).fetchone() if plant_scope else None
-        grade_total = int(grade_row["total"] or 0) if grade_row else 0
+        grade_thresholds = _get_utilization_grade_thresholds()
+        grade_counts = {"A": 0, "B": 0, "C": 0, "D": 0, "F": 0}
+        for load in scoped_dashboard_loads:
+            try:
+                utilization_pct = float(load.get("utilization_pct") or 0.0)
+            except (TypeError, ValueError):
+                utilization_pct = 0.0
+            grade = _utilization_grade(utilization_pct)
+            grade_counts[grade] = int(grade_counts.get(grade, 0)) + 1
+        grade_total = sum(grade_counts.values())
         efficiency_grades = [
             {
-                "label": "A (95%+)",
-                "count": int(grade_row["grade_a"] or 0) if grade_row else 0,
-                "width": round(((int(grade_row["grade_a"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                "label": f"A ({grade_thresholds['A']}%+)",
+                "count": int(grade_counts["A"]),
+                "width": round((int(grade_counts["A"]) / grade_total) * 100, 1)
                 if grade_total
                 else 0,
                 "class": "grade-a",
             },
             {
-                "label": "B (85-94%)",
-                "count": int(grade_row["grade_b"] or 0) if grade_row else 0,
-                "width": round(((int(grade_row["grade_b"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                "label": f"B ({grade_thresholds['B']}-{max(grade_thresholds['A'] - 1, grade_thresholds['B'])}%)",
+                "count": int(grade_counts["B"]),
+                "width": round((int(grade_counts["B"]) / grade_total) * 100, 1)
                 if grade_total
                 else 0,
                 "class": "grade-b",
             },
             {
-                "label": "C (70-84%)",
-                "count": int(grade_row["grade_c"] or 0) if grade_row else 0,
-                "width": round(((int(grade_row["grade_c"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                "label": f"C ({grade_thresholds['C']}-{max(grade_thresholds['B'] - 1, grade_thresholds['C'])}%)",
+                "count": int(grade_counts["C"]),
+                "width": round((int(grade_counts["C"]) / grade_total) * 100, 1)
                 if grade_total
                 else 0,
                 "class": "grade-c",
             },
             {
-                "label": "D/F (<70%)",
-                "count": int(grade_row["grade_df"] or 0) if grade_row else 0,
-                "width": round(((int(grade_row["grade_df"] or 0) if grade_row else 0) / grade_total) * 100, 1)
+                "label": f"D ({grade_thresholds['D']}-{max(grade_thresholds['C'] - 1, grade_thresholds['D'])}%)",
+                "count": int(grade_counts["D"]),
+                "width": round((int(grade_counts["D"]) / grade_total) * 100, 1)
                 if grade_total
                 else 0,
-                "class": "grade-df",
+                "class": "grade-d",
+            },
+            {
+                "label": f"F (<{grade_thresholds['D']}%)",
+                "count": int(grade_counts["F"]),
+                "width": round((int(grade_counts["F"]) / grade_total) * 100, 1)
+                if grade_total
+                else 0,
+                "class": "grade-f",
             },
         ]
 
@@ -9360,6 +9380,10 @@ def _build_performance_dashboard_context():
             bucket_load_count = int(bucket.get("load_count") or 0)
             load_height_pct = (bucket_load_count / max_load_count * 100.0) if max_load_count > 0 else 0.0
             avg_utilization = bucket.get("avg_utilization")
+            util_y_pct = None
+            if avg_utilization is not None:
+                span = max(util_max - util_min, 1e-9)
+                util_y_pct = max(0.0, min(100.0, ((util_max - float(avg_utilization)) / span) * 100.0))
             summary_chart_series.append(
                 {
                     "label": bucket.get("label") or "--",
@@ -9367,6 +9391,7 @@ def _build_performance_dashboard_context():
                     "load_height_pct": round(load_height_pct, 2),
                     "avg_utilization": avg_utilization,
                     "avg_util_display": _format_percent(avg_utilization, decimals=1) if avg_utilization is not None else "--",
+                    "util_y_pct": round(util_y_pct, 2) if util_y_pct is not None else None,
                 }
             )
         util_series_values = [entry.get("avg_utilization") for entry in summary_chart_series]
@@ -9609,6 +9634,107 @@ def dashboard():
         "label": topbar_status.get("label") or "Live",
         "detail": topbar_status.get("detail") or "Awaiting refresh",
     }
+
+    cost_summary_defaults = {
+        "label": "Cost Summary",
+        "tag": "Estimated",
+        "subtext": "Based on tool embedded cost assumptions",
+        "items": [],
+    }
+    cost_summary = context.get("cost_summary")
+    if not isinstance(cost_summary, dict):
+        cost_summary = {}
+    context["cost_summary"] = {**cost_summary_defaults, **cost_summary}
+
+    load_summary_defaults = {
+        "title": "Load Utilization Summary",
+        "items": [],
+    }
+    load_utilization_summary = context.get("load_utilization_summary")
+    if not isinstance(load_utilization_summary, dict):
+        load_utilization_summary = {}
+    context["load_utilization_summary"] = {**load_summary_defaults, **load_utilization_summary}
+
+    summary_chart_defaults = {
+        "title": "Loads & Utilization Summary",
+        "subtitle": "Bars show load count. Line shows average utilization.",
+        "granularity": context.get("granularity") or "week",
+        "granularity_options": context.get("granularity_options") or _dashboard_granularity_options(),
+        "series": [],
+        "util_line_path": "",
+        "util_points": [],
+        "util_min_label": "--",
+        "util_mid_label": "--",
+        "util_max_label": "--",
+        "max_load_count_label": "0",
+        "mid_load_count_label": "0",
+        "width": 920,
+        "height": 210,
+        "line_color": "var(--primary)",
+    }
+    summary_chart = context.get("summary_chart")
+    if not isinstance(summary_chart, dict):
+        summary_chart = {}
+    context["summary_chart"] = {**summary_chart_defaults, **summary_chart}
+    return render_template("dashboard.html", **context)
+
+
+@cot_bp.route("/dashboard/public")
+def dashboard_public():
+    if not _has_valid_public_dashboard_token():
+        abort(403)
+
+    if request.args.get("plants") is None and request.args.get("plant") is None:
+        pass
+    context = _build_performance_dashboard_context(allowed_plants_override=list(PLANT_CODES))
+    if isinstance(context, Response):
+        return context
+    if not isinstance(context, dict):
+        context = {}
+
+    context.setdefault("period", "last_30_days")
+    context.setdefault(
+        "period_options",
+        _dashboard_period_options(),
+    )
+    context.setdefault("granularity", _normalize_dashboard_granularity(request.args.get("granularity")))
+    context.setdefault("granularity_options", _dashboard_granularity_options())
+    context.setdefault("period_label", "Last 30 Days")
+    context.setdefault("date_range_label", "--")
+    context.setdefault("plant_filter_param", "")
+    context.setdefault("plant_scope_label", "All Plants")
+    context.setdefault(
+        "export_url",
+        url_for(
+            "dashboard_load_export",
+            period=context.get("period") or "last_30_days",
+            plants=context.get("plant_filter_param") or "",
+        ),
+    )
+
+    for list_key in (
+        "plant_cards",
+        "utilization_bands",
+        "efficiency_grades",
+        "load_review_rows",
+        "highest_loads",
+        "lowest_loads",
+    ):
+        if not isinstance(context.get(list_key), list):
+            context[list_key] = []
+
+    topbar_status = context.get("topbar_status")
+    if not isinstance(topbar_status, dict):
+        topbar_status = {}
+    context["topbar_status"] = {
+        "label": topbar_status.get("label") or "Live",
+        "detail": topbar_status.get("detail") or "Awaiting refresh",
+    }
+    context["show_nav"] = False
+    context["is_admin"] = False
+    context["show_tutorial_nav"] = False
+    context.setdefault("sql_auto_refresh_notice", None)
+    context.setdefault("session_role", None)
 
     cost_summary_defaults = {
         "label": "Cost Summary",

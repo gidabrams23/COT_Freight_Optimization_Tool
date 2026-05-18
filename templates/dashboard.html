@@ -142,14 +142,14 @@
                 <div class="perf-summary-chart">
                   <svg class="perf-summary-line-svg" viewBox="0 0 {{ summary_chart.width }} {{ summary_chart.height }}" preserveAspectRatio="none" aria-label="Average utilization trend">
                     <path d="{{ summary_chart.util_line_path }}" class="perf-summary-line" style="--line-color: {{ summary_chart.line_color }};"></path>
-                    {% for point in summary_chart.util_points %}
-                      <circle cx="{{ point.x }}" cy="{{ point.y }}" r="4.2" class="perf-summary-point"></circle>
-                    {% endfor %}
                   </svg>
                   <div class="perf-summary-bars" style="--perf-bucket-count: {{ summary_chart.series|length if summary_chart.series else 1 }};">
                     {% for bucket in summary_chart.series %}
                       <div class="perf-summary-col">
                         <span class="perf-summary-bar" style="--bar-height: {{ bucket.load_height_pct }}%;" title="{{ bucket.label }} | {{ bucket.load_count }} loads | {{ bucket.avg_util_display }}"></span>
+                        {% if bucket.util_y_pct is not none %}
+                          <span class="perf-summary-point-marker" style="--util-y: {{ bucket.util_y_pct }}%;" title="{{ bucket.label }} | Avg Utilization {{ bucket.avg_util_display }}"></span>
+                        {% endif %}
                       </div>
                     {% endfor %}
                   </div>
@@ -175,7 +175,7 @@
           <div class="perf-panel-head">
             <div>
               <p class="perf-eyebrow">Efficiency Grades</p>
-              <h2>A/B/C/D-F Mix</h2>
+              <h2>A/B/C/D/F Mix</h2>
             </div>
           </div>
           <div class="perf-band-list">
@@ -207,10 +207,13 @@
                 <button type="button" class="perf-review-pill" data-review-filter="highest">Highest Utilized</button>
                 <button type="button" class="perf-review-pill" data-review-filter="lowest">Lowest Utilized</button>
               </div>
+              {% set _show_export = show_export if show_export is defined else true %}
+              {% if _show_export %}
               <a class="perf-export-btn" href="{{ export_url or url_for('dashboard_load_export') }}">
                 <span class="material-symbols-outlined" aria-hidden="true">download</span>
                 Export Loads
               </a>
+              {% endif %}
             </div>
           </div>
           <div class="perf-table-wrap">
@@ -306,52 +309,10 @@
 
   <script>
     (function() {
-      const container = document.querySelector('[data-perf-plants]');
-      if (!container) return;
-
-      container.querySelectorAll('[data-plant]').forEach((card) => {
-        card.addEventListener('click', () => {
-          if (card.disabled) return;
-          const plant = (card.dataset.plant || '').trim().toUpperCase();
-          if (!plant) return;
-
-          const url = new URL(window.location.href);
-          const params = url.searchParams;
-          const selected = new Set(
-            (params.get('plants') || '')
-              .split(',')
-              .map((value) => value.trim().toUpperCase())
-              .filter(Boolean)
-          );
-
-          if (plant === 'ALL') {
-            params.delete('plants');
-          } else {
-            selected.delete('ALL');
-            if (selected.has(plant)) {
-              selected.delete(plant);
-            } else {
-              selected.add(plant);
-            }
-            if (selected.size) {
-              params.set('plants', Array.from(selected).join(','));
-            } else {
-              params.delete('plants');
-            }
-          }
-
-          url.search = params.toString();
-          window.location.assign(url.toString());
-        });
-      });
-    })();
-
-    (function() {
-      const pills = Array.from(document.querySelectorAll('[data-review-filter]'));
-      const tables = Array.from(document.querySelectorAll('[data-review-table]'));
-      if (!pills.length || !tables.length) return;
-
-      function setMode(mode) {
+      function setReviewMode(mode, root) {
+        const pills = Array.from((root || document).querySelectorAll('[data-review-filter]'));
+        const tables = Array.from((root || document).querySelectorAll('[data-review-table]'));
+        if (!pills.length || !tables.length) return;
         pills.forEach((pill) => {
           pill.classList.toggle('is-active', pill.dataset.reviewFilter === mode);
         });
@@ -360,14 +321,125 @@
         });
       }
 
-      pills.forEach((pill) => {
-        pill.addEventListener('click', () => {
-          const mode = (pill.dataset.reviewFilter || 'all').trim().toLowerCase();
-          setMode(mode);
+      async function fetchAndSwapDashboard(url, pushHistory) {
+        const currentSection = document.querySelector('[data-performance-dashboard]');
+        if (!currentSection) {
+          window.location.assign(url.toString());
+          return;
+        }
+        currentSection.classList.add('is-loading');
+        try {
+          const response = await fetch(url.toString(), {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          });
+          if (!response.ok) {
+            window.location.assign(url.toString());
+            return;
+          }
+          const html = await response.text();
+          const parser = new DOMParser();
+          const nextDoc = parser.parseFromString(html, 'text/html');
+          const nextSection = nextDoc.querySelector('[data-performance-dashboard]');
+          if (!nextSection) {
+            window.location.assign(url.toString());
+            return;
+          }
+          currentSection.replaceWith(nextSection);
+          if (pushHistory) {
+            history.pushState({}, '', url.toString());
+          }
+          initDashboardInteractions();
+        } catch (error) {
+          window.location.assign(url.toString());
+        }
+      }
+
+      function bindAsyncFilterForms(root) {
+        (root || document).querySelectorAll('.perf-date-toggle, .perf-granularity-toggle').forEach((form) => {
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const submitter = event.submitter || null;
+            const actionUrl = form.getAttribute('action') || window.location.href;
+            const target = new URL(actionUrl, window.location.origin);
+            const formData = new FormData(form);
+            const params = target.searchParams;
+            params.delete('period');
+            params.delete('granularity');
+            params.delete('plants');
+            params.delete('plant');
+            for (const [key, value] of formData.entries()) {
+              const normalized = String(value || '').trim();
+              if (normalized) {
+                params.set(key, normalized);
+              }
+            }
+            if (submitter) {
+              const submitKey = (submitter.getAttribute('name') || '').trim();
+              const submitValue = (submitter.getAttribute('value') || '').trim();
+              if (submitKey && submitValue) {
+                params.set(submitKey, submitValue);
+              }
+            }
+            target.search = params.toString();
+            fetchAndSwapDashboard(target, true);
+          });
         });
+      }
+
+      function bindPlantCards(root) {
+        const container = (root || document).querySelector('[data-perf-plants]');
+        if (!container) return;
+        container.querySelectorAll('[data-plant]').forEach((card) => {
+          card.addEventListener('click', () => {
+            if (card.disabled) return;
+            const plant = (card.dataset.plant || '').trim().toUpperCase();
+            if (!plant) return;
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+            const selected = new Set(
+              (params.get('plants') || '')
+                .split(',')
+                .map((value) => value.trim().toUpperCase())
+                .filter(Boolean)
+            );
+            if (plant === 'ALL') {
+              params.delete('plants');
+            } else {
+              selected.delete('ALL');
+              if (selected.has(plant)) selected.delete(plant);
+              else selected.add(plant);
+              if (selected.size) params.set('plants', Array.from(selected).join(','));
+              else params.delete('plants');
+            }
+            url.search = params.toString();
+            fetchAndSwapDashboard(url, true);
+          });
+        });
+      }
+
+      function initDashboardInteractions() {
+        const root = document.querySelector('[data-performance-dashboard]');
+        if (!root) return;
+        bindPlantCards(root);
+        bindAsyncFilterForms(root);
+        const pills = Array.from(root.querySelectorAll('[data-review-filter]'));
+        pills.forEach((pill) => {
+          pill.addEventListener('click', () => {
+            const mode = (pill.dataset.reviewFilter || 'all').trim().toLowerCase();
+            setReviewMode(mode, root);
+          });
+        });
+        setReviewMode('all', root);
+      }
+
+      window.addEventListener('popstate', () => {
+        const url = new URL(window.location.href);
+        fetchAndSwapDashboard(url, false);
       });
 
-      setMode('all');
+      initDashboardInteractions();
     })();
   </script>
 {% endblock %}
