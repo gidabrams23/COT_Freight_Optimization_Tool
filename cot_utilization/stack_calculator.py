@@ -29,7 +29,7 @@ DEFAULT_UTILIZATION_GRADE_THRESHOLDS = {
 }
 DEFAULT_STACK_OVERFLOW_MAX_HEIGHT = 5
 DEFAULT_MAX_BACK_OVERHANG_FT = 4.0
-DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT = 7.0
+DEFAULT_UPPER_TWO_ACROSS_MAX_LENGTH_FT = 8.0
 DEFAULT_UPPER_DECK_EXCEPTION_MAX_LENGTH_FT = 16.0
 DEFAULT_UPPER_DECK_EXCEPTION_OVERHANG_ALLOWANCE_FT = 6.0
 DEFAULT_UPPER_DECK_EXCEPTION_CATEGORIES = ("USA", "UTA")
@@ -241,14 +241,31 @@ def _coerce_stop_sequence(value):
         return None
 
 
-def _stop_access_compatible(position, incoming_sequence):
+def _stop_access_compatible(
+    position,
+    incoming_sequence,
+    allow_relaxed_two_across=False,
+    two_across_max_length_ft=0.0,
+    trailer_type=None,
+):
     if incoming_sequence is None:
         return True
     top_sequence = position.get("top_stop_sequence")
     if top_sequence is None:
         return True
     # Earlier stops (smaller sequence) may sit on top of later stops (larger sequence).
-    return incoming_sequence <= top_sequence
+    if incoming_sequence <= top_sequence:
+        return True
+    if not allow_relaxed_two_across:
+        return False
+    trailer_key = normalize_trailer_type(trailer_type, default="STEP_DECK")
+    if not trailer_key.startswith("STEP_DECK"):
+        return False
+    threshold = _coerce_non_negative_float(two_across_max_length_ft, 0.0)
+    if threshold <= 0:
+        return False
+    length_ft = _coerce_non_negative_float(position.get("length_ft"), 0.0)
+    return length_ft <= (threshold + 1e-6)
 
 
 def _position_top_item(position):
@@ -1318,6 +1335,7 @@ def calculate_stack_configuration(
     upper_deck_exception_overhang_allowance_ft=None,
     upper_deck_exception_categories=None,
     equal_length_deck_length_order_enabled=None,
+    aggressive_upper_two_across_prepack=False,
     grade_thresholds=None,
 ):
     defaults = _normalize_stack_assumptions(None)
@@ -1445,7 +1463,13 @@ def calculate_stack_configuration(
                             equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
                         )
                         and pos["capacity_used"] < (1.0 - 1e-6)
-                        and _stop_access_compatible(pos, item_stop_sequence)
+                        and _stop_access_compatible(
+                            pos,
+                            item_stop_sequence,
+                            allow_relaxed_two_across=bool(aggressive_upper_two_across_prepack),
+                            two_across_max_length_ft=upper_two_across_max_length_ft,
+                            trailer_type=trailer_type,
+                        )
                     ):
                         candidates.append((pos_idx, pos))
                 if candidates:
@@ -1601,7 +1625,13 @@ def calculate_stack_configuration(
                     if float(target.get("capacity_used") or 0.0) >= (1.0 - 1e-6):
                         cursor += 1
                         continue
-                    if not _stop_access_compatible(target, item_stop_sequence):
+                    if not _stop_access_compatible(
+                        target,
+                        item_stop_sequence,
+                        allow_relaxed_two_across=bool(aggressive_upper_two_across_prepack),
+                        two_across_max_length_ft=upper_two_across_max_length_ft,
+                        trailer_type=trailer_type,
+                    ):
                         cursor += 1
                         continue
                     incoming_order_id = order_id
@@ -1634,7 +1664,13 @@ def calculate_stack_configuration(
                             equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
                         ):
                             continue
-                        if not _stop_access_compatible(probe, item_stop_sequence):
+                        if not _stop_access_compatible(
+                            probe,
+                            item_stop_sequence,
+                            allow_relaxed_two_across=bool(aggressive_upper_two_across_prepack),
+                            two_across_max_length_ft=upper_two_across_max_length_ft,
+                            trailer_type=trailer_type,
+                        ):
                             continue
                         if _placement_rank(probe, probe_idx) < current_rank:
                             found_better_pref_target = True
@@ -1752,14 +1788,6 @@ def calculate_stack_configuration(
             )
             return upper_length + upper_eval["allowed_overhang_ft"]
 
-        def _standard_upper_raw_total():
-            return sum(
-                _coerce_non_negative_float(pos.get("length_ft"), 0.0)
-                for pos in positions
-                if (pos.get("deck") or "lower") == "upper"
-                and _coerce_non_negative_float(pos.get("length_ft"), 0.0) <= (upper_length + 1e-6)
-            )
-
         upper_candidates = [
             pos
             for pos in positions
@@ -1798,7 +1826,6 @@ def calculate_stack_configuration(
             )
             if (
                 candidate_meta["effective_total_length_ft"] <= (_upper_effective_limit() + 1e-6)
-                and _standard_upper_raw_total() <= (upper_length + 1e-6)
             ):
                 upper_usage_meta = candidate_meta
                 continue
@@ -1813,11 +1840,10 @@ def calculate_stack_configuration(
             positions,
             trailer_config,
             upper_two_across_max_length_ft,
-        )
+                )
         if normalize_trailer_type(trailer_config.get("type"), default="STEP_DECK").startswith("STEP_DECK"):
             while (
                 upper_usage_meta["effective_total_length_ft"] > (_upper_effective_limit() + 1e-6)
-                or _standard_upper_raw_total() > (upper_length + 1e-6)
             ):
                 active_upper_positions = [
                     pos for pos in positions
@@ -1862,7 +1888,6 @@ def calculate_stack_configuration(
                 )
                 if (
                     candidate_meta["effective_total_length_ft"] <= (_upper_effective_limit() + 1e-6)
-                    and _standard_upper_raw_total() <= (upper_length + 1e-6)
                 ):
                     upper_usage_meta = candidate_meta
                     continue
@@ -1872,6 +1897,83 @@ def calculate_stack_configuration(
                     trailer_config,
                     upper_two_across_max_length_ft,
                 )
+
+            # Improvement pass: swap weak upper candidates with stronger lower two-across
+            # candidates when it increases upper two-across usage without violating deck limits.
+            def _upper_layout_score(meta):
+                return (
+                    int(meta.get("paired_positions") or 0),
+                    _coerce_non_negative_float(meta.get("effective_total_length_ft"), 0.0),
+                )
+
+            improved = True
+            while improved:
+                improved = False
+                current_meta = _apply_upper_usage_metadata(
+                    positions,
+                    trailer_config,
+                    upper_two_across_max_length_ft,
+                )
+                current_score = _upper_layout_score(current_meta)
+
+                upper_positions = [
+                    pos for pos in positions
+                    if (pos.get("deck") or "lower") == "upper"
+                ]
+                lower_candidates = [
+                    pos for pos in positions
+                    if (pos.get("deck") or "lower") == "lower"
+                    and _coerce_non_negative_float(pos.get("length_ft"), 0.0)
+                    <= (_upper_candidate_length_limit(pos) + 1e-6)
+                ]
+                if not upper_positions or not lower_candidates:
+                    break
+
+                def _swap_in_priority(pos):
+                    priority = _upper_candidate_priority(pos)
+                    length_ft = _coerce_non_negative_float(pos.get("length_ft"), 0.0)
+                    required_stacks = max(
+                        int(math.ceil(max(_upper_capacity_used_for_position(pos) - 1e-9, 0.0))),
+                        1,
+                    )
+                    two_across_eligible = (
+                        upper_two_across_max_length_ft > 0
+                        and length_ft <= (upper_two_across_max_length_ft + 1e-6)
+                    )
+                    return (two_across_eligible, required_stacks > 1, priority)
+
+                lower_candidates.sort(key=_swap_in_priority, reverse=True)
+                upper_positions.sort(key=_upper_candidate_priority)
+
+                for incoming in lower_candidates:
+                    accepted = False
+                    for outgoing in upper_positions:
+                        outgoing["deck"] = "lower"
+                        incoming["deck"] = "upper"
+                        candidate_meta = _apply_upper_usage_metadata(
+                            positions,
+                            trailer_config,
+                            upper_two_across_max_length_ft,
+                        )
+                        valid_layout = (
+                            candidate_meta["effective_total_length_ft"] <= (_upper_effective_limit() + 1e-6)
+                        )
+                        candidate_score = _upper_layout_score(candidate_meta)
+                        if valid_layout and candidate_score > current_score:
+                            current_score = candidate_score
+                            upper_usage_meta = candidate_meta
+                            accepted = True
+                            improved = True
+                            break
+                        incoming["deck"] = "lower"
+                        outgoing["deck"] = "upper"
+                        _apply_upper_usage_metadata(
+                            positions,
+                            trailer_config,
+                            upper_two_across_max_length_ft,
+                        )
+                    if accepted:
+                        break
         upper_usage_meta = _apply_upper_usage_metadata(
             positions,
             trailer_config,

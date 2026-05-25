@@ -20,7 +20,7 @@ DEFAULT_REPLAY_PRESET = {
     "geo_radius": 100.0,
     "stack_overflow_max_height": 5,
     "max_back_overhang_ft": 4.0,
-    "upper_two_across_max_length_ft": 7.0,
+    "upper_two_across_max_length_ft": 8.0,
     "upper_deck_exception_max_length_ft": 16.0,
     "upper_deck_exception_overhang_allowance_ft": 6.0,
     "upper_deck_exception_categories": ["USA", "UTA"],

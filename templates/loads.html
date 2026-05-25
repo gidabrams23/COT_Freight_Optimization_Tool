@@ -4668,7 +4668,7 @@
         assumptions: {
           stack_overflow_max_height: 5,
           max_back_overhang_ft: 4,
-          upper_two_across_max_length_ft: 7,
+          upper_two_across_max_length_ft: 8,
           upper_deck_exception_max_length_ft: 16,
           upper_deck_exception_overhang_allowance_ft: 6,
           upper_deck_exception_categories: ['USA', 'UTA'],
@@ -5560,7 +5560,7 @@
             const marker = document.createElement('span');
             marker.className = 'schematic-edit-stack-two-across-icon material-symbols-outlined';
             marker.textContent = 'view_week';
-            const thresholdFt = Number((state.assumptions || {}).upper_two_across_max_length_ft || 7);
+            const thresholdFt = Number((state.assumptions || {}).upper_two_across_max_length_ft || 8);
             const thresholdLabel = Number.isFinite(thresholdFt)
               ? thresholdFt.toFixed(1).replace(/\.0$/, '')
               : '7';
@@ -5633,7 +5633,7 @@
         state.assumptions = {
           stack_overflow_max_height: 5,
           max_back_overhang_ft: 4,
-          upper_two_across_max_length_ft: 7,
+          upper_two_across_max_length_ft: 8,
           upper_deck_exception_max_length_ft: 16,
           upper_deck_exception_overhang_allowance_ft: 6,
           upper_deck_exception_categories: ['USA', 'UTA'],
@@ -5695,7 +5695,7 @@
             state.assumptions = {
               stack_overflow_max_height: 5,
               max_back_overhang_ft: 4,
-              upper_two_across_max_length_ft: 7,
+              upper_two_across_max_length_ft: 8,
               upper_deck_exception_max_length_ft: 16,
               upper_deck_exception_overhang_allowance_ft: 6,
               upper_deck_exception_categories: ['USA', 'UTA'],

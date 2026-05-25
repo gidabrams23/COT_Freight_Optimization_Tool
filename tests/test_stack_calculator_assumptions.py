@@ -898,6 +898,141 @@ class StackCalculatorAssumptionTests(unittest.TestCase):
         self.assertGreaterEqual(len(upper_positions), 2)
 
     @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_step_deck_upper_swap_prefers_two_across_short_stacks(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "LONG-10",
+                "sku": "L10",
+                "qty": 1,
+                "unit_length_ft": 10.0,
+                "max_stack_height": 1,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 5,
+            },
+            {
+                "item": "SHORT-A",
+                "sku": "SA",
+                "qty": 2,
+                "unit_length_ft": 5.0,
+                "max_stack_height": 2,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 1,
+            },
+            {
+                "item": "SHORT-B",
+                "sku": "SB",
+                "qty": 2,
+                "unit_length_ft": 5.0,
+                "max_stack_height": 2,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 2,
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+            upper_two_across_max_length_ft=7.0,
+        )
+
+        upper_positions = [
+            pos for pos in (config.get("positions") or [])
+            if (pos.get("deck") or "").lower() == "upper"
+        ]
+        two_across_upper = [pos for pos in upper_positions if pos.get("two_across_applied")]
+        self.assertGreaterEqual(len(two_across_upper), 2)
+        self.assertGreaterEqual(int(config.get("upper_two_across_applied_count") or 0), 2)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_aggressive_upper_two_across_prepack_relaxes_stop_block_for_short_units(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "STOP-2",
+                "sku": "S2",
+                "qty": 5,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 5,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 2,
+            },
+            {
+                "item": "STOP-6",
+                "sku": "S6",
+                "qty": 5,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 5,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 6,
+            },
+        ]
+
+        standard = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+            upper_two_across_max_length_ft=7.0,
+            aggressive_upper_two_across_prepack=False,
+        )
+        aggressive = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+            upper_two_across_max_length_ft=7.0,
+            aggressive_upper_two_across_prepack=True,
+        )
+
+        self.assertGreaterEqual(
+            int(aggressive.get("upper_two_across_applied_count") or 0),
+            int(standard.get("upper_two_across_applied_count") or 0),
+        )
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
+    def test_step_deck_allows_two_across_for_seven_foot_stacks_on_upper(self, _mock_get_setting):
+        order_lines = [
+            {
+                "item": "5X8GW2K",
+                "item_number": "5X8GW2K",
+                "sku": "5X8GW2K",
+                "qty": 2,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 2,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 2,
+            },
+            {
+                "item": "5X8GW2K",
+                "item_number": "5X8GW2K",
+                "sku": "5X8GW2K",
+                "qty": 2,
+                "unit_length_ft": 7.0,
+                "max_stack_height": 2,
+                "upper_deck_max_stack_height": 1,
+                "category": "USA",
+                "stop_sequence": 6,
+            },
+        ]
+
+        config = stack_calculator.calculate_stack_configuration(
+            order_lines,
+            trailer_type="STEP_DECK",
+            stack_overflow_max_height=0,
+            max_back_overhang_ft=4.0,
+            upper_two_across_max_length_ft=7.0,
+            aggressive_upper_two_across_prepack=True,
+        )
+        self.assertGreaterEqual(int(config.get("upper_two_across_applied_count") or 0), 1)
+
+    @patch("services.stack_calculator.db.get_planning_setting", return_value={})
     def test_upper_exception_length_not_mixed_with_side_by_side_mode(self, _mock_get_setting):
         order_lines = [
             {

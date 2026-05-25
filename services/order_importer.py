@@ -1,6 +1,7 @@
 import math
 import re
 from collections import Counter
+from difflib import SequenceMatcher
 
 import pandas as pd
 
@@ -277,32 +278,155 @@ class OrderImporter:
         if not item:
             return None
         normalized = str(item).strip().upper()
+        is_ecom_context = self._is_ecom_context(bin_code, bin_raw)
+
+        def _apply_ecom_override(candidate):
+            if not candidate:
+                return None
+            if not is_ecom_context:
+                return candidate
+            spec = self.sku_specs.get(candidate)
+            if spec and not self._is_ecom_category(spec):
+                return candidate
+            remapped = self._suggest_non_ecom_sku(item)
+            return remapped or candidate
+
         if normalized in self.sku_specs:
-            return normalized
+            return _apply_ecom_override(normalized)
 
         # Backward-compatible fallback for older flat lookup payloads.
         legacy_exact = self.sku_lookup.get("exact", {})
         if legacy_exact and all(isinstance(key, str) for key in legacy_exact.keys()):
             if normalized in legacy_exact:
-                return legacy_exact[normalized]
+                return _apply_ecom_override(legacy_exact[normalized])
         legacy_patterns = self.sku_lookup.get("patterns", [])
         if isinstance(legacy_patterns, list):
             for prefix, sku in legacy_patterns:
                 if normalized.startswith(prefix):
-                    return sku
+                    return _apply_ecom_override(sku)
 
         exact_by_scope = self.sku_lookup.get("exact", {})
         patterns_by_scope = self.sku_lookup.get("patterns", {})
         for scope in self._lookup_scope_sequence(plant, bin_code, bin_raw):
             scoped_exact = exact_by_scope.get(scope, {})
             if normalized in scoped_exact:
-                return scoped_exact[normalized]
+                return _apply_ecom_override(scoped_exact[normalized])
 
         for scope in self._lookup_scope_sequence(plant, bin_code, bin_raw):
             for prefix, sku in patterns_by_scope.get(scope, []):
                 if normalized.startswith(prefix):
-                    return sku
+                    return _apply_ecom_override(sku)
+
+        if is_ecom_context:
+            return self._suggest_non_ecom_sku(item)
         return None
+
+    def _is_ecom_context(self, bin_code, bin_raw):
+        for value in (bin_code, bin_raw):
+            normalized = self._clean_value(value).upper()
+            if not normalized:
+                continue
+            if normalized == "ECOM" or normalized.endswith("-ECOM") or normalized.startswith("ECOM-"):
+                return True
+        return False
+
+    def _is_ecom_category(self, spec):
+        return self._clean_value((spec or {}).get("category")).upper() == "ECOM"
+
+    def _normalize_alnum(self, value):
+        return re.sub(r"[^A-Z0-9]", "", self._clean_value(value).upper())
+
+    def _strip_ecom_suffixes(self, value):
+        text = self._clean_value(value).upper()
+        if not text:
+            return ""
+        normalized = text
+        for suffix in ("-ECOM", "_ECOM", "ECOM"):
+            if normalized.endswith(suffix) and len(normalized) > len(suffix):
+                normalized = normalized[: -len(suffix)]
+                break
+        if normalized.endswith("-E") and len(normalized) > 2:
+            normalized = normalized[:-2]
+        return normalized.strip("-_") or text
+
+    def _extract_dimensions(self, value):
+        if not value:
+            return None
+        match = re.search(r"(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)", str(value))
+        if not match:
+            return None
+        try:
+            width = float(match.group(1))
+            length = float(match.group(2))
+        except (TypeError, ValueError):
+            return None
+        return (width, length)
+
+    def _suggest_non_ecom_sku(self, item, desc=""):
+        source_item = self._strip_ecom_suffixes(item)
+        source_alnum = self._normalize_alnum(source_item)
+        if not source_alnum:
+            return None
+
+        source_desc_alnum = self._normalize_alnum(desc)
+        source_dim = self._extract_dimensions(source_item) or self._extract_dimensions(desc)
+        prefers_cargo = "CGR" in source_alnum or "CARGO" in source_alnum
+
+        best = None
+        second_best = None
+        for sku, spec in self.sku_specs.items():
+            if self._is_ecom_category(spec):
+                continue
+            sku_alnum = self._normalize_alnum(sku)
+            if not sku_alnum:
+                continue
+            desc_text = spec.get("description") or spec.get("notes") or ""
+            desc_alnum = self._normalize_alnum(desc_text)
+
+            score = 0.0
+            if source_alnum == sku_alnum:
+                score += 300.0
+            if source_alnum in sku_alnum or sku_alnum in source_alnum:
+                score += 140.0
+            if source_alnum and desc_alnum and source_alnum in desc_alnum:
+                score += 120.0
+
+            score += SequenceMatcher(None, source_alnum, sku_alnum).ratio() * 80.0
+            if desc_alnum:
+                score += SequenceMatcher(None, source_alnum, desc_alnum).ratio() * 60.0
+            if source_desc_alnum and desc_alnum:
+                score += SequenceMatcher(None, source_desc_alnum, desc_alnum).ratio() * 20.0
+
+            target_dim = self._extract_dimensions(sku) or self._extract_dimensions(desc_text)
+            if source_dim and target_dim:
+                dim_diff = abs(source_dim[0] - target_dim[0]) + abs(source_dim[1] - target_dim[1])
+                score += max(0.0, 60.0 - (dim_diff * 12.0))
+                if source_dim == target_dim:
+                    score += 40.0
+
+            category = self._clean_value(spec.get("category")).upper()
+            if prefers_cargo:
+                if "CARGO" in category:
+                    score += 55.0
+                elif "CARGO" in desc_text.upper():
+                    score += 30.0
+
+            candidate = (score, sku)
+            if not best or candidate[0] > best[0]:
+                second_best = best
+                best = candidate
+            elif not second_best or candidate[0] > second_best[0]:
+                second_best = candidate
+
+        if not best:
+            return None
+        best_score = best[0]
+        second_score = second_best[0] if second_best else -1e9
+        if best_score < 120.0:
+            return None
+        if best_score < 180.0 and (best_score - second_score) < 8.0:
+            return None
+        return best[1]
 
     def _load_sku_lookup(self):
         entries = db.list_item_lookups()

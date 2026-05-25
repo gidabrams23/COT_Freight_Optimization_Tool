@@ -14,7 +14,7 @@ DEFAULT_BUILD_PARAMS = {
     "geo_radius": "100",
     "stack_overflow_max_height": "5",
     "max_back_overhang_ft": "4",
-    "upper_two_across_max_length_ft": "7",
+    "upper_two_across_max_length_ft": "8",
     "upper_deck_exception_max_length_ft": "16",
     "upper_deck_exception_overhang_allowance_ft": "6",
     "upper_deck_exception_categories": ["USA", "UTA"],
@@ -22,7 +22,7 @@ DEFAULT_BUILD_PARAMS = {
     "algorithm_version": "v2",
     "compare_algorithms": False,
     "optimize_mode": "auto",
-    "optimize_focus": "balanced",
+    "optimize_focus": "utilization_first",
     "manual_order_input": "",
     "ignore_due_date": False,
     "order_category_scope": order_categories.ORDER_CATEGORY_SCOPE_ALL,
@@ -355,9 +355,9 @@ def build_loads(
     optimize_mode = _clean_value(form.get("optimize_mode", "auto")).lower() if form else "auto"
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
-    optimize_focus = _clean_value(form.get("optimize_focus", "balanced")).lower() if form else "balanced"
+    optimize_focus = _clean_value(form.get("optimize_focus", "utilization_first")).lower() if form else "utilization_first"
     if optimize_focus not in {"balanced", "utilization_first"}:
-        optimize_focus = "balanced"
+        optimize_focus = "utilization_first"
     reopt_speed = _clean_value(form.get("__reopt_speed", "")).lower() if form else ""
     fast_reopt = reopt_speed == "fast"
     manual_order_input = _clean_value(form.get("manual_order_input", "")) if form else ""
@@ -569,6 +569,14 @@ def build_loads(
         "v2_low_util_threshold": 70.0,
         "v2_lambda_low_util_count": 560.0,
         "v2_lambda_low_util_depth": 24.0,
+        "v2_lambda_upper_two_across": 24.0,
+        "v2_full_load_target_pct": 90.0,
+        "v2_lambda_full_load_count": 220.0,
+        "v2_lambda_full_load_depth": 18.0,
+        "v2_lambda_fill_to_full": 4.0,
+        "v2_lambda_state_purity": 60.0,
+        "v2_lambda_same_state_merge": 40.0,
+        "v2_lambda_cross_state_merge": 120.0,
         "v2_rescue_passes": 3 if fast_reopt else 4,
         "v2_grade_rescue_passes": 3 if fast_reopt else 5,
         "v2_grade_rescue_min_savings": -90.0,
@@ -593,6 +601,7 @@ def build_loads(
         "v2_home_length_priority_threshold_ft": 12.0,
         "v2_home_length_priority_weight": 1.0,
         "v2_home_length_priority_max_bonus": 12.0,
+        "v2_aggressive_upper_two_across_prepack": False,
     }
 
     if optimize_focus == "utilization_first":
@@ -600,7 +609,20 @@ def build_loads(
         params["v2_low_util_threshold"] = 80.0
         params["v2_lambda_low_util_count"] = 900.0
         params["v2_lambda_low_util_depth"] = 40.0
+        params["v2_lambda_upper_two_across"] = 48.0
+        # In utilization-first mode, treat "full" as near-100 and keep pushing.
+        params["v2_full_load_target_pct"] = 100.0
+        params["v2_lambda_full_load_count"] = 420.0
+        params["v2_lambda_full_load_depth"] = 36.0
+        params["v2_lambda_fill_to_full"] = 8.0
+        params["v2_lambda_state_purity"] = 1200.0
+        params["v2_lambda_same_state_merge"] = 220.0
+        params["v2_lambda_cross_state_merge"] = 1200.0
+        params["v2_aggressive_upper_two_across_prepack"] = True
         params["v2_grade_rescue_passes"] = max(int(params.get("v2_grade_rescue_passes") or 0), 6)
+        params["v2_pair_neighbors"] = max(int(params.get("v2_pair_neighbors") or 0), 28)
+        params["v2_pair_neighbors_low_util"] = max(int(params.get("v2_pair_neighbors_low_util") or 0), 72)
+        params["v2_incremental_neighbors"] = max(int(params.get("v2_incremental_neighbors") or 0), 28)
         params["v2_fd_target_util"] = max(float(params.get("v2_fd_target_util") or 0), 65.0)
 
     flex_days = params["time_window_days"] if enforce_time_window else 0

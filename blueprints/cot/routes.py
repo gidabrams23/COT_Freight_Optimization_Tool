@@ -17,6 +17,7 @@ import subprocess
 import threading
 import time
 import uuid
+from difflib import SequenceMatcher
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -360,6 +361,12 @@ OPTIMIZER_V2_ENABLED = (
 ROLE_ADMIN = "admin"
 ROLE_PLANNER = "planner"
 APP_TIMEZONE = ZoneInfo("America/New_York")
+
+
+def _app_today():
+    return datetime.now(APP_TIMEZONE).date()
+
+
 SESSION_PROFILE_ID_KEY = "profile_id"
 SESSION_PROFILE_NAME_KEY = "profile_name"
 SESSION_PROFILE_DEFAULT_PLANTS_KEY = "profile_default_plants"
@@ -1433,6 +1440,17 @@ def _category_from_bin(bin_code):
     return normalized or None
 
 
+def _is_ecom_label(value):
+    normalized = str(value or "").strip().upper()
+    if not normalized:
+        return False
+    return (
+        normalized == "ECOM"
+        or normalized.endswith("-ECOM")
+        or normalized.startswith("ECOM-")
+    )
+
+
 def _extract_dimensions(value):
     if not value:
         return None
@@ -1448,12 +1466,36 @@ def _extract_dimensions(value):
 
 
 def _suggest_sku_for_item(item, desc, specs, category_hint=None):
-    item_dim = _extract_dimensions(item) or _extract_dimensions(desc)
-    if not item_dim:
+    def _normalize_alnum(value):
+        return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+
+    def _strip_ecom_suffix(value):
+        text = str(value or "").strip().upper()
+        if not text:
+            return ""
+        normalized = text
+        for suffix in ("-ECOM", "_ECOM", "ECOM"):
+            if normalized.endswith(suffix) and len(normalized) > len(suffix):
+                normalized = normalized[: -len(suffix)]
+                break
+        if normalized.endswith("-E") and len(normalized) > 2:
+            normalized = normalized[:-2]
+        return normalized.strip("-_") or text
+
+    normalized_item = _strip_ecom_suffix(item)
+    item_dim = _extract_dimensions(normalized_item) or _extract_dimensions(desc)
+    item_token = _normalize_alnum(normalized_item)
+    desc_token = _normalize_alnum(desc)
+    if not item_dim and not item_token:
         return None
-    if category_hint:
+    ecom_hint = _is_ecom_label(category_hint)
+    if category_hint and not ecom_hint:
         candidates = [
             spec for spec in specs if (spec.get("category") or "").upper() == category_hint
+        ]
+    elif ecom_hint:
+        candidates = [
+            spec for spec in specs if not _is_ecom_label(spec.get("category"))
         ]
     else:
         candidates = specs
@@ -1463,17 +1505,49 @@ def _suggest_sku_for_item(item, desc, specs, category_hint=None):
     best_score = -1e9
     for spec in candidates:
         spec_dim = spec.get("_dim")
-        if not spec_dim:
-            continue
-        diff = abs(spec_dim[0] - item_dim[0]) + abs(spec_dim[1] - item_dim[1])
-        score = 100 - (diff * 10)
-        if spec_dim == item_dim:
-            score += 40
+        spec_sku = str(spec.get("sku") or "")
+        spec_desc = str(spec.get("description") or spec.get("notes") or "")
+        spec_sku_token = _normalize_alnum(spec_sku)
+        spec_desc_token = _normalize_alnum(spec_desc)
+
+        score = 0.0
+        if item_token and spec_sku_token:
+            if item_token == spec_sku_token:
+                score += 300.0
+            if item_token in spec_sku_token or spec_sku_token in item_token:
+                score += 140.0
+            score += SequenceMatcher(None, item_token, spec_sku_token).ratio() * 80.0
+        if item_token and spec_desc_token:
+            if item_token in spec_desc_token:
+                score += 120.0
+            score += SequenceMatcher(None, item_token, spec_desc_token).ratio() * 60.0
+        if desc_token and spec_desc_token:
+            score += SequenceMatcher(None, desc_token, spec_desc_token).ratio() * 20.0
+
+        if item_dim and spec_dim:
+            diff = abs(spec_dim[0] - item_dim[0]) + abs(spec_dim[1] - item_dim[1])
+            score += max(0.0, 60.0 - (diff * 12.0))
+            if spec_dim == item_dim:
+                score += 40.0
+        elif item_dim:
+            score -= 10.0
+
+        if item_token and ("CGR" in item_token or "CARGO" in item_token):
+            category = str(spec.get("category") or "").upper()
+            if "CARGO" in category:
+                score += 55.0
+            elif "CARGO" in spec_desc.upper():
+                score += 30.0
+
+        if ecom_hint and _is_ecom_label(spec.get("category")):
+            score -= 80
         if spec.get("category") and spec.get("category") != "UNKNOWN":
             score += 2
         if score > best_score:
             best = spec
             best_score = score
+    if best_score < 80:
+        return None
     return best
 
 
@@ -1527,7 +1601,7 @@ def _build_unmapped_suggestions(unmapped_items):
             payload["suggested"] = {
                 "sku": suggestion.get("sku"),
                 "description": suggestion.get("description") or suggestion.get("notes") or "",
-                "category": category_hint or suggestion.get("category") or "UNKNOWN",
+                "category": suggestion.get("category") or category_hint or "UNKNOWN",
                 "length_with_tongue_ft": suggestion.get("length_with_tongue_ft") or 0,
                 "max_stack_step_deck": suggestion.get("max_stack_step_deck") or 1,
                 "max_stack_flat_bed": suggestion.get("max_stack_flat_bed") or 1,
@@ -2481,6 +2555,12 @@ def _default_optimize_form(plant_code=None):
     )
     form_data["excluded_skus"] = _coerce_excluded_skus(form_data.get("excluded_skus"))
     form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
+    focus_default = str(optimizer_defaults.get("optimize_focus") or "utilization_first").strip().lower()
+    form_data["optimize_focus"] = (
+        focus_default
+        if focus_default in {"balanced", "utilization_first"}
+        else "utilization_first"
+    )
     resolved_plant = _normalize_plant_code(plant_code) or _normalize_plant_code(form_data.get("origin_plant"))
     if not resolved_plant and PLANT_CODES:
         resolved_plant = PLANT_CODES[0]
@@ -3877,6 +3957,7 @@ def _build_optimizer_workbench_trailer_defaults(plants, optimizer_defaults=None)
 
 
 def _get_optimizer_default_settings():
+    default_focus = "utilization_first"
     defaults = {
         "trailer_type": stack_calculator.normalize_trailer_type(
             load_builder.DEFAULT_BUILD_PARAMS.get("trailer_type"),
@@ -3919,6 +4000,7 @@ def _get_optimizer_default_settings():
             if load_builder.DEFAULT_BUILD_PARAMS.get("equal_length_deck_length_order_enabled") is not None
             else DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED
         ),
+        "optimize_focus": default_focus,
     }
     setting = _get_effective_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY)
     raw_text = (setting.get("value_text") or "").strip()
@@ -3972,6 +4054,9 @@ def _get_optimizer_default_settings():
                 if parsed.get("equal_length_deck_length_order_enabled") is not None
                 else bool(defaults["equal_length_deck_length_order_enabled"])
             )
+            parsed_focus = str(parsed.get("optimize_focus") or "").strip().lower()
+            if parsed_focus in {"balanced", "utilization_first"}:
+                defaults["optimize_focus"] = parsed_focus
     defaults["max_back_overhang_ft"] = round(defaults["max_back_overhang_ft"], 2)
     defaults["stop_warning_leg_miles"] = round(
         _coerce_non_negative_float(
@@ -3998,6 +4083,12 @@ def _get_optimizer_default_settings():
             "equal_length_deck_length_order_enabled",
             DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
         )
+    )
+    normalized_focus = str(defaults.get("optimize_focus") or "utilization_first").strip().lower()
+    defaults["optimize_focus"] = (
+        normalized_focus
+        if normalized_focus in {"balanced", "utilization_first"}
+        else "utilization_first"
     )
     defaults["capacity_feet"] = _capacity_for_trailer_setting(
         defaults.get("trailer_type"),
@@ -4295,7 +4386,7 @@ def _with_uploaded_at_display_many(records):
 
 
 def _build_order_upload_freshness(last_upload, today=None):
-    reference_day = today or date.today()
+    reference_day = today or _app_today()
     uploaded_at = _to_est_datetime((last_upload or {}).get("uploaded_at"))
     upload_date = uploaded_at.date() if uploaded_at else None
     has_upload_today = bool(upload_date and upload_date == reference_day)
@@ -4321,7 +4412,7 @@ def _build_order_upload_freshness(last_upload, today=None):
 
 
 def _set_order_refresh_prompt_if_outdated():
-    freshness = _build_order_upload_freshness(db.get_last_upload(), today=date.today())
+    freshness = _build_order_upload_freshness(db.get_last_upload(), today=_app_today())
     if freshness.get("is_outdated"):
         session[SESSION_ORDER_REFRESH_PROMPT_KEY] = True
     else:
@@ -5662,7 +5753,7 @@ def _serialize_session_config(form_data, params):
             "algorithm_version": params.get("algorithm_version") or "v2",
             "compare_algorithms": bool(params.get("compare_algorithms")),
             "optimize_mode": params.get("optimize_mode") or "auto",
-            "optimize_focus": params.get("optimize_focus") or "balanced",
+            "optimize_focus": params.get("optimize_focus") or "utilization_first",
             "manual_order_input": form_data.get("manual_order_input") or "",
             "selected_so_nums": params.get("selected_so_nums") or [],
             "order_category_scope": order_categories.primary_order_category_scope(
@@ -8604,9 +8695,9 @@ def _reoptimize_form_data(plant_code, session_id=None):
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
     form_data["optimize_mode"] = optimize_mode
-    optimize_focus = (session_config.get("optimize_focus") or "balanced").strip().lower()
+    optimize_focus = (session_config.get("optimize_focus") or "utilization_first").strip().lower()
     if optimize_focus not in {"balanced", "utilization_first"}:
-        optimize_focus = "balanced"
+        optimize_focus = "utilization_first"
     form_data["optimize_focus"] = optimize_focus
     form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
         session_config.get("order_category_scopes"),
@@ -10254,7 +10345,12 @@ def api_bulk_add_skus():
         except (TypeError, ValueError):
             max_step = max_flat or 1
 
-        category_value = (entry.get("bin") or entry.get("category") or "").strip()
+        explicit_category = str(entry.get("category") or "").strip()
+        bin_value = str(entry.get("bin") or "").strip()
+        if _is_ecom_label(bin_value) and explicit_category and not _is_ecom_label(explicit_category):
+            category_value = explicit_category
+        else:
+            category_value = explicit_category or bin_value
         category_upper = category_value.upper() if category_value else ""
         if "CARGO" in category_upper:
             max_flat = 1
@@ -10304,7 +10400,7 @@ def orders():
     plant_filters = _resolve_plant_filters(request.args.get("plants") or request.args.get("plant"))
     plant_scope = plant_filters or allowed_plants
     today_override = _resolve_today_override(request.args.get("today"))
-    today = today_override or date.today()
+    today = today_override or _app_today()
     hide_past_due = _coerce_bool_value(request.args.get("hide_past_due"))
 
     due_filter = (request.args.get("due") or "").upper()
@@ -10402,7 +10498,7 @@ def orders():
     optimize_defaults["batch_horizon_enabled"] = True
     optimize_defaults["batch_end_date"] = _default_batch_end_date().strftime("%Y-%m-%d")
     optimize_defaults["orders_start_date"] = ""
-    optimize_defaults["ignore_due_date"] = False
+    optimize_defaults["ignore_due_date"] = True
     optimize_defaults["order_category_scopes"] = _coerce_selected_order_category_scopes(
         optimize_defaults.get("order_category_scopes"),
         fallback=optimize_defaults.get("order_category_scope"),
@@ -10782,8 +10878,12 @@ def orders_optimize():
         active_session_id = None
     active_session_status = _normalize_session_status(active_session.get("status")) if active_session else ""
     optimize_form = request.form.copy()
+    optimizer_defaults = _get_optimizer_default_settings()
+    default_focus = str(optimizer_defaults.get("optimize_focus") or "utilization_first").strip().lower()
+    if default_focus not in {"balanced", "utilization_first"}:
+        default_focus = "utilization_first"
     if not is_admin:
-        optimize_form["optimize_focus"] = "balanced"
+        optimize_form["optimize_focus"] = default_focus
     origin_plant = _normalize_plant_code(optimize_form.get("origin_plant"))
     optimize_mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
     if optimize_mode not in {"auto", "manual"}:
@@ -10919,10 +11019,12 @@ def orders_optimize():
         form_data["compare_algorithms"] = False
         mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
         form_data["optimize_mode"] = mode if mode in {"auto", "manual"} else "auto"
-        focus = (optimize_form.get("optimize_focus") or "balanced").strip().lower()
-        form_data["optimize_focus"] = focus if focus in {"balanced", "utilization_first"} else "balanced"
+        focus = (optimize_form.get("optimize_focus") or default_focus).strip().lower()
+        form_data["optimize_focus"] = (
+            focus if focus in {"balanced", "utilization_first"} else default_focus
+        )
         if not is_admin:
-            form_data["optimize_focus"] = "balanced"
+            form_data["optimize_focus"] = default_focus
         form_data["manual_order_input"] = optimize_form.get("manual_order_input", "")
         form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
             optimize_form.getlist("order_category_scopes"),
@@ -10973,6 +11075,18 @@ def orders_optimize():
     else:
         if replace_session and active_session:
             _archive_session_and_release_loads(active_session_id)
+        if is_admin:
+            admin_focus = (optimize_form.get("optimize_focus") or default_focus).strip().lower()
+            if admin_focus in {"balanced", "utilization_first"}:
+                current_defaults = _get_optimizer_default_settings()
+                current_focus = str(current_defaults.get("optimize_focus") or "").strip().lower()
+                if current_focus != admin_focus:
+                    updated_defaults = dict(current_defaults)
+                    updated_defaults["optimize_focus"] = admin_focus
+                    _upsert_scoped_planning_setting(
+                        OPTIMIZER_DEFAULTS_SETTING_KEY,
+                        json.dumps(updated_defaults),
+                    )
         created_by = _get_session_profile_name() or _get_session_role()
 
         def _session_factory(form_data, params):
@@ -10996,7 +11110,7 @@ def orders_optimize():
         session_id = result.get("session_id")
         _set_active_planning_session_id(session_id)
         redirect_args = {"plants": resolved_origin_plant, "session_id": session_id}
-        selected_focus = (result.get("form_data") or {}).get("optimize_focus") or "balanced"
+        selected_focus = (result.get("form_data") or {}).get("optimize_focus") or "utilization_first"
         if is_admin and str(selected_focus).strip().lower() == "utilization_first":
             redirect_args["sort"] = "util"
         comparison = result.get("algorithm_comparison") or {}
@@ -11031,7 +11145,7 @@ def orders_optimize():
     due_start = request.args.get("due_start", "")
     due_end = request.args.get("due_end", "")
     today_override = _resolve_today_override(request.values.get("today"))
-    today = today_override or date.today()
+    today = today_override or _app_today()
     hide_past_due = _coerce_bool_value(request.values.get("hide_past_due"))
     if due_filter == "PAST_DUE":
         due_start = ""
@@ -18643,7 +18757,14 @@ def save_optimizer_defaults():
                 )
             )
         ),
+        "optimize_focus": (
+            str(payload.get("optimize_focus") or current.get("optimize_focus") or "utilization_first")
+            .strip()
+            .lower()
+        ),
     }
+    if optimized["optimize_focus"] not in {"balanced", "utilization_first"}:
+        optimized["optimize_focus"] = "utilization_first"
 
     _upsert_scoped_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY, json.dumps(optimized))
     trailer_rules = _get_trailer_assignment_rules()
@@ -18867,6 +18988,7 @@ def save_source_led_sku():
     length_with_tongue_ft = _coerce_optional_non_negative_float(payload.get("length_with_tongue_ft"))
     max_stack_step_deck = _coerce_int_value(payload.get("max_stack_step_deck"), current.get("max_stack_step_deck") or 1)
     max_stack_flat_bed = _coerce_int_value(payload.get("max_stack_flat_bed"), current.get("max_stack_flat_bed") or 1)
+    category = str(payload.get("category") or "").strip() or (current.get("category") or "")
     if length_with_tongue_ft is None:
         return jsonify({"error": "Length must be a valid non-negative number."}), 400
     if max_stack_step_deck <= 0 or max_stack_flat_bed <= 0:
@@ -18877,7 +18999,7 @@ def save_source_led_sku():
         sku,
         {
             "description": current.get("description") or "",
-            "category": current.get("category") or "",
+            "category": category,
             "length_with_tongue_ft": round(float(length_with_tongue_ft), 2),
             "max_stack_step_deck": int(max_stack_step_deck),
             "max_stack_flat_bed": int(max_stack_flat_bed),
@@ -18895,6 +19017,7 @@ def save_source_led_sku():
             "length_with_tongue_ft": float(refreshed.get("length_with_tongue_ft") or 0.0),
             "max_stack_step_deck": int(refreshed.get("max_stack_step_deck") or 1),
             "max_stack_flat_bed": int(refreshed.get("max_stack_flat_bed") or 1),
+            "category": refreshed.get("category") or "",
             "mapped_source": source_text,
         }
     )

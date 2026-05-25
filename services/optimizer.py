@@ -2168,6 +2168,13 @@ class Optimizer:
 
         route = [stop.get("zip") for stop in ordered_stops if stop.get("zip")]
         destination_state = self._select_primary_state(all_lines)
+        unique_states = sorted(
+            {
+                (line.get("state") or "").strip().upper()
+                for line in all_lines
+                if (line.get("state") or "").strip()
+            }
+        )
         rate_per_mile = self._average_rate_per_mile(estimated_cost, estimated_miles, stop_count)
 
         direct_miles = self._max_direct_miles(origin_coords, ordered_stops)
@@ -2190,6 +2197,8 @@ class Optimizer:
             "_merge_id": self._next_merge_id(),
             "origin_plant": origin_plant,
             "destination_state": destination_state,
+            "unique_states": unique_states,
+            "unique_states_count": len(unique_states),
             "estimated_miles": estimated_miles,
             "rate_per_mile": rate_per_mile,
             "estimated_cost": estimated_cost,
@@ -2202,6 +2211,9 @@ class Optimizer:
             "status": "PROPOSED",
             "trailer_type": trailer_type,
             "utilization_pct": utilization,
+            "upper_two_across_applied_count": int(
+                stack_config.get("upper_two_across_applied_count") or 0
+            ),
             "exceeds_capacity": exceeds_capacity,
             "optimization_score": consolidation_savings or 0.0,
             "lines": all_lines,
@@ -2326,6 +2338,30 @@ class Optimizer:
                 params.get("v2_lambda_low_util_depth", DEFAULT_V2_LAMBDA_LOW_UTIL_DEPTH)
                 or DEFAULT_V2_LAMBDA_LOW_UTIL_DEPTH
             ),
+            "lambda_upper_two_across": float(
+                params.get("v2_lambda_upper_two_across", 24.0) or 24.0
+            ),
+            "full_load_target_pct": float(
+                params.get("v2_full_load_target_pct", 90.0) or 90.0
+            ),
+            "lambda_full_load_count": float(
+                params.get("v2_lambda_full_load_count", 220.0) or 220.0
+            ),
+            "lambda_full_load_depth": float(
+                params.get("v2_lambda_full_load_depth", 18.0) or 18.0
+            ),
+            "lambda_fill_to_full": float(
+                params.get("v2_lambda_fill_to_full", 4.0) or 4.0
+            ),
+            "lambda_state_purity": float(
+                params.get("v2_lambda_state_purity", 60.0) or 60.0
+            ),
+            "lambda_same_state_merge": float(
+                params.get("v2_lambda_same_state_merge", 40.0) or 40.0
+            ),
+            "lambda_cross_state_merge": float(
+                params.get("v2_lambda_cross_state_merge", 120.0) or 120.0
+            ),
         }
 
     def _low_util_penalty(self, load, threshold):
@@ -2339,15 +2375,86 @@ class Optimizer:
         return count_penalty, depth_penalty
 
     def _objective_bonus_for_merge(self, load_a, load_b, merged_load, objective_weights):
+        def _single_state_code(load):
+            state_text = str(load.get("destination_state") or "").strip().upper()
+            state_tokens = [token.strip() for token in re.split(r"[,+/|;]+", state_text) if token.strip()]
+            unique_count = int(load.get("unique_states_count") or (1 if state_text else 0))
+            if unique_count == 1 and state_tokens:
+                return state_tokens[0]
+            if unique_count == 1 and state_text:
+                return state_text
+            return ""
+
         threshold = objective_weights.get("low_util_threshold", LOW_UTIL_THRESHOLD_PCT)
         lambda_count = objective_weights.get("lambda_low_util_count", 0.0)
         lambda_depth = objective_weights.get("lambda_low_util_depth", 0.0)
+        lambda_upper_two_across = objective_weights.get("lambda_upper_two_across", 0.0)
+        full_load_target = objective_weights.get("full_load_target_pct", 90.0)
+        lambda_full_load_count = objective_weights.get("lambda_full_load_count", 0.0)
+        lambda_full_load_depth = objective_weights.get("lambda_full_load_depth", 0.0)
+        lambda_fill_to_full = objective_weights.get("lambda_fill_to_full", 0.0)
+        lambda_state_purity = objective_weights.get("lambda_state_purity", 0.0)
+        lambda_same_state_merge = objective_weights.get("lambda_same_state_merge", 0.0)
+        lambda_cross_state_merge = objective_weights.get("lambda_cross_state_merge", 0.0)
         before_count_a, before_depth_a = self._low_util_penalty(load_a, threshold)
         before_count_b, before_depth_b = self._low_util_penalty(load_b, threshold)
         after_count, after_depth = self._low_util_penalty(merged_load, threshold)
         count_bonus = (before_count_a + before_count_b - after_count) * lambda_count
         depth_bonus = (before_depth_a + before_depth_b - after_depth) * lambda_depth
-        return count_bonus + depth_bonus
+        before_upper_two_across = int(load_a.get("upper_two_across_applied_count") or 0) + int(
+            load_b.get("upper_two_across_applied_count") or 0
+        )
+        after_upper_two_across = int(merged_load.get("upper_two_across_applied_count") or 0)
+        upper_two_across_bonus = (
+            (after_upper_two_across - before_upper_two_across) * lambda_upper_two_across
+        )
+        util_a = float(load_a.get("utilization_pct") or 0.0)
+        util_b = float(load_b.get("utilization_pct") or 0.0)
+        util_m = float(merged_load.get("utilization_pct") or 0.0)
+        before_full_count = (1 if util_a >= full_load_target else 0) + (1 if util_b >= full_load_target else 0)
+        after_full_count = 1 if util_m >= full_load_target else 0
+        full_count_bonus = (before_full_count - after_full_count) * (-lambda_full_load_count)
+
+        before_full_depth = max(full_load_target - util_a, 0.0) + max(full_load_target - util_b, 0.0)
+        after_full_depth = max(full_load_target - util_m, 0.0)
+        full_depth_bonus = (before_full_depth - after_full_depth) * lambda_full_load_depth
+
+        # Continuous "fill as close to 100% as possible" pressure.
+        # Uses squared distance-to-full so benefits grow as loads become truly full.
+        cap_a = min(max(util_a, 0.0), 100.0)
+        cap_b = min(max(util_b, 0.0), 100.0)
+        cap_m = min(max(util_m, 0.0), 100.0)
+        before_fill_loss = ((100.0 - cap_a) ** 2) + ((100.0 - cap_b) ** 2)
+        after_fill_loss = (100.0 - cap_m) ** 2
+        fill_to_full_bonus = (before_fill_loss - after_fill_loss) * lambda_fill_to_full
+
+        states_a = int(load_a.get("unique_states_count") or (1 if load_a.get("destination_state") else 0))
+        states_b = int(load_b.get("unique_states_count") or (1 if load_b.get("destination_state") else 0))
+        states_m = int(merged_load.get("unique_states_count") or (1 if merged_load.get("destination_state") else 0))
+        before_mix_penalty = max(states_a - 1, 0) + max(states_b - 1, 0)
+        after_mix_penalty = max(states_m - 1, 0)
+        state_purity_bonus = (before_mix_penalty - after_mix_penalty) * lambda_state_purity
+        same_state_bonus = 0.0
+        cross_state_penalty = 0.0
+        state_a = _single_state_code(load_a)
+        state_b = _single_state_code(load_b)
+        if state_a and state_b:
+            if state_a == state_b and states_m == 1:
+                same_state_bonus = lambda_same_state_merge
+            elif state_a != state_b and states_m > 1:
+                cross_state_penalty = lambda_cross_state_merge
+
+        return (
+            count_bonus
+            + depth_bonus
+            + upper_two_across_bonus
+            + full_count_bonus
+            + full_depth_bonus
+            + fill_to_full_bonus
+            + state_purity_bonus
+            + same_state_bonus
+            - cross_state_penalty
+        )
 
     def _detour_pct(self, load):
         estimated_miles = load.get("estimated_miles") or 0
@@ -2769,6 +2876,7 @@ class Optimizer:
             upper_deck_exception_overhang_allowance_ft=params.get("upper_deck_exception_overhang_allowance_ft"),
             upper_deck_exception_categories=params.get("upper_deck_exception_categories"),
             equal_length_deck_length_order_enabled=params.get("equal_length_deck_length_order_enabled"),
+            aggressive_upper_two_across_prepack=params.get("v2_aggressive_upper_two_across_prepack"),
         )
 
     def _groups_require_wedge(self, groups):
@@ -2807,6 +2915,7 @@ class Optimizer:
         upper_deck_exception_overhang_allowance_ft=None,
         upper_deck_exception_categories=None,
         equal_length_deck_length_order_enabled=None,
+        aggressive_upper_two_across_prepack=None,
     ):
         group_keys = tuple(group.get("key") for group in groups if group.get("key"))
         trailer_key = stack_calculator.normalize_trailer_type(trailer_type, default="STEP_DECK")
@@ -2836,6 +2945,7 @@ class Optimizer:
                     upper_deck_exception_categories
                 )
             ),
+            bool(aggressive_upper_two_across_prepack),
             (
                 bool(equal_length_deck_length_order_enabled)
                 if equal_length_deck_length_order_enabled is not None
@@ -2888,6 +2998,7 @@ class Optimizer:
             upper_deck_exception_overhang_allowance_ft=upper_deck_exception_overhang_allowance_ft,
             upper_deck_exception_categories=upper_deck_exception_categories,
             equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+            aggressive_upper_two_across_prepack=aggressive_upper_two_across_prepack,
         )
 
         # Auto-upgrade step deck when deck split constraints make the requested trailer infeasible.
@@ -2918,6 +3029,7 @@ class Optimizer:
                             upper_deck_exception_categories
                         )
                     ),
+                    bool(aggressive_upper_two_across_prepack),
                     (
                         bool(equal_length_deck_length_order_enabled)
                         if equal_length_deck_length_order_enabled is not None
@@ -2938,6 +3050,7 @@ class Optimizer:
                         upper_deck_exception_overhang_allowance_ft=upper_deck_exception_overhang_allowance_ft,
                         upper_deck_exception_categories=upper_deck_exception_categories,
                         equal_length_deck_length_order_enabled=equal_length_deck_length_order_enabled,
+                        aggressive_upper_two_across_prepack=aggressive_upper_two_across_prepack,
                     )
                     self._stack_cache[candidate_cache_key] = candidate_config
                 if candidate_config and not candidate_config.get("exceeds_capacity"):

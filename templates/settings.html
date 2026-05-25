@@ -257,7 +257,7 @@
                     </tr>
                     <tr>
                       <td>Upper Deck Two-Across Max Length (ft)</td>
-                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_two_across_max_length_ft" value="{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
+                      <td><input class="select-field settings-default-input" type="number" min="0" step="0.1" name="upper_two_across_max_length_ft" value="{{ optimizer_defaults.upper_two_across_max_length_ft or 8 }}" {% if not can_edit_settings %}disabled{% endif %}></td>
                       <td class="settings-default-note">For step decks, items at or below this length can be treated as 2-across on upper deck to add capacity. Upper deck stacking still uses flatbed max stack values.</td>
                     </tr>
                     <tr>
@@ -800,7 +800,18 @@
                       <td data-source-extra-col hidden>{{ row.bin or '-' }}</td>
                       <td data-source-extra-col hidden>{{ row.mapped_sku or '-' }}</td>
                       <td data-source-extra-col hidden>{{ row.mapped_description or '-' }}</td>
-                      <td>{{ row.category or '-' }}</td>
+                      <td>
+                        {% if can_edit_settings and row.can_edit_specs %}
+                          <input
+                            class="table-input source-led-input"
+                            type="text"
+                            data-source-field="category"
+                            value="{{ row.category or '' }}"
+                          >
+                        {% else %}
+                          {{ row.category or '-' }}
+                        {% endif %}
+                      </td>
                       <td>
                         {% if can_edit_settings and row.can_edit_specs %}
                           <input
@@ -1301,7 +1312,7 @@
                     </tr>
                     <tr>
                       <td>Upper Deck Two-Across Max Length (ft)</td>
-                      <td>{{ optimizer_defaults.upper_two_across_max_length_ft or 7 }}</td>
+                      <td>{{ optimizer_defaults.upper_two_across_max_length_ft or 8 }}</td>
                       <td>Step deck upper-deck stacks at or below this length can be modeled 2-across. Upper deck stack height still follows flatbed max-stack per SKU.</td>
                     </tr>
                     <tr>
@@ -2249,6 +2260,12 @@
           return Number.isFinite(numeric) ? numeric : null;
         };
 
+        const parseTextFieldValue = (row, fieldName, fallback = '') => {
+          const input = row.querySelector(`[data-source-field="${fieldName}"]`);
+          if (!input) return fallback;
+          return (input.value || '').trim();
+        };
+
         const bindSourceLedSave = (row) => {
           const saveBtn = row.querySelector('[data-source-led-save]');
           if (!saveBtn) return;
@@ -2269,6 +2286,7 @@
             }
             const payload = {
               sku,
+              category: parseTextFieldValue(row, 'category', row.dataset.category || ''),
               length_with_tongue_ft: parseFieldValue(row, 'length_with_tongue_ft'),
               max_stack_step_deck: parseFieldValue(row, 'max_stack_step_deck'),
               max_stack_flat_bed: parseFieldValue(row, 'max_stack_flat_bed'),
@@ -2298,6 +2316,7 @@
                 const lengthInput = row.querySelector('[data-source-field="length_with_tongue_ft"]');
                 const stepInput = row.querySelector('[data-source-field="max_stack_step_deck"]');
                 const flatInput = row.querySelector('[data-source-field="max_stack_flat_bed"]');
+                const categoryInput = row.querySelector('[data-source-field="category"]');
                 const sourceNode = row.querySelector('[data-source-led-source]');
                 if (lengthInput && Number.isFinite(Number(body.length_with_tongue_ft))) {
                   lengthInput.value = Number(body.length_with_tongue_ft).toFixed(1);
@@ -2307,6 +2326,10 @@
                 }
                 if (flatInput && Number.isFinite(Number(body.max_stack_flat_bed))) {
                   flatInput.value = String(Math.max(1, Number(body.max_stack_flat_bed)));
+                }
+                if (categoryInput && typeof body.category === 'string') {
+                  categoryInput.value = body.category;
+                  row.dataset.category = body.category;
                 }
                 if (sourceNode) {
                   sourceNode.textContent = body.mapped_source || 'Updated';

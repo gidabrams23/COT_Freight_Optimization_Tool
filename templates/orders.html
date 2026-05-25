@@ -46,7 +46,7 @@
                   <input type="hidden" name="geo_radius" value="{{ optimize_defaults.geo_radius }}">
                   <input type="hidden" name="stack_overflow_max_height" value="{{ optimize_defaults.stack_overflow_max_height or 5 }}">
                   <input type="hidden" name="max_back_overhang_ft" value="{{ optimize_defaults.max_back_overhang_ft or 4 }}">
-                  <input type="hidden" name="upper_two_across_max_length_ft" value="{{ optimize_defaults.upper_two_across_max_length_ft or 7 }}">
+                  <input type="hidden" name="upper_two_across_max_length_ft" value="{{ optimize_defaults.upper_two_across_max_length_ft or 8 }}">
                   <input type="hidden" name="upper_deck_exception_max_length_ft" value="{{ optimize_defaults.upper_deck_exception_max_length_ft or 16 }}">
                   <input type="hidden" name="upper_deck_exception_overhang_allowance_ft" value="{{ optimize_defaults.upper_deck_exception_overhang_allowance_ft or 6 }}">
                   {% for category in (optimize_defaults.upper_deck_exception_categories or ['USA', 'UTA']) %}
@@ -108,7 +108,7 @@
                             type="radio"
                             name="optimize_focus"
                             value="utilization_first"
-                            {% if (optimize_defaults.optimize_focus or 'balanced') == 'utilization_first' %}checked{% endif %}
+                            {% if (optimize_defaults.optimize_focus or 'utilization_first') == 'utilization_first' %}checked{% endif %}
                           >
                           <span>Utilization First</span>
                         </label>
@@ -117,12 +117,12 @@
                             type="radio"
                             name="optimize_focus"
                             value="balanced"
-                            {% if (optimize_defaults.optimize_focus or 'balanced') != 'utilization_first' %}checked{% endif %}
+                            {% if (optimize_defaults.optimize_focus or 'utilization_first') != 'utilization_first' %}checked{% endif %}
                           >
                           <span>Balanced</span>
                         </label>
                       {% else %}
-                        <input type="hidden" name="optimize_focus" value="balanced">
+                        <input type="hidden" name="optimize_focus" value="{{ optimize_defaults.optimize_focus or 'utilization_first' }}">
                       {% endif %}
                       <span class="workbench-top-hint">
                         {% if active_session and active_session.session_code %}
@@ -3664,6 +3664,21 @@
           return length + 4;
         };
 
+        const isEcomLabel = (value) => {
+          const normalized = (value || '').toString().trim().toUpperCase();
+          return normalized === 'ECOM' || normalized.endsWith('-ECOM') || normalized.startsWith('ECOM-');
+        };
+
+        const resolveCategorySeed = (entry, suggestion) => {
+          const hinted = entry.category_hint || '';
+          const binValue = entry.bin || '';
+          const suggestedCategory = suggestion.category || '';
+          if (isEcomLabel(hinted) || isEcomLabel(binValue)) {
+            return suggestedCategory || '';
+          }
+          return binValue || hinted || suggestedCategory || '';
+        };
+
         const applyCargoDefaults = (card) => {
           if (!card) return;
           const bin = card.dataset.bin || '';
@@ -3701,7 +3716,7 @@
         if (unmappedCount) unmappedCount.textContent = `${sortedItems.length}`;
         sortedItems.forEach((entry) => {
           const suggestion = entry.suggested || {};
-          const categorySeed = entry.category_hint || suggestion.category || '';
+          const categorySeed = resolveCategorySeed(entry, suggestion);
           const card = document.createElement('div');
           card.className = 'upload-unmapped-card';
           card.dataset.item = entry.item || '';
@@ -3719,7 +3734,7 @@
             <div class="upload-unmapped-fields">
               <div class="upload-unmapped-field">
                 <label>Category</label>
-                <input type="text" data-field="category" value="${escapeHtml(entry.bin || categorySeed)}" readonly>
+                <input type="text" data-field="category" value="${escapeHtml(categorySeed)}" readonly>
               </div>
               <div class="upload-unmapped-field">
                 <label>Length (ft)</label>
@@ -3752,10 +3767,11 @@
               const sku = card.dataset.item || '';
               const desc = card.dataset.desc || '';
               const bin = card.dataset.bin || '';
+              const categoryInput = card.querySelector('[data-field="category"]')?.value || '';
               const lengthInput = card.querySelector('[data-field="length"]');
               const maxFlatInput = card.querySelector('[data-field="max_flat"]');
               const maxStepInput = card.querySelector('[data-field="max_step"]');
-              const isCargo = isCargoCategory(bin);
+              const isCargo = isCargoCategory(bin) || isCargoCategory(categoryInput);
               let length = lengthInput?.value || '';
               let maxFlat = maxFlatInput?.value || '';
               let maxStep = maxStepInput?.value || '';
@@ -3783,6 +3799,7 @@
                       {
                         sku,
                         description: desc,
+                        category: categoryInput,
                         bin,
                         length_with_tongue_ft: length,
                         max_stack_flat_bed: maxFlat,
@@ -3842,7 +3859,7 @@
           const desc = card.dataset.desc || '';
           const categoryInput = card.querySelector('[data-field="category"]')?.value || '';
           const bin = card.dataset.bin || '';
-          const category = bin || categoryInput;
+          const category = isEcomLabel(bin) ? categoryInput : (bin || categoryInput);
           const lengthInput = card.querySelector('[data-field="length"]');
           const maxFlatInput = card.querySelector('[data-field="max_flat"]');
           const maxStepInput = card.querySelector('[data-field="max_step"]');

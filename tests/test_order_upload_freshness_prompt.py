@@ -31,6 +31,20 @@ def test_build_order_upload_freshness_marks_outdated_when_last_upload_not_today(
     assert freshness["status_label"] == "Outdated"
 
 
+def test_build_order_upload_freshness_uses_app_timezone_today_by_default(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "_app_today",
+        lambda: app_module.date(2026, 3, 20),
+    )
+    freshness = app_module._build_order_upload_freshness(
+        {"uploaded_at": "2026-03-20 00:30:00"}
+    )
+
+    assert freshness["is_outdated"] is False
+    assert freshness["status_label"] == "Up to Date"
+
+
 def test_login_sets_refresh_prompt_flag_when_orders_are_outdated(monkeypatch):
     client = app_module.app.test_client()
     monkeypatch.setattr(app_module, "ENTRA_SSO_ACTIVE", False)
