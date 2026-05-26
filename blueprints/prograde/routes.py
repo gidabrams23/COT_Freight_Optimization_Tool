@@ -826,8 +826,11 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None, pj_sku_ma
     else:
         sku = (bt_sku_map or {}).get(p["item_number"]) or {}
 
+    item_number = str(p.get("item_number") or "").strip().upper()
+    old_model = str(sku.get("old_model") or "").strip()
     p["footprint"] = round(sku.get("total_footprint") or 0, 2)
-    p["model"] = sku.get("model", "")
+    p["model"] = (old_model or sku.get("model", "")) if brand == "bwise" else sku.get("model", "")
+    p["old_model"] = old_model
     p["description"] = sku.get("description", "")
     p["pj_category"] = sku.get("pj_category", "")
     p["mcat"] = sku.get("mcat", "")
@@ -837,7 +840,7 @@ def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None, pj_sku_ma
     p["item_code"] = (
         _pj_picker_short_item_code(sku)
         if brand == "pj"
-        else str(p.get("item_number") or "").strip()
+        else ((old_model or item_number) if brand == "bwise" else item_number)
     )
     p["gn_axle_droppable"] = bool(sku.get("gn_axle_droppable"))
     p["can_nest_inside_dump"] = bool(sku.get("can_nest_inside_dump"))
@@ -3278,31 +3281,10 @@ def _build_pj_picker_skus():
 def _build_bwise_picker_skus():
     picker_rows = []
     rows = [dict(row) for row in db.get_bwise_skus()]
-    old_model_geometry = {}
-    for sku in rows:
-        old_model_key = str(sku.get("old_model") or "").strip().upper()
-        if not old_model_key:
-            continue
-        old_model_geometry.setdefault(old_model_key, set()).add(
-            (
-                round(_as_float(sku.get("bed_length"), 0.0), 3),
-                round(_as_float(sku.get("tongue"), 0.0), 3),
-                round(_as_float(sku.get("total_footprint"), 0.0), 3),
-            )
-        )
-    conflict_old_models = {
-        old_model
-        for old_model, geometry_set in old_model_geometry.items()
-        if len(geometry_set) > 1
-    }
-
     for sku in rows:
         old_model = str(sku.get("old_model") or "").strip()
         item_number = str(sku.get("item_number") or "").strip().upper()
-        old_model_key = old_model.upper()
         display_item = old_model or item_number
-        if old_model_key in conflict_old_models and item_number:
-            display_item = f"{display_item} ({item_number})"
         sku["item_display"] = display_item
         sku["picker_item_display"] = display_item
         picker_rows.append(sku)

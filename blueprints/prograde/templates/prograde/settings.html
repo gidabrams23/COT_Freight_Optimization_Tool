@@ -2,6 +2,7 @@
 {% block title %}Settings - ProGrade{% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap">
 <style>
 .pg-settings-tabs {
   display: inline-flex;
@@ -397,6 +398,278 @@
   font-style: italic;
 }
 
+.settings-save-popup {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: min(340px, calc(100vw - 24px));
+  border-radius: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  background: rgba(3, 12, 24, 0.98);
+  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.5);
+  color: rgba(226, 232, 240, 0.98);
+  padding: 10px 11px;
+  display: none;
+  z-index: 2400;
+}
+.settings-save-popup.open {
+  display: block;
+}
+.settings-save-popup-title {
+  font-size: 12.8px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  margin-bottom: 6px;
+}
+.settings-save-popup-status {
+  font-size: 12px;
+  color: rgba(191, 219, 254, 0.95);
+}
+.settings-save-popup-status.error {
+  color: rgba(252, 165, 165, 0.98);
+}
+.settings-save-popup-actions {
+  display: flex;
+  margin-top: 9px;
+  justify-content: flex-end;
+}
+
+/* SKU registry redesign */
+.page-body.settings-sections {
+  background: #1a222d;
+}
+.sku-registry-panel {
+  background: #232c37;
+  border: 1px solid rgba(99, 140, 200, 0.2);
+  font-family: "DM Sans", sans-serif;
+}
+.sku-registry-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sku-registry-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #58647a;
+}
+.sku-registry-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.sku-registry-add-btn {
+  background: #388bfd;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.sku-registry-placeholder-pill {
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid rgba(210, 153, 34, 0.3);
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+}
+.sku-registry-panel .card-header {
+  border-bottom: 1px solid rgba(99, 140, 200, 0.14);
+}
+.sku-registry-panel .card-title {
+  color: #e6edf3;
+}
+.sku-registry-panel .card-subtitle {
+  color: #8b949e;
+}
+.sku-registry-panel .form-control,
+.sku-registry-panel .editable-cell,
+.sku-registry-panel .editable-select {
+  background: #2a3547;
+  border: 1px solid rgba(99, 140, 200, 0.26);
+  color: #e6edf3;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.sku-registry-panel .form-control:focus,
+.sku-registry-panel .editable-cell:focus,
+.sku-registry-panel .editable-select:focus {
+  border-color: #388bfd;
+  outline: none;
+  box-shadow: none;
+}
+.sku-registry-panel .sku-add-shell {
+  background: #232c37;
+  border: 1px solid rgba(99, 140, 200, 0.16);
+}
+.sku-registry-panel .sku-add-title {
+  color: #58647a;
+}
+.sku-registry-panel .sku-add-col label {
+  color: #8b949e;
+}
+.sku-registry-panel .table-wrap {
+  background: #1a222d;
+  border: 1px solid rgba(99, 140, 200, 0.16);
+}
+.sku-registry-panel table {
+  background: #1a222d;
+}
+.sku-registry-panel thead tr {
+  background: rgba(37, 46, 62, 0.72);
+  border-bottom: 1px solid rgba(99, 140, 200, 0.2);
+}
+.sku-registry-panel thead th {
+  color: #58647a;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.sku-registry-panel tbody tr {
+  border-bottom: 1px solid rgba(99, 140, 200, 0.14);
+}
+.sku-registry-panel .group-row.sku-category-row > td {
+  background: #2a3345;
+  border-left: 3px solid #388bfd;
+  padding-left: 16px;
+}
+.sku-registry-panel .group-row.sku-family-row > td {
+  background: #242f3d;
+  border-left: 3px solid rgba(56, 139, 253, 0.35);
+  padding-left: 36px;
+}
+.sku-registry-panel .group-toggle {
+  padding: 10px 10px;
+}
+.sku-registry-panel .group-row.sku-category-row .group-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+}
+.sku-registry-panel .group-row.sku-family-row .group-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8b949e;
+}
+.sku-registry-panel .group-meta {
+  border-radius: 20px;
+  font-size: 10px;
+  color: #388bfd;
+  background: rgba(56, 139, 253, 0.1);
+  border: 1px solid rgba(56, 139, 253, 0.28);
+}
+.sku-registry-panel .group-meta.family {
+  border: none;
+  background: transparent;
+  color: #58647a;
+  font-size: 10px;
+  padding-right: 2px;
+}
+.sku-registry-panel .group-meta.warn {
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid rgba(210, 153, 34, 0.3);
+}
+.sku-registry-panel .group-toggle-right {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.sku-registry-panel .group-caret {
+  border: none;
+  width: auto;
+  height: auto;
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+.sku-registry-panel .group-caret::before {
+  content: "▶";
+  font-size: 11px;
+  color: #58647a;
+}
+.sku-registry-panel .group-row.sku-category-row .group-caret::before {
+  color: #388bfd;
+}
+.sku-registry-panel .group-caret.open {
+  transform: rotate(90deg);
+}
+.sku-registry-panel .sku-data-row td {
+  background: #1a222d;
+  color: #8b949e;
+  font-size: 11.5px;
+  padding: 8px 12px 8px 0;
+}
+.sku-registry-panel .sku-data-row:nth-of-type(even) td {
+  background: rgba(255, 255, 255, 0.03);
+}
+.sku-registry-panel tbody tr:hover > td {
+  background: #33405a !important;
+}
+.sku-registry-panel .sku-data-row td:first-child {
+  padding-left: 56px;
+}
+.sku-registry-panel .sku-data-row .td-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #388bfd;
+  font-size: 10.5px;
+}
+.sku-registry-panel .sku-old-model-cell {
+  color: #58647a !important;
+  font-size: 10.5px !important;
+}
+.sku-registry-panel .sku-num,
+.sku-registry-panel .sku-num .editable-cell {
+  color: #e6edf3 !important;
+  text-align: right;
+}
+.sku-registry-panel .sku-footprint.placeholder {
+  color: #d29922 !important;
+}
+.sku-status-pill {
+  display: inline-block;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+}
+.sku-status-pill.placeholder {
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid rgba(210, 153, 34, 0.3);
+}
+.sku-status-pill.confirmed {
+  color: #3fb950;
+  background: rgba(63, 185, 80, 0.1);
+  border: 1px solid rgba(63, 185, 80, 0.25);
+}
+.sku-action-cell {
+  text-align: right;
+}
+.sku-edit-btn {
+  background: none;
+  border: 1px solid rgba(99, 140, 200, 0.15);
+  color: #58647a;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.sku-edit-btn:hover {
+  border-color: #388bfd;
+  color: #388bfd;
+  background: rgba(56, 139, 253, 0.1);
+}
+
 .offset-visual-grid {
   margin-bottom: 10px;
   display: grid;
@@ -676,9 +949,16 @@
     <div class="pg-small-help">Advanced schematic category-link configuration has been removed from this page because active runtime rendering/validation does not use it.</div>
   </div>
 
-  <div class="card pg-settings-section hidden" data-settings-tab="pj">
+  <div class="card pg-settings-section hidden sku-registry-panel" data-settings-tab="pj">
     <div class="card-header">
       <div>
+        <div class="sku-registry-heading">
+          <div class="sku-registry-label">SKU Dimensions Registry</div>
+          <div class="sku-registry-actions">
+            <span class="sku-registry-placeholder-pill">0 placeholder heights</span>
+            <button type="button" class="sku-registry-add-btn" data-scroll-target="pj-add-sku-form">Add SKU</button>
+          </div>
+        </div>
         <div class="card-title">PJ SKU Cheat Sheet</div>
         <div class="card-subtitle">Category -> Model -> Item hierarchy with live editable geometry fields.</div>
       </div>
@@ -754,17 +1034,21 @@
           <tr class="pg-group-row">
             <th colspan="4">SKU Identifiers / Name</th>
             <th colspan="5">Deck Dimensions</th>
+            <th>Status</th>
+            <th></th>
           </tr>
           <tr>
-            <th class="pg-ident-col">Category</th>
+            <th class="pg-ident-col">Part #</th>
+            <th class="pg-ident-col">Old Model</th>
             <th class="pg-ident-col">Model</th>
-            <th class="pg-ident-col">Item #</th>
-            <th class="pg-ident-col">Item Code</th>
+            <th class="pg-ident-col">Code</th>
             <th>Bottom/Mid Height (ft)</th>
-            <th>Top Height (ft)</th>
+            <th>Stack Ht (ft)</th>
             <th>Bed Length (ft)</th>
             <th>Tongue (ft)</th>
             <th>Footprint (ft)</th>
+            <th>Status</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -774,16 +1058,18 @@
             {% set category_label = (category_group.list[0].settings_category_label if category_group.list else category_key) %}
             {% set category_items = category_group.list %}
             {% set category_models = category_items | groupby('model') | list %}
-            <tr class="group-row pj-category-row"
+            <tr class="group-row pj-category-row sku-category-row"
                 data-pj-category="{{ category_key }}"
                 data-search="{{ category_key }} {{ category_label }}">
-              <td colspan="9">
+              <td colspan="11">
                 <button type="button" class="group-toggle" data-pj-toggle-category="{{ category_key }}" aria-expanded="true">
                   <span class="group-left">
                     <span class="group-caret open" data-pj-caret></span>
                     <span class="group-label">{{ category_label or 'Uncategorized' }}</span>
                   </span>
-                  <span class="group-meta">{{ category_models | length }} models - {{ category_items | length }} items</span>
+                  <span class="group-toggle-right">
+                    <span class="group-meta">{{ category_models | length }} families · {{ category_items | length }} items</span>
+                  </span>
                 </button>
               </td>
             </tr>
@@ -791,11 +1077,11 @@
             {% for model_group in category_items | groupby('model') %}
               {% set model_label = model_group.grouper or 'Unknown Model' %}
               {% set model_items = model_group.list %}
-              <tr class="group-row model-row pj-model-row"
+              <tr class="group-row model-row pj-model-row sku-family-row"
                   data-pj-category="{{ category_key }}"
                   data-pj-model="{{ model_label }}"
                   data-search="{{ category_key }} {{ model_label }}">
-                <td colspan="9">
+                <td colspan="11">
                   <button type="button"
                           class="group-toggle"
                           data-pj-toggle-model="{{ category_key }}||{{ model_label }}"
@@ -806,71 +1092,74 @@
                       <span class="group-caret" data-pj-caret></span>
                       <span class="group-label">{{ model_label }}</span>
                     </span>
-                    <span class="group-meta">{{ model_items | length }} items</span>
+                    <span class="group-meta family">{{ model_items | length }} items</span>
                   </button>
                 </td>
               </tr>
 
               {% for s in model_items %}
                 {% set is_dump = 'dump' in (s.pj_category or '') %}
-                <tr class="pj-sku-row pj-item-row"
+                <tr class="pj-sku-row pj-item-row sku-data-row"
                     data-pj-item="{{ s.item_number }}"
                     data-pj-category="{{ category_key }}"
                     data-pj-model="{{ model_label }}"
                     data-search="{{ s.item_number }} {{ s.item_code or '' }} {{ s.model }} {{ s.pj_category }} {{ s.settings_category_label or '' }} {{ s.description or '' }}">
-                  <td class="pg-ident-cell">
-                    <select class="editable-select"
-                            data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="pj_category">
-                      {% for val, lbl in pj_settings_categories %}
-                        <option value="{{ val }}" {% if s.settings_category == val %}selected{% endif %}>{{ lbl }}</option>
-                      {% endfor %}
-                    </select>
+                  <td class="td-mono pg-ident-cell">
+                    {{ s.item_number }}
+                  </td>
+                  <td class="sku-old-model-cell pg-ident-cell">
+                    {{ s.model }}
                   </td>
                   <td class="td-mono pg-ident-cell">{{ s.model }}</td>
-                  <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
                   <td class="td-mono pg-ident-cell">{{ s.item_code or '' }}</td>
-
-                  {% if is_dump %}
-                    <td colspan="2" class="pj-dump-height-note">
-                      Dump stack envelope follows wall size mapping: 2 -> 4, 3 -> 5, 4 -> 6.
-                    </td>
-                  {% else %}
-                    <td>
+                  <td class="sku-num">
+                    {% if is_dump %}
+                      <span class="sku-old-model-cell">dump mapped</span>
+                    {% else %}
                       <input type="number" step="0.25"
                              class="editable-cell" style="min-width:90px"
                              data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_mid_ft"
                              value="{{ s.height_mid_ft if s.height_mid_ft is not none else '' }}" />
-                    </td>
-                    <td>
+                    {% endif %}
+                  </td>
+                  <td class="sku-num">
+                    {% if is_dump %}
+                      <span class="sku-num">{{ '%.1f'|format(s.height_top_ft or 0) }}</span>
+                    {% else %}
                       <input type="number" step="0.25"
                              class="editable-cell" style="min-width:90px"
                              data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="height_top_ft"
                              value="{{ s.height_top_ft if s.height_top_ft is not none else '' }}" />
-                    </td>
-                  {% endif %}
-
-                  <td>
+                    {% endif %}
+                  </td>
+                  <td class="sku-num">
                     <input type="number" step="0.25"
                            class="editable-cell" style="min-width:90px"
                            id="measured-input-{{ s.item_number }}"
                            data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="bed_length_measured"
                            value="{{ s.bed_length_measured if s.bed_length_measured is not none else '' }}" />
                   </td>
-                  <td>
+                  <td class="sku-num">
                     <input type="number" step="0.25"
                            class="editable-cell" style="min-width:90px"
                            id="tongue-input-{{ s.item_number }}"
                            data-table="pj_skus" data-pk="{{ s.item_number }}" data-field="tongue_feet"
                            value="{{ s.tongue_feet if s.tongue_feet is not none else '' }}" />
                   </td>
-                  <td class="td-mono" id="footprint-{{ s.item_number }}"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+                  <td class="td-mono sku-num" id="footprint-{{ s.item_number }}"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+                  <td>
+                    <span class="sku-status-pill confirmed">Confirmed</span>
+                  </td>
+                  <td class="sku-action-cell">
+                    <button type="button" class="sku-edit-btn" data-edit-row>Edit</button>
+                  </td>
                 </tr>
               {% endfor %}
             {% endfor %}
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="9" style="text-align:center;color:var(--text-secondary);padding:14px;">
+            <td colspan="11" style="text-align:center;color:var(--text-secondary);padding:14px;">
               No PJ SKUs loaded yet. Use Add SKU to create the first entry.
             </td>
           </tr>
@@ -936,9 +1225,17 @@
     </div>
   </div>
 
-  <div class="card pg-settings-section hidden" data-settings-tab="bwise">
+  <div class="card pg-settings-section hidden sku-registry-panel" data-settings-tab="bwise">
     <div class="card-header">
       <div>
+        {% set bw_placeholder_total = (bw_skus | selectattr('stack_height_is_placeholder') | list | length) %}
+        <div class="sku-registry-heading">
+          <div class="sku-registry-label">SKU Dimensions Registry</div>
+          <div class="sku-registry-actions">
+            <span class="sku-registry-placeholder-pill">{{ bw_placeholder_total }} placeholder heights</span>
+            <button type="button" class="sku-registry-add-btn" data-scroll-target="bw-add-sku-form">Add SKU</button>
+          </div>
+        </div>
         <div class="card-title">B-Wise SKU Standards</div>
         <div class="card-subtitle">Major Category -> Family -> Old Model hierarchy. Part # remains the SKU identity key.</div>
       </div>
@@ -1005,7 +1302,7 @@
         <thead>
           <tr class="pg-group-row">
             <th colspan="4">SKU Identity / Display</th>
-            <th colspan="5">Stacking Dimensions</th>
+            <th colspan="6">Stacking Dimensions</th>
           </tr>
           <tr>
             <th class="pg-ident-col">Major Category</th>
@@ -1015,8 +1312,10 @@
             <th>Bed Length (ft)</th>
             <th>Tongue (ft)</th>
             <th>Footprint (ft)</th>
-            <th>Stack Height (ft)</th>
-            <th>Placeholder</th>
+            <th>Stack Ht (in)</th>
+            <th>Stack Ht (ft)</th>
+            <th>Status</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -1025,27 +1324,33 @@
             {% set category_label = category_group.grouper or 'Uncategorized' %}
             {% set category_items = category_group.list %}
             {% set category_models = category_items | groupby('model') | list %}
-            <tr class="group-row bw-category-row"
+            {% set category_placeholder_count = (category_items | selectattr('stack_height_is_placeholder') | list | length) %}
+            <tr class="group-row bw-category-row sku-category-row"
                 data-bw-category="{{ category_label }}"
                 data-search="{{ category_label }}">
-              <td colspan="9">
+              <td colspan="11">
                 <button type="button" class="group-toggle" data-bw-toggle-category="{{ category_label }}" aria-expanded="true">
                   <span class="group-left">
                     <span class="group-caret open" data-bw-caret></span>
                     <span class="group-label">{{ category_label }}</span>
                   </span>
-                  <span class="group-meta">{{ category_models | length }} families - {{ category_items | length }} items</span>
+                  <span class="group-toggle-right">
+                    {% if category_placeholder_count > 0 %}
+                    <span class="group-meta warn">{{ category_placeholder_count }} placeholder heights</span>
+                    {% endif %}
+                    <span class="group-meta">{{ category_models | length }} families · {{ category_items | length }} items</span>
+                  </span>
                 </button>
               </td>
             </tr>
             {% for model_group in category_items | groupby('model') %}
               {% set model_label = model_group.grouper or 'Unknown Family' %}
               {% set model_items = model_group.list %}
-              <tr class="group-row model-row bw-model-row"
+              <tr class="group-row model-row bw-model-row sku-family-row"
                   data-bw-category="{{ category_label }}"
                   data-bw-model="{{ model_label }}"
                   data-search="{{ category_label }} {{ model_label }}">
-                <td colspan="9">
+                <td colspan="11">
                   <button type="button"
                           class="group-toggle"
                           data-bw-toggle-model="{{ category_label }}||{{ model_label }}"
@@ -1056,12 +1361,12 @@
                       <span class="group-caret" data-bw-caret></span>
                       <span class="group-label">{{ model_label }}</span>
                     </span>
-                    <span class="group-meta">{{ model_items | length }} items</span>
+                    <span class="group-meta family">{{ model_items | length }} items</span>
                   </button>
                 </td>
               </tr>
               {% for s in model_items %}
-              <tr class="bw-sku-row bw-item-row {% if s.stack_height_is_placeholder %}bw-placeholder-row{% endif %}"
+              <tr class="bw-sku-row bw-item-row sku-data-row {% if s.stack_height_is_placeholder %}bw-placeholder-row{% endif %}"
                   data-bw-item="{{ s.item_number }}"
                   data-bw-category="{{ category_label }}"
                   data-bw-model="{{ model_label }}"
@@ -1076,32 +1381,44 @@
                          data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="model"
                          value="{{ s.model or model_label }}" />
                 </td>
-                <td class="pg-ident-cell">
+                <td class="pg-ident-cell sku-old-model-cell">
                   <input type="text" class="editable-cell" style="min-width:130px"
                          data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="old_model"
                          value="{{ s.old_model or '' }}" />
                 </td>
                 <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
-                <td>
+                <td class="sku-num">
                   <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
                          data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="bed_length"
                          value="{{ s.bed_length or '' }}" />
                 </td>
-                <td>
+                <td class="sku-num">
                   <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
                          data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="tongue"
                          value="{{ s.tongue or '' }}" />
                 </td>
-                <td class="td-mono bw-footprint-cell"><strong>{{ s.total_footprint or 0 }}'</strong></td>
-                <td>
+                <td class="td-mono bw-footprint-cell sku-num sku-footprint {% if s.stack_height_is_placeholder %}placeholder{% endif %}"><strong>{{ s.total_footprint or 0 }}{% if s.stack_height_is_placeholder %}*{% endif %}'</strong></td>
+                <td class="sku-num">
                   <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
+                         data-unit="inches"
                          data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="stack_height"
-                         value="{{ s.stack_height or '' }}" />
+                         value="{{ '%.2f'|format((s.stack_height or 0) * 12) if s.stack_height is not none else '' }}" />
                 </td>
-                <td style="text-align:center;">
-                  <input type="checkbox" class="editable-check"
+                <td class="td-mono bw-stack-height-ft-cell sku-num">
+                  <strong>{{ '%.1f'|format(s.stack_height or 0) if s.stack_height is not none else '' }}'</strong>
+                </td>
+                <td>
+                  {% if s.stack_height_is_placeholder %}
+                  <span class="sku-status-pill placeholder">Estimated</span>
+                  {% else %}
+                  <span class="sku-status-pill confirmed">Confirmed</span>
+                  {% endif %}
+                  <input type="checkbox" class="editable-check hidden-row" style="display:none;"
                          data-table="bwise_skus" data-pk="{{ s.item_number }}" data-field="stack_height_is_placeholder"
                          {% if s.stack_height_is_placeholder %}checked{% endif %} />
+                </td>
+                <td class="sku-action-cell">
+                  <button type="button" class="sku-edit-btn" data-edit-row>Edit</button>
                 </td>
               </tr>
               {% endfor %}
@@ -1109,7 +1426,7 @@
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="9" style="text-align:center;color:var(--text-secondary);padding:14px;">
+            <td colspan="11" style="text-align:center;color:var(--text-secondary);padding:14px;">
               No B-Wise SKUs loaded yet. Use Add SKU to create the first entry.
             </td>
           </tr>
@@ -1119,9 +1436,16 @@
     </div>
   </div>
 
-  <div class="card pg-settings-section hidden" data-settings-tab="bt">
+  <div class="card pg-settings-section hidden sku-registry-panel" data-settings-tab="bt">
     <div class="card-header">
       <div>
+        <div class="sku-registry-heading">
+          <div class="sku-registry-label">SKU Dimensions Registry</div>
+          <div class="sku-registry-actions">
+            <span class="sku-registry-placeholder-pill">0 placeholder heights</span>
+            <button type="button" class="sku-registry-add-btn" data-scroll-target="bt-add-sku-form">Add SKU</button>
+          </div>
+        </div>
         <div class="card-title">Big Tex SKU Cheat Sheet</div>
         <div class="card-subtitle">Category -> Model -> Item hierarchy. Footprint is computed as bed plus tongue.</div>
       </div>
@@ -1180,15 +1504,19 @@
           <tr class="pg-group-row">
             <th colspan="3">SKU Identifiers / Name</th>
             <th colspan="4">Stacking Dimensions</th>
+            <th>Status</th>
+            <th></th>
           </tr>
           <tr>
             <th class="pg-ident-col">Category</th>
-            <th class="pg-ident-col">Model</th>
-            <th class="pg-ident-col">Item</th>
+            <th class="pg-ident-col">Old Model</th>
+            <th class="pg-ident-col">Part #</th>
             <th>Bed Length (ft)</th>
             <th>Tongue (ft)</th>
             <th>Footprint (ft)</th>
-            <th>Stack Height (ft)</th>
+            <th>Stack Ht (ft)</th>
+            <th>Status</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -1197,27 +1525,29 @@
             {% set category_label = category_group.grouper or 'Uncategorized' %}
             {% set category_items = category_group.list %}
             {% set category_models = category_items | groupby('model') | list %}
-            <tr class="group-row bt-category-row"
+            <tr class="group-row bt-category-row sku-category-row"
                 data-bt-category="{{ category_label }}"
                 data-search="{{ category_label }}">
-              <td colspan="7">
+              <td colspan="9">
                 <button type="button" class="group-toggle" data-bt-toggle-category="{{ category_label }}" aria-expanded="true">
                   <span class="group-left">
                     <span class="group-caret open" data-bt-caret></span>
                     <span class="group-label">{{ category_label }}</span>
                   </span>
-                  <span class="group-meta">{{ category_models | length }} models - {{ category_items | length }} items</span>
+                  <span class="group-toggle-right">
+                    <span class="group-meta">{{ category_models | length }} families · {{ category_items | length }} items</span>
+                  </span>
                 </button>
               </td>
             </tr>
             {% for model_group in category_items | groupby('model') %}
               {% set model_label = model_group.grouper or 'Unknown Model' %}
               {% set model_items = model_group.list %}
-              <tr class="group-row model-row bt-model-row"
+              <tr class="group-row model-row bt-model-row sku-family-row"
                   data-bt-category="{{ category_label }}"
                   data-bt-model="{{ model_label }}"
                   data-search="{{ category_label }} {{ model_label }}">
-                <td colspan="7">
+                <td colspan="9">
                   <button type="button"
                           class="group-toggle"
                           data-bt-toggle-model="{{ category_label }}||{{ model_label }}"
@@ -1228,12 +1558,12 @@
                       <span class="group-caret" data-bt-caret></span>
                       <span class="group-label">{{ model_label }}</span>
                     </span>
-                    <span class="group-meta">{{ model_items | length }} items</span>
+                    <span class="group-meta family">{{ model_items | length }} items</span>
                   </button>
                 </td>
               </tr>
               {% for s in model_items %}
-              <tr class="bt-sku-row bt-item-row"
+              <tr class="bt-sku-row bt-item-row sku-data-row"
                   data-bt-item="{{ s.item_number }}"
                   data-bt-category="{{ category_label }}"
                   data-bt-model="{{ model_label }}"
@@ -1243,31 +1573,33 @@
                          data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="mcat"
                          value="{{ s.mcat or category_label }}" />
                 </td>
-                <td class="td-mono pg-ident-cell">{{ s.model or model_label }}</td>
+                <td class="sku-old-model-cell pg-ident-cell">{{ s.model or model_label }}</td>
                 <td class="td-mono pg-ident-cell">{{ s.item_number }}</td>
-                <td>
+                <td class="sku-num">
                   <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
                          data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="bed_length"
                          value="{{ s.bed_length or '' }}" />
                 </td>
-                <td>
+                <td class="sku-num">
                   <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
                          data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="tongue"
                          value="{{ s.tongue or '' }}" />
                 </td>
-                <td class="td-mono bt-footprint-cell"><strong>{{ s.total_footprint or 0 }}'</strong></td>
-                <td>
+                <td class="td-mono bt-footprint-cell sku-num"><strong>{{ s.total_footprint or 0 }}'</strong></td>
+                <td class="sku-num">
                   <input type="number" step="0.25" class="editable-cell" style="min-width:90px"
                          data-table="bigtex_skus" data-pk="{{ s.item_number }}" data-field="stack_height"
                          value="{{ s.stack_height or '' }}" />
                 </td>
+                <td><span class="sku-status-pill confirmed">Confirmed</span></td>
+                <td class="sku-action-cell"><button type="button" class="sku-edit-btn" data-edit-row>Edit</button></td>
               </tr>
               {% endfor %}
             {% endfor %}
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="7" style="text-align:center;color:var(--text-secondary);padding:14px;">
+            <td colspan="9" style="text-align:center;color:var(--text-secondary);padding:14px;">
               No Big Tex SKUs loaded yet. Use Add SKU to create the first entry.
             </td>
           </tr>
@@ -1327,6 +1659,14 @@
   </div>
 
 </div>
+
+<div class="settings-save-popup" id="settings-save-popup" role="alertdialog" aria-live="assertive" aria-modal="false">
+  <div class="settings-save-popup-title" id="settings-save-popup-title">Dimension saved</div>
+  <div class="settings-save-popup-status" id="settings-save-popup-status">Your update was applied.</div>
+  <div class="settings-save-popup-actions">
+    <button type="button" class="btn btn-secondary btn-sm" id="settings-save-popup-ok">OK</button>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -1351,6 +1691,10 @@ const BW_SEARCH = document.getElementById('bw-sku-search');
 const BW_ADD_SKU_FORM = document.getElementById('bw-add-sku-form');
 const BW_COLLAPSE_MODELS_BTN = document.getElementById('bw-collapse-models-btn');
 const BW_EXPAND_ITEMS_BTN = document.getElementById('bw-expand-items-btn');
+const SETTINGS_SAVE_POPUP = document.getElementById('settings-save-popup');
+const SETTINGS_SAVE_POPUP_TITLE = document.getElementById('settings-save-popup-title');
+const SETTINGS_SAVE_POPUP_STATUS = document.getElementById('settings-save-popup-status');
+const SETTINGS_SAVE_POPUP_OK = document.getElementById('settings-save-popup-ok');
 
 let pjHierarchyMode = 'models';
 const pjCategoryExpanded = new Map();
@@ -1363,6 +1707,24 @@ const btModelExpanded = new Map();
 let bwHierarchyMode = 'models';
 const bwCategoryExpanded = new Map();
 const bwModelExpanded = new Map();
+
+function showSettingsSavePopup(message, type = 'success') {
+  if (!SETTINGS_SAVE_POPUP || !SETTINGS_SAVE_POPUP_STATUS || !SETTINGS_SAVE_POPUP_TITLE) return;
+  const isError = type === 'error';
+  SETTINGS_SAVE_POPUP_TITLE.textContent = isError ? 'Save failed' : 'Dimension saved';
+  SETTINGS_SAVE_POPUP_STATUS.textContent = message || (isError ? 'Unable to save settings.' : 'Your update was applied.');
+  SETTINGS_SAVE_POPUP_STATUS.classList.toggle('error', isError);
+  SETTINGS_SAVE_POPUP.classList.add('open');
+}
+
+function hideSettingsSavePopup() {
+  if (!SETTINGS_SAVE_POPUP) return;
+  SETTINGS_SAVE_POPUP.classList.remove('open');
+}
+
+if (SETTINGS_SAVE_POPUP_OK) {
+  SETTINGS_SAVE_POPUP_OK.addEventListener('click', hideSettingsSavePopup);
+}
 
 function setSettingsTab(tab) {
   const activeTab = ['universal', 'pj', 'bt', 'bwise'].includes(tab) ? tab : 'universal';
@@ -1430,26 +1792,44 @@ async function saveField(table, pk, field, value, triggerRecompute) {
             if ((row.dataset.bwItem || '') !== String(r.item_number || '')) return;
             const cell = row.querySelector('.bw-footprint-cell');
             if (cell) {
-              cell.innerHTML = '<strong>' + String(r.total_footprint ?? 0) + "'</strong>";
+              const isPlaceholder = row.classList.contains('bw-placeholder-row');
+              const suffix = isPlaceholder ? '*' : '';
+              cell.innerHTML = '<strong>' + String(r.total_footprint ?? 0) + suffix + "'</strong>";
             }
           });
         });
       }
+      showSettingsSavePopup('Dimension saved.');
       setTimeout(() => setStatus('', ''), 2500);
     } else {
       setStatus('Error', 'error');
-      showToast('Save failed: ' + (data.error || 'unknown'), 'error');
+      showSettingsSavePopup('Save failed: ' + (data.error || 'unknown'), 'error');
     }
   } catch (e) {
     setStatus('Error', 'error');
-    showToast('Save failed: ' + e.message, 'error');
+    showSettingsSavePopup('Save failed: ' + e.message, 'error');
   }
 }
 
 document.querySelectorAll('.editable-cell').forEach((input) => {
   input.addEventListener('change', function () {
     const recompute = this.dataset.recompute || null;
-    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, this.value, recompute);
+    let valueToSave = this.value;
+    if (this.dataset.table === 'bwise_skus' && this.dataset.field === 'stack_height' && this.dataset.unit === 'inches') {
+      const inches = parseOptionalNumber(this.value);
+      if (inches === null || inches <= 0) {
+        valueToSave = '';
+      } else {
+        const stackFeet = inches / 12;
+        valueToSave = stackFeet.toFixed(1);
+        const row = this.closest('.bw-sku-row');
+        const ftCell = row ? row.querySelector('.bw-stack-height-ft-cell') : null;
+        if (ftCell) {
+          ftCell.innerHTML = '<strong>' + stackFeet.toFixed(1) + "'</strong>";
+        }
+      }
+    }
+    saveField(this.dataset.table, this.dataset.pk, this.dataset.field, valueToSave, recompute);
   });
 });
 
@@ -1460,6 +1840,17 @@ document.querySelectorAll('.editable-check').forEach((cb) => {
       const row = this.closest('.bw-sku-row');
       if (row) {
         row.classList.toggle('bw-placeholder-row', this.checked);
+        const statusCell = row.querySelector('.sku-status-pill');
+        if (statusCell) {
+          statusCell.classList.toggle('placeholder', this.checked);
+          statusCell.classList.toggle('confirmed', !this.checked);
+          statusCell.textContent = this.checked ? 'Estimated' : 'Confirmed';
+        }
+        const footprint = row.querySelector('.bw-footprint-cell strong');
+        if (footprint) {
+          const text = String(footprint.textContent || '').replace('*', '');
+          footprint.textContent = this.checked ? text.replace("'", "*'") : text;
+        }
       }
     }
   });
@@ -1969,6 +2360,78 @@ if (BW_SEARCH) {
   });
 }
 
+function focusEditableCellInRow(row) {
+  if (!row) return;
+  const target = row.querySelector('input.editable-cell, select.editable-select, input.editable-check');
+  if (!target) return;
+  try {
+    target.focus({ preventScroll: false });
+  } catch (e) {
+    target.focus();
+  }
+}
+
+function bindSkuRowEditButtons() {
+  document.querySelectorAll('[data-edit-row]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const row = btn.closest('tr');
+      focusEditableCellInRow(row);
+    });
+  });
+}
+
+function bindRegistryAddButtons() {
+  document.querySelectorAll('.sku-registry-add-btn[data-scroll-target]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const targetId = String(btn.dataset.scrollTarget || '').trim();
+      if (!targetId) return;
+      const el = document.getElementById(targetId);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const firstInput = el.querySelector('input, select, textarea');
+      if (firstInput) {
+        setTimeout(() => {
+          try {
+            firstInput.focus({ preventScroll: true });
+          } catch (e) {
+            firstInput.focus();
+          }
+        }, 200);
+      }
+    });
+  });
+}
+
+function setDefaultHierarchy(categorySelector, modelSelector, categoryMap, modelMap, modelKeyFn, applyFn) {
+  const categoryRows = Array.from(document.querySelectorAll(categorySelector));
+  const modelRows = Array.from(document.querySelectorAll(modelSelector));
+  const firstCategory = categoryRows.length ? String((categoryRows[0].dataset.pjCategory || categoryRows[0].dataset.btCategory || categoryRows[0].dataset.bwCategory || '')) : '';
+
+  categoryRows.forEach((row, idx) => {
+    const category = String((row.dataset.pjCategory || row.dataset.btCategory || row.dataset.bwCategory || ''));
+    categoryMap.set(category, idx === 0);
+  });
+  modelRows.forEach((row) => {
+    const category = String((row.dataset.pjCategory || row.dataset.btCategory || row.dataset.bwCategory || ''));
+    const model = String((row.dataset.pjModel || row.dataset.btModel || row.dataset.bwModel || ''));
+    modelMap.set(modelKeyFn(category, model), false);
+  });
+  const firstModelRow = modelRows.find((row) => {
+    const category = String((row.dataset.pjCategory || row.dataset.btCategory || row.dataset.bwCategory || ''));
+    return category === firstCategory;
+  });
+  if (firstModelRow) {
+    const category = String((firstModelRow.dataset.pjCategory || firstModelRow.dataset.btCategory || firstModelRow.dataset.bwCategory || ''));
+    const model = String((firstModelRow.dataset.pjModel || firstModelRow.dataset.btModel || firstModelRow.dataset.bwModel || ''));
+    modelMap.set(modelKeyFn(category, model), true);
+  }
+  applyFn('');
+}
+
 function parseOptionalNumber(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -2169,6 +2632,11 @@ pjBindHierarchyControls();
 btBindHierarchyControls();
 bwBindHierarchyControls();
 bindSkuAddReadOnlyCalculations();
+bindSkuRowEditButtons();
+bindRegistryAddButtons();
+setDefaultHierarchy('.pj-category-row', '.pj-model-row', pjCategoryExpanded, pjModelExpanded, pjModelKey, pjApplyHierarchy);
+setDefaultHierarchy('.bt-category-row', '.bt-model-row', btCategoryExpanded, btModelExpanded, btModelKey, btApplyHierarchy);
+setDefaultHierarchy('.bw-category-row', '.bw-model-row', bwCategoryExpanded, bwModelExpanded, bwModelKey, bwApplyHierarchy);
 
 SETTINGS_TAB_BTNS.forEach((btn) => {
   btn.addEventListener('click', () => setSettingsTab(btn.dataset.settingsTabBtn));

@@ -250,7 +250,7 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertNotIn(bt_session_id, bw_html)
         self.assertIn('href="/prograde/session/new?brand=bwise"', bw_html)
 
-    def test_bwise_picker_conflict_labels_append_part_number_only_for_conflicts(self):
+    def test_bwise_picker_uses_old_model_label_without_part_number_suffix(self):
         with self.db.get_db() as conn:
             conn.execute("DELETE FROM bwise_skus")
             conn.execute(
@@ -279,8 +279,8 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
             )
 
         rows = {row["item_number"]: row for row in self.routes._build_bwise_picker_skus()}
-        self.assertEqual(rows["BW-CONFLICT-A"]["item_display"], "DMP-714 (BW-CONFLICT-A)")
-        self.assertEqual(rows["BW-CONFLICT-B"]["item_display"], "DMP-714 (BW-CONFLICT-B)")
+        self.assertEqual(rows["BW-CONFLICT-A"]["item_display"], "DMP-714")
+        self.assertEqual(rows["BW-CONFLICT-B"]["item_display"], "DMP-714")
         self.assertEqual(rows["BW-CLEAN-1"]["item_display"], "UT-714")
 
     def test_all_sessions_shows_qty_column_from_position_count(self):

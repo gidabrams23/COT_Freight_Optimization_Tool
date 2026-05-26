@@ -2060,6 +2060,8 @@ def update_bwise_sku_field(item_number, field, value):
         value = " ".join(str(value or "").strip().split()) or None
     if field == "stack_height_is_placeholder":
         value = 1 if _is_truthy(value) or str(value).strip() == "1" else 0
+    if field == "stack_height" and value not in (None, ""):
+        value = round(_coerce_float(value, 0.0) or 0.0, 1)
     with get_db() as conn:
         conn.execute(
             f"UPDATE bwise_skus SET {field}=?, updated_at=? WHERE item_number=?",
@@ -2098,7 +2100,8 @@ def upsert_bwise_sku(payload):
     old_model = " ".join(str((payload or {}).get("old_model") or "").strip().split()) or None
     bed_length = _coerce_float((payload or {}).get("bed_length"), 0.0) or 0.0
     tongue = _coerce_float((payload or {}).get("tongue"), 0.0) or 0.0
-    stack_height = _coerce_float((payload or {}).get("stack_height"), None)
+    stack_height_raw = _coerce_float((payload or {}).get("stack_height"), None)
+    stack_height = round(float(stack_height_raw), 1) if stack_height_raw is not None else None
     stack_height_is_placeholder = 1 if bool((payload or {}).get("stack_height_is_placeholder")) else 0
     total_footprint = round(float(bed_length) + float(tongue), 2)
 

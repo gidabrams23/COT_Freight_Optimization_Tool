@@ -176,7 +176,13 @@ function buildSkuTreeData() {
     const deckProfile = _pjDeckProfileLabel(sku);
     const description = _skuDescription(sku);
     const totalLength = _skuTotalLength(sku);
-    const itemDisplay = SESSION_BRAND === "pj" ? _pjDisplayItemCode(sku) : itemNumber;
+    const itemDisplay = SESSION_BRAND === "pj"
+      ? _pjDisplayItemCode(sku)
+      : (
+          SESSION_BRAND === "bwise"
+            ? String(sku.picker_item_display || sku.item_display || sku.old_model || itemNumber)
+            : itemNumber
+        );
     const groupLabel = SESSION_BRAND === "pj" ? modelCode : model;
     const search = `${itemNumber} ${itemDisplay} ${model} ${modelCode} ${category} ${description} ${deckProfile} ${tongueProfile}`.toLowerCase();
 
