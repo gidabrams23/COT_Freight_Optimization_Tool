@@ -4481,7 +4481,6 @@ function _autosaveOnLeave() {
     if (navigator.sendBeacon) {
       const blob = new Blob([payload], { type: "application/json" });
       if (navigator.sendBeacon(autosaveUrl, blob)) {
-        sessionIsSaved = true;
         return;
       }
     }
@@ -4493,8 +4492,10 @@ function _autosaveOnLeave() {
     headers: { "Content-Type": "application/json" },
     body: payload,
     keepalive: true,
-  }).then(() => {
-    sessionIsSaved = true;
+  }).then((resp) => {
+    if (resp && resp.ok) {
+      sessionIsSaved = true;
+    }
   }).catch(() => {});
 }
 

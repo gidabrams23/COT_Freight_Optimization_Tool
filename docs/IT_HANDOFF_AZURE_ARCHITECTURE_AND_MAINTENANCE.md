@@ -269,6 +269,7 @@ flowchart LR
 | `ENTRA_ALLOW_LEGACY_LOGIN` | defaults opposite of SSO-required | `true` | Keep true only if fallback auth desired. |
 | `ENTRA_SCOPES` | `openid profile email User.Read` | `User.Read` | Current env overrides broader default. |
 | `ENTRA_ALLOWED_EMAIL_DOMAINS` | empty (no domain restriction) | (empty) | Optional comma-separated allowlist. |
+| `LOCAL_DEV_AUTH_BYPASS_ENABLED` | `false` | (empty) | Local-only testing bypass. Effective only in development mode and only for loopback requests/hosts; keep unset in Azure/shared environments. |
 
 #### Routing / External API
 | Variable | Default in Code | Current Value in This Environment | Notes |

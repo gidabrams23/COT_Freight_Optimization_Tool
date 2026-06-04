@@ -3892,9 +3892,22 @@
           (sum, order) => sum + toFeet(order.stack_added_ft || order.total_length_ft),
           0,
         );
-        const projectedUsed = baseUsed + selectedTotal;
-        const overByProjected = capacity ? Math.max(projectedUsed - capacity, 0) : 0;
-        const remainingProjected = capacity ? Math.max(capacity - projectedUsed, 0) : 0;
+        const singleSelected = selectedList.length === 1 ? selectedList[0] : null;
+        const singleFitAssessment = singleSelected ? (singleSelected.fit_assessment || {}) : {};
+        const hasExactProjectedFit = Boolean(
+          singleSelected
+          && singleFitAssessment.available
+          && typeof singleFitAssessment.fits_in_capacity === 'boolean',
+        );
+        const projectedUsed = hasExactProjectedFit
+          ? toFeet(singleFitAssessment.projected_used_ft)
+          : (selectedList.length <= 1 ? (baseUsed + selectedTotal) : null);
+        const overByProjected = capacity && projectedUsed != null
+          ? Math.max(projectedUsed - capacity, 0)
+          : 0;
+        const remainingProjected = capacity && projectedUsed != null
+          ? Math.max(capacity - projectedUsed, 0)
+          : 0;
         const overByCurrent = capacity ? Math.max(baseUsed - capacity, 0) : 0;
         const baseWithin = Math.min(baseUsed, capacity);
 
@@ -3905,7 +3918,15 @@
         }
 
         if (utilMeta) {
-          if (selectedTotal > 0.05) {
+          if (hasExactProjectedFit && projectedUsed != null) {
+            if (overByProjected > 0.05) {
+              utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(overByProjected)} over`;
+            } else {
+              utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(remainingProjected)} open`;
+            }
+          } else if (selectedList.length > 1 && selectedTotal > 0.05) {
+            utilMeta.textContent = `Current ${formatFeet(baseUsed)} of ${formatFeet(capacity)} | +${formatFeet(selectedTotal)} selected (combined preview approximate)`;
+          } else if (selectedTotal > 0.05 && projectedUsed != null) {
             if (overByProjected > 0.05) {
               utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(overByProjected)} over`;
             } else {
@@ -4079,7 +4100,7 @@
         }
         capacityVisual.appendChild(selectedStrip);
 
-        if (overByProjected > 0.05) {
+        if (hasExactProjectedFit && overByProjected > 0.05) {
           const overflowHint = document.createElement('div');
           overflowHint.className = 'manual-add-capacity-overflow';
           overflowHint.textContent = `Projected overflow: ${formatFeet(overByProjected)} beyond available deck length`;
@@ -4087,8 +4108,16 @@
         }
 
         if (capacitySummary) {
-          const baseText = `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)} | Projected ${formatFeet(projectedUsed)}`;
-          if (overByProjected > 0.05) {
+          const baseText = projectedUsed == null
+            ? `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)}`
+            : `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)} | Projected ${formatFeet(projectedUsed)}`;
+          if (selectedList.length > 1 && selectedTotal > 0.05) {
+            capacitySummary.textContent = `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)} | Combined fit preview is approximate until added`;
+            capacitySummary.classList.remove('is-over');
+          } else if (projectedUsed == null) {
+            capacitySummary.textContent = baseText;
+            capacitySummary.classList.remove('is-over');
+          } else if (overByProjected > 0.05) {
             capacitySummary.textContent = `${baseText} | Over by ${formatFeet(overByProjected)}`;
             capacitySummary.classList.add('is-over');
           } else {

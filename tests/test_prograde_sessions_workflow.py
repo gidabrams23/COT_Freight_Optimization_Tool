@@ -789,6 +789,107 @@ class ProgradeSessionWorkflowTests(unittest.TestCase):
         self.assertEqual(int(cleared_row["is_nested"] or 0), 0)
         self.assertIsNone(cleared_row["nested_inside"])
 
+    def test_bigtex_nest_api_allows_vanguard_landscape_except_30sv_35sv(self):
+        profile_id = self._create_planner_profile("BT Vanguard Nest Tester")
+        self._set_active_profile(profile_id)
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bigtex",
+            "53_step_deck",
+            "BT Vanguard Nest Tester",
+            "BT Vanguard Nest Session",
+            created_by_profile_id=profile_id,
+            created_by_name="BT Vanguard Nest Tester",
+        )
+
+        eligible_host_id = str(uuid.uuid4())
+        eligible_guest_id = str(uuid.uuid4())
+        blocked_host_id = str(uuid.uuid4())
+        blocked_guest_id = str(uuid.uuid4())
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-VL-HOST-ALLOWED", "VANGUARD/LANDSCAPE", 3, "35LS", 14.0, 3.0, 3.25, 17.0, "Wood"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-VL-HOST-BLOCKED", "VANGUARD/LANDSCAPE", 3, "30SV", 12.0, 3.0, 3.25, 15.0, "Wood"),
+            )
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bigtex_skus
+                (item_number, mcat, tier, model, bed_length, tongue, stack_height, total_footprint, floor_type, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                ("BT-VL-NEST-GUEST", "UTILITY", 3, "UT", 8.0, 2.0, 2.0, 10.0, "Wood"),
+            )
+
+        self.db.add_position(
+            position_id=eligible_host_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-VL-HOST-ALLOWED",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=eligible_guest_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-VL-NEST-GUEST",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=1,
+        )
+        self.db.add_position(
+            position_id=blocked_host_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-VL-HOST-BLOCKED",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=2,
+        )
+        self.db.add_position(
+            position_id=blocked_guest_id,
+            session_id=session_id,
+            brand="bigtex",
+            item_number="BT-VL-NEST-GUEST",
+            deck_zone="lower_deck",
+            layer=2,
+            sequence=2,
+        )
+
+        allowed_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/nest",
+            json={"position_id": eligible_guest_id, "nested_inside": eligible_host_id},
+        )
+        self.assertEqual(allowed_resp.status_code, 200)
+        allowed_row = self.db.get_position(eligible_guest_id)
+        self.assertEqual(int(allowed_row["is_nested"] or 0), 1)
+        self.assertEqual(allowed_row["nested_inside"], eligible_host_id)
+
+        blocked_resp = self.client.post(
+            f"/prograde/api/session/{session_id}/nest",
+            json={"position_id": blocked_guest_id, "nested_inside": blocked_host_id},
+        )
+        self.assertEqual(blocked_resp.status_code, 400)
+        blocked_payload = blocked_resp.get_json() or {}
+        self.assertIn("30SV/35SV excluded", str(blocked_payload.get("error") or ""))
+        blocked_row = self.db.get_position(blocked_guest_id)
+        self.assertEqual(int(blocked_row["is_nested"] or 0), 0)
+        self.assertIsNone(blocked_row["nested_inside"])
+
     def test_sessions_scope_planner_vs_admin(self):
         planner_one_id = self._create_planner_profile("Planner One")
         planner_two_id = self._create_planner_profile("Planner Two")

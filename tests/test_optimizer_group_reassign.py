@@ -259,6 +259,175 @@ class GroupReassignTests(unittest.TestCase):
         )
         self.assertGreater(same_bonus, cross_bonus)
 
+    def test_pair_priority_prefers_shared_store_and_short_upper_candidates(self):
+        params = {
+            "trailer_type": "STEP_DECK",
+            "upper_two_across_max_length_ft": 7.0,
+        }
+        baseline_a = {
+            "state": "MI",
+            "utilization": 45.0,
+            "origin_miles": 100.0,
+            "bearing": 10.0,
+            "due_anchor": 1,
+            "effective_due_window_days": 0,
+            "max_unit_length_ft": 7.0,
+            "store_codes": [],
+            "short_upper_group_count": 1,
+        }
+        baseline_b = {
+            "state": "MI",
+            "utilization": 45.0,
+            "origin_miles": 102.0,
+            "bearing": 11.0,
+            "due_anchor": 1,
+            "effective_due_window_days": 0,
+            "max_unit_length_ft": 7.0,
+            "store_codes": [],
+            "short_upper_group_count": 1,
+        }
+        shared_store_b = dict(baseline_b, store_codes=["TSC00123"])
+        shared_store_a = dict(baseline_a, store_codes=["TSC00123"])
+        long_item_b = dict(baseline_b, short_upper_group_count=0, max_unit_length_ft=18.0)
+
+        shared_score = self.optimizer._pair_priority_score(shared_store_a, shared_store_b, params)
+        no_store_score = self.optimizer._pair_priority_score(baseline_a, baseline_b, params)
+        long_item_score = self.optimizer._pair_priority_score(shared_store_a, long_item_b, params)
+
+        self.assertLess(shared_score, no_store_score)
+        self.assertLess(shared_score, long_item_score)
+
+    def test_stack_aware_prebatch_builds_multi_group_seed_loads(self):
+        util_map = {
+            "A": 30.0,
+            "AB": 63.0,
+            "ABC": 94.0,
+            "AC": 58.0,
+            "B": 32.0,
+            "BC": 60.0,
+            "C": 31.0,
+        }
+
+        def fake_build_load(groups, _params, standalone_cost=None):
+            keys = "".join(sorted(str((group or {}).get("key") or "") for group in (groups or [])))
+            if not keys:
+                keys = "EMPTY"
+            store_codes = sorted(
+                {
+                    str(store_code or "").strip().upper()
+                    for group in (groups or [])
+                    for store_code in ((group or {}).get("store_codes") or [])
+                    if str(store_code or "").strip()
+                }
+            )
+            return {
+                "_merge_id": keys,
+                "groups": list(groups or []),
+                "origin_plant": "GA",
+                "estimated_cost": 100.0,
+                "utilization_pct": float(util_map.get(keys, 50.0)),
+                "standalone_cost": float(standalone_cost if standalone_cost is not None else 100.0),
+                "stop_count": len(list(groups or [])),
+                "destination_state": "MI",
+                "store_codes": store_codes,
+                "upper_two_across_applied_count": 0,
+            }
+
+        self.optimizer._build_load = fake_build_load
+        self.optimizer._loads_compatible = lambda *_args, **_kwargs: True
+        self.optimizer._can_add_group = lambda _current, _candidate, _params: True
+        self.optimizer._load_is_multi_order_capacity_violation = lambda _load: False
+        self.optimizer._prebatch_candidate_groups = (
+            lambda _current_load, remaining_groups, _singleton_by_key, _params: list(remaining_groups)
+        )
+        self.optimizer._prebatch_candidate_score = (
+            lambda _current_load, _candidate_load, merged_load, _params: float(merged_load.get("utilization_pct") or 0.0)
+        )
+
+        groups = [
+            {"key": "A", "store_codes": ["TSC00123"], "max_unit_length_ft": 18.0, "total_length_ft": 18.0},
+            {"key": "B", "store_codes": ["TSC00123"], "max_unit_length_ft": 18.0, "total_length_ft": 18.0},
+            {"key": "C", "store_codes": [], "max_unit_length_ft": 7.0, "total_length_ft": 7.0},
+        ]
+        params = {
+            "v2_stack_aware_prebatch_enabled": True,
+            "v2_prebatch_target_util": 90.0,
+            "upper_two_across_max_length_ft": 7.0,
+            "trailer_type": "STEP_DECK",
+            "algorithm_version": "v2",
+            "enforce_time_window": False,
+        }
+
+        loads = self.optimizer._build_seed_loads_v2(groups, params)
+
+        self.assertEqual(len(loads), 1)
+        self.assertEqual(loads[0].get("_merge_id"), "ABC")
+        self.assertEqual(float(loads[0].get("utilization_pct") or 0.0), 94.0)
+
+    def test_seed_profile_variants_include_aggressive_fill_profile(self):
+        profiles = self.optimizer._seed_profile_variants_v2(
+            {"v2_multi_start_include_aggressive_fill": True}
+        )
+
+        self.assertEqual([name for name, _params in profiles], ["balanced", "aggressive_fill"])
+        aggressive_params = profiles[1][1]
+        self.assertGreater(
+            float(aggressive_params.get("v2_prebatch_target_util") or 0.0),
+            92.0,
+        )
+        self.assertGreater(
+            float(aggressive_params.get("v2_shared_store_priority_bonus") or 0.0),
+            80.0,
+        )
+
+    def test_build_optimized_loads_v2_selects_best_multi_start_profile(self):
+        self.optimizer._build_order_groups = lambda _params: [{"key": "A"}, {"key": "B"}]
+        self.optimizer._runtime_tuned_params = lambda params, _count: dict(params)
+        self.optimizer._build_load = lambda groups, _params, standalone_cost=None: {
+            "_merge_id": "".join(sorted(str(group.get("key") or "") for group in (groups or []))),
+            "groups": list(groups or []),
+            "origin_plant": "GA",
+            "estimated_cost": 100.0,
+            "utilization_pct": 50.0,
+            "standalone_cost": float(standalone_cost if standalone_cost is not None else 100.0),
+        }
+        self.optimizer._seed_profile_variants_v2 = lambda _params: [
+            ("balanced", {"seed_profile": "balanced"}),
+            ("aggressive_fill", {"seed_profile": "aggressive_fill"}),
+        ]
+        self.optimizer._build_seed_loads_v2 = lambda _groups, params: [
+            {
+                "_merge_id": str(params.get("seed_profile") or "seed"),
+                "groups": [{"key": str(params.get("seed_profile") or "seed")}],
+                "origin_plant": "GA",
+                "estimated_cost": 100.0,
+                "utilization_pct": 60.0,
+                "standalone_cost": 100.0,
+            }
+        ]
+
+        def fake_optimize(initial_loads, params):
+            if params.get("seed_profile") == "aggressive_fill":
+                return [{"_merge_id": "winner", "utilization_pct": 95.0, "groups": [{"key": "WIN"}]}]
+            if params.get("seed_profile") == "balanced":
+                return [{"_merge_id": "balanced", "utilization_pct": 82.0, "groups": [{"key": "BAL"}]}]
+            return [{"_merge_id": "singleton", "utilization_pct": 80.0, "groups": list(initial_loads[0].get("groups") or [])}]
+
+        self.optimizer._optimize_load_set_v2 = fake_optimize
+
+        loads = self.optimizer.build_optimized_loads_v2(
+            {
+                "origin_plant": "GA",
+                "v2_stack_aware_prebatch_enabled": True,
+                "v2_multi_start_enabled": True,
+                "v2_multi_start_max_groups": 10,
+            }
+        )
+
+        self.assertEqual(len(loads), 1)
+        self.assertEqual(loads[0].get("_merge_id"), "winner")
+        self.assertEqual(float(loads[0].get("utilization_pct") or 0.0), 95.0)
+
 
 if __name__ == "__main__":
     unittest.main()

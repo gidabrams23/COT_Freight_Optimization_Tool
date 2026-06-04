@@ -424,3 +424,46 @@ def test_manual_add_suggestions_reports_stack_overflow_amount(monkeypatch):
     assert suggestion["fit_assessment"]["available"] is True
     assert suggestion["fit_assessment"]["fits_in_capacity"] is False
     assert suggestion["fit_assessment"]["over_capacity_by_ft"] == 2.3
+
+
+def test_calculate_load_schematic_forwards_optimizer_stack_flags(monkeypatch):
+    captured = {}
+
+    def fake_calculate_stack_configuration(line_items, **kwargs):
+        captured["line_items"] = line_items
+        captured["kwargs"] = kwargs
+        return {"positions": [], "exceeds_capacity": False}
+
+    monkeypatch.setattr(
+        app_module.stack_calculator,
+        "calculate_stack_configuration",
+        fake_calculate_stack_configuration,
+    )
+
+    app_module._calculate_load_schematic(
+        [
+            {
+                "so_num": "SO-1",
+                "item": "ITEM-1",
+                "item_desc": "Item 1",
+                "sku": "SKU-1",
+                "qty": 1,
+                "unit_length_ft": 7.0,
+            }
+        ],
+        {"SKU-1": {"max_stack_step_deck": 2, "max_stack_flat_bed": 1, "category": "USA"}},
+        "STEP_DECK",
+        assumptions={
+            "stack_overflow_max_height": 5,
+            "max_back_overhang_ft": 4.0,
+            "upper_two_across_max_length_ft": 7.0,
+            "upper_deck_exception_max_length_ft": 16.0,
+            "upper_deck_exception_overhang_allowance_ft": 6.0,
+            "upper_deck_exception_categories": ["USA", "UTA"],
+            "equal_length_deck_length_order_enabled": True,
+        },
+        aggressive_upper_two_across_prepack=True,
+    )
+
+    assert captured["kwargs"]["equal_length_deck_length_order_enabled"] is True
+    assert captured["kwargs"]["aggressive_upper_two_across_prepack"] is True

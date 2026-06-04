@@ -230,6 +230,7 @@ ENTRA_ALLOW_LEGACY_LOGIN = _env_bool(
     "ENTRA_ALLOW_LEGACY_LOGIN",
     default=not ENTRA_SSO_REQUIRED,
 )
+LOCAL_DEV_AUTH_BYPASS_ENABLED = _env_bool("LOCAL_DEV_AUTH_BYPASS_ENABLED", default=False)
 ENTRA_SCOPES = tuple(
     token
     for token in (os.environ.get("ENTRA_SCOPES") or "openid profile email User.Read").split()
@@ -1087,6 +1088,11 @@ def _extract_entra_display_name(claims):
 @cot_bp.route("/auth/microsoft/start")
 def auth_microsoft_start():
     next_url = _safe_next_url(request.values.get("next") or request.args.get("next")) or ""
+    if _local_dev_auth_bypass_active():
+        _set_login_error_message(
+            "Local development auth bypass is active. Select an account below instead of using Microsoft sign-in."
+        )
+        return redirect(url_for("login", next=next_url))
     if not ENTRA_SSO_ACTIVE:
         _set_login_error_message("Microsoft SSO is not configured.")
         return redirect(url_for("login", next=next_url))
@@ -1185,6 +1191,7 @@ def login():
     next_url = _safe_next_url(request.values.get("next")) or ""
     sso_gate_enabled = bool(ENTRA_SSO_ACTIVE)
     sso_required = bool(ENTRA_SSO_ACTIVE and ENTRA_SSO_REQUIRED)
+    local_dev_auth_bypass_active = _local_dev_auth_bypass_active()
     sso_email = _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY))
     sso_display_name = (session.get(SESSION_SSO_DISPLAY_NAME_KEY) or "").strip()
     linked_profile = None
@@ -1211,7 +1218,9 @@ def login():
         sso_email = None
         sso_display_name = ""
 
-    sso_gate_cleared = bool(sso_gate_enabled and sso_email and linked_profile)
+    sso_gate_cleared = bool(
+        local_dev_auth_bypass_active or (sso_gate_enabled and sso_email and linked_profile)
+    )
     account_select_enabled = bool(
         sso_gate_cleared
         if sso_gate_enabled
@@ -1219,7 +1228,11 @@ def login():
     )
 
     if account_select_enabled:
-        profiles = _get_switchable_profiles() if sso_gate_enabled else db.list_access_profiles()
+        profiles = (
+            db.list_access_profiles()
+            if local_dev_auth_bypass_active
+            else (_get_switchable_profiles() if sso_gate_enabled else db.list_access_profiles())
+        )
     else:
         profiles = []
 
@@ -1261,7 +1274,7 @@ def login():
                 profile_id = None
             selected_profile_id = profile_id
 
-            if sso_gate_enabled and not _is_profile_switch_allowed(profile_id):
+            if sso_gate_enabled and not local_dev_auth_bypass_active and not _is_profile_switch_allowed(profile_id):
                 error = "Select a valid account."
                 profile = None
             else:
@@ -1286,11 +1299,11 @@ def login():
                 _apply_profile_to_session(profile, reset_filters=True)
                 _set_session_allowed_profile_ids(
                     profile,
-                    source="entra" if sso_gate_enabled else "local",
+                    source="local" if local_dev_auth_bypass_active else ("entra" if sso_gate_enabled else "local"),
                 )
                 _set_order_refresh_prompt_if_outdated()
                 _set_sql_auto_refresh_notice_for_first_login()
-                if not sso_gate_enabled:
+                if local_dev_auth_bypass_active or not sso_gate_enabled:
                     session.pop(SESSION_SSO_PROVIDER_KEY, None)
                     session.pop(SESSION_SSO_EMAIL_KEY, None)
                     session.pop(SESSION_SSO_DISPLAY_NAME_KEY, None)
@@ -1328,6 +1341,7 @@ def login():
         sso_email=sso_email,
         sso_display_name=sso_display_name,
         sso_profile_hint=(linked_profile or {}).get("name"),
+        local_dev_auth_bypass_active=local_dev_auth_bypass_active,
     )
 
 
@@ -1338,6 +1352,32 @@ def _safe_next_url(value):
     if value.startswith("/"):
         return value
     return None
+
+
+def _request_remote_is_loopback():
+    if not request:
+        return False
+    remote_addr = (request.remote_addr or "").strip().lower()
+    return remote_addr in {"127.0.0.1", "::1"}
+
+
+def _request_host_is_loopback():
+    if not request:
+        return False
+    host = (request.host or "").strip().lower()
+    if not host:
+        return False
+    hostname = host.split(":", 1)[0].strip("[]")
+    return hostname in {"127.0.0.1", "localhost", "::1"}
+
+
+def _local_dev_auth_bypass_active():
+    return bool(
+        LOCAL_DEV_AUTH_BYPASS_ENABLED
+        and _is_local_dev_mode()
+        and _request_remote_is_loopback()
+        and _request_host_is_loopback()
+    )
 
 
 def _append_query_param(url_value, key, value):
@@ -5155,6 +5195,15 @@ def _source_led_source_text(spec):
     return f"{base} | Updated on {timestamp_label}"
 
 
+def _sku_added_sort_key(spec):
+    if not isinstance(spec, dict):
+        return ("", "")
+    return (
+        str(spec.get("added_at") or spec.get("created_at") or ""),
+        str(spec.get("sku") or "").upper(),
+    )
+
+
 def _build_source_led_cheat_sheet_rows(specs):
     spec_by_sku = {}
     for spec in specs or []:
@@ -5238,6 +5287,7 @@ def _build_source_led_cheat_sheet_rows(specs):
         max_stack_step_deck = None
         max_stack_flat_bed = None
         mapped_source = ""
+        mapped_added_label = ""
 
         if spec:
             mapped_description = (spec.get("description") or spec.get("notes") or "").strip()
@@ -5245,6 +5295,7 @@ def _build_source_led_cheat_sheet_rows(specs):
             max_stack_step_deck = spec.get("max_stack_step_deck")
             max_stack_flat_bed = spec.get("max_stack_flat_bed")
             mapped_source = _source_led_source_text(spec)
+            mapped_added_label = _format_est_datetime_label(spec.get("added_at") or spec.get("created_at"))
             mapping_status = "Mapped"
         elif mapped_sku:
             cargo_length = importer._cargo_length_from_item(item_num, mapped_sku)
@@ -5276,6 +5327,7 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "max_stack_step_deck": max_stack_step_deck,
                 "max_stack_flat_bed": max_stack_flat_bed,
                 "mapped_source": mapped_source,
+                "mapped_added_label": mapped_added_label,
                 "mapping_status": mapping_status,
                 "line_count": int(row["line_count"] or 0),
                 "order_count": int(row["order_count"] or 0),
@@ -5317,6 +5369,7 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "max_stack_step_deck": row.get("max_stack_step_deck"),
                 "max_stack_flat_bed": row.get("max_stack_flat_bed"),
                 "mapped_source": row.get("mapped_source") or "",
+                "mapped_added_label": row.get("mapped_added_label") or "",
                 "mapping_status": row.get("mapping_status") or "Unmapped",
                 "weight": 0,
             }
@@ -5351,6 +5404,7 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "max_stack_step_deck": None,
                 "max_stack_flat_bed": None,
                 "mapped_source": "",
+                "mapped_added_label": "",
                 "mapping_status": "Unmapped",
                 "mapping_conflict": False,
                 "can_edit_specs": False,
@@ -5374,6 +5428,7 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "max_stack_step_deck": winner.get("max_stack_step_deck"),
                 "max_stack_flat_bed": winner.get("max_stack_flat_bed"),
                 "mapped_source": winner.get("mapped_source") or "",
+                "mapped_added_label": winner.get("mapped_added_label") or "",
                 "mapping_status": winner.get("mapping_status") or "Mapped",
                 "mapping_conflict": False,
                 "can_edit_specs": (
@@ -5409,6 +5464,7 @@ def _build_source_led_cheat_sheet_rows(specs):
                 "max_stack_step_deck": None,
                 "max_stack_flat_bed": None,
                 "mapped_source": "",
+                "mapped_added_label": "",
                 "mapping_status": "Plant Mapping Conflict",
                 "mapping_conflict": True,
                 "can_edit_specs": False,
@@ -6932,6 +6988,7 @@ def _calculate_load_schematic(
     trailer_type,
     stop_sequence_map=None,
     assumptions=None,
+    aggressive_upper_two_across_prepack=False,
 ):
     order_numbers = {
         _normalize_order_identifier(line.get("so_num"))
@@ -6956,6 +7013,8 @@ def _calculate_load_schematic(
         upper_deck_exception_max_length_ft=assumptions.get("upper_deck_exception_max_length_ft"),
         upper_deck_exception_overhang_allowance_ft=assumptions.get("upper_deck_exception_overhang_allowance_ft"),
         upper_deck_exception_categories=assumptions.get("upper_deck_exception_categories"),
+        equal_length_deck_length_order_enabled=assumptions.get("equal_length_deck_length_order_enabled"),
+        aggressive_upper_two_across_prepack=bool(aggressive_upper_two_across_prepack),
     )
     for pos in schematic.get("positions", []) or []:
         order_stop_map = {}
@@ -8216,7 +8275,7 @@ def _clean_query_params(values):
 
 def _require_session():
     profile = _ensure_active_profile()
-    if ENTRA_SSO_ACTIVE and ENTRA_SSO_REQUIRED:
+    if ENTRA_SSO_ACTIVE and ENTRA_SSO_REQUIRED and not _local_dev_auth_bypass_active():
         sso_email = _normalize_identity_email(session.get(SESSION_SSO_EMAIL_KEY))
         sso_provider = (session.get(SESSION_SSO_PROVIDER_KEY) or "").strip().lower()
         if not sso_email or sso_provider != ENTRA_IDP_PROVIDER:
@@ -15272,6 +15331,7 @@ def _manual_add_fit_assessments(
                 normalized_trailer,
                 stop_sequence_map=stop_sequence_map,
                 assumptions=assumptions,
+                aggressive_upper_two_across_prepack=normalized_trailer.startswith("STEP_DECK"),
             )
             overflow_ft = max(
                 _coerce_float_value(stack_calculator.capacity_overflow_feet(projected_schematic), 0.0),
@@ -18064,11 +18124,7 @@ def settings():
         )
         optimizer_exception_category_options = sorted(category_source)
     if tab == "overview":
-        recent_specs = sorted(
-            specs,
-            key=lambda spec: spec.get("added_at") or spec.get("created_at") or "",
-            reverse=True,
-        )[:5]
+        recent_specs = sorted(specs, key=_sku_added_sort_key, reverse=True)[:5]
     if tab == "skus":
         def _collect_numeric_filters(field_name, cast=int):
             values = set()
@@ -18086,6 +18142,7 @@ def settings():
                 values.add(normalized)
             return sorted(values, key=lambda value: float(value))
 
+        specs = sorted(specs, key=_sku_added_sort_key, reverse=True)
         planner_specs = [spec for spec in specs if _sku_is_planner_input(spec)]
         system_specs = [spec for spec in specs if not _sku_is_planner_input(spec)]
         raw_categories = {

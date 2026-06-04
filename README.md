@@ -222,6 +222,19 @@ ENTRA_ALLOWED_EMAIL_DOMAINS=company.com # optional comma-separated domain allowl
 ENTRA_SCOPES="openid profile email User.Read"
 ```
 
+Local development-only bypass:
+
+```bash
+LOCAL_DEV_AUTH_BYPASS_ENABLED=true
+```
+
+- This bypass is active only when all of the following are true:
+  - app is running in local development mode (`APP_ENV=development`, `FLASK_ENV=development`, or `FLASK_DEBUG=1`)
+  - request originates from loopback (`127.0.0.1` / `::1`)
+  - browser is using a loopback host (`localhost` / `127.0.0.1`)
+- It bypasses the Entra SSO/MFA gate for local testing only; it does not disable the admin password prompt.
+- Do not enable this in Azure, Render, or any shared environment.
+
 ### 3) Map Entra emails to app profiles
 
 1. Sign in as an admin.

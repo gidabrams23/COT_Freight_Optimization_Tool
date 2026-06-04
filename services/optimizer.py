@@ -51,6 +51,33 @@ DEFAULT_V2_HOME_LENGTH_PRIORITY_RADIUS_MILES = 250.0
 DEFAULT_V2_HOME_LENGTH_PRIORITY_THRESHOLD_FT = 12.0
 DEFAULT_V2_HOME_LENGTH_PRIORITY_WEIGHT = 1.0
 DEFAULT_V2_HOME_LENGTH_PRIORITY_MAX_BONUS = 12.0
+DEFAULT_V2_SHARED_STORE_PRIORITY_BONUS = 80.0
+DEFAULT_V2_SHARED_STORE_REASSIGN_BONUS = 220.0
+DEFAULT_V2_SHARED_STORE_MIN_SAVINGS_FLOOR = -150.0
+DEFAULT_V2_SHORT_UPPER_PAIR_PRIORITY_BONUS = 18.0
+DEFAULT_V2_STACK_AWARE_PREBATCH_ENABLED = True
+DEFAULT_V2_PREBATCH_TARGET_UTIL = 92.0
+DEFAULT_V2_PREBATCH_CANDIDATE_LIMIT = 18
+DEFAULT_V2_PREBATCH_SHARED_STORE_BONUS = 320.0
+DEFAULT_V2_PREBATCH_STORE_DUPLICATE_SEED_BONUS = 24.0
+DEFAULT_V2_PREBATCH_SAVINGS_WEIGHT = 0.35
+DEFAULT_V2_PREBATCH_UTIL_GAIN_WEIGHT = 18.0
+DEFAULT_V2_PREBATCH_TWO_ACROSS_GAIN_BONUS = 80.0
+DEFAULT_V2_PREBATCH_STOP_DELTA_PENALTY = 8.0
+DEFAULT_V2_MULTI_START_ENABLED = True
+DEFAULT_V2_MULTI_START_MAX_GROUPS = 220
+DEFAULT_V2_MULTI_START_INCLUDE_AGGRESSIVE_FILL = True
+DEFAULT_V2_AGGRESSIVE_PREBATCH_TARGET_UTIL = 98.0
+DEFAULT_V2_AGGRESSIVE_PREBATCH_CANDIDATE_LIMIT = 24
+DEFAULT_V2_AGGRESSIVE_PREBATCH_SAVINGS_WEIGHT = 0.2
+DEFAULT_V2_AGGRESSIVE_SHARED_STORE_PRIORITY_BONUS = 120.0
+DEFAULT_V2_AGGRESSIVE_SHARED_STORE_REASSIGN_BONUS = 320.0
+DEFAULT_V2_AGGRESSIVE_SHORT_UPPER_PAIR_PRIORITY_BONUS = 28.0
+DEFAULT_V2_AGGRESSIVE_PREBATCH_SHARED_STORE_BONUS = 420.0
+DEFAULT_V2_AGGRESSIVE_PREBATCH_STORE_DUPLICATE_SEED_BONUS = 40.0
+DEFAULT_V2_AGGRESSIVE_PREBATCH_UTIL_GAIN_WEIGHT = 24.0
+DEFAULT_V2_AGGRESSIVE_PREBATCH_TWO_ACROSS_GAIN_BONUS = 120.0
+DEFAULT_V2_AGGRESSIVE_PREBATCH_STOP_DELTA_PENALTY = 5.0
 TRAILER_ASSIGNMENT_RULES_SETTING_KEY = "trailer_assignment_rules"
 PLANNER_TRAILER_RULES_OVERRIDE_SETTING_PREFIX = "planner_trailer_assignment_rules_override::"
 DEFAULT_TRACTOR_SUPPLY_CARGO_WEDGE_MIN_ITEM_LENGTH_FT = 20.0
@@ -197,9 +224,35 @@ class Optimizer:
             return []
 
         runtime_params = self._runtime_tuned_params(params, len(groups))
-
         singleton_loads = [self._build_load([group], runtime_params) for group in groups]
-        active = {load["_merge_id"]: load for load in singleton_loads}
+        candidate_solutions = [
+            self._optimize_load_set_v2(singleton_loads, runtime_params),
+        ]
+
+        multi_start_enabled = self._coerce_bool(
+            runtime_params.get("v2_multi_start_enabled"),
+            DEFAULT_V2_MULTI_START_ENABLED,
+        )
+        multi_start_group_cap = int(
+            runtime_params.get("v2_multi_start_max_groups", DEFAULT_V2_MULTI_START_MAX_GROUPS)
+            or DEFAULT_V2_MULTI_START_MAX_GROUPS
+        )
+        prebatch_enabled = self._coerce_bool(
+            runtime_params.get("v2_stack_aware_prebatch_enabled"),
+            DEFAULT_V2_STACK_AWARE_PREBATCH_ENABLED,
+        )
+        if multi_start_enabled and prebatch_enabled and len(groups) <= max(multi_start_group_cap, 1):
+            for _profile_name, seed_params in self._seed_profile_variants_v2(runtime_params):
+                seed_loads = self._build_seed_loads_v2(groups, seed_params)
+                if not seed_loads:
+                    continue
+                candidate_solutions.append(
+                    self._optimize_load_set_v2(seed_loads, seed_params),
+                )
+        return self._select_best_v2_solution(candidate_solutions, runtime_params)
+
+    def _optimize_load_set_v2(self, initial_loads, runtime_params):
+        active = {load["_merge_id"]: load for load in (initial_loads or [])}
         time_window_days = (
             runtime_params.get("time_window_days")
             if runtime_params.get("enforce_time_window", True)
@@ -286,6 +339,185 @@ class Optimizer:
         if not baseline_groups:
             return []
         return [self._build_load(groups, params) for groups in baseline_groups]
+
+    def _build_seed_loads_v2(self, groups, params):
+        singleton_loads = [self._build_load([group], params) for group in (groups or [])]
+        if not singleton_loads:
+            return []
+
+        enabled = self._coerce_bool(
+            params.get("v2_stack_aware_prebatch_enabled"),
+            DEFAULT_V2_STACK_AWARE_PREBATCH_ENABLED,
+        )
+        if not enabled or len(singleton_loads) <= 2:
+            return singleton_loads
+
+        group_by_key = {}
+        singleton_by_key = {}
+        for group, load in zip(groups, singleton_loads):
+            key = str((group or {}).get("key") or "").strip()
+            if not key:
+                continue
+            group_by_key[key] = group
+            singleton_by_key[key] = load
+        if not group_by_key:
+            return singleton_loads
+
+        store_frequency = Counter()
+        for group in group_by_key.values():
+            for store_code in (group.get("store_codes") or []):
+                normalized = str(store_code or "").strip().upper()
+                if normalized:
+                    store_frequency[normalized] += 1
+
+        remaining = dict(group_by_key)
+        built_loads = []
+        while remaining:
+            seed_group = max(
+                remaining.values(),
+                key=lambda group: self._prebatch_seed_priority(
+                    group,
+                    singleton_by_key.get(str(group.get("key") or "").strip()),
+                    store_frequency,
+                    params,
+                ),
+            )
+            current_groups = [seed_group]
+            current_key = str(seed_group.get("key") or "").strip()
+            current_load = singleton_by_key.get(current_key) or self._build_load([seed_group], params)
+            if current_key in remaining:
+                del remaining[current_key]
+
+            while remaining and self._prebatch_should_keep_filling(current_load, params):
+                candidate_groups = self._prebatch_candidate_groups(
+                    current_load,
+                    list(remaining.values()),
+                    singleton_by_key,
+                    params,
+                )
+                best_choice = None
+                for candidate_group in candidate_groups:
+                    if not self._can_add_group(current_groups, candidate_group, params):
+                        continue
+                    candidate_key = str(candidate_group.get("key") or "").strip()
+                    candidate_load = singleton_by_key.get(candidate_key) or self._build_load([candidate_group], params)
+                    standalone_cost = (
+                        (current_load.get("standalone_cost") or current_load.get("estimated_cost") or 0)
+                        + (candidate_load.get("standalone_cost") or candidate_load.get("estimated_cost") or 0)
+                    )
+                    merged_load = self._build_load(
+                        current_groups + [candidate_group],
+                        params,
+                        standalone_cost=standalone_cost,
+                    )
+                    if self._load_is_multi_order_capacity_violation(merged_load):
+                        continue
+                    score = self._prebatch_candidate_score(
+                        current_load,
+                        candidate_load,
+                        merged_load,
+                        params,
+                    )
+                    if best_choice is None or score > best_choice[0]:
+                        best_choice = (score, candidate_group, merged_load)
+                if not best_choice:
+                    break
+
+                _, selected_group, selected_load = best_choice
+                current_groups.append(selected_group)
+                current_load = selected_load
+                selected_key = str(selected_group.get("key") or "").strip()
+                if selected_key in remaining:
+                    del remaining[selected_key]
+
+            built_loads.append(current_load)
+
+        return built_loads
+
+    def _load_set_signature(self, loads):
+        signature = []
+        for load in loads or []:
+            group_keys = sorted(
+                str((group or {}).get("key") or "").strip()
+                for group in (load.get("groups") or [])
+                if str((group or {}).get("key") or "").strip()
+            )
+            signature.append(tuple(group_keys))
+        return tuple(sorted(signature))
+
+    def _same_store_split_count(self, loads):
+        store_to_load_ids = {}
+        for idx, load in enumerate(loads or [], start=1):
+            load_identifier = load.get("_merge_id") or idx
+            for line in (load.get("lines") or []):
+                store_code = str(line.get("store") or "").strip().upper()
+                if not store_code:
+                    continue
+                store_to_load_ids.setdefault(store_code, set()).add(load_identifier)
+        return sum(1 for load_ids in store_to_load_ids.values() if len(load_ids) > 1)
+
+    def _v2_solution_score(self, loads, params):
+        solution = list(loads or [])
+        if not solution:
+            return (0, 0, 0, 0, 0, 0, 0)
+        utilizations = [float(load.get("utilization_pct") or 0.0) for load in solution]
+        high_90 = sum(1 for value in utilizations if value >= 90.0)
+        high_80 = sum(1 for value in utilizations if value >= 80.0)
+        low_70 = sum(1 for value in utilizations if value < 70.0)
+        avg_util = sum(utilizations) / len(utilizations) if utilizations else 0.0
+        two_across_loads = sum(
+            1
+            for load in solution
+            if int(load.get("upper_two_across_applied_count") or 0) > 0
+        )
+        same_store_split_count = self._same_store_split_count(solution)
+        return (
+            high_90,
+            high_80,
+            -low_70,
+            int(round(avg_util * 10.0)),
+            two_across_loads,
+            -same_store_split_count,
+            -len(solution),
+        )
+
+    def _select_best_v2_solution(self, candidate_solutions, params):
+        best = []
+        best_score = None
+        for loads in candidate_solutions or []:
+            score = self._v2_solution_score(loads, params)
+            if best_score is None or score > best_score:
+                best = list(loads or [])
+                best_score = score
+        return best
+
+    def _seed_profile_variants_v2(self, runtime_params):
+        profiles = [("balanced", dict(runtime_params or {}))]
+        include_aggressive = self._coerce_bool(
+            runtime_params.get("v2_multi_start_include_aggressive_fill"),
+            DEFAULT_V2_MULTI_START_INCLUDE_AGGRESSIVE_FILL,
+        )
+        if not include_aggressive:
+            return profiles
+
+        aggressive = dict(runtime_params or {})
+        aggressive.update(
+            {
+                "v2_prebatch_target_util": DEFAULT_V2_AGGRESSIVE_PREBATCH_TARGET_UTIL,
+                "v2_prebatch_candidate_limit": DEFAULT_V2_AGGRESSIVE_PREBATCH_CANDIDATE_LIMIT,
+                "v2_prebatch_savings_weight": DEFAULT_V2_AGGRESSIVE_PREBATCH_SAVINGS_WEIGHT,
+                "v2_shared_store_priority_bonus": DEFAULT_V2_AGGRESSIVE_SHARED_STORE_PRIORITY_BONUS,
+                "v2_shared_store_reassign_bonus": DEFAULT_V2_AGGRESSIVE_SHARED_STORE_REASSIGN_BONUS,
+                "v2_short_upper_pair_priority_bonus": DEFAULT_V2_AGGRESSIVE_SHORT_UPPER_PAIR_PRIORITY_BONUS,
+                "v2_prebatch_shared_store_bonus": DEFAULT_V2_AGGRESSIVE_PREBATCH_SHARED_STORE_BONUS,
+                "v2_prebatch_store_duplicate_seed_bonus": DEFAULT_V2_AGGRESSIVE_PREBATCH_STORE_DUPLICATE_SEED_BONUS,
+                "v2_prebatch_util_gain_weight": DEFAULT_V2_AGGRESSIVE_PREBATCH_UTIL_GAIN_WEIGHT,
+                "v2_prebatch_two_across_gain_bonus": DEFAULT_V2_AGGRESSIVE_PREBATCH_TWO_ACROSS_GAIN_BONUS,
+                "v2_prebatch_stop_delta_penalty": DEFAULT_V2_AGGRESSIVE_PREBATCH_STOP_DELTA_PENALTY,
+            }
+        )
+        profiles.append(("aggressive_fill", aggressive))
+        return profiles
 
     def _build_order_groups(self, params):
         min_due_date = self._resolve_min_due_date(params)
@@ -1220,7 +1452,21 @@ class Optimizer:
                             - (source_remainder.get("estimated_cost") or 0)
                             - (merged.get("estimated_cost") or 0)
                         )
-                        if savings < min_savings:
+                        shared_store_count = self._shared_store_count(group_load, recipient)
+                        effective_min_savings = min_savings
+                        if shared_store_count > 0:
+                            shared_store_savings_floor = float(
+                                params.get(
+                                    "v2_shared_store_min_savings_floor",
+                                    DEFAULT_V2_SHARED_STORE_MIN_SAVINGS_FLOOR,
+                                )
+                                or DEFAULT_V2_SHARED_STORE_MIN_SAVINGS_FLOOR
+                            )
+                            effective_min_savings = min(
+                                effective_min_savings,
+                                shared_store_savings_floor,
+                            )
+                        if savings < effective_min_savings:
                             continue
                         if not self._detour_allowed(
                             recipient,
@@ -1244,6 +1490,15 @@ class Optimizer:
                                 0.0,
                             )
                         )
+                        if shared_store_count > 0:
+                            shared_store_reassign_bonus = float(
+                                params.get(
+                                    "v2_shared_store_reassign_bonus",
+                                    DEFAULT_V2_SHARED_STORE_REASSIGN_BONUS,
+                                )
+                                or DEFAULT_V2_SHARED_STORE_REASSIGN_BONUS
+                            )
+                            score += min(shared_store_count, 3) * shared_store_reassign_bonus
                         if best is None or score > best[0]:
                             best = (
                                 score,
@@ -1567,6 +1822,9 @@ class Optimizer:
             )
             if score is None:
                 continue
+            shared_store_count = self._shared_store_count(group_load, recipient)
+            if shared_store_count > 0:
+                score -= min(shared_store_count, 3) * DEFAULT_V2_SHARED_STORE_PRIORITY_BONUS
             if (recipient.get("destination_state") or "") == (target.get("destination_state") or ""):
                 score -= 20.0
             if (recipient.get("utilization_pct") or 0) < 55:
@@ -1728,6 +1986,19 @@ class Optimizer:
                 enforce_time_window=params.get("enforce_time_window", True),
                 loads=[load],
             )
+        short_upper_threshold_ft = self._coerce_non_negative_float(
+            params.get("upper_two_across_max_length_ft"),
+            0.0,
+        )
+        short_upper_group_count = 0
+        if short_upper_threshold_ft > 0:
+            for group in (load.get("groups") or []):
+                max_unit_length_ft = self._coerce_non_negative_float(
+                    (group or {}).get("max_unit_length_ft"),
+                    0.0,
+                )
+                if max_unit_length_ft <= (short_upper_threshold_ft + 1e-6):
+                    short_upper_group_count += 1
         return {
             "state": (load.get("destination_state") or "").strip().upper(),
             "utilization": load.get("utilization_pct") or 0,
@@ -1736,6 +2007,8 @@ class Optimizer:
             "due_anchor": self._load_due_anchor(load),
             "effective_due_window_days": effective_due_window_days,
             "max_unit_length_ft": self._load_max_unit_length(load),
+            "store_codes": list(load.get("store_codes") or []),
+            "short_upper_group_count": short_upper_group_count,
         }
 
     def _pair_priority_score(self, meta_a, meta_b, params):
@@ -1780,6 +2053,32 @@ class Optimizer:
         # Near home base, prioritize longer items first so large units are less likely
         # to become stranded after smaller items have already consumed easy slots.
         score -= self._home_length_priority_bonus(meta_a, meta_b, params)
+
+        shared_store_count = self._shared_store_count(meta_a, meta_b)
+        if shared_store_count > 0:
+            shared_store_bonus = float(
+                params.get("v2_shared_store_priority_bonus", DEFAULT_V2_SHARED_STORE_PRIORITY_BONUS)
+                or DEFAULT_V2_SHARED_STORE_PRIORITY_BONUS
+            )
+            score -= min(shared_store_count, 3) * shared_store_bonus
+
+        requested_trailer = stack_calculator.normalize_trailer_type(
+            params.get("trailer_type"),
+            default="STEP_DECK",
+        )
+        if requested_trailer.startswith("STEP_DECK"):
+            short_upper_groups = int(meta_a.get("short_upper_group_count") or 0) + int(
+                meta_b.get("short_upper_group_count") or 0
+            )
+            if short_upper_groups >= 2:
+                short_upper_bonus = float(
+                    params.get(
+                        "v2_short_upper_pair_priority_bonus",
+                        DEFAULT_V2_SHORT_UPPER_PAIR_PRIORITY_BONUS,
+                    )
+                    or DEFAULT_V2_SHORT_UPPER_PAIR_PRIORITY_BONUS
+                )
+                score -= min(short_upper_groups, 4) * short_upper_bonus
 
         if self._is_directional_from_meta(meta_a, meta_b, params):
             score -= 10.0
@@ -1852,6 +2151,159 @@ class Optimizer:
         length_excess = longest_ft - threshold_ft
         bonus = length_excess * home_proximity * weight
         return max(0.0, min(bonus, max_bonus))
+
+    def _shared_store_count(self, left, right):
+        if not isinstance(left, dict) or not isinstance(right, dict):
+            return 0
+        left_codes = {
+            str(value or "").strip().upper()
+            for value in (left.get("store_codes") or [])
+            if str(value or "").strip()
+        }
+        right_codes = {
+            str(value or "").strip().upper()
+            for value in (right.get("store_codes") or [])
+            if str(value or "").strip()
+        }
+        if not left_codes or not right_codes:
+            return 0
+        return len(left_codes.intersection(right_codes))
+
+    def _prebatch_seed_priority(self, group, singleton_load, store_frequency, params):
+        if not isinstance(group, dict):
+            return (0.0, 0.0, 0.0, 0.0)
+        duplicate_store_score = 0.0
+        for store_code in (group.get("store_codes") or []):
+            normalized = str(store_code or "").strip().upper()
+            if not normalized:
+                continue
+            duplicate_store_score += max((store_frequency or {}).get(normalized, 0) - 1, 0)
+        max_unit_length_ft = self._coerce_non_negative_float(group.get("max_unit_length_ft"), 0.0)
+        total_length_ft = self._coerce_non_negative_float(group.get("total_length_ft"), 0.0)
+        short_upper_threshold_ft = self._coerce_non_negative_float(
+            params.get("upper_two_across_max_length_ft"),
+            0.0,
+        )
+        short_upper_bonus = 0.0
+        if short_upper_threshold_ft > 0 and max_unit_length_ft <= (short_upper_threshold_ft + 1e-6):
+            short_upper_bonus = 1.0
+        singleton_util = self._coerce_non_negative_float(
+            (singleton_load or {}).get("utilization_pct"),
+            0.0,
+        )
+        duplicate_store_seed_bonus = float(
+            params.get(
+                "v2_prebatch_store_duplicate_seed_bonus",
+                DEFAULT_V2_PREBATCH_STORE_DUPLICATE_SEED_BONUS,
+            )
+            or DEFAULT_V2_PREBATCH_STORE_DUPLICATE_SEED_BONUS
+        )
+        return (
+            duplicate_store_score * duplicate_store_seed_bonus,
+            max_unit_length_ft,
+            total_length_ft,
+            short_upper_bonus,
+            singleton_util,
+        )
+
+    def _prebatch_should_keep_filling(self, load, params):
+        target_util = float(
+            params.get("v2_prebatch_target_util", DEFAULT_V2_PREBATCH_TARGET_UTIL)
+            or DEFAULT_V2_PREBATCH_TARGET_UTIL
+        )
+        return float((load or {}).get("utilization_pct") or 0.0) + 1e-6 < target_util
+
+    def _prebatch_candidate_groups(self, current_load, remaining_groups, singleton_by_key, params):
+        groups = list(remaining_groups or [])
+        if not groups:
+            return []
+        limit = int(
+            params.get("v2_prebatch_candidate_limit", DEFAULT_V2_PREBATCH_CANDIDATE_LIMIT)
+            or DEFAULT_V2_PREBATCH_CANDIDATE_LIMIT
+        )
+        if limit <= 0:
+            limit = DEFAULT_V2_PREBATCH_CANDIDATE_LIMIT
+        radius = params.get("geo_radius")
+        time_window_days = (
+            params.get("time_window_days")
+            if params.get("enforce_time_window", True)
+            else None
+        )
+        current_meta = self._load_pair_meta(current_load, params)
+        scored = []
+        fallback = []
+        for group in groups:
+            key = str((group or {}).get("key") or "").strip()
+            if not key:
+                continue
+            candidate_load = singleton_by_key.get(key) or self._build_load([group], params)
+            if not self._loads_compatible(current_load, candidate_load, radius, time_window_days, params):
+                continue
+            candidate_meta = self._load_pair_meta(candidate_load, params)
+            pair_score = self._pair_priority_score(current_meta, candidate_meta, params)
+            if pair_score is None:
+                continue
+            scored.append((pair_score, key, group))
+            fallback.append(group)
+        if not scored:
+            return fallback[:limit]
+        top = heapq.nsmallest(max(limit, 1), scored)
+        return [entry[2] for entry in top]
+
+    def _prebatch_candidate_score(self, current_load, candidate_load, merged_load, params):
+        objective_bonus = self._objective_bonus_for_merge(
+            current_load,
+            candidate_load,
+            merged_load,
+            self._v2_objective_weights(params),
+        )
+        current_util = float((current_load or {}).get("utilization_pct") or 0.0)
+        merged_util = float((merged_load or {}).get("utilization_pct") or 0.0)
+        util_gain = max(merged_util - current_util, 0.0)
+        shared_store_count = self._shared_store_count(current_load, candidate_load)
+        savings = (
+            float((current_load or {}).get("estimated_cost") or 0.0)
+            + float((candidate_load or {}).get("estimated_cost") or 0.0)
+            - float((merged_load or {}).get("estimated_cost") or 0.0)
+        )
+        two_across_gain = max(
+            int((merged_load or {}).get("upper_two_across_applied_count") or 0)
+            - int((current_load or {}).get("upper_two_across_applied_count") or 0)
+            - int((candidate_load or {}).get("upper_two_across_applied_count") or 0),
+            0,
+        )
+        stop_delta = max(
+            int((merged_load or {}).get("stop_count") or 0)
+            - int((current_load or {}).get("stop_count") or 0),
+            0,
+        )
+        util_gain_weight = float(
+            params.get("v2_prebatch_util_gain_weight", DEFAULT_V2_PREBATCH_UTIL_GAIN_WEIGHT)
+            or DEFAULT_V2_PREBATCH_UTIL_GAIN_WEIGHT
+        )
+        shared_store_bonus = float(
+            params.get("v2_prebatch_shared_store_bonus", DEFAULT_V2_PREBATCH_SHARED_STORE_BONUS)
+            or DEFAULT_V2_PREBATCH_SHARED_STORE_BONUS
+        )
+        two_across_bonus = float(
+            params.get("v2_prebatch_two_across_gain_bonus", DEFAULT_V2_PREBATCH_TWO_ACROSS_GAIN_BONUS)
+            or DEFAULT_V2_PREBATCH_TWO_ACROSS_GAIN_BONUS
+        )
+        stop_delta_penalty = float(
+            params.get("v2_prebatch_stop_delta_penalty", DEFAULT_V2_PREBATCH_STOP_DELTA_PENALTY)
+            or DEFAULT_V2_PREBATCH_STOP_DELTA_PENALTY
+        )
+        return (
+            objective_bonus
+            + (util_gain * util_gain_weight)
+            + (shared_store_count * shared_store_bonus)
+            + (two_across_gain * two_across_bonus)
+            + (savings * float(
+                params.get("v2_prebatch_savings_weight", DEFAULT_V2_PREBATCH_SAVINGS_WEIGHT)
+                or DEFAULT_V2_PREBATCH_SAVINGS_WEIGHT
+            ))
+            - (stop_delta * stop_delta_penalty)
+        )
 
     def _load_max_unit_length(self, load):
         max_length = 0.0
@@ -2236,6 +2688,14 @@ class Optimizer:
             "stop_count": stop_count,
             "groups": groups,
             "stop_coords": [stop.get("coords") for stop in ordered_stops if stop.get("coords")],
+            "store_codes": sorted(
+                {
+                    str(store_code or "").strip().upper()
+                    for group in groups
+                    for store_code in (group.get("store_codes") or [])
+                    if str(store_code or "").strip()
+                }
+            ),
         }
         if stack_config.get("auto_trailer_upgrade"):
             load["auto_trailer_upgrade"] = True
@@ -2508,6 +2968,10 @@ class Optimizer:
                 _int_value("v2_fd_rebalance_passes", DEFAULT_V2_FD_REBALANCE_PASSES),
                 0,
             )
+            tuned["v2_prebatch_candidate_limit"] = min(
+                _int_value("v2_prebatch_candidate_limit", DEFAULT_V2_PREBATCH_CANDIDATE_LIMIT),
+                10,
+            )
             return tuned
 
         tuned["v2_pair_neighbors"] = min(_int_value("v2_pair_neighbors", DEFAULT_V2_PAIR_NEIGHBORS), 12)
@@ -2531,6 +2995,10 @@ class Optimizer:
         tuned["v2_fd_rebalance_passes"] = min(
             _int_value("v2_fd_rebalance_passes", DEFAULT_V2_FD_REBALANCE_PASSES),
             1,
+        )
+        tuned["v2_prebatch_candidate_limit"] = min(
+            _int_value("v2_prebatch_candidate_limit", DEFAULT_V2_PREBATCH_CANDIDATE_LIMIT),
+            14,
         )
         return tuned
 
@@ -2637,6 +3105,13 @@ class Optimizer:
         )
 
         coords = self.zip_coords.get(representative_zip) if representative_zip else None
+        store_codes = sorted(
+            {
+                str((line or {}).get("store") or "").strip().upper()
+                for line in (lines or [])
+                if str((line or {}).get("store") or "").strip()
+            }
+        )
 
         return {
             "key": key,
@@ -2659,6 +3134,7 @@ class Optimizer:
             "requires_return_to_origin": requires_return_to_origin,
             "ignore_for_optimization": ignore_for_optimization,
             "order_category_scope": order_category_scope,
+            "store_codes": store_codes,
         }
 
     def _group_order_category_scope(self, group):

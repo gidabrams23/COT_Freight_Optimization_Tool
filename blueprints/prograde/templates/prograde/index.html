@@ -162,6 +162,22 @@
           </div>
         </div>
       </div>
+      <div class="pg-sessions-list-toolbar">
+        <div class="pg-sessions-list-subtitle">
+          {% if trailer_filter == 'all' %}
+          Showing all saved sessions, including QTY=0.
+          {% else %}
+          Showing saved sessions with at least one trailer (QTY>=1).
+          {% endif %}
+        </div>
+        <form method="get" action="{{ url_for('prograde.sessions') }}">
+          <input type="hidden" name="brand" value="{{ selected_brand }}">
+          <select name="trailer_filter" class="form-control form-control-sm" onchange="this.form.submit()">
+            <option value="active" {% if trailer_filter != 'all' %}selected{% endif %}>QTY &gt;= 1</option>
+            <option value="all" {% if trailer_filter == 'all' %}selected{% endif %}>All Saved</option>
+          </select>
+        </form>
+      </div>
 
       <div class="table-wrap">
         <table class="pg-sessions-table">

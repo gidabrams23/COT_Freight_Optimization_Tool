@@ -806,6 +806,17 @@ def _bt_render_deck_profile(sku_row):
     return "flat"
 
 
+def _bt_host_allows_nesting(sku_row):
+    sku = _row_to_dict(sku_row)
+    if _bt_render_deck_profile(sku) == "dump":
+        return True
+    model = str(sku.get("model") or "").strip().upper()
+    if model in {"30SV", "35SV"}:
+        return False
+    normalized_mcat = db.normalize_bigtex_mcat(str(sku.get("mcat") or "").strip()).upper()
+    return normalized_mcat == "VANGUARD/LANDSCAPE"
+
+
 def _build_position_view(pos, brand, bt_sku_map=None, height_ref=None, pj_sku_map=None):
     """Enrich a position row with display fields: footprint, height, sku metadata."""
     p = dict(pos)
@@ -4907,11 +4918,13 @@ def sessions():
         return redirect(url_for("prograde.account_landing", brand=selected_brand, next=next_url))
     account_notice = _consume_account_notice()
     can_manage_sessions = bool(active_profile.get("is_admin"))
+    trailer_filter = (request.args.get("trailer_filter") or "").strip().lower()
+    show_all_saved = trailer_filter == "all"
     sessions = []
     for row in db.get_all_sessions(
         brand=selected_brand,
         saved_only=True,
-        min_trailer_qty=1,
+        min_trailer_qty=None if show_all_saved else 1,
     ):
         if not _can_access_session(row, active_profile):
             continue
@@ -4926,6 +4939,7 @@ def sessions():
         can_manage_sessions=can_manage_sessions,
         account_notice=account_notice,
         selected_brand=selected_brand,
+        trailer_filter=("all" if show_all_saved else "active"),
         has_seed_data=db.has_seed_data(),
     )
 
@@ -6682,11 +6696,16 @@ def api_nest_unit(session_id):
         host_is_dump = _pj_render_deck_profile(host_sku) == "dump"
     elif brand == "bigtex":
         host_sku = dict(db.get_bigtex_sku(host_map.get("item_number")) or {})
-        host_is_dump = _bt_render_deck_profile(host_sku) == "dump"
+        host_is_dump = _bt_host_allows_nesting(host_sku)
     else:
         host_sku = dict(db.get_bwise_sku(host_map.get("item_number")) or {})
         host_is_dump = _bt_render_deck_profile(host_sku) == "dump"
     if not host_is_dump:
+        if brand == "bigtex":
+            return _json_error(
+                "Selected host must be a dump or eligible Vanguard/Landscape model (30SV/35SV excluded).",
+                400,
+            )
         return _json_error("Selected host is not a dump profile.", 400)
 
     if brand == "pj":

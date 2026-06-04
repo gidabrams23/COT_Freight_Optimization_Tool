@@ -10465,10 +10465,20 @@ button.plant-card {
   max-width: 320px;
 }
 
+.settings-multiselect.settings-multiselect-exception-categories {
+  max-width: none;
+}
+
 .settings-multiselect .dropdown-trigger {
   min-height: 30px;
   padding: 6px 10px;
   border-radius: 8px;
+}
+
+.settings-multiselect.settings-multiselect-exception-categories .dropdown-trigger,
+.settings-multiselect.settings-multiselect-exception-categories .dropdown-panel {
+  width: min(420px, calc(100vw - 64px));
+  max-width: calc(100vw - 64px);
 }
 
 .settings-multiselect .dropdown-panel {
@@ -10485,6 +10495,10 @@ button.plant-card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.settings-multiselect.settings-multiselect-exception-categories .dropdown-scroll {
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
 }
 
 .settings-multiselect .checkbox-pill {

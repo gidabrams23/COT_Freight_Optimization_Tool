@@ -17,19 +17,26 @@
 
     {% if sso_enabled %}
       <div class="login-sso-panel">
-        {% if sso_gate_cleared %}
+        {% if local_dev_auth_bypass_active %}
+          <div class="login-sso-success">
+            <span class="material-symbols-outlined">developer_mode</span>
+            <span>Local development auth bypass is active for this loopback session.</span>
+          </div>
+        {% elif sso_gate_cleared %}
           <div class="login-sso-success">
             <span class="material-symbols-outlined">verified</span>
             <span>SSO cleared. No additional Microsoft sign-in is required.</span>
           </div>
-        {% else %}
+        {% elif not local_dev_auth_bypass_active %}
           <a class="btn-primary login-sso-button" href="{{ url_for('auth_microsoft_start', next=next_url) }}">
             <span class="material-symbols-outlined">account_circle</span>
             <span>Continue with Microsoft</span>
           </a>
         {% endif %}
         <div class="login-sso-meta">
-          {% if sso_email %}
+          {% if local_dev_auth_bypass_active %}
+            Microsoft Entra MFA is bypassed only because `LOCAL_DEV_AUTH_BYPASS_ENABLED=true` and this request is coming from localhost in development mode.
+          {% elif sso_email %}
             Signed in as <strong>{{ sso_display_name or sso_email }}</strong> ({{ sso_email }})
             {% if sso_profile_hint %}
               <span class="login-sso-hint">Mapped profile: {{ sso_profile_hint }}</span>

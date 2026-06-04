@@ -275,7 +275,7 @@
                       <td>
                         {% set selected_exception_categories = optimizer_defaults.upper_deck_exception_categories or ['USA', 'UTA'] %}
                         {% set selected_exception_count = selected_exception_categories | length %}
-                        <div class="optimize-dropdown settings-multiselect" data-settings-multiselect>
+                        <div class="optimize-dropdown settings-multiselect settings-multiselect-exception-categories" data-settings-multiselect>
                           <button class="dropdown-trigger" type="button" data-settings-multiselect-toggle {% if not can_edit_settings %}disabled{% endif %}>
                             <span data-settings-multiselect-label>
                               {% if selected_exception_count == 0 %}
@@ -858,6 +858,9 @@
                       </td>
                       <td>
                         <div class="source-led-source" data-source-led-source>{{ row.mapped_source or '-' }}</div>
+                        {% if row.mapped_added_label %}
+                          <div><span class="meta-chip">Added {{ row.mapped_added_label }}</span></div>
+                        {% endif %}
                         <div class="muted">{{ row.mapping_status }}</div>
                       </td>
                       <td>{{ row.line_count }}</td>
@@ -969,23 +972,17 @@
                     <th>Step Deck</th>
                     <th>Flat Bed</th>
                     <th>Notes</th>
+                    <th>Source</th>
                     <th>Added</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% if planner_specs %}
-                    <tr class="sku-group-row" data-sku-group="planner">
-                      <td colspan="9">
-                        <span class="sku-group-label">Planner Input SKUs</span>
-                        <span class="sku-group-meta">{{ planner_specs | length }} added</span>
-                      </td>
-                    </tr>
-                  {% endif %}
-                  {% for spec in planner_specs %}
+                  {% for spec in specs %}
+                    {% set is_planner_spec = (spec.source or '') == 'planner' or ((spec.source or '') != 'system' and (spec.added_at or '')) %}
                     <tr data-id="{{ spec.id }}"
                         data-sku-row
-                        data-origin="planner"
+                        data-origin="{{ 'planner' if is_planner_spec else 'system' }}"
                         data-sku-value="{{ spec.sku or '' }}"
                         data-description-value="{{ spec.description or '' }}"
                         data-category-value="{{ (spec.category or '') | upper }}"
@@ -1014,57 +1011,7 @@
                         <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
                       </td>
                       <td>
-                        <span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span>
-                      </td>
-                      <td>
-                        {% if can_edit_settings %}
-                          <form method="post" action="{{ url_for('delete_sku', spec_id=spec.id) }}">
-                            <button class="btn-danger" type="submit">Delete</button>
-                          </form>
-                        {% else %}
-                          <span class="muted">Read-only</span>
-                        {% endif %}
-                      </td>
-                    </tr>
-                  {% endfor %}
-                  {% if system_specs %}
-                    <tr class="sku-group-row sku-group-divider" data-sku-group="system">
-                      <td colspan="9">
-                        <span class="sku-group-label">Preloaded Cheat Sheet</span>
-                        <span class="sku-group-meta">{{ system_specs | length }} items</span>
-                      </td>
-                    </tr>
-                  {% endif %}
-                  {% for spec in system_specs %}
-                    <tr data-id="{{ spec.id }}"
-                        data-sku-row
-                        data-origin="system"
-                        data-sku-value="{{ spec.sku or '' }}"
-                        data-description-value="{{ spec.description or '' }}"
-                        data-category-value="{{ (spec.category or '') | upper }}"
-                        data-length-value="{{ spec.length_with_tongue_ft if spec.length_with_tongue_ft is not none else '' }}"
-                        data-step-deck-value="{{ spec.max_stack_step_deck if spec.max_stack_step_deck is not none else '' }}"
-                        data-flat-bed-value="{{ spec.max_stack_flat_bed if spec.max_stack_flat_bed is not none else '' }}">
-                      <td>
-                        <input class="table-input" data-field="sku" value="{{ spec.sku }}" {% if not can_edit_settings %}disabled{% endif %}>
-                      </td>
-                      <td>
-                        <input class="table-input" data-field="description" value="{{ spec.description or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
-                      </td>
-                      <td>
-                        <input class="table-input" data-field="category" value="{{ spec.category }}" {% if not can_edit_settings %}disabled{% endif %}>
-                      </td>
-                      <td>
-                        <input class="table-input" data-field="length_with_tongue_ft" data-type="float" type="number" step="0.1" value="{{ spec.length_with_tongue_ft }}" {% if not can_edit_settings %}disabled{% endif %}>
-                      </td>
-                      <td>
-                        <input class="table-input" data-field="max_stack_step_deck" data-type="int" type="number" min="1" value="{{ spec.max_stack_step_deck }}" {% if not can_edit_settings %}disabled{% endif %}>
-                      </td>
-                      <td>
-                        <input class="table-input" data-field="max_stack_flat_bed" data-type="int" type="number" min="1" value="{{ spec.max_stack_flat_bed }}" {% if not can_edit_settings %}disabled{% endif %}>
-                      </td>
-                      <td>
-                        <input class="table-input" data-field="notes" value="{{ spec.notes or '' }}" {% if not can_edit_settings %}disabled{% endif %}>
+                        <span class="meta-chip">{{ 'Planner Input' if is_planner_spec else 'Cheat Sheet' }}</span>
                       </td>
                       <td>
                         <span class="muted">{{ (spec.added_at or spec.created_at) | est_datetime if (spec.added_at or spec.created_at) else '' }}</span>
