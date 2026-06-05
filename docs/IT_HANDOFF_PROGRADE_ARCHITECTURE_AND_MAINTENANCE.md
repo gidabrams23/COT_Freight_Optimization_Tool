@@ -93,7 +93,7 @@ The load builder is the operational core of ProGrade. Within a session, planners
 The inventory gap panel is optional and support-relevant.
 - `Big Tex`: accepts workbook or CSV uploads and can also refresh via SQL.
 - `PJ`: accepts inventory CSV uploads and can also refresh via SQL.
-- `B-Wise`: uses the same core load-builder workflow, but inventory upload/SQL refresh is not currently supported.
+- `B-Wise`: accepts workbook uploads from the B-Wise sales-order inventory report and falls back to catalog mode when no upload has been run. SQL refresh is not currently supported.
 
 ### Export Workflow
 Supported outputs include:
@@ -186,6 +186,8 @@ Core entities include:
 - `pj_inventory_snapshot`
 - `pj_inventory_snapshot_whse`
 - `pj_inventory_upload_log`
+- `bwise_inventory_snapshot`
+- `bwise_inventory_upload_log`
 
 ### Seed and Bootstrap Behavior
 On startup, ProGrade can seed or upsert:
@@ -457,7 +459,7 @@ After a deployment or config change, verify:
 - SQLite keeps infrastructure simple but limits safe horizontal scaling.
 - The load builder relies on a substantial amount of template-embedded JavaScript, which can make debugging UI state and persistence issues harder than in a more componentized frontend.
 - Brand behavior is unified at the workflow level but not fully identical in implementation; support should not assume all import and rule paths are interchangeable.
-- Inventory upload and SQL refresh are only supported today for `Big Tex` and `PJ` sessions.
+- Inventory upload is supported for `Big Tex`, `PJ`, and `B-Wise`; SQL refresh remains supported only for `Big Tex` and `PJ`.
 - SQL refresh helpers currently deserve extra scrutiny from a security perspective because of code-level proof-of-concept defaults.
 
 ## 12) Operational Summary for Support Teams

@@ -44,6 +44,17 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
                     ("D3J1252BSSK", "D3", "dump_variants", "D3 dump 12", 12.0, 12.0, 6.0, 18.0, now),
                 ],
             )
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO bwise_skus
+                (item_number, mcat, model, old_model, bed_length, tongue, stack_height, total_footprint, stack_height_is_placeholder, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                """,
+                [
+                    ("GH824DIBNW", "Gooseneck", "THD15", "TH-824", 24.0, 8.0, 3.0, 32.0, 0, now),
+                    ("GDF712DGAAW", "Dumps", "DT12", "DT-712", 12.0, 4.0, 4.0, 16.0, 0, now),
+                ],
+            )
 
     def tearDown(self):
         if self._previous_db_path is None:
@@ -116,6 +127,39 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
             encoding="utf-8",
         )
         return csv_path
+
+    def _build_bwise_inventory_workbook(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Sheet1"
+        sheet.append(["B-Wise Sales Orders"])
+        sheet.append([""])
+        sheet.append(
+            [
+                "Sales Order",
+                "Customer (Ship To)",
+                "MODEL",
+                "PART",
+                "ORDERED",
+                "DATE_DUE",
+                "JOB",
+                "Weld Bay",
+                "Proj Weld",
+                "Welded",
+                "Assembled",
+                "PRICE",
+            ]
+        )
+        sheet.append(["0147500", "STOCK", "THD15", "GH824DIBNW", "2026-02-09", "2026-03-16", "512823", "LINE 5", "2026-04-01", "2026-04-01", "", 12000])
+        sheet.append(["0147501", "STOCK", "THD15", "GH824DIBNW", "2026-02-09", "2026-03-16", "512824", "LINE 5", "2026-04-01", "2026-04-01", None, 12000])
+        sheet.append(["0149450", "STOCK", "DT12", "GDF712DGAAW%", "2026-04-08", "2026-05-18", "520065", "LINE 3", "2026-05-27", "2026-05-27", None, 9500])
+        sheet.append(["0149451", "STOCK", "DT12", "GDF712DGAAW%", "2026-04-08", "2026-05-18", "520066", "LINE 3", "2026-05-28", "2026-05-28", "2026-06-01", 9500])
+        sheet.append(["0148054", "DEALER", "EH14", "GEX720DIEJWX", "2026-02-27", "2026-04-06", "514296", "LINE 4", "2026-04-14", "2026-04-14", None, 8000])
+        sheet.append(["0148591", "STOCK", "THD15", "TH822DIBNPJ", "2026-03-16", "2026-04-21", "516831", "LINE 5", "2026-06-02", "2026-06-02", None, 11650])
+
+        workbook_path = Path(self._tmpdir.name) / "bwise_inventory.xlsx"
+        workbook.save(workbook_path)
+        return workbook_path
 
     def test_import_orders_workbook_aggregates_inventory_statuses(self):
         workbook_path = self._build_orders_workbook()
@@ -239,6 +283,40 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
         self.assertEqual(upload_meta["deduped_rows"], 4)
         self.assertEqual(upload_meta["duplicate_rows"], 1)
         self.assertEqual(upload_meta["warehouse_count"], 2)
+        self.assertEqual(upload_meta["matched_rows"], 3)
+        self.assertEqual(upload_meta["matched_items"], 2)
+        self.assertEqual(upload_meta["unmatched_items"], 1)
+
+    def test_import_bwise_inventory_workbook_filters_stock_and_blank_assembled(self):
+        workbook_path = self._build_bwise_inventory_workbook()
+
+        result = self.db.import_bwise_inventory_report(workbook_path=workbook_path)
+
+        self.assertEqual(result["source_format"], "bwise_workbook")
+        self.assertEqual(result["sheet_name"], "Sheet1")
+        self.assertEqual(result["processed_rows"], 6)
+        self.assertEqual(result["valid_rows"], 4)
+        self.assertEqual(result["distinct_items"], 3)
+        self.assertEqual(result["available_total"], 4)
+        self.assertEqual(result["matched_rows"], 3)
+        self.assertEqual(result["matched_item_count"], 2)
+        self.assertEqual(result["unmatched_item_count"], 1)
+        self.assertIn("TH822DIBNPJ", result["unmatched_items"])
+
+        snapshot_rows = [dict(r) for r in self.db.get_bwise_inventory_snapshot_rows(limit=20)]
+        by_item = {row["item_number"]: row for row in snapshot_rows}
+        self.assertEqual(by_item["GH824DIBNW"]["available_count"], 2)
+        self.assertEqual(by_item["GH824DIBNW"]["match_method"], "exact")
+        self.assertEqual(by_item["GDF712DGAAW"]["available_count"], 1)
+        self.assertEqual(by_item["GDF712DGAAW"]["match_method"], "trimmed_suffix")
+        self.assertEqual(by_item["TH822DIBNPJ"]["available_count"], 1)
+        self.assertEqual(by_item["TH822DIBNPJ"]["match_method"], "unmapped")
+
+        upload_meta = dict(self.db.get_bwise_inventory_upload_meta())
+        self.assertEqual(upload_meta["source_format"], "bwise_workbook")
+        self.assertEqual(upload_meta["processed_rows"], 6)
+        self.assertEqual(upload_meta["valid_rows"], 4)
+        self.assertEqual(upload_meta["distinct_items"], 3)
         self.assertEqual(upload_meta["matched_rows"], 3)
         self.assertEqual(upload_meta["matched_items"], 2)
         self.assertEqual(upload_meta["unmatched_items"], 1)

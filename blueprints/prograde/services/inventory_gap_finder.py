@@ -81,11 +81,16 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", 
         warehouse_options.extend({"value": code, "label": code} for code in whse_codes)
         mode = "bt_upload"
     elif brand_key == "bwise":
-        upload_meta = None
+        upload_meta = db.get_bwise_inventory_upload_meta()
         selected_whse = ""
         warehouse_options = []
-        candidates = _build_bwise_catalog_candidates(bt_sku_map)
-        mode = "bwise_catalog"
+        upload_candidates = _build_bwise_upload_candidates(bt_sku_map)
+        if upload_meta or upload_candidates:
+            candidates = upload_candidates
+            mode = "bwise_upload"
+        else:
+            candidates = _build_bwise_catalog_candidates(bt_sku_map)
+            mode = "bwise_catalog"
     else:
         upload_meta = db.get_pj_inventory_upload_meta()
         whse_codes = db.get_pj_inventory_whse_codes()
@@ -140,6 +145,8 @@ def build_inventory_gap_data(*, session_id, brand, carrier, canvas, bt_whse="", 
     remaining_ft = max(remaining_ft_raw, 0.0)
 
     if brand_key == "bigtex":
+        total_available_units = sum(int(r.get("available_count") or 0) for r in rows)
+    elif brand_key == "bwise" and mode == "bwise_upload":
         total_available_units = sum(int(r.get("available_count") or 0) for r in rows)
     elif mode == "pj_upload":
         total_available_units = sum(int(r.get("available_count") or 0) for r in rows)
@@ -289,7 +296,11 @@ def _evaluate_single_stack_fit(
         return fit_result
     if not _candidate_fits_stack_length(candidate, stack_length_ft):
         return fit_result
-    if candidate_height_ft > _EPS and candidate_height_ft > (remaining_height_ft + _EPS):
+    if (
+        not (brand == "pj" and not slot.get("stack_side"))
+        and candidate_height_ft > _EPS
+        and candidate_height_ft > (remaining_height_ft + _EPS)
+    ):
         return fit_result
 
     available_count = candidate.get("available_count")
@@ -1324,6 +1335,57 @@ def _build_bwise_catalog_candidates(bwise_sku_map):
             }
         )
         bwise_sku_map.setdefault(item_number, sku)
+    return candidates
+
+
+def _build_bwise_upload_candidates(bwise_sku_map):
+    candidates = []
+    for source_row in db.get_bwise_inventory_snapshot_rows(limit=1500):
+        row = dict(source_row or {})
+        available = int(row.get("available_count") or 0)
+        if available <= 0:
+            continue
+
+        item_number = str(row.get("item_number") or "").strip().upper()
+        if not item_number:
+            continue
+        sku_in_db = bool(bwise_sku_map.get(item_number))
+        sku = dict(bwise_sku_map.get(item_number) or {})
+        model = str(
+            row.get("sku_old_model")
+            or row.get("sku_model")
+            or row.get("normalized_model")
+            or ""
+        ).strip()
+        mcat = db.normalize_bigtex_mcat(
+            row.get("sku_mcat")
+            or row.get("normalized_category")
+            or ""
+        )
+        candidates.append(
+            {
+                "brand": "bwise",
+                "item_number": item_number,
+                "model": model,
+                "mcat": mcat,
+                "footprint_each": _as_float(row.get("sku_total_footprint"), 0.0),
+                "stack_height_each": _as_float(row.get("sku_stack_height"), 0.0),
+                "available_count": available,
+                "total_count": int(row.get("total_count") or 0),
+                "assigned_count": int(row.get("assigned_count") or 0),
+                "built_count": 0,
+                "future_build_count": 0,
+                "available_built_count": 0,
+                "available_future_count": 0,
+                "is_unmapped": not sku_in_db,
+                "sku_in_db": sku_in_db,
+                "default_tongue_profile": "standard",
+                "default_override_reason": None,
+                "catalog_only": False,
+            }
+        )
+        if sku:
+            bwise_sku_map.setdefault(item_number, sku)
     return candidates
 
 

@@ -1,0 +1,22 @@
+2026-06-02 11:48:07,276 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-02 11:48:09,416 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-02 11:48:09,578 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-02 11:48:09,583 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-02 11:48:09,587 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-02 11:48:09,590 [WARNING] blueprints.cot.routes: ENTRA_SSO_ENABLED=true but Entra config is incomplete (or msal missing); Microsoft SSO is disabled.
+2026-06-02 11:48:09,600 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-02 11:48:09,622 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-02 11:48:09,622 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-02 11:48:09,626 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-02 11:48:09,627 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-02 11:48:09,636 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-02 11:48:09,637 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-02 11:48:09,645 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+ * Serving Flask app 'blueprints.cot.routes'
+ * Debug mode: off
+2026-06-02 11:48:09,908 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5052
+2026-06-02 11:48:09,913 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-02 11:48:20,211 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-06-02 11:48:20,211 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-06-02 11:48:20,215 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:48:20] "GET /healthz HTTP/1.1" 200 -

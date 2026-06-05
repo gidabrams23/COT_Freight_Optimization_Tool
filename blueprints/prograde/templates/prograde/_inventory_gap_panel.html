@@ -1,8 +1,8 @@
 {% set is_bt = session.brand == 'bigtex' %}
 {% set is_pj = session.brand == 'pj' %}
 {% set is_bw = session.brand == 'bwise' %}
-{% set can_upload_inventory = is_bt or is_pj %}
-{% set upload_accept = '.xlsx,.xlsm,.csv' if is_bt else '.csv' %}
+{% set can_upload_inventory = is_bt or is_pj or is_bw %}
+{% set upload_accept = '.xlsx,.xlsm,.csv' if is_bt else ('.csv' if is_pj else '.xlsx,.xlsm') %}
 {% set stack_slots = (inventory_gap.stack_slots if inventory_gap and inventory_gap.stack_slots else []) %}
 {% set fixed_col_count = 6 %}
 {% set warehouse_options = (inventory_gap.warehouse_options if inventory_gap and inventory_gap.warehouse_options else []) %}
@@ -149,10 +149,10 @@
             <td colspan="{{ fixed_col_count + (stack_slots | length) }}" style="text-align:center;color:var(--text-secondary);padding:10px 8px;">
               {% if is_bt %}
                 Upload BT inventory (.xlsx/.xlsm or inventory CSV) to populate availability.
+              {% elif is_bw %}
+                Upload the B-Wise sales-order inventory workbook to populate availability.
               {% elif inventory_mode == 'pj_upload' %}
                 Upload PJ inventory CSV (with inventsiteid warehouse values) to populate availability.
-              {% elif is_bw %}
-                B-Wise runs in catalog-only mode for v1; no inventory upload is required.
               {% else %}
                 PJ catalog suggestions are unavailable because no PJ SKUs are loaded.
               {% endif %}

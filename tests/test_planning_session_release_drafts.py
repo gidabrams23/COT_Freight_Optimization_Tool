@@ -16,7 +16,7 @@ def _set_authenticated_session(client):
 
 
 def test_release_draft_loads_for_session_skips_approved(monkeypatch):
-    deleted_ids = []
+    archived_ids = []
     synced = []
 
     monkeypatch.setattr(
@@ -29,7 +29,11 @@ def test_release_draft_loads_for_session_skips_approved(monkeypatch):
             {"id": 14, "status": None},
         ],
     )
-    monkeypatch.setattr(app_module.db, "delete_load", lambda load_id: deleted_ids.append(int(load_id)))
+    monkeypatch.setattr(
+        app_module.db,
+        "update_load_status",
+        lambda load_id, status, load_number=None: archived_ids.append((int(load_id), status, load_number)),
+    )
     monkeypatch.setattr(
         app_module,
         "_sync_planning_session_status",
@@ -39,7 +43,11 @@ def test_release_draft_loads_for_session_skips_approved(monkeypatch):
     released = app_module._release_draft_loads_for_session(77)
 
     assert released == [11, 12, 14]
-    assert deleted_ids == [11, 12, 14]
+    assert archived_ids == [
+        (11, app_module.STATUS_ARCHIVED, None),
+        (12, app_module.STATUS_ARCHIVED, None),
+        (14, app_module.STATUS_ARCHIVED, None),
+    ]
     assert synced == [77]
 
 
@@ -57,6 +65,12 @@ def test_release_draft_loads_endpoint_returns_json_summary(monkeypatch):
         "_release_draft_loads_for_session",
         lambda session_id: [401, 402] if session_id == 9 else [],
     )
+    archived_sessions = []
+    monkeypatch.setattr(
+        app_module,
+        "_archive_session_and_release_loads",
+        lambda session_id: archived_sessions.append(int(session_id)) or True,
+    )
 
     response = client.post(
         "/planning-sessions/9/release-draft-loads",
@@ -73,15 +87,17 @@ def test_release_draft_loads_endpoint_returns_json_summary(monkeypatch):
         "session_id": 9,
         "released_count": 2,
         "released_load_ids": [401, 402],
-        "message": "Released 2 draft loads back to the pool.",
+        "archived_session": True,
+        "message": "Archived session history and released 2 draft loads for future planning.",
     }
+    assert archived_sessions == [9]
 
 
 def test_planning_sessions_view_auto_releases_active_draft_session(monkeypatch):
     client = app_module.app.test_client()
     _set_authenticated_session(client)
 
-    released_sessions = []
+    archived_sessions = []
     monkeypatch.setattr(app_module, "_get_active_planning_session_id", lambda: 55)
     monkeypatch.setattr(app_module, "_get_allowed_plants", lambda: ["ATL"])
     monkeypatch.setattr(app_module, "_can_access_planning_session", lambda _session: True)
@@ -92,8 +108,8 @@ def test_planning_sessions_view_auto_releases_active_draft_session(monkeypatch):
     )
     monkeypatch.setattr(
         app_module,
-        "_release_draft_loads_for_session",
-        lambda session_id: released_sessions.append(int(session_id)) or [],
+        "_archive_session_and_release_loads",
+        lambda session_id: archived_sessions.append(int(session_id)) or True,
     )
     monkeypatch.setattr(
         app_module,
@@ -105,7 +121,44 @@ def test_planning_sessions_view_auto_releases_active_draft_session(monkeypatch):
     response = client.get("/planning-sessions")
 
     assert response.status_code == 200
-    assert released_sessions == [55]
+    assert archived_sessions == [55]
+
+
+def test_planning_sessions_view_uses_stored_avg_utilization(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    monkeypatch.setattr(app_module, "_get_active_planning_session_id", lambda: None)
+    monkeypatch.setattr(app_module, "_get_allowed_plants", lambda: ["ATL"])
+    monkeypatch.setattr(app_module, "_auto_release_stale_unplanned_sessions", lambda reference_day=None: {})
+    monkeypatch.setattr(
+        app_module.db,
+        "list_planning_sessions",
+        lambda _filters=None: [
+            {
+                "id": 77,
+                "session_name": "ATL Session",
+                "status": "COMPLETED",
+                "plant_code": "ATL",
+                "avg_utilization": 87.36,
+                "created_at": "2026-05-05T10:00:00",
+                "last_activity_at": "2026-05-05T10:00:00",
+                "load_count": 2,
+                "total_orders": 5,
+                "created_by": "planner@example.com",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        app_module.load_builder,
+        "list_loads",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected per-session load rebuild")),
+    )
+
+    response = client.get("/planning-sessions")
+
+    assert response.status_code == 200
+    assert "87.4%" in response.get_data(as_text=True)
 
 
 def test_auto_release_stale_unplanned_sessions_releases_and_archives(monkeypatch):

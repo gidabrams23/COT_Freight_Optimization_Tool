@@ -1,0 +1,54 @@
+true=true : The term 'true=true' is not recognized as the name of a cmdlet, function, script file, or operable 
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ true='true'; false='true'; true='false'; e3c2dcef-5940-4aa9-961e-cb8c ...
++ ~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (true=true:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+false=true : The term 'false=true' is not recognized as the name of a cmdlet, function, script file, or operable 
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:14
++ true='true'; false='true'; true='false'; e3c2dcef-5940-4aa9-961e-cb8c ...
++              ~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (false=true:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+true=false : The term 'true=false' is not recognized as the name of a cmdlet, function, script file, or operable 
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:28
++ true='true'; false='true'; true='false'; e3c2dcef-5940-4aa9-961e-cb8c ...
++                            ~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (true=false:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+e3c2dcef-5940-4aa9-961e-cb8c2bcc08ee=example.onmicrosoft.com : The term 
+'e3c2dcef-5940-4aa9-961e-cb8c2bcc08ee=example.onmicrosoft.com' is not recognized as the name of a cmdlet, function, 
+script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is 
+correct and try again.
+At line:1 char:42
++ ... ue='false'; e3c2dcef-5940-4aa9-961e-cb8c2bcc08ee='example.onmicrosoft ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (e3c2dcef-5940-4...onmicrosoft.com:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+39bb5ca9-1431-4caa-badd-ae2a4a9ba81c=00000000-0000-0000-0000-000000000000 : The term 
+'39bb5ca9-1431-4caa-badd-ae2a4a9ba81c=00000000-0000-0000-0000-000000000000' is not recognized as the name of a cmdlet, 
+function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the 
+path is correct and try again.
+At line:1 char:106
++ ... osoft.com'; 39bb5ca9-1431-4caa-badd-ae2a4a9ba81c='00000000-0000-0000- ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (39bb5ca9-1431-4...00-000000000000:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+l5-8Q~Ok_T..FeI9lfI99F3AnpSXMRthh4KOfcHD=dummy-secret : The term 
+'l5-8Q~Ok_T..FeI9lfI99F3AnpSXMRthh4KOfcHD=dummy-secret' is not recognized as the name of a cmdlet, function, script 
+file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct 
+and try again.
+At line:1 char:183
++ ... 000000000'; l5-8Q~Ok_T..FeI9lfI99F3AnpSXMRthh4KOfcHD='dummy-secret';  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (l5-8Q~Ok_T..FeI...HD=dummy-secret:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 

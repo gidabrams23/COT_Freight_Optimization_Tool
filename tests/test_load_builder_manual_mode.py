@@ -25,3 +25,9 @@ def test_manual_mode_missing_time_window_uses_default_without_time_window_error(
     assert result["form_data"]["time_window_days"] == str(
         load_builder.DEFAULT_BUILD_PARAMS.get("time_window_days", "7")
     )
+
+
+def test_build_loads_defaults_optimize_focus_to_unified_profile():
+    result = load_builder.build_loads(MultiDict())
+
+    assert result["form_data"]["optimize_focus"] == load_builder.UNIFIED_OPTIMIZER_PROFILE

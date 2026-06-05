@@ -22,14 +22,26 @@ DEFAULT_BUILD_PARAMS = {
     "algorithm_version": "v2",
     "compare_algorithms": False,
     "optimize_mode": "auto",
-    "optimize_focus": "utilization_first",
+    "optimize_focus": "planner_approval",
     "manual_order_input": "",
     "ignore_due_date": False,
     "order_category_scope": order_categories.ORDER_CATEGORY_SCOPE_ALL,
     "order_category_scopes": [],
     "order_category_tokens": [],
     "excluded_skus": [],
+    "v2_allow_cross_order_stack_sharing": True,
+    "v2_state_cohort_prebatch_enabled": True,
+    "v2_cross_state_rescue_fill_threshold": 40.0,
 }
+
+UNIFIED_OPTIMIZER_PROFILE = "planner_approval"
+
+
+def normalize_optimize_focus(value, default=UNIFIED_OPTIMIZER_PROFILE):
+    normalized = _clean_value(value).lower()
+    if normalized in {"balanced", "utilization_first", UNIFIED_OPTIMIZER_PROFILE}:
+        return UNIFIED_OPTIMIZER_PROFILE
+    return default
 PLANT_DEFAULT_TRAILER_TYPE_OVERRIDES = {
     "VA": "FLATBED_48",
     "NV": "STEP_DECK_48",
@@ -317,9 +329,12 @@ def list_loads(origin_plant=None, session_id=None, include_stack_metrics=True):
                 }
             )
         if line_items:
+            allow_cross_order_stack_sharing = len(order_numbers) > 1
             config = stack_calculator.calculate_stack_configuration(
                 line_items,
                 trailer_type=trailer_type,
+                preserve_order_contiguity=not allow_cross_order_stack_sharing,
+                prefer_order_affinity=not allow_cross_order_stack_sharing,
             )
             utilization_pct = config.get("utilization_pct", load.get("utilization_pct", 0)) or 0
             load["utilization_pct"] = utilization_pct
@@ -355,9 +370,9 @@ def build_loads(
     optimize_mode = _clean_value(form.get("optimize_mode", "auto")).lower() if form else "auto"
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
-    optimize_focus = _clean_value(form.get("optimize_focus", "utilization_first")).lower() if form else "utilization_first"
-    if optimize_focus not in {"balanced", "utilization_first"}:
-        optimize_focus = "utilization_first"
+    optimize_focus = normalize_optimize_focus(
+        form.get("optimize_focus", UNIFIED_OPTIMIZER_PROFILE) if form else UNIFIED_OPTIMIZER_PROFILE
+    )
     reopt_speed = _clean_value(form.get("__reopt_speed", "")).lower() if form else ""
     fast_reopt = reopt_speed == "fast"
     manual_order_input = _clean_value(form.get("manual_order_input", "")) if form else ""
@@ -566,17 +581,34 @@ def build_loads(
         "algorithm_version": algorithm_version,
         "compare_algorithms": compare_algorithms,
         # v2 objective tuning defaults.
-        "v2_low_util_threshold": 70.0,
-        "v2_lambda_low_util_count": 560.0,
-        "v2_lambda_low_util_depth": 24.0,
-        "v2_lambda_upper_two_across": 24.0,
+        "v2_low_util_threshold": 85.0,
+        "v2_lambda_low_util_count": 780.0,
+        "v2_lambda_low_util_depth": 42.0,
+        "v2_lambda_upper_two_across": 62.0,
         "v2_full_load_target_pct": 90.0,
-        "v2_lambda_full_load_count": 220.0,
-        "v2_lambda_full_load_depth": 18.0,
-        "v2_lambda_fill_to_full": 4.0,
-        "v2_lambda_state_purity": 60.0,
-        "v2_lambda_same_state_merge": 40.0,
-        "v2_lambda_cross_state_merge": 120.0,
+        "v2_elite_load_target_pct": 95.0,
+        "v2_lambda_full_load_count": 420.0,
+        "v2_lambda_full_load_depth": 28.0,
+        "v2_lambda_fill_to_full": 7.0,
+        "v2_lambda_state_purity": 540.0,
+        "v2_lambda_same_state_merge": 140.0,
+        "v2_lambda_cross_state_merge": 520.0,
+        "v2_fill_floor_target_pct": 90.0,
+        "v2_lambda_fill_floor_count": 360.0,
+        "v2_lambda_fill_floor_depth": 18.0,
+        "v2_lambda_fill_floor_progress": 24.0,
+        "v2_lambda_weak_tail_absorb": 220.0,
+        "v2_lambda_stepdeck_two_across": 110.0,
+        "v2_lambda_stop_penalty": 26.0,
+        "v2_stop_soft_limit": 4,
+        "v2_stop_hard_limit": 6,
+        "v2_lambda_geo_density": 180.0,
+        "v2_lambda_geo_direction": 140.0,
+        "v2_lambda_geo_spread": 110.0,
+        "v2_two_across_bonus_step_deck_only": True,
+        "v2_allow_cross_order_stack_sharing": True,
+        "v2_state_cohort_prebatch_enabled": True,
+        "v2_cross_state_rescue_fill_threshold": 40.0,
         "v2_rescue_passes": 3 if fast_reopt else 4,
         "v2_grade_rescue_passes": 3 if fast_reopt else 5,
         "v2_grade_rescue_min_savings": -90.0,
@@ -584,7 +616,7 @@ def build_loads(
         "v2_grade_repair_limit": 12,
         "v2_grade_repair_min_savings": -350.0,
         "v2_fd_rebalance_passes": 2 if fast_reopt else 3,
-        "v2_fd_target_util": 55.0,
+        "v2_fd_target_util": 82.0,
         "v2_fd_absorb_max_cost_increase_f": 5000.0,
         "v2_fd_absorb_max_cost_increase_d": 2200.0,
         "v2_fd_absorb_detour_cap": 999.0,
@@ -601,29 +633,8 @@ def build_loads(
         "v2_home_length_priority_threshold_ft": 12.0,
         "v2_home_length_priority_weight": 1.0,
         "v2_home_length_priority_max_bonus": 12.0,
-        "v2_aggressive_upper_two_across_prepack": False,
+        "v2_aggressive_upper_two_across_prepack": True,
     }
-
-    if optimize_focus == "utilization_first":
-        # Keep full assignment behavior, but bias merge/scoring toward stronger utilization outcomes.
-        params["v2_low_util_threshold"] = 80.0
-        params["v2_lambda_low_util_count"] = 900.0
-        params["v2_lambda_low_util_depth"] = 40.0
-        params["v2_lambda_upper_two_across"] = 48.0
-        # In utilization-first mode, treat "full" as near-100 and keep pushing.
-        params["v2_full_load_target_pct"] = 100.0
-        params["v2_lambda_full_load_count"] = 420.0
-        params["v2_lambda_full_load_depth"] = 36.0
-        params["v2_lambda_fill_to_full"] = 8.0
-        params["v2_lambda_state_purity"] = 1200.0
-        params["v2_lambda_same_state_merge"] = 220.0
-        params["v2_lambda_cross_state_merge"] = 1200.0
-        params["v2_aggressive_upper_two_across_prepack"] = True
-        params["v2_grade_rescue_passes"] = max(int(params.get("v2_grade_rescue_passes") or 0), 6)
-        params["v2_pair_neighbors"] = max(int(params.get("v2_pair_neighbors") or 0), 28)
-        params["v2_pair_neighbors_low_util"] = max(int(params.get("v2_pair_neighbors_low_util") or 0), 72)
-        params["v2_incremental_neighbors"] = max(int(params.get("v2_incremental_neighbors") or 0), 28)
-        params["v2_fd_target_util"] = max(float(params.get("v2_fd_target_util") or 0), 65.0)
 
     flex_days = params["time_window_days"] if enforce_time_window else 0
     if batch_horizon_enabled and batch_end_date:

@@ -141,6 +141,9 @@ Upload summary modal discrepancy handling:
 - When an upload is blocked by unmapped SKUs, planners can add SKU specs in the same modal and the same file is reprocessed automatically (no second file upload required).
 - `ECOM` BIN rows are now treated as e-commerce designations (not canonical categories): upload suggestions prefer closest non-`ECOM` canonical SKUs/categories.
 - Releasing through this workflow does not mutate approved load composition. Historical load utilization/session history remains intact while released SOs are eligible for future planning.
+- When planners release all non-finalized draft loads from an active planning session, the session is now archived instead of deleted. Approved loads remain approved, non-finalized proposed/draft loads are retained in that session and marked `ARCHIVED`, and the orders become eligible for future planning.
+- Draft-load generation now uses one unified v2 batching objective instead of planner-facing `balanced` vs `utilization_first` modes. Legacy saved values normalize to the unified profile automatically.
+- Internal optimizer tuning/replay harness: `python scripts/tune_unified_optimizer.py --limit 8` compares archived session metrics with a fresh unified-optimizer replay against the current open-order pool.
 
 ### Optional: SQL Refresh (manual + scheduled)
 

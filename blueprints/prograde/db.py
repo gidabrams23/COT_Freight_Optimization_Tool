@@ -774,6 +774,31 @@ def init_db():
         uploaded_at DATETIME
     );
 
+    CREATE TABLE IF NOT EXISTS bwise_inventory_snapshot (
+        item_number TEXT PRIMARY KEY,
+        source_part_number TEXT,
+        match_method TEXT,
+        normalized_model TEXT,
+        normalized_category TEXT,
+        total_count INTEGER DEFAULT 0,
+        available_count INTEGER DEFAULT 0,
+        assigned_count INTEGER DEFAULT 0,
+        updated_at DATETIME
+    );
+
+    CREATE TABLE IF NOT EXISTS bwise_inventory_upload_log (
+        upload_id TEXT PRIMARY KEY,
+        source_filename TEXT,
+        source_format TEXT DEFAULT 'bwise_workbook',
+        processed_rows INTEGER DEFAULT 0,
+        valid_rows INTEGER DEFAULT 0,
+        distinct_items INTEGER DEFAULT 0,
+        matched_rows INTEGER DEFAULT 0,
+        matched_items INTEGER DEFAULT 0,
+        unmatched_items INTEGER DEFAULT 0,
+        uploaded_at DATETIME
+    );
+
     CREATE TABLE IF NOT EXISTS app_meta (
         meta_key TEXT PRIMARY KEY,
         meta_value TEXT,
@@ -797,6 +822,12 @@ def init_db():
 
     CREATE INDEX IF NOT EXISTS idx_pj_inventory_upload_log_uploaded_at
         ON pj_inventory_upload_log(uploaded_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_bwise_inventory_snapshot_available
+        ON bwise_inventory_snapshot(available_count DESC, item_number);
+
+    CREATE INDEX IF NOT EXISTS idx_bwise_inventory_upload_log_uploaded_at
+        ON bwise_inventory_upload_log(uploaded_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_prograde_access_profiles_name
         ON prograde_access_profiles(name COLLATE NOCASE);
@@ -3424,6 +3455,358 @@ def import_pj_inventory_report(workbook_path):
     if source_path.suffix.lower() != ".csv":
         raise ValueError("PJ inventory upload requires a CSV report.")
     return _import_pj_inventory_csv_report(source_path)
+
+
+def get_bwise_inventory_upload_meta():
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT *
+            FROM bwise_inventory_upload_log
+            ORDER BY uploaded_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+
+def get_bwise_inventory_snapshot_rows(limit=500):
+    try:
+        row_limit = int(limit)
+    except (TypeError, ValueError):
+        row_limit = 500
+    row_limit = max(1, min(row_limit, 3000))
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT
+                inv.item_number,
+                inv.source_part_number,
+                inv.match_method,
+                inv.normalized_model,
+                inv.normalized_category,
+                inv.total_count,
+                inv.available_count,
+                inv.assigned_count,
+                inv.updated_at,
+                sku.mcat AS sku_mcat,
+                sku.model AS sku_model,
+                sku.old_model AS sku_old_model,
+                sku.total_footprint AS sku_total_footprint,
+                sku.stack_height AS sku_stack_height
+            FROM bwise_inventory_snapshot inv
+            LEFT JOIN bwise_skus sku
+                ON sku.item_number = inv.item_number
+            ORDER BY inv.available_count DESC, inv.total_count DESC, inv.item_number ASC
+            LIMIT ?
+            """,
+            (row_limit,),
+        ).fetchall()
+
+
+def _clear_bwise_inventory_snapshots(conn):
+    conn.execute("DELETE FROM bwise_inventory_snapshot")
+
+
+def _insert_bwise_inventory_snapshot_rows(conn, rows):
+    conn.executemany(
+        """
+        INSERT INTO bwise_inventory_snapshot
+        (
+            item_number,
+            source_part_number,
+            match_method,
+            normalized_model,
+            normalized_category,
+            total_count,
+            available_count,
+            assigned_count,
+            updated_at
+        )
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """,
+        rows,
+    )
+
+
+def _insert_bwise_inventory_upload_log(
+    conn,
+    *,
+    upload_id,
+    source_filename,
+    source_format,
+    processed_rows,
+    valid_rows,
+    distinct_items,
+    matched_rows,
+    matched_items,
+    unmatched_items,
+    uploaded_at,
+):
+    conn.execute(
+        """
+        INSERT INTO bwise_inventory_upload_log
+        (
+            upload_id,
+            source_filename,
+            source_format,
+            processed_rows,
+            valid_rows,
+            distinct_items,
+            matched_rows,
+            matched_items,
+            unmatched_items,
+            uploaded_at
+        )
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            upload_id,
+            source_filename,
+            source_format,
+            int(processed_rows),
+            int(valid_rows),
+            int(distinct_items),
+            int(matched_rows),
+            int(matched_items),
+            int(unmatched_items),
+            uploaded_at,
+        ),
+    )
+
+
+def _build_bwise_inventory_match_index():
+    sku_rows = [dict(row) for row in get_bwise_skus()]
+    return {
+        str(row.get("item_number") or "").strip().upper(): row
+        for row in sku_rows
+        if str(row.get("item_number") or "").strip()
+    }
+
+
+def _normalize_bwise_inventory_part(value):
+    part = str(value or "").strip().upper()
+    if not part:
+        return ""
+    normalized = re.sub(r"[%#]+$", "", part).strip()
+    return normalized or part
+
+
+def _resolve_bwise_inventory_item(raw_part, raw_model, sku_index):
+    part = str(raw_part or "").strip().upper()
+    if not part:
+        return {"sku": None, "item_number": "", "match_method": "unmapped"}
+    if part in sku_index:
+        return {"sku": dict(sku_index[part]), "item_number": part, "match_method": "exact"}
+
+    normalized_part = _normalize_bwise_inventory_part(part)
+    if normalized_part and normalized_part in sku_index:
+        return {
+            "sku": dict(sku_index[normalized_part]),
+            "item_number": normalized_part,
+            "match_method": "trimmed_suffix",
+        }
+
+    normalized_model = str(raw_model or "").strip().upper()
+    return {
+        "sku": None,
+        "item_number": normalized_part or part,
+        "match_method": "unmapped",
+        "normalized_model": normalized_model,
+    }
+
+
+def _import_bwise_inventory_workbook(source_path, sheet_name="Sheet1"):
+    from openpyxl import load_workbook
+
+    suffix = source_path.suffix if source_path.suffix else ".xlsx"
+    temp_copy = Path(tempfile.gettempdir()) / f"prograde_bwise_inventory_import_{uuid.uuid4().hex}{suffix}"
+    shutil.copyfile(source_path, temp_copy)
+    workbook = None
+
+    try:
+        workbook = load_workbook(temp_copy, read_only=True, data_only=True)
+        selected_sheet = _resolve_sheet_by_name(workbook, sheet_name) or workbook.sheetnames[0]
+        sheet = workbook[selected_sheet]
+
+        header_row_idx = 3
+        header_row = next(
+            sheet.iter_rows(min_row=header_row_idx, max_row=header_row_idx, values_only=True),
+            None,
+        )
+        if not header_row:
+            raise ValueError("Workbook is missing the expected header row 3.")
+
+        field_map = {
+            _normalize_header(value): idx
+            for idx, value in enumerate(header_row)
+            if not _is_blank_cell(value)
+        }
+        required_headers = {
+            "customershipto": "Customer (Ship To)",
+            "model": "MODEL",
+            "part": "PART",
+            "assembled": "Assembled",
+        }
+        missing_headers = [
+            label
+            for key, label in required_headers.items()
+            if key not in field_map
+        ]
+        if missing_headers:
+            raise ValueError(
+                "Workbook is missing required headers on row 3: "
+                + ", ".join(missing_headers)
+            )
+
+        sku_index = _build_bwise_inventory_match_index()
+        processed_rows = 0
+        valid_rows = 0
+        matched_rows = 0
+        metrics_by_item = {}
+
+        def _ensure_entry(item_number, *, source_part_number, match_method, normalized_model, normalized_category):
+            if item_number in metrics_by_item:
+                return metrics_by_item[item_number]
+            metrics_by_item[item_number] = {
+                "item_number": item_number,
+                "source_part_number": source_part_number,
+                "match_method": match_method,
+                "normalized_model": normalized_model,
+                "normalized_category": normalized_category,
+                "total_count": 0,
+                "available_count": 0,
+                "assigned_count": 0,
+            }
+            return metrics_by_item[item_number]
+
+        for row in sheet.iter_rows(min_row=header_row_idx + 1, values_only=True):
+            processed_rows += 1
+            if not row:
+                continue
+
+            customer = str(row[field_map["customershipto"]] or "").strip().upper()
+            if customer != "STOCK":
+                continue
+            if not _is_blank_cell(row[field_map["assembled"]]):
+                continue
+
+            raw_part = str(row[field_map["part"]] or "").strip().upper()
+            if not raw_part:
+                continue
+            raw_model = str(row[field_map["model"]] or "").strip().upper()
+            resolved = _resolve_bwise_inventory_item(raw_part, raw_model, sku_index)
+            resolved_sku = dict(resolved.get("sku") or {})
+            resolved_item_number = str(resolved.get("item_number") or "").strip().upper()
+            if not resolved_item_number:
+                continue
+
+            valid_rows += 1
+            match_method = str(resolved.get("match_method") or "unmapped").strip().lower()
+            if match_method != "unmapped":
+                matched_rows += 1
+
+            normalized_model = str(
+                resolved_sku.get("model")
+                or resolved.get("normalized_model")
+                or raw_model
+                or ""
+            ).strip().upper()
+            normalized_category = str(
+                resolved_sku.get("mcat")
+                or ""
+            ).strip()
+
+            entry = _ensure_entry(
+                resolved_item_number,
+                source_part_number=raw_part,
+                match_method=match_method,
+                normalized_model=normalized_model,
+                normalized_category=normalized_category,
+            )
+            entry["total_count"] += 1
+            entry["available_count"] += 1
+
+        if not metrics_by_item:
+            raise ValueError(
+                "No B-Wise inventory rows matched the expected filter: Customer (Ship To)=STOCK and blank Assembled."
+            )
+
+        now = datetime.utcnow().isoformat()
+        upload_id = str(uuid.uuid4())
+        with get_db() as conn:
+            _clear_bwise_inventory_snapshots(conn)
+            _insert_bwise_inventory_snapshot_rows(
+                conn,
+                [
+                    (
+                        row["item_number"],
+                        row["source_part_number"],
+                        row["match_method"],
+                        row["normalized_model"],
+                        row["normalized_category"],
+                        int(row["total_count"]),
+                        int(row["available_count"]),
+                        int(row["assigned_count"]),
+                        now,
+                    )
+                    for row in metrics_by_item.values()
+                ],
+            )
+            matched_items = sum(1 for row in metrics_by_item.values() if str(row.get("match_method")) != "unmapped")
+            unmatched_items = sum(1 for row in metrics_by_item.values() if str(row.get("match_method")) == "unmapped")
+            _insert_bwise_inventory_upload_log(
+                conn,
+                upload_id=upload_id,
+                source_filename=source_path.name,
+                source_format="bwise_workbook",
+                processed_rows=processed_rows,
+                valid_rows=valid_rows,
+                distinct_items=len(metrics_by_item),
+                matched_rows=matched_rows,
+                matched_items=matched_items,
+                unmatched_items=unmatched_items,
+                uploaded_at=now,
+            )
+
+        available_total = sum(int(row["available_count"]) for row in metrics_by_item.values())
+        unmatched_items_all = sorted(
+            [row["source_part_number"] for row in metrics_by_item.values() if str(row.get("match_method")) == "unmapped"]
+        )
+        matched_item_count = sum(1 for row in metrics_by_item.values() if str(row.get("match_method")) != "unmapped")
+        matched_pct = (matched_rows / valid_rows) if valid_rows else 0.0
+        return {
+            "source_filename": source_path.name,
+            "source_format": "bwise_workbook",
+            "sheet_name": selected_sheet,
+            "processed_rows": int(processed_rows),
+            "valid_rows": int(valid_rows),
+            "distinct_items": int(len(metrics_by_item)),
+            "available_total": int(available_total),
+            "matched_rows": int(matched_rows),
+            "matched_item_count": int(matched_item_count),
+            "matched_ratio": round(float(matched_pct), 6),
+            "unmatched_item_count": int(len(unmatched_items_all)),
+            "unmatched_items": unmatched_items_all[:25],
+        }
+    finally:
+        if workbook is not None:
+            try:
+                workbook.close()
+            except Exception:
+                pass
+        try:
+            temp_copy.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def import_bwise_inventory_report(workbook_path, sheet_name="Sheet1"):
+    source_path = Path(str(workbook_path))
+    if not source_path.exists():
+        raise FileNotFoundError(f"Inventory source file not found: {source_path}")
+    if source_path.suffix.lower() not in {".xlsx", ".xlsm"}:
+        raise ValueError("B-Wise inventory upload requires an .xlsx or .xlsm workbook.")
+    return _import_bwise_inventory_workbook(source_path, sheet_name=sheet_name)
 
 
 def _resolve_sheet_by_name(workbook, sheet_name):

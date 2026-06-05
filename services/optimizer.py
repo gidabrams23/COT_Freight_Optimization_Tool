@@ -34,18 +34,28 @@ DEFAULT_V2_FD_ABSORB_MAX_COST_INCREASE_F = 5000.0
 DEFAULT_V2_FD_ABSORB_MAX_COST_INCREASE_D = 2200.0
 DEFAULT_V2_FD_ABSORB_DETOUR_CAP = 999.0
 DEFAULT_V2_FD_CANDIDATE_LIMIT = 120
+DEFAULT_V2_WEAK_CANNIBALIZE_PASSES = 3
+DEFAULT_V2_WEAK_CANNIBALIZE_TARGET_UTIL = 65.0
+DEFAULT_V2_WEAK_CANNIBALIZE_CANDIDATE_LIMIT = 180
 DEFAULT_V2_GROUP_REASSIGN_PASSES = 3
 DEFAULT_V2_GROUP_REASSIGN_MIN_SAVINGS = 25.0
 DEFAULT_V2_GROUP_REASSIGN_CANDIDATE_LIMIT = 16
+DEFAULT_V2_FULL_LOAD_PROMOTION_MIN_SAVINGS_FLOOR = -350.0
 DEFAULT_V2_ALLOW_ORDER_INTERLEAVE = True
 DEFAULT_V2_PAIR_NEIGHBORS = 18
 DEFAULT_V2_PAIR_NEIGHBORS_LOW_UTIL = 56
 DEFAULT_V2_INCREMENTAL_NEIGHBORS = 20
 DEFAULT_V2_ONWAY_BEARING_DEG = 35.0
 DEFAULT_V2_ONWAY_RADIAL_GAP_MILES = 500.0
+DEFAULT_V2_CROSS_STATE_ONWAY_BEARING_DEG = 18.0
+DEFAULT_V2_CROSS_STATE_RADIAL_GAP_MILES = 180.0
+DEFAULT_V2_CROSS_STATE_MIN_DISTANCE_MILES = 140.0
 DEFAULT_V2_DIRECTIONAL_DETOUR_FLOOR = 95.0
+DEFAULT_V2_SAME_STATE_GEO_ESCAPE_THRESHOLD = 65.0
+DEFAULT_V2_SAME_STATE_DETOUR_ESCAPE_FLOOR = 180.0
 DEFAULT_V2_FAST_TUNE_THRESHOLD = 400
 DEFAULT_V2_FAST_TUNE_HIGH_THRESHOLD = 800
+DEFAULT_V2_MEDIUM_TUNE_THRESHOLD = 40
 DEFAULT_V2_HOME_LENGTH_PRIORITY_ENABLED = True
 DEFAULT_V2_HOME_LENGTH_PRIORITY_RADIUS_MILES = 250.0
 DEFAULT_V2_HOME_LENGTH_PRIORITY_THRESHOLD_FT = 12.0
@@ -78,6 +88,7 @@ DEFAULT_V2_AGGRESSIVE_PREBATCH_STORE_DUPLICATE_SEED_BONUS = 40.0
 DEFAULT_V2_AGGRESSIVE_PREBATCH_UTIL_GAIN_WEIGHT = 24.0
 DEFAULT_V2_AGGRESSIVE_PREBATCH_TWO_ACROSS_GAIN_BONUS = 120.0
 DEFAULT_V2_AGGRESSIVE_PREBATCH_STOP_DELTA_PENALTY = 5.0
+UNIFIED_OPTIMIZER_PROFILE = "planner_approval"
 TRAILER_ASSIGNMENT_RULES_SETTING_KEY = "trailer_assignment_rules"
 PLANNER_TRAILER_RULES_OVERRIDE_SETTING_PREFIX = "planner_trailer_assignment_rules_override::"
 DEFAULT_TRACTOR_SUPPLY_CARGO_WEDGE_MIN_ITEM_LENGTH_FT = 20.0
@@ -107,6 +118,8 @@ class Optimizer:
         self.trailer_assignment_rules = self._load_trailer_assignment_rules()
         self._strategic_customer_cache = {}
         self._stack_cache = {}
+        self._cost_data_cache = {}
+        self._load_build_cache = {}
         self._plant_optimizer_settings_cache = {}
         self._merge_id_counter = 0
 
@@ -224,10 +237,14 @@ class Optimizer:
             return []
 
         runtime_params = self._runtime_tuned_params(params, len(groups))
+        runtime_params = self._inject_market_shape_params(runtime_params, groups)
         singleton_loads = [self._build_load([group], runtime_params) for group in groups]
         candidate_solutions = [
             self._optimize_load_set_v2(singleton_loads, runtime_params),
         ]
+        cohort_solution = self._build_state_cohort_candidate_solution_v2(groups, runtime_params)
+        if cohort_solution:
+            candidate_solutions.append(cohort_solution)
 
         multi_start_enabled = self._coerce_bool(
             runtime_params.get("v2_multi_start_enabled"),
@@ -250,6 +267,27 @@ class Optimizer:
                     self._optimize_load_set_v2(seed_loads, seed_params),
                 )
         return self._select_best_v2_solution(candidate_solutions, runtime_params)
+
+    def _build_state_cohort_candidate_solution_v2(self, groups, params):
+        enabled = self._coerce_bool(
+            params.get("v2_state_cohort_prebatch_enabled"),
+            True,
+        )
+        if not enabled:
+            return []
+        cohorts = {}
+        for group in groups or []:
+            cohorts.setdefault(self._state_cohort_key(group), []).append(group)
+        if len(cohorts) <= 1:
+            return []
+
+        cohort_solution = []
+        for cohort_groups in cohorts.values():
+            singleton_loads = [self._build_load([group], params) for group in (cohort_groups or [])]
+            if not singleton_loads:
+                continue
+            cohort_solution.extend(self._optimize_load_set_v2(singleton_loads, params))
+        return cohort_solution
 
     def _optimize_load_set_v2(self, initial_loads, runtime_params):
         active = {load["_merge_id"]: load for load in (initial_loads or [])}
@@ -331,6 +369,12 @@ class Optimizer:
             runtime_params,
             time_window_days,
         )
+        active = self._cannibalize_weak_loads(
+            active,
+            runtime_params,
+            objective_weights,
+            time_window_days,
+        )
         active = self._apply_auto_hotshot_tail_assignments(active, runtime_params)
         return list(active.values())
 
@@ -351,6 +395,15 @@ class Optimizer:
         )
         if not enabled or len(singleton_loads) <= 2:
             return singleton_loads
+
+        state_cohort_enabled = self._coerce_bool(
+            params.get("v2_state_cohort_prebatch_enabled"),
+            True,
+        )
+        if state_cohort_enabled:
+            cohort_seed_loads = self._build_state_cohort_seed_loads_v2(groups, singleton_loads, params)
+            if cohort_seed_loads:
+                return cohort_seed_loads
 
         group_by_key = {}
         singleton_by_key = {}
@@ -434,6 +487,95 @@ class Optimizer:
 
         return built_loads
 
+    def _build_state_cohort_seed_loads_v2(self, groups, singleton_loads, params):
+        group_by_key = {}
+        singleton_by_key = {}
+        for group, load in zip(groups or [], singleton_loads or []):
+            key = str((group or {}).get("key") or "").strip()
+            if not key:
+                continue
+            group_by_key[key] = group
+            singleton_by_key[key] = load
+        if not group_by_key:
+            return []
+
+        cohorts = {}
+        for group in groups or []:
+            cohort_key = self._state_cohort_key(group)
+            cohorts.setdefault(cohort_key, []).append(group)
+
+        built_loads = []
+        for cohort_groups in cohorts.values():
+            remaining = sorted(
+                list(cohort_groups or []),
+                key=lambda group: self._state_cohort_group_priority(
+                    group,
+                    singleton_by_key.get(str((group or {}).get("key") or "").strip()),
+                ),
+                reverse=True,
+            )
+            while remaining:
+                seed_group = remaining.pop(0)
+                seed_key = str((seed_group or {}).get("key") or "").strip()
+                current_groups = [seed_group]
+                current_load = singleton_by_key.get(seed_key) or self._build_load([seed_group], params)
+                while remaining and self._prebatch_should_keep_filling(current_load, params):
+                    best_choice = None
+                    for idx, candidate_group in enumerate(remaining):
+                        if not self._can_add_group(current_groups, candidate_group, params):
+                            continue
+                        candidate_key = str((candidate_group or {}).get("key") or "").strip()
+                        candidate_load = singleton_by_key.get(candidate_key) or self._build_load([candidate_group], params)
+                        standalone_cost = (
+                            float(current_load.get("standalone_cost") or current_load.get("estimated_cost") or 0.0)
+                            + float(candidate_load.get("standalone_cost") or candidate_load.get("estimated_cost") or 0.0)
+                        )
+                        merged_load = self._build_load(
+                            current_groups + [candidate_group],
+                            params,
+                            standalone_cost=standalone_cost,
+                        )
+                        if self._load_is_multi_order_capacity_violation(merged_load):
+                            continue
+                        score = self._prebatch_candidate_score(
+                            current_load,
+                            candidate_load,
+                            merged_load,
+                            params,
+                        )
+                        if best_choice is None or score > best_choice[0]:
+                            best_choice = (score, idx, candidate_group, merged_load)
+                    if not best_choice:
+                        break
+                    _, idx, selected_group, selected_load = best_choice
+                    current_groups.append(selected_group)
+                    current_load = selected_load
+                    remaining.pop(idx)
+                built_loads.append(current_load)
+
+        if not built_loads:
+            return []
+        if len(built_loads) >= len(singleton_loads):
+            return []
+        return built_loads
+
+    def _state_cohort_key(self, group):
+        if not isinstance(group, dict):
+            return ("", "", "")
+        return (
+            str(group.get("cust_name") or "").strip().upper(),
+            str(group.get("state") or "").strip().upper(),
+            str(group.get("strategic_key") or "").strip().lower(),
+        )
+
+    def _state_cohort_group_priority(self, group, singleton_load=None):
+        return (
+            self._coerce_non_negative_float((group or {}).get("max_unit_length_ft"), 0.0),
+            self._coerce_non_negative_float((group or {}).get("total_length_ft"), 0.0),
+            self._effective_fill_pct(singleton_load or {}),
+            str((group or {}).get("key") or "").strip(),
+        )
+
     def _load_set_signature(self, loads):
         signature = []
         for load in loads or []:
@@ -456,29 +598,107 @@ class Optimizer:
                 store_to_load_ids.setdefault(store_code, set()).add(load_identifier)
         return sum(1 for load_ids in store_to_load_ids.values() if len(load_ids) > 1)
 
+    def _single_state_code(self, load):
+        state_text = str((load or {}).get("destination_state") or "").strip().upper()
+        state_tokens = [token.strip() for token in re.split(r"[,+/|;]+", state_text) if token.strip()]
+        unique_count = int((load or {}).get("unique_states_count") or (1 if state_text else 0))
+        if unique_count == 1 and state_tokens:
+            return state_tokens[0]
+        if unique_count == 1 and state_text:
+            return state_text
+        return ""
+
+    def _load_state_codes(self, load):
+        states = set()
+        for line in (load or {}).get("lines") or []:
+            state = str((line or {}).get("state") or "").strip().upper()
+            if state:
+                states.add(state)
+        if states:
+            return states
+        state_text = str((load or {}).get("destination_state") or "").strip().upper()
+        for token in re.split(r"[,+/|;]+", state_text):
+            token = token.strip()
+            if token:
+                states.add(token)
+        return states
+
+    def _load_order_count(self, load):
+        if not isinstance(load, dict):
+            return 0
+        order_numbers = {
+            (line.get("so_num") or "").strip()
+            for line in (load.get("lines") or [])
+            if (line.get("so_num") or "").strip()
+        }
+        if order_numbers:
+            return len(order_numbers)
+        group_keys = {
+            str((group or {}).get("key") or "").strip()
+            for group in (load.get("groups") or [])
+            if str((group or {}).get("key") or "").strip()
+        }
+        return len(group_keys)
+
+    def _effective_fill_pct(self, load):
+        if not isinstance(load, dict):
+            try:
+                return float(load or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+        explicit_effective_fill_pct = float(load.get("effective_fill_pct") or 0.0)
+        utilization_pct = float(load.get("utilization_pct") or 0.0)
+        practical_fill_pct = float(load.get("practical_fill_pct") or 0.0)
+        total_linear_feet = float(load.get("total_linear_feet") or 0.0)
+        capacity_feet = float(load.get("capacity_feet") or 0.0)
+        linear_fill_pct = (total_linear_feet / capacity_feet) * 100.0 if capacity_feet > 0 else 0.0
+        return max(explicit_effective_fill_pct, utilization_pct, practical_fill_pct, linear_fill_pct)
+
     def _v2_solution_score(self, loads, params):
         solution = list(loads or [])
         if not solution:
-            return (0, 0, 0, 0, 0, 0, 0)
+            return (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         utilizations = [float(load.get("utilization_pct") or 0.0) for load in solution]
-        high_90 = sum(1 for value in utilizations if value >= 90.0)
-        high_80 = sum(1 for value in utilizations if value >= 80.0)
-        low_70 = sum(1 for value in utilizations if value < 70.0)
+        effective_fills = [self._effective_fill_pct(load) for load in solution]
+        high_95 = sum(1 for value in effective_fills if value >= 95.0)
+        high_90 = sum(1 for value in effective_fills if value >= 90.0)
+        high_85 = sum(1 for value in effective_fills if value >= 85.0)
+        low_70 = sum(1 for value in effective_fills if value < 70.0)
+        low_85 = sum(1 for value in effective_fills if value < 85.0)
+        avg_fill = sum(effective_fills) / len(effective_fills) if effective_fills else 0.0
         avg_util = sum(utilizations) / len(utilizations) if utilizations else 0.0
         two_across_loads = sum(
             1
             for load in solution
             if int(load.get("upper_two_across_applied_count") or 0) > 0
         )
+        total_two_across = sum(int(load.get("upper_two_across_applied_count") or 0) for load in solution)
         same_store_split_count = self._same_store_split_count(solution)
+        stop_penalty = sum(self._stop_penalty_units(load, params) for load in solution)
+        geo_penalty = sum(self._load_geo_penalty(load, params) for load in solution)
+        detour_penalty = sum(max(self._detour_pct(load), 0.0) for load in solution)
+        total_cost = sum(float(load.get("estimated_cost") or 0.0) for load in solution)
+        state_mix_penalty = sum(
+            max(int(load.get("unique_states_count") or (1 if load.get("destination_state") else 0)) - 1, 0)
+            for load in solution
+        )
         return (
             high_90,
-            high_80,
+            high_95,
+            high_85,
+            -low_85,
             -low_70,
+            -int(round(stop_penalty * 100.0)),
+            -int(round(geo_penalty * 100.0)),
+            -int(round(detour_penalty * 10.0)),
+            -state_mix_penalty,
+            int(round(avg_fill * 10.0)),
             int(round(avg_util * 10.0)),
+            total_two_across,
             two_across_loads,
             -same_store_split_count,
             -len(solution),
+            -int(round(total_cost)),
         )
 
     def _select_best_v2_solution(self, candidate_solutions, params):
@@ -492,7 +712,9 @@ class Optimizer:
         return best
 
     def _seed_profile_variants_v2(self, runtime_params):
-        profiles = [("balanced", dict(runtime_params or {}))]
+        base_params = dict(runtime_params or {})
+        base_params["optimize_focus"] = UNIFIED_OPTIMIZER_PROFILE
+        profiles = [(UNIFIED_OPTIMIZER_PROFILE, base_params)]
         include_aggressive = self._coerce_bool(
             runtime_params.get("v2_multi_start_include_aggressive_fill"),
             DEFAULT_V2_MULTI_START_INCLUDE_AGGRESSIVE_FILL,
@@ -501,19 +723,31 @@ class Optimizer:
             return profiles
 
         aggressive = dict(runtime_params or {})
+        aggressive["optimize_focus"] = UNIFIED_OPTIMIZER_PROFILE
         aggressive.update(
             {
-                "v2_prebatch_target_util": DEFAULT_V2_AGGRESSIVE_PREBATCH_TARGET_UTIL,
+                "v2_prebatch_target_util": 99.0,
                 "v2_prebatch_candidate_limit": DEFAULT_V2_AGGRESSIVE_PREBATCH_CANDIDATE_LIMIT,
-                "v2_prebatch_savings_weight": DEFAULT_V2_AGGRESSIVE_PREBATCH_SAVINGS_WEIGHT,
+                "v2_prebatch_savings_weight": 0.1,
                 "v2_shared_store_priority_bonus": DEFAULT_V2_AGGRESSIVE_SHARED_STORE_PRIORITY_BONUS,
                 "v2_shared_store_reassign_bonus": DEFAULT_V2_AGGRESSIVE_SHARED_STORE_REASSIGN_BONUS,
                 "v2_short_upper_pair_priority_bonus": DEFAULT_V2_AGGRESSIVE_SHORT_UPPER_PAIR_PRIORITY_BONUS,
                 "v2_prebatch_shared_store_bonus": DEFAULT_V2_AGGRESSIVE_PREBATCH_SHARED_STORE_BONUS,
                 "v2_prebatch_store_duplicate_seed_bonus": DEFAULT_V2_AGGRESSIVE_PREBATCH_STORE_DUPLICATE_SEED_BONUS,
-                "v2_prebatch_util_gain_weight": DEFAULT_V2_AGGRESSIVE_PREBATCH_UTIL_GAIN_WEIGHT,
+                "v2_prebatch_util_gain_weight": 28.0,
                 "v2_prebatch_two_across_gain_bonus": DEFAULT_V2_AGGRESSIVE_PREBATCH_TWO_ACROSS_GAIN_BONUS,
                 "v2_prebatch_stop_delta_penalty": DEFAULT_V2_AGGRESSIVE_PREBATCH_STOP_DELTA_PENALTY,
+                "v2_fill_floor_target_pct": 70.0,
+                "v2_lambda_fill_floor_count": 1500.0,
+                "v2_lambda_fill_floor_depth": 80.0,
+                "v2_lambda_fill_floor_progress": 60.0,
+                "v2_lambda_weak_tail_absorb": 800.0,
+                "v2_weak_cannibalize_passes": 6,
+                "v2_weak_cannibalize_target_util": 70.0,
+                "v2_fd_target_util": 70.0,
+                "v2_fd_candidate_limit": 240,
+                "v2_group_reassign_passes": 5,
+                "v2_group_reassign_candidate_limit": 32,
             }
         )
         profiles.append(("aggressive_fill", aggressive))
@@ -815,6 +1049,17 @@ class Optimizer:
             ]
             if dates and (max(dates) - min(dates)).days > time_window_days:
                 return False
+
+        current_load = self._build_load(current_groups, params)
+        candidate_load = self._build_load([candidate_group], params)
+        if not self._loads_compatible(
+            current_load,
+            candidate_load,
+            params.get("geo_radius"),
+            time_window_days,
+            params,
+        ):
+            return False
 
         if not self._check_stacking_compatible(combined):
             return False
@@ -1365,6 +1610,13 @@ class Optimizer:
             params.get("v2_group_reassign_min_savings", DEFAULT_V2_GROUP_REASSIGN_MIN_SAVINGS)
             or DEFAULT_V2_GROUP_REASSIGN_MIN_SAVINGS
         )
+        full_load_promotion_floor = float(
+            params.get(
+                "v2_full_load_promotion_min_savings_floor",
+                DEFAULT_V2_FULL_LOAD_PROMOTION_MIN_SAVINGS_FLOOR,
+            )
+            or DEFAULT_V2_FULL_LOAD_PROMOTION_MIN_SAVINGS_FLOOR
+        )
         candidate_limit = int(
             params.get("v2_group_reassign_candidate_limit", DEFAULT_V2_GROUP_REASSIGN_CANDIDATE_LIMIT)
             or DEFAULT_V2_GROUP_REASSIGN_CANDIDATE_LIMIT
@@ -1454,6 +1706,25 @@ class Optimizer:
                         )
                         shared_store_count = self._shared_store_count(group_load, recipient)
                         effective_min_savings = min_savings
+                        objective_weights = self._v2_objective_weights(params)
+                        full_load_target = float(objective_weights.get("full_load_target_pct", 90.0) or 90.0)
+                        merged_util = float(merged.get("utilization_pct") or 0.0)
+                        recipient_util = float(recipient.get("utilization_pct") or 0.0)
+                        source_util = float(source.get("utilization_pct") or 0.0)
+                        remainder_util = float(source_remainder.get("utilization_pct") or 0.0)
+                        source_state = str(source.get("destination_state") or "").strip().upper()
+                        recipient_state = str(recipient.get("destination_state") or "").strip().upper()
+                        same_state_promotion = bool(source_state and source_state == recipient_state)
+                        if (
+                            same_state_promotion
+                            and merged_util >= full_load_target
+                            and recipient_util < full_load_target
+                            and remainder_util < source_util
+                        ):
+                            effective_min_savings = min(
+                                effective_min_savings,
+                                full_load_promotion_floor,
+                            )
                         if shared_store_count > 0:
                             shared_store_savings_floor = float(
                                 params.get(
@@ -1477,19 +1748,19 @@ class Optimizer:
                             savings=savings,
                         ):
                             continue
-                        score = (
-                            savings
-                            + max(
-                                (merged.get("utilization_pct") or 0)
-                                - (recipient.get("utilization_pct") or 0),
-                                0.0,
-                            )
-                            + max(
-                                (source_remainder.get("utilization_pct") or 0)
-                                - (source.get("utilization_pct") or 0),
-                                0.0,
-                            )
-                        )
+                        before_geo_penalty = self._load_geo_penalty(source, params) + self._load_geo_penalty(recipient, params)
+                        after_geo_penalty = self._load_geo_penalty(source_remainder, params) + self._load_geo_penalty(merged, params)
+                        before_stop_penalty = self._stop_penalty_units(source, params) + self._stop_penalty_units(recipient, params)
+                        after_stop_penalty = self._stop_penalty_units(source_remainder, params) + self._stop_penalty_units(merged, params)
+                        score = savings
+                        score += max(merged_util - recipient_util, 0.0) * 6.0
+                        score += max(before_geo_penalty - after_geo_penalty, 0.0) * 140.0
+                        score += max(before_stop_penalty - after_stop_penalty, 0.0) * 24.0
+                        score += self._reassign_directional_bonus(group_load, recipient, source_remainder, params) * 5.0
+                        if merged_util >= full_load_target and recipient_util < full_load_target:
+                            score += 180.0 + max(full_load_target - recipient_util, 0.0) * 3.5
+                        if merged_util >= full_load_target and remainder_util < source_util:
+                            score += min(source_util - remainder_util, 25.0) * 2.5
                         if shared_store_count > 0:
                             shared_store_reassign_bonus = float(
                                 params.get(
@@ -1519,6 +1790,74 @@ class Optimizer:
             del active_loads[recipient_id]
             active_loads[source_remainder["_merge_id"]] = source_remainder
             active_loads[merged["_merge_id"]] = merged
+
+        return active_loads
+
+    def _cannibalize_weak_loads(
+        self,
+        active_loads,
+        params,
+        objective_weights,
+        time_window_days,
+    ):
+        passes = int(
+            params.get("v2_weak_cannibalize_passes", DEFAULT_V2_WEAK_CANNIBALIZE_PASSES)
+            or DEFAULT_V2_WEAK_CANNIBALIZE_PASSES
+        )
+        if passes <= 0:
+            return active_loads
+
+        target_util = float(
+            params.get("v2_weak_cannibalize_target_util", DEFAULT_V2_WEAK_CANNIBALIZE_TARGET_UTIL)
+            or DEFAULT_V2_WEAK_CANNIBALIZE_TARGET_UTIL
+        )
+        if target_util <= 0:
+            return active_loads
+
+        stage_params = dict(params)
+        stage_params["v2_fd_target_util"] = max(
+            target_util,
+            float(
+                params.get("v2_fd_target_util", DEFAULT_V2_FD_TARGET_UTIL)
+                or DEFAULT_V2_FD_TARGET_UTIL
+            ),
+        )
+        stage_params["v2_fd_candidate_limit"] = max(
+            int(
+                params.get("v2_fd_candidate_limit", DEFAULT_V2_FD_CANDIDATE_LIMIT)
+                or DEFAULT_V2_FD_CANDIDATE_LIMIT
+            ),
+            DEFAULT_V2_WEAK_CANNIBALIZE_CANDIDATE_LIMIT,
+        )
+
+        for _ in range(passes):
+            targets = self._fd_rebalance_targets(active_loads, stage_params, time_window_days)
+            targets = [
+                load for load in targets
+                if (load.get("utilization_pct") or 0.0) < target_util
+            ]
+            if not targets:
+                break
+
+            changed = False
+            for target in targets:
+                target_id = target.get("_merge_id")
+                if target_id not in active_loads:
+                    continue
+                updated = self._try_absorb_target_load(
+                    target_id,
+                    active_loads,
+                    stage_params,
+                    objective_weights,
+                    time_window_days,
+                )
+                if not updated:
+                    continue
+                active_loads = updated
+                changed = True
+
+            if not changed:
+                break
 
         return active_loads
 
@@ -1810,10 +2149,18 @@ class Optimizer:
         time_window_days,
         limit,
     ):
-        target_meta = self._load_pair_meta(target, params)
+        target_meta = self._load_pair_meta(group_load or target, params)
         scored = []
         for recipient in recipients:
             if not self._loads_date_compatible(recipient, group_load, time_window_days):
+                continue
+            if not self._loads_compatible(
+                recipient,
+                group_load,
+                params.get("geo_radius"),
+                time_window_days,
+                params,
+            ):
                 continue
             score = self._pair_priority_score(
                 target_meta,
@@ -1835,6 +2182,20 @@ class Optimizer:
             return []
         top = heapq.nsmallest(max(limit, 1), scored)
         return [entry[2] for entry in top]
+
+    def _reassign_directional_bonus(self, group_load, recipient, source_remainder, params):
+        group_meta = self._load_pair_meta(group_load, params)
+        recipient_meta = self._load_pair_meta(recipient, params)
+        recipient_score = self._pair_priority_score(group_meta, recipient_meta, params)
+        if recipient_score is None:
+            return 0.0
+        if not source_remainder:
+            return 0.0
+        remainder_meta = self._load_pair_meta(source_remainder, params)
+        remainder_score = self._pair_priority_score(group_meta, remainder_meta, params)
+        if remainder_score is None:
+            return 0.0
+        return max(remainder_score - recipient_score, 0.0)
 
     def _evaluate_merge_candidate(self, load_a, load_b, params, objective_weights=None):
         merged_load = self._merge_loads(load_a, load_b, params)
@@ -2001,7 +2362,7 @@ class Optimizer:
                     short_upper_group_count += 1
         return {
             "state": (load.get("destination_state") or "").strip().upper(),
-            "utilization": load.get("utilization_pct") or 0,
+            "utilization": self._effective_fill_pct(load),
             "origin_miles": miles,
             "bearing": self._bearing_from_origin(origin_coords, anchor),
             "due_anchor": self._load_due_anchor(load),
@@ -2375,9 +2736,22 @@ class Optimizer:
             params.get("v2_on_way_radial_gap_miles", DEFAULT_V2_ONWAY_RADIAL_GAP_MILES)
             or DEFAULT_V2_ONWAY_RADIAL_GAP_MILES
         )
+        market_avg_nn = float(params.get("v2_market_avg_nn_miles", 0.0) or 0.0)
+        market_avg_origin = float(params.get("v2_market_avg_origin_miles", 0.0) or 0.0)
+        adaptive_radial_gap_limit = radial_gap_limit
+        if market_avg_nn > 0:
+            adaptive_radial_gap_limit = min(
+                adaptive_radial_gap_limit,
+                max(market_avg_nn * 4.0, 80.0),
+            )
+        if market_avg_origin > 0:
+            adaptive_radial_gap_limit = min(
+                adaptive_radial_gap_limit,
+                max(market_avg_origin * 0.45, 120.0),
+            )
         if self._bearing_delta(meta_a["bearing"], meta_b["bearing"]) > bearing_limit:
             return False
-        if abs(meta_a["origin_miles"] - meta_b["origin_miles"]) > radial_gap_limit:
+        if abs(meta_a["origin_miles"] - meta_b["origin_miles"]) > adaptive_radial_gap_limit:
             return False
         return min(meta_a["origin_miles"], meta_b["origin_miles"]) >= 40.0
 
@@ -2388,6 +2762,24 @@ class Optimizer:
             return False
         if not self._loads_date_compatible(load_a, load_b, time_window_days):
             return False
+        state_a = self._single_state_code(load_a)
+        state_b = self._single_state_code(load_b)
+        if state_a and state_b and state_a != state_b and not self._cross_state_pair_allowed(load_a, load_b, params):
+            return False
+        cross_state_rescue_fill_threshold = float(
+            params.get("v2_cross_state_rescue_fill_threshold", 40.0) or 40.0
+        )
+        if (
+            state_a
+            and state_b
+            and state_a != state_b
+            and (
+                self._load_order_count(load_a) > 1
+                or self._load_order_count(load_b) > 1
+            )
+            and min(self._effective_fill_pct(load_a), self._effective_fill_pct(load_b)) >= cross_state_rescue_fill_threshold
+        ):
+            return False
         if not self._loads_geo_compatible(load_a, load_b, radius):
             if not self._allow_v2_geo_escape(load_a, load_b, params):
                 return False
@@ -2396,12 +2788,28 @@ class Optimizer:
     def _allow_v2_geo_escape(self, load_a, load_b, params):
         if (params.get("algorithm_version") or "").lower() != "v2":
             return False
+        same_state_escape_threshold = float(
+            params.get(
+                "v2_same_state_geo_escape_threshold",
+                DEFAULT_V2_SAME_STATE_GEO_ESCAPE_THRESHOLD,
+            )
+            or DEFAULT_V2_SAME_STATE_GEO_ESCAPE_THRESHOLD
+        )
+        state_a = self._single_state_code(load_a)
+        state_b = self._single_state_code(load_b)
+        if (
+            state_a
+            and state_b
+            and state_a == state_b
+            and max(self._effective_fill_pct(load_a), self._effective_fill_pct(load_b)) < same_state_escape_threshold
+        ):
+            return True
         if self._is_very_low_util_pair(load_a, load_b, params):
             return True
         if self._is_directionally_on_way_pair(load_a, load_b, params):
             return (
-                self._is_low_util_for_target(load_a.get("utilization_pct") or 0, params)
-                or self._is_low_util_for_target(load_b.get("utilization_pct") or 0, params)
+                self._is_low_util_for_target(load_a, params)
+                or self._is_low_util_for_target(load_b, params)
             )
         return False
 
@@ -2410,28 +2818,32 @@ class Optimizer:
             params.get("v2_geo_escape_threshold", DEFAULT_V2_GEO_ESCAPE_THRESHOLD)
             or DEFAULT_V2_GEO_ESCAPE_THRESHOLD
         )
-        util_a = load_a.get("utilization_pct") or 0
-        util_b = load_b.get("utilization_pct") or 0
+        util_a = self._effective_fill_pct(load_a)
+        util_b = self._effective_fill_pct(load_b)
         return util_a <= threshold and util_b <= threshold
 
-    def _is_low_util_for_target(self, utilization_pct, params):
+    def _is_low_util_for_target(self, load_or_pct, params):
         target = float(
             params.get("v2_low_util_threshold", LOW_UTIL_THRESHOLD_PCT)
             or LOW_UTIL_THRESHOLD_PCT
         )
-        return (utilization_pct or 0) < target
+        if isinstance(load_or_pct, dict):
+            utilization_pct = self._effective_fill_pct(load_or_pct)
+        else:
+            utilization_pct = load_or_pct or 0
+        return utilization_pct < target
 
     def _pair_has_low_util_target(self, load_a, load_b, params):
         return (
-            self._is_low_util_for_target(load_a.get("utilization_pct") or 0, params)
-            or self._is_low_util_for_target(load_b.get("utilization_pct") or 0, params)
+            self._is_low_util_for_target(load_a, params)
+            or self._is_low_util_for_target(load_b, params)
         )
 
     def _count_low_util_target(self, loads, params):
         return sum(
             1
             for load in loads
-            if self._is_low_util_for_target(load.get("utilization_pct") or 0, params)
+            if self._is_low_util_for_target(load, params)
         )
 
     def _is_directionally_on_way_pair(self, load_a, load_b, params):
@@ -2440,6 +2852,51 @@ class Optimizer:
             self._load_pair_meta(load_b, params),
             params,
         )
+
+    def _cross_state_pair_allowed(self, load_a, load_b, params):
+        states_a = self._load_state_codes(load_a)
+        states_b = self._load_state_codes(load_b)
+        if not states_a or not states_b:
+            return True
+        if states_a == states_b:
+            return True
+        if len(states_a) > 1 or len(states_b) > 1:
+            return False
+
+        state_a = next(iter(states_a))
+        state_b = next(iter(states_b))
+        if state_a == state_b:
+            return True
+
+        cross_state_params = dict(params or {})
+        cross_state_params["v2_on_way_bearing_deg"] = float(
+            cross_state_params.get(
+                "v2_cross_state_on_way_bearing_deg",
+                DEFAULT_V2_CROSS_STATE_ONWAY_BEARING_DEG,
+            )
+            or DEFAULT_V2_CROSS_STATE_ONWAY_BEARING_DEG
+        )
+        cross_state_params["v2_on_way_radial_gap_miles"] = float(
+            cross_state_params.get(
+                "v2_cross_state_radial_gap_miles",
+                DEFAULT_V2_CROSS_STATE_RADIAL_GAP_MILES,
+            )
+            or DEFAULT_V2_CROSS_STATE_RADIAL_GAP_MILES
+        )
+        if not self._is_directionally_on_way_pair(load_a, load_b, cross_state_params):
+            return False
+
+        min_distance_limit = float(
+            cross_state_params.get(
+                "v2_cross_state_min_distance_miles",
+                DEFAULT_V2_CROSS_STATE_MIN_DISTANCE_MILES,
+            )
+            or DEFAULT_V2_CROSS_STATE_MIN_DISTANCE_MILES
+        )
+        min_distance = self._min_distance_between_loads(load_a, load_b)
+        if min_distance is None:
+            return False
+        return min_distance <= min_distance_limit
 
     def _detour_allowed(self, load_a, load_b, merged_load, max_detour_pct, params, savings=None):
         if max_detour_pct is None:
@@ -2454,9 +2911,9 @@ class Optimizer:
         if savings is not None and savings < 0:
             return False
 
-        util_a = load_a.get("utilization_pct") or 0
-        util_b = load_b.get("utilization_pct") or 0
-        merged_util = merged_load.get("utilization_pct") or 0
+        util_a = self._effective_fill_pct(load_a)
+        util_b = self._effective_fill_pct(load_b)
+        merged_util = self._effective_fill_pct(merged_load)
         if merged_util + 1e-6 < max(util_a, util_b):
             return False
 
@@ -2464,6 +2921,30 @@ class Optimizer:
             detour_escape_cap = float(
                 params.get("v2_detour_escape_cap", max(max_detour_pct * 3.0, DEFAULT_V2_DETOUR_ESCAPE_FLOOR))
                 or max(max_detour_pct * 3.0, DEFAULT_V2_DETOUR_ESCAPE_FLOOR)
+            )
+            return detour <= detour_escape_cap
+
+        same_state_escape_threshold = float(
+            params.get(
+                "v2_same_state_geo_escape_threshold",
+                DEFAULT_V2_SAME_STATE_GEO_ESCAPE_THRESHOLD,
+            )
+            or DEFAULT_V2_SAME_STATE_GEO_ESCAPE_THRESHOLD
+        )
+        state_a = self._single_state_code(load_a)
+        state_b = self._single_state_code(load_b)
+        if (
+            state_a
+            and state_b
+            and state_a == state_b
+            and max(util_a, util_b) < same_state_escape_threshold
+        ):
+            detour_escape_cap = float(
+                params.get(
+                    "v2_same_state_detour_escape_cap",
+                    max(max_detour_pct * 6.0, DEFAULT_V2_SAME_STATE_DETOUR_ESCAPE_FLOOR),
+                )
+                or max(max_detour_pct * 6.0, DEFAULT_V2_SAME_STATE_DETOUR_ESCAPE_FLOOR)
             )
             return detour <= detour_escape_cap
 
@@ -2580,22 +3061,44 @@ class Optimizer:
         return min_distance <= radius
 
     def _build_load(self, groups, params, standalone_cost=None):
+        base_load = self._build_load_base(groups, params)
+        load = self._clone_cached_load(base_load)
+        estimated_cost = float(load.get("estimated_cost") or 0.0)
+        standalone_cost = estimated_cost if standalone_cost is None else standalone_cost
+        consolidation_savings = standalone_cost - estimated_cost
+        fragility_score = (consolidation_savings / standalone_cost) if standalone_cost else 0.0
+        load["_merge_id"] = self._next_merge_id()
+        load["optimization_score"] = consolidation_savings or 0.0
+        load["standalone_cost"] = standalone_cost
+        load["consolidation_savings"] = consolidation_savings
+        load["fragility_score"] = fragility_score
+        over_capacity = bool(load.get("exceeds_capacity")) and self._load_order_count(load) <= 1
+        load["over_capacity"] = over_capacity
+        capacity_feet_value = float(load.get("capacity_feet") or 0.0)
+        total_linear_feet_value = float(load.get("total_linear_feet") or 0.0)
+        load["practical_fill_pct"] = round(
+            ((total_linear_feet_value / capacity_feet_value) * 100.0) if capacity_feet_value > 0 else 0.0,
+            1,
+        )
+        load["effective_fill_pct"] = round(self._effective_fill_pct(load), 1)
+        if load.get("auto_trailer_upgrade"):
+            load["auto_trailer_upgrade"] = True
+            load["auto_trailer_reason"] = load.get("auto_trailer_reason") or ""
+        return load
+
+    def _build_load_base(self, groups, params):
+        cache_key = self._load_build_cache_key(groups, params)
+        cached = self._load_build_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         all_lines = [line for group in groups for line in group.get("lines", [])]
         preferred_trailer = self._preferred_trailer_for_groups(
             groups,
             params.get("trailer_type", "STEP_DECK"),
         )
 
-        stops = self._build_stops(groups)
-        origin_plant = params["origin_plant"]
-        origin_coords = geo_utils.plant_coords_for_code(origin_plant)
-        requires_return_to_origin = any(group.get("requires_return_to_origin") for group in groups)
-        cost_data = self.cost_calculator.calculate(
-            origin_plant,
-            stops,
-            origin_coords=origin_coords,
-            return_to_origin=requires_return_to_origin,
-        )
+        cost_data = self._cost_data_for_groups(groups, params)
         ordered_stops = cost_data["ordered_stops"]
         stop_sequence_map = self._stop_sequence_map_for_groups(groups, ordered_stops)
 
@@ -2608,16 +3111,12 @@ class Optimizer:
         trailer_type = stack_config.get("trailer_type") or preferred_trailer
         utilization = stack_config.get("utilization_pct", 0) or 0
         exceeds_capacity = stack_config.get("exceeds_capacity", False)
-        order_numbers = {line.get("so_num") for line in all_lines if line.get("so_num")}
-        single_order = len(order_numbers) <= 1
-        over_capacity = exceeds_capacity and single_order
 
         estimated_miles = cost_data["total_miles"]
         estimated_cost = cost_data["total_cost"]
         stop_count = cost_data["stop_count"]
-        route_legs = cost_data.get("route_legs") or []
-        route_geometry = cost_data.get("route_geometry") or []
-
+        route_legs = list(cost_data.get("route_legs") or [])
+        route_geometry = list(cost_data.get("route_geometry") or [])
         route = [stop.get("zip") for stop in ordered_stops if stop.get("zip")]
         destination_state = self._select_primary_state(all_lines)
         unique_states = sorted(
@@ -2628,14 +3127,9 @@ class Optimizer:
             }
         )
         rate_per_mile = self._average_rate_per_mile(estimated_cost, estimated_miles, stop_count)
-
+        origin_coords = geo_utils.plant_coords_for_code(params["origin_plant"])
         direct_miles = self._max_direct_miles(origin_coords, ordered_stops)
         detour_miles = max(estimated_miles - direct_miles, 0.0)
-
-        standalone_cost = estimated_cost if standalone_cost is None else standalone_cost
-        consolidation_savings = standalone_cost - estimated_cost
-        fragility_score = (consolidation_savings / standalone_cost) if standalone_cost else 0.0
-
         due_min, due_max = self._due_date_range(groups)
         effective_due_window_days = self._effective_time_window_days(
             groups=groups,
@@ -2645,9 +3139,9 @@ class Optimizer:
         )
         contains_no_mix = any(bool(group.get("no_mix")) for group in groups)
 
-        load = {
-            "_merge_id": self._next_merge_id(),
-            "origin_plant": origin_plant,
+        base_load = {
+            "_merge_id": 0,
+            "origin_plant": params["origin_plant"],
             "destination_state": destination_state,
             "unique_states": unique_states,
             "unique_states_count": len(unique_states),
@@ -2667,18 +3161,22 @@ class Optimizer:
                 stack_config.get("upper_two_across_applied_count") or 0
             ),
             "exceeds_capacity": exceeds_capacity,
-            "optimization_score": consolidation_savings or 0.0,
+            "optimization_score": 0.0,
             "lines": all_lines,
             "route": route,
             "detour_miles": detour_miles,
-            "over_capacity": over_capacity,
-            "standalone_cost": standalone_cost,
-            "consolidation_savings": consolidation_savings,
-            "fragility_score": fragility_score,
-            "return_to_origin": requires_return_to_origin,
+            "over_capacity": False,
+            "standalone_cost": estimated_cost,
+            "consolidation_savings": 0.0,
+            "fragility_score": 0.0,
+            "return_to_origin": any(group.get("requires_return_to_origin") for group in groups),
             "return_miles": cost_data.get("return_miles") or 0.0,
             "return_cost": cost_data.get("return_cost") or 0.0,
             "total_length_ft": sum(group.get("total_length_ft") or 0 for group in groups),
+            "total_linear_feet": float(stack_config.get("total_linear_feet") or 0.0),
+            "capacity_feet": float(stack_config.get("capacity_feet") or 0.0),
+            "lower_deck_used_length_ft": float(stack_config.get("lower_deck_used_length_ft") or 0.0),
+            "upper_deck_effective_length_ft": float(stack_config.get("upper_deck_effective_length_ft") or 0.0),
             "due_date_min": due_min,
             "due_date_max": due_max,
             "due_flex_days": effective_due_window_days,
@@ -2686,7 +3184,7 @@ class Optimizer:
             "contains_no_mix_customer": contains_no_mix,
             "centroid": self._centroid(groups),
             "stop_count": stop_count,
-            "groups": groups,
+            "groups": list(groups),
             "stop_coords": [stop.get("coords") for stop in ordered_stops if stop.get("coords")],
             "store_codes": sorted(
                 {
@@ -2696,11 +3194,89 @@ class Optimizer:
                     if str(store_code or "").strip()
                 }
             ),
+            "practical_fill_pct": round(
+                ((float(stack_config.get("total_linear_feet") or 0.0) / float(stack_config.get("capacity_feet") or 0.0)) * 100.0)
+                if float(stack_config.get("capacity_feet") or 0.0) > 0
+                else 0.0,
+                1,
+            ),
         }
+        base_load["effective_fill_pct"] = round(self._effective_fill_pct(base_load), 1)
         if stack_config.get("auto_trailer_upgrade"):
-            load["auto_trailer_upgrade"] = True
-            load["auto_trailer_reason"] = stack_config.get("auto_trailer_reason") or ""
-        return load
+            base_load["auto_trailer_upgrade"] = True
+            base_load["auto_trailer_reason"] = stack_config.get("auto_trailer_reason") or ""
+        self._load_build_cache[cache_key] = base_load
+        return base_load
+
+    def _clone_cached_load(self, load):
+        cloned = dict(load or {})
+        for key in ("unique_states", "route_legs", "route_geometry", "lines", "route", "stop_coords", "groups", "store_codes"):
+            if isinstance(cloned.get(key), list):
+                cloned[key] = list(cloned[key])
+        return cloned
+
+    def _load_build_cache_key(self, groups, params):
+        group_keys = tuple(
+            sorted(
+                str((group or {}).get("key") or "").strip()
+                for group in (groups or [])
+                if str((group or {}).get("key") or "").strip()
+            )
+        )
+        categories = tuple(
+            stack_calculator.normalize_upper_deck_exception_categories(
+                params.get("upper_deck_exception_categories")
+            )
+        )
+        return (
+            group_keys,
+            str(params.get("origin_plant") or "").strip().upper(),
+            stack_calculator.normalize_trailer_type(params.get("trailer_type"), default="STEP_DECK"),
+            self._coerce_non_negative_float(params.get("capacity_feet"), 0.0),
+            bool(params.get("enforce_time_window", True)),
+            self._coerce_optional_non_negative_int(params.get("time_window_days")) or 0,
+            self._coerce_optional_non_negative_int(params.get("stack_overflow_max_height")) or 0,
+            self._coerce_non_negative_float(params.get("max_back_overhang_ft"), 0.0),
+            self._coerce_non_negative_float(params.get("upper_two_across_max_length_ft"), 0.0),
+            self._coerce_non_negative_float(params.get("upper_deck_exception_max_length_ft"), 0.0),
+            self._coerce_non_negative_float(params.get("upper_deck_exception_overhang_allowance_ft"), 0.0),
+            categories,
+            bool(self._coerce_bool(params.get("v2_allow_order_interleave"), DEFAULT_V2_ALLOW_ORDER_INTERLEAVE)),
+            bool(self._coerce_bool(params.get("v2_allow_cross_order_stack_sharing"), True)),
+            bool(params.get("v2_aggressive_upper_two_across_prepack", False)),
+            (
+                bool(params.get("equal_length_deck_length_order_enabled"))
+                if params.get("equal_length_deck_length_order_enabled") is not None
+                else None
+            ),
+        )
+
+    def _cost_data_for_groups(self, groups, params):
+        cache_key = (
+            tuple(
+                sorted(
+                    str((group or {}).get("key") or "").strip()
+                    for group in (groups or [])
+                    if str((group or {}).get("key") or "").strip()
+                )
+            ),
+            str(params.get("origin_plant") or "").strip().upper(),
+            bool(any(group.get("requires_return_to_origin") for group in (groups or []))),
+        )
+        cached = self._cost_data_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        origin_plant = params["origin_plant"]
+        origin_coords = geo_utils.plant_coords_for_code(origin_plant)
+        requires_return_to_origin = any(group.get("requires_return_to_origin") for group in groups)
+        cost_data = self.cost_calculator.calculate(
+            origin_plant,
+            self._build_stops(groups),
+            origin_coords=origin_coords,
+            return_to_origin=requires_return_to_origin,
+        )
+        self._cost_data_cache[cache_key] = cost_data
+        return cost_data
 
     def _build_stops(self, groups):
         stop_map = {}
@@ -2725,14 +3301,7 @@ class Optimizer:
         origin_plant = params.get("origin_plant")
         if not origin_plant:
             return self._build_stops(groups)
-        origin_coords = geo_utils.plant_coords_for_code(origin_plant)
-        requires_return_to_origin = any(group.get("requires_return_to_origin") for group in groups)
-        cost_data = self.cost_calculator.calculate(
-            origin_plant,
-            self._build_stops(groups),
-            origin_coords=origin_coords,
-            return_to_origin=requires_return_to_origin,
-        )
+        cost_data = self._cost_data_for_groups(groups, params)
         return cost_data.get("ordered_stops") or []
 
     def _stop_sequence_map_for_groups(self, groups, ordered_stops):
@@ -2804,14 +3373,35 @@ class Optimizer:
             "full_load_target_pct": float(
                 params.get("v2_full_load_target_pct", 90.0) or 90.0
             ),
+            "elite_load_target_pct": float(
+                params.get("v2_elite_load_target_pct", 95.0) or 95.0
+            ),
             "lambda_full_load_count": float(
                 params.get("v2_lambda_full_load_count", 220.0) or 220.0
+            ),
+            "lambda_elite_load_count": float(
+                params.get("v2_lambda_elite_load_count", 320.0) or 320.0
             ),
             "lambda_full_load_depth": float(
                 params.get("v2_lambda_full_load_depth", 18.0) or 18.0
             ),
             "lambda_fill_to_full": float(
                 params.get("v2_lambda_fill_to_full", 4.0) or 4.0
+            ),
+            "fill_floor_target_pct": float(
+                params.get("v2_fill_floor_target_pct", 65.0) or 65.0
+            ),
+            "lambda_fill_floor_count": float(
+                params.get("v2_lambda_fill_floor_count", 140.0) or 140.0
+            ),
+            "lambda_fill_floor_depth": float(
+                params.get("v2_lambda_fill_floor_depth", 10.0) or 10.0
+            ),
+            "lambda_fill_floor_progress": float(
+                params.get("v2_lambda_fill_floor_progress", 8.0) or 8.0
+            ),
+            "lambda_weak_tail_absorb": float(
+                params.get("v2_lambda_weak_tail_absorb", 160.0) or 160.0
             ),
             "lambda_state_purity": float(
                 params.get("v2_lambda_state_purity", 60.0) or 60.0
@@ -2822,16 +3412,41 @@ class Optimizer:
             "lambda_cross_state_merge": float(
                 params.get("v2_lambda_cross_state_merge", 120.0) or 120.0
             ),
+            "lambda_stepdeck_two_across": float(
+                params.get("v2_lambda_stepdeck_two_across", 0.0) or 0.0
+            ),
+            "lambda_stop_penalty": float(
+                params.get("v2_lambda_stop_penalty", 18.0) or 18.0
+            ),
+            "stop_soft_limit": int(
+                params.get("v2_stop_soft_limit", 4) or 4
+            ),
+            "stop_hard_limit": int(
+                params.get("v2_stop_hard_limit", 6) or 6
+            ),
+            "lambda_geo_density": float(
+                params.get("v2_lambda_geo_density", 18.0) or 18.0
+            ),
+            "lambda_geo_direction": float(
+                params.get("v2_lambda_geo_direction", 26.0) or 26.0
+            ),
+            "lambda_geo_spread": float(
+                params.get("v2_lambda_geo_spread", 20.0) or 20.0
+            ),
+            "two_across_bonus_step_deck_only": self._coerce_bool(
+                params.get("v2_two_across_bonus_step_deck_only"),
+                True,
+            ),
         }
 
     def _low_util_penalty(self, load, threshold):
-        utilization = load.get("utilization_pct") or 0
-        count_penalty = 1 if utilization < threshold else 0
-        depth_penalty = max(threshold - utilization, 0.0)
-        if utilization < 55:
-            depth_penalty += (55 - utilization) * 0.5
-        if utilization < 40:
-            depth_penalty += (40 - utilization)
+        effective_fill = self._effective_fill_pct(load)
+        count_penalty = 1 if effective_fill < threshold else 0
+        depth_penalty = max(threshold - effective_fill, 0.0)
+        if effective_fill < 55:
+            depth_penalty += (55 - effective_fill) * 0.5
+        if effective_fill < 40:
+            depth_penalty += (40 - effective_fill)
         return count_penalty, depth_penalty
 
     def _objective_bonus_for_merge(self, load_a, load_b, merged_load, objective_weights):
@@ -2850,12 +3465,25 @@ class Optimizer:
         lambda_depth = objective_weights.get("lambda_low_util_depth", 0.0)
         lambda_upper_two_across = objective_weights.get("lambda_upper_two_across", 0.0)
         full_load_target = objective_weights.get("full_load_target_pct", 90.0)
+        elite_load_target = objective_weights.get("elite_load_target_pct", 95.0)
         lambda_full_load_count = objective_weights.get("lambda_full_load_count", 0.0)
+        lambda_elite_load_count = objective_weights.get("lambda_elite_load_count", 0.0)
         lambda_full_load_depth = objective_weights.get("lambda_full_load_depth", 0.0)
         lambda_fill_to_full = objective_weights.get("lambda_fill_to_full", 0.0)
+        fill_floor_target = objective_weights.get("fill_floor_target_pct", 65.0)
+        lambda_fill_floor_count = objective_weights.get("lambda_fill_floor_count", 0.0)
+        lambda_fill_floor_depth = objective_weights.get("lambda_fill_floor_depth", 0.0)
+        lambda_fill_floor_progress = objective_weights.get("lambda_fill_floor_progress", 0.0)
+        lambda_weak_tail_absorb = objective_weights.get("lambda_weak_tail_absorb", 0.0)
         lambda_state_purity = objective_weights.get("lambda_state_purity", 0.0)
         lambda_same_state_merge = objective_weights.get("lambda_same_state_merge", 0.0)
         lambda_cross_state_merge = objective_weights.get("lambda_cross_state_merge", 0.0)
+        lambda_stepdeck_two_across = objective_weights.get("lambda_stepdeck_two_across", 0.0)
+        lambda_stop_penalty = objective_weights.get("lambda_stop_penalty", 0.0)
+        lambda_geo_density = objective_weights.get("lambda_geo_density", 0.0)
+        lambda_geo_direction = objective_weights.get("lambda_geo_direction", 0.0)
+        lambda_geo_spread = objective_weights.get("lambda_geo_spread", 0.0)
+        two_across_step_deck_only = bool(objective_weights.get("two_across_bonus_step_deck_only", True))
         before_count_a, before_depth_a = self._low_util_penalty(load_a, threshold)
         before_count_b, before_depth_b = self._low_util_penalty(load_b, threshold)
         after_count, after_depth = self._low_util_penalty(merged_load, threshold)
@@ -2868,12 +3496,23 @@ class Optimizer:
         upper_two_across_bonus = (
             (after_upper_two_across - before_upper_two_across) * lambda_upper_two_across
         )
-        util_a = float(load_a.get("utilization_pct") or 0.0)
-        util_b = float(load_b.get("utilization_pct") or 0.0)
-        util_m = float(merged_load.get("utilization_pct") or 0.0)
+        if (
+            self._load_uses_step_deck(merged_load)
+            or not two_across_step_deck_only
+        ):
+            upper_two_across_bonus += (
+                max(after_upper_two_across - before_upper_two_across, 0)
+                * lambda_stepdeck_two_across
+            )
+        util_a = self._effective_fill_pct(load_a)
+        util_b = self._effective_fill_pct(load_b)
+        util_m = self._effective_fill_pct(merged_load)
         before_full_count = (1 if util_a >= full_load_target else 0) + (1 if util_b >= full_load_target else 0)
         after_full_count = 1 if util_m >= full_load_target else 0
         full_count_bonus = (before_full_count - after_full_count) * (-lambda_full_load_count)
+        before_elite_count = (1 if util_a >= elite_load_target else 0) + (1 if util_b >= elite_load_target else 0)
+        after_elite_count = 1 if util_m >= elite_load_target else 0
+        elite_count_bonus = (before_elite_count - after_elite_count) * (-lambda_elite_load_count)
 
         before_full_depth = max(full_load_target - util_a, 0.0) + max(full_load_target - util_b, 0.0)
         after_full_depth = max(full_load_target - util_m, 0.0)
@@ -2887,6 +3526,25 @@ class Optimizer:
         before_fill_loss = ((100.0 - cap_a) ** 2) + ((100.0 - cap_b) ** 2)
         after_fill_loss = (100.0 - cap_m) ** 2
         fill_to_full_bonus = (before_fill_loss - after_fill_loss) * lambda_fill_to_full
+
+        before_fill_floor_count = (1 if util_a >= fill_floor_target else 0) + (1 if util_b >= fill_floor_target else 0)
+        after_fill_floor_count = 1 if util_m >= fill_floor_target else 0
+        fill_floor_count_bonus = (before_fill_floor_count - after_fill_floor_count) * (-lambda_fill_floor_count)
+
+        before_fill_floor_depth = max(fill_floor_target - util_a, 0.0) + max(fill_floor_target - util_b, 0.0)
+        after_fill_floor_depth = max(fill_floor_target - util_m, 0.0)
+        fill_floor_depth_bonus = (before_fill_floor_depth - after_fill_floor_depth) * lambda_fill_floor_depth
+
+        before_best = max(util_a, util_b)
+        progress_to_floor = max(min(util_m, fill_floor_target) - min(before_best, fill_floor_target), 0.0)
+        fill_floor_progress_bonus = progress_to_floor * lambda_fill_floor_progress
+
+        weak_tail_absorb_bonus = 0.0
+        if util_m >= fill_floor_target:
+            weak_tail_count = sum(1 for util in (util_a, util_b) if util < 40.0)
+            weak_tail_absorb_bonus += weak_tail_count * lambda_weak_tail_absorb
+            if before_best >= fill_floor_target and min(util_a, util_b) < 40.0:
+                weak_tail_absorb_bonus += lambda_weak_tail_absorb
 
         states_a = int(load_a.get("unique_states_count") or (1 if load_a.get("destination_state") else 0))
         states_b = int(load_b.get("unique_states_count") or (1 if load_b.get("destination_state") else 0))
@@ -2904,14 +3562,35 @@ class Optimizer:
             elif state_a != state_b and states_m > 1:
                 cross_state_penalty = lambda_cross_state_merge
 
+        before_stop_penalty = self._stop_penalty_units(load_a, objective_weights) + self._stop_penalty_units(load_b, objective_weights)
+        after_stop_penalty = self._stop_penalty_units(merged_load, objective_weights)
+        stop_penalty_bonus = (before_stop_penalty - after_stop_penalty) * lambda_stop_penalty
+
+        before_geo_penalty = self._load_geo_penalty(load_a, objective_weights) + self._load_geo_penalty(load_b, objective_weights)
+        after_geo_penalty = self._load_geo_penalty(merged_load, objective_weights)
+        geo_penalty_bonus = (
+            (before_geo_penalty - after_geo_penalty)
+            * (lambda_geo_density + lambda_geo_direction + lambda_geo_spread)
+        )
+        if before_best >= full_load_target and util_m >= full_load_target:
+            stop_penalty_bonus *= 1.35
+            geo_penalty_bonus *= 1.85
+
         return (
             count_bonus
             + depth_bonus
             + upper_two_across_bonus
             + full_count_bonus
+            + elite_count_bonus
             + full_depth_bonus
             + fill_to_full_bonus
+            + fill_floor_count_bonus
+            + fill_floor_depth_bonus
+            + fill_floor_progress_bonus
+            + weak_tail_absorb_bonus
             + state_purity_bonus
+            + stop_penalty_bonus
+            + geo_penalty_bonus
             + same_state_bonus
             - cross_state_penalty
         )
@@ -2936,6 +3615,29 @@ class Optimizer:
 
     def _runtime_tuned_params(self, params, group_count):
         tuned = dict(params or {})
+        tuned["optimize_focus"] = UNIFIED_OPTIMIZER_PROFILE
+        if group_count >= DEFAULT_V2_MEDIUM_TUNE_THRESHOLD:
+            def _int_value(key, fallback):
+                try:
+                    return int(tuned.get(key, fallback) or fallback)
+                except (TypeError, ValueError):
+                    return int(fallback)
+
+            tuned["v2_group_reassign_passes"] = min(
+                _int_value("v2_group_reassign_passes", DEFAULT_V2_GROUP_REASSIGN_PASSES),
+                2,
+            )
+            tuned["v2_group_reassign_candidate_limit"] = min(
+                _int_value("v2_group_reassign_candidate_limit", DEFAULT_V2_GROUP_REASSIGN_CANDIDATE_LIMIT),
+                10,
+            )
+            tuned["v2_fd_candidate_limit"] = min(
+                _int_value("v2_fd_candidate_limit", DEFAULT_V2_FD_CANDIDATE_LIMIT),
+                120,
+            )
+            tuned["v2_multi_start_include_aggressive_fill"] = False
+            if group_count >= (DEFAULT_V2_MEDIUM_TUNE_THRESHOLD + 5):
+                tuned["v2_multi_start_enabled"] = False
         if group_count < DEFAULT_V2_FAST_TUNE_THRESHOLD:
             return tuned
 
@@ -3002,6 +3704,155 @@ class Optimizer:
         )
         return tuned
 
+    def _inject_market_shape_params(self, params, groups):
+        tuned = dict(params or {})
+        anchors = []
+        bearings = []
+        origin_coords = geo_utils.plant_coords_for_code(tuned.get("origin_plant"))
+        for group in groups or []:
+            anchor = self._group_anchor_coords(group)
+            if not anchor:
+                continue
+            anchors.append(anchor)
+            bearing = self._bearing_from_origin(origin_coords, anchor)
+            if bearing is not None:
+                bearings.append(bearing)
+        if len(anchors) >= 2:
+            nearest_neighbor_miles = []
+            for index, anchor in enumerate(anchors):
+                distances = []
+                for compare_index, compare in enumerate(anchors):
+                    if index == compare_index:
+                        continue
+                    distance = self._distance_between(anchor, compare)
+                    if distance is not None:
+                        distances.append(distance)
+                if distances:
+                    nearest_neighbor_miles.append(min(distances))
+            if nearest_neighbor_miles:
+                tuned["v2_market_avg_nn_miles"] = sum(nearest_neighbor_miles) / len(nearest_neighbor_miles)
+        if origin_coords and anchors:
+            origin_miles = [
+                self._distance_between(origin_coords, anchor)
+                for anchor in anchors
+                if self._distance_between(origin_coords, anchor) is not None
+            ]
+            if origin_miles:
+                tuned["v2_market_avg_origin_miles"] = sum(origin_miles) / len(origin_miles)
+        if len(bearings) >= 2:
+            mean_bearing = sum(bearings) / len(bearings)
+            tuned["v2_market_directional_spread_deg"] = sum(
+                self._bearing_delta(bearing, mean_bearing) for bearing in bearings
+            ) / len(bearings)
+        return tuned
+
+    def _group_anchor_coords(self, group):
+        coords = []
+        for line in (group or {}).get("lines") or []:
+            zip_code = geo_utils.normalize_zip(line.get("zip"))
+            point = self.zip_coords.get(zip_code) if zip_code else None
+            if point:
+                coords.append(point)
+        if not coords:
+            return None
+        return self._average_coords(coords)
+
+    def _average_coords(self, coords):
+        valid = [point for point in (coords or []) if point]
+        if not valid:
+            return None
+        return (
+            sum(point[0] for point in valid) / len(valid),
+            sum(point[1] for point in valid) / len(valid),
+        )
+
+    def _distance_between(self, left, right):
+        calculator = getattr(self, "cost_calculator", None)
+        if calculator is None:
+            return None
+        try:
+            return calculator.distance(left, right)
+        except Exception:
+            return None
+
+    def _load_uses_step_deck(self, load):
+        trailer = stack_calculator.normalize_trailer_type(
+            (load or {}).get("trailer_type"),
+            default="STEP_DECK",
+        )
+        return str(trailer or "").startswith("STEP_DECK")
+
+    def _stop_penalty_units(self, load, params):
+        stop_count = int((load or {}).get("stop_count") or 0)
+        soft_limit = int((params or {}).get("stop_soft_limit", (params or {}).get("v2_stop_soft_limit", 4)) or 4)
+        hard_limit = int((params or {}).get("stop_hard_limit", (params or {}).get("v2_stop_hard_limit", 6)) or 6)
+        if stop_count <= soft_limit:
+            return 0.0
+        soft_excess = max(min(stop_count, hard_limit) - soft_limit, 0)
+        hard_excess = max(stop_count - hard_limit, 0)
+        return float(soft_excess) + (float(hard_excess) * 2.5)
+
+    def _load_geo_penalty(self, load, params):
+        stop_coords = [coords for coords in ((load or {}).get("stop_coords") or []) if coords]
+        if len(stop_coords) <= 1:
+            return 0.0
+
+        avg_nn = float((params or {}).get("v2_market_avg_nn_miles", 0.0) or 0.0)
+        avg_origin = float((params or {}).get("v2_market_avg_origin_miles", 0.0) or 0.0)
+        avg_directional_spread = float((params or {}).get("v2_market_directional_spread_deg", 0.0) or 0.0)
+
+        pair_distances = []
+        for index, coord in enumerate(stop_coords):
+            for compare in stop_coords[index + 1:]:
+                distance = self._distance_between(coord, compare)
+                if distance is not None:
+                    pair_distances.append(distance)
+        avg_pair_distance = (sum(pair_distances) / len(pair_distances)) if pair_distances else 0.0
+
+        centroid = self._average_coords(stop_coords)
+        spread_distances = []
+        if centroid:
+            for coord in stop_coords:
+                distance = self._distance_between(coord, centroid)
+                if distance is not None:
+                    spread_distances.append(distance)
+        avg_spread = (sum(spread_distances) / len(spread_distances)) if spread_distances else 0.0
+
+        origin_coords = geo_utils.plant_coords_for_code((load or {}).get("origin_plant"))
+        bearings = []
+        if origin_coords:
+            for coord in stop_coords:
+                bearing = self._bearing_from_origin(origin_coords, coord)
+                if bearing is not None:
+                    bearings.append(bearing)
+        directional_spread = 0.0
+        if len(bearings) >= 2:
+            mean_bearing = sum(bearings) / len(bearings)
+            directional_spread = sum(
+                self._bearing_delta(bearing, mean_bearing) for bearing in bearings
+            ) / len(bearings)
+
+        density_factor = (avg_pair_distance / max(avg_nn, 1.0)) if avg_nn > 0 else 0.0
+        spread_factor = (avg_spread / max(avg_origin * 0.35, 1.0)) if avg_origin > 0 else avg_spread / 25.0
+        direction_factor = (
+            directional_spread / max(avg_directional_spread + 10.0, 15.0)
+            if avg_directional_spread > 0
+            else directional_spread / 20.0
+        )
+        detour_factor = max(self._detour_pct(load), 0.0) / 100.0
+
+        density_weight = float((params or {}).get("lambda_geo_density", (params or {}).get("v2_lambda_geo_density", 0.0)) or 0.0)
+        spread_weight = float((params or {}).get("lambda_geo_spread", (params or {}).get("v2_lambda_geo_spread", 0.0)) or 0.0)
+        direction_weight = float((params or {}).get("lambda_geo_direction", (params or {}).get("v2_lambda_geo_direction", 0.0)) or 0.0)
+        total_weight = max(density_weight + spread_weight + direction_weight, 1.0)
+
+        return (
+            density_factor * (density_weight / total_weight)
+            + spread_factor * (spread_weight / total_weight)
+            + direction_factor * (direction_weight / total_weight)
+            + detour_factor
+        )
+
     def _min_distance_between_loads(self, load_a, load_b):
         coords_a = [coord for coord in (load_a.get("stop_coords") or []) if coord]
         coords_b = [coord for coord in (load_b.get("stop_coords") or []) if coord]
@@ -3009,19 +3860,19 @@ class Optimizer:
             min_distance = None
             for coord_a in coords_a:
                 for coord_b in coords_b:
-                    distance = self.cost_calculator.distance(coord_a, coord_b)
+                    distance = self._distance_between(coord_a, coord_b)
                     if min_distance is None or distance < min_distance:
                         min_distance = distance
             return min_distance
         centroid_a = load_a.get("centroid")
         centroid_b = load_b.get("centroid")
         if centroid_a and centroid_b:
-            return self.cost_calculator.distance(centroid_a, centroid_b)
+            return self._distance_between(centroid_a, centroid_b)
         return None
 
     def _is_orphan(self, load):
         utilization = load.get("utilization_pct") or 0
-        return utilization < 60
+        return self._effective_fill_pct(load) < 60
 
     def _group_by_so_num(self, orders, order_summary_map=None):
         order_summary_map = order_summary_map or {}
@@ -3335,6 +4186,7 @@ class Optimizer:
         )
         capacity_feet = params.get("capacity_feet")
         allow_order_interleave = self._allow_order_interleave(params, groups)
+        allow_cross_order_stack_sharing = self._allow_cross_order_stack_sharing(params, groups)
         active_stop_sequence_map = stop_sequence_map
         if allow_order_interleave and len(groups) > 1 and not active_stop_sequence_map:
             ordered_stops = self._ordered_stops_for_groups(groups, params)
@@ -3344,6 +4196,7 @@ class Optimizer:
             trailer_choice,
             capacity_feet,
             allow_order_interleave=allow_order_interleave,
+            allow_cross_order_stack_sharing=allow_cross_order_stack_sharing,
             stop_sequence_map=active_stop_sequence_map,
             stack_overflow_max_height=params.get("stack_overflow_max_height"),
             max_back_overhang_ft=params.get("max_back_overhang_ft"),
@@ -3377,12 +4230,24 @@ class Optimizer:
             return value.strip().lower() in {"1", "true", "yes", "on", "y"}
         return bool(value)
 
+    def _allow_cross_order_stack_sharing(self, params, groups):
+        if len(groups) <= 1:
+            return False
+        algorithm_version = (params.get("algorithm_version") or "v2").strip().lower()
+        if algorithm_version != "v2":
+            return False
+        value = params.get("v2_allow_cross_order_stack_sharing", True)
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on", "y"}
+        return bool(value)
+
     def _stack_config(
         self,
         groups,
         trailer_type,
         capacity_feet,
         allow_order_interleave=False,
+        allow_cross_order_stack_sharing=False,
         stop_sequence_map=None,
         stack_overflow_max_height=None,
         max_back_overhang_ft=None,
@@ -3410,6 +4275,7 @@ class Optimizer:
             trailer_key,
             capacity_for_calc,
             bool(allow_order_interleave),
+            bool(allow_cross_order_stack_sharing),
             sequence_signature,
             stack_overflow_max_height,
             max_back_overhang_ft,
@@ -3467,6 +4333,7 @@ class Optimizer:
             trailer_type=trailer_key,
             capacity_feet=capacity_for_calc,
             preserve_order_contiguity=not allow_order_interleave,
+            prefer_order_affinity=not allow_cross_order_stack_sharing,
             stack_overflow_max_height=stack_overflow_max_height,
             max_back_overhang_ft=max_back_overhang_ft,
             upper_two_across_max_length_ft=upper_two_across_max_length_ft,
@@ -3494,6 +4361,7 @@ class Optimizer:
                     candidate_trailer,
                     candidate_capacity,
                     bool(allow_order_interleave),
+                    bool(allow_cross_order_stack_sharing),
                     sequence_signature,
                     stack_overflow_max_height,
                     max_back_overhang_ft,
@@ -3519,6 +4387,7 @@ class Optimizer:
                         trailer_type=candidate_trailer,
                         capacity_feet=candidate_capacity,
                         preserve_order_contiguity=not allow_order_interleave,
+                        prefer_order_affinity=not allow_cross_order_stack_sharing,
                         stack_overflow_max_height=stack_overflow_max_height,
                         max_back_overhang_ft=max_back_overhang_ft,
                         upper_two_across_max_length_ft=upper_two_across_max_length_ft,

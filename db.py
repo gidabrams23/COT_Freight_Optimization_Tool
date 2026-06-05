@@ -4306,6 +4306,16 @@ def list_planning_sessions(filters=None):
             SELECT
                 ps.*,
                 COUNT(DISTINCT l.id) AS load_count,
+                COUNT(
+                    DISTINCT CASE
+                        WHEN UPPER(COALESCE(l.status, '')) = 'APPROVED' THEN l.id
+                    END
+                ) AS approved_load_count,
+                COUNT(
+                    DISTINCT CASE
+                        WHEN UPPER(COALESCE(l.status, '')) = 'ARCHIVED' THEN l.id
+                    END
+                ) AS archived_load_count,
                 AVG(l.utilization_pct) AS avg_utilization,
                 COUNT(DISTINCT ol.so_num) AS order_count,
                 SUM(l.estimated_cost) AS total_spend,

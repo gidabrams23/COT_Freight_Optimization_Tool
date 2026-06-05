@@ -1,0 +1,56 @@
+2026-06-03 15:16:08,416 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:16:11,415 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:16:11,703 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:16:11,710 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:16:11,714 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:16:11,737 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:16:11,768 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:16:11,768 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:16:11,774 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:16:11,774 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:16:11,792 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:16:11,793 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:16:11,817 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+ * Serving Flask app 'blueprints.cot.routes'
+ * Debug mode: off
+2026-06-03 15:16:12,596 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5510
+2026-06-03 15:16:12,597 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-03 15:16:16,083 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-06-03 15:16:16,088 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-06-03 15:16:16,089 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:16:16] "GET /healthz HTTP/1.1" 200 -
+2026-06-03 15:16:27,779 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-06-03 15:16:27,780 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-06-03 15:16:27,781 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:16:27] "GET /healthz HTTP/1.1" 200 -
+2026-06-03 15:16:48,768 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-03 15:16:48,876 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:16:48] "GET /login HTTP/1.1" 200 -
+2026-06-03 15:16:48,897 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-03 15:16:48,902 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:16:48] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-03 15:17:00,007 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-03 15:17:00,038 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:00] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-03 15:17:00,074 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-03 15:17:01,625 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:01] "GET /orders HTTP/1.1" 200 -
+2026-06-03 15:17:01,663 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-03 15:17:01,666 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:01] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-03 15:17:01,669 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-03 15:17:01,674 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:01] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-03 15:17:01,677 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-03 15:17:01,680 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:01] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-03 15:17:03,508 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/access/manage
+2026-06-03 15:17:03,521 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12617465/stack-config
+2026-06-03 15:17:03,626 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:03] "GET /access/manage HTTP/1.1" 200 -
+2026-06-03 15:17:03,665 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-03 15:17:03,667 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-03 15:17:03,669 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:03] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-03 15:17:03,670 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-03 15:17:03,671 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:03] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-03 15:17:03,673 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:03] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-03 15:17:03,964 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:03] "GET /api/orders/12617465/stack-config HTTP/1.1" 200 -
+2026-06-03 15:17:05,221 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/access/manage
+2026-06-03 15:17:05,265 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:05] "GET /access/manage?edit_id=2 HTTP/1.1" 200 -
+2026-06-03 15:17:05,291 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-03 15:17:05,292 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-03 15:17:05,294 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:05] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-03 15:17:05,295 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:05] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-03 15:17:05,308 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-03 15:17:05,320 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:17:05] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -

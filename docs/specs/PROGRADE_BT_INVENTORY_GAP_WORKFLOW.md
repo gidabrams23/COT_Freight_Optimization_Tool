@@ -4,6 +4,7 @@
 Defines the current inventory-gap panel behavior on the ProGrade load page for both brands:
 - Big Tex: upload-backed availability (legacy workbook + BT inventory CSV).
 - PJ: upload-backed availability from PJ inventory CSV with catalog fallback.
+- B-Wise: upload-backed availability from B-Wise sales-order workbook with catalog fallback.
 
 ## Entry Points
 - Load page: `/prograde/session/<session_id>/load`
@@ -49,6 +50,21 @@ Defines the current inventory-gap panel behavior on the ProGrade load page for b
 - Snapshot aggregates persisted per item and per `(item_number, whse_code)` using PJ inventory tables.
 - If no PJ inventory upload exists yet, panel falls back to catalog candidates from `pj_skus`.
 
+### B-Wise mode (`brand=bwise`)
+- Upload accepted format:
+  - Workbook (`.xlsx` / `.xlsm`), default sheet `Sheet1`.
+- Workbook parsing:
+  - Header row is row `3`.
+  - `D` (`PART`): SKU key matched to `bwise_skus.item_number`.
+  - `B` (`Customer (Ship To)`): only `STOCK` rows are included.
+  - `K` (`Assembled`): only blank values are included.
+  - Current matcher supports exact part-number match and trimmed trailing `%` / `#` suffix match.
+- Snapshot aggregates persisted per item:
+  - `total_count`
+  - `available_count`
+  - `assigned_count`
+- If no B-Wise inventory upload exists yet, panel falls back to catalog candidates from `bwise_skus`.
+
 ## Panel Behavior
 - Panel title: `BT Inventory Gap Finder` or `PJ Inventory Gap Finder`.
 - Both brand panels include:
@@ -82,9 +98,13 @@ In ProGrade SQLite (`PROGRADE_DB_PATH`):
 - `pj_inventory_snapshot`: latest per-SKU PJ aggregates.
 - `pj_inventory_snapshot_whse`: latest per-SKU, per-warehouse PJ aggregates (`inventsiteid`).
 - `pj_inventory_upload_log`: PJ upload metadata history.
+- `bwise_inventory_snapshot`: latest per-SKU B-Wise aggregates.
+- `bwise_inventory_upload_log`: B-Wise upload metadata history.
 
 ## Current Process Standards
 - Keep BT upload optional and non-blocking for load building.
 - Keep PJ upload optional and non-blocking for load building.
+- Keep B-Wise upload optional and non-blocking for load building.
 - Keep PJ catalog fallback available when PJ SKUs exist and no PJ upload has been run.
+- Keep B-Wise catalog fallback available when B-Wise SKUs exist and no B-Wise upload has been run.
 - Keep fit scoring deterministic and tied to current session geometry/constraints.

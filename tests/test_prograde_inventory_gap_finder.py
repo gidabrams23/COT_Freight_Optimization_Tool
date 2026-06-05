@@ -137,6 +137,26 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
                 ),
             )
 
+    def _insert_bwise_snapshot(self, item_number, *, available_count, total_count=None, match_method="exact", source_part_number=None):
+        now = "2026-04-13T00:00:00"
+        total = int(total_count if total_count is not None else available_count)
+        with self.db.get_db() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bwise_inventory_snapshot
+                (item_number, source_part_number, match_method, normalized_model, normalized_category, total_count, available_count, assigned_count, updated_at)
+                VALUES (?, ?, ?, '', '', ?, ?, 0, ?)
+                """,
+                (
+                    item_number,
+                    source_part_number or item_number,
+                    match_method,
+                    total,
+                    int(available_count),
+                    now,
+                ),
+            )
+
     def _insert_bt_snapshot_whse(self, item_number, *, whse_code, available_count, total_count=None):
         now = "2026-04-13T00:00:00"
         total = int(total_count if total_count is not None else available_count)
@@ -166,6 +186,8 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         bed_length_measured,
         tongue_feet,
         total_footprint,
+        height_mid_ft=None,
+        height_top_ft=None,
     ):
         now = "2026-04-13T00:00:00"
         with self.db.get_db() as conn:
@@ -173,8 +195,8 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
                 """
                 INSERT OR REPLACE INTO pj_skus
                 (item_number, model, pj_category, description, bed_length_stated, bed_length_measured,
-                 tongue_feet, total_footprint, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 tongue_feet, total_footprint, height_mid_ft, height_top_ft, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     item_number,
@@ -185,6 +207,8 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
                     float(bed_length_measured),
                     float(tongue_feet),
                     float(total_footprint),
+                    height_mid_ft,
+                    height_top_ft,
                     now,
                 ),
             )
@@ -346,6 +370,8 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
             bed_length_measured=21.0,
             tongue_feet=4.0,
             total_footprint=25.0,
+            height_mid_ft=1.4,
+            height_top_ft=1.8,
         )
         self.db.update_carrier_config("53_step_deck", "max_height_ft", 6.8)  # lower clearance = 3.3
 
@@ -738,7 +764,50 @@ class ProgradeInventoryGapFinderTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn("B-Wise Inventory Gap Finder", html)
-        self.assertNotIn("Upload Inventory", html)
+        self.assertIn("Upload Inventory", html)
+
+    def test_bwise_inventory_gap_uses_upload_mode_when_snapshot_exists(self):
+        profile_id = self._activate_profile(name="B-Wise Upload Tester")
+        session_id = str(uuid.uuid4())
+        self.db.create_session(
+            session_id,
+            "bwise",
+            "53_step_deck",
+            "B-Wise Upload Tester",
+            "bwise-gap-upload",
+            created_by_profile_id=profile_id,
+            created_by_name="B-Wise Upload Tester",
+        )
+        self._insert_bwise_sku(
+            "GH824DIBNW",
+            model="THD15",
+            old_model="TH-824",
+            mcat="Gooseneck",
+            total_footprint=32.0,
+            stack_height=3.0,
+        )
+        self._insert_bwise_snapshot("GH824DIBNW", available_count=4)
+        self.db.add_position(
+            position_id=str(uuid.uuid4()),
+            session_id=session_id,
+            brand="bwise",
+            item_number="GH824DIBNW",
+            deck_zone="lower_deck",
+            layer=1,
+            sequence=1,
+        )
+
+        gap_data = self._get_gap_data(session_id)
+        self.assertEqual(gap_data.get("mode"), "bwise_upload")
+        row = {r["item_number"]: r for r in (gap_data.get("rows") or [])}["GH824DIBNW"]
+        self.assertEqual(row.get("available_count"), 4)
+        self.assertFalse(row.get("catalog_only"))
+
+        resp = self.client.get(f"/prograde/session/{session_id}/load")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("B-Wise Inventory Gap Finder", html)
+        self.assertIn("Upload Inventory", html)
 
 
 if __name__ == "__main__":

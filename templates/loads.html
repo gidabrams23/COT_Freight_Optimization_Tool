@@ -293,6 +293,15 @@
                           Finalize Loads
                           <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
                         </a>
+                        <a
+                          class="load-tab{% if tab == 'archived' %} active{% endif %}{% if archived_tab_count == 0 %} disabled{% endif %}"
+                          href="{{ url_for('loads', plants=plant_filter_param, tab='archived', sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}"
+                          {% if archived_tab_count == 0 %}aria-disabled="true" tabindex="-1"{% endif %}
+                        >
+                          <span class="material-symbols-outlined">archive</span>
+                          Archived Loads
+                          <span class="tab-count" data-tab-count="archived">{{ archived_tab_count }}</span>
+                        </a>
                       {% else %}
                         <a class="load-tab{% if tab == 'draft' %} active{% endif %}" href="{{ url_for('loads', tab='draft', sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}">
                           <span class="material-symbols-outlined">edit_document</span>
@@ -307,6 +316,15 @@
                           <span class="material-symbols-outlined">verified</span>
                           Finalize Loads
                           <span class="tab-count success" data-tab-count="final">{{ final_tab_count }}</span>
+                        </a>
+                        <a
+                          class="load-tab{% if tab == 'archived' %} active{% endif %}{% if archived_tab_count == 0 %} disabled{% endif %}"
+                          href="{{ url_for('loads', tab='archived', sort=sort_mode, today=today_override_value or None, session_id=active_session_id, replay_run_id=replay.run_id if is_replay else None, replay_scenario=replay.scenario if is_replay else None, replay_date_created=replay.date_created if is_replay else None, replay_plant_code=replay.plant_code if is_replay else None) }}"
+                          {% if archived_tab_count == 0 %}aria-disabled="true" tabindex="-1"{% endif %}
+                        >
+                          <span class="material-symbols-outlined">archive</span>
+                          Archived Loads
+                          <span class="tab-count" data-tab-count="archived">{{ archived_tab_count }}</span>
                         </a>
                       {% endif %}
                     </div>
@@ -1988,6 +2006,7 @@
       if (!tabCounts) return;
       const draftEl = document.querySelector('[data-tab-count="draft"]');
       const finalEl = document.querySelector('[data-tab-count="final"]');
+      const archivedEl = document.querySelector('[data-tab-count="archived"]');
       if (draftEl && Number.isFinite(Number(tabCounts.draft))) draftEl.textContent = String(tabCounts.draft);
       if (finalEl && Number.isFinite(Number(tabCounts.final))) {
         const finalCount = Number(tabCounts.final);
@@ -2002,6 +2021,22 @@
             finalTab.classList.add('disabled');
             finalTab.setAttribute('aria-disabled', 'true');
             finalTab.setAttribute('tabindex', '-1');
+          }
+        }
+      }
+      if (archivedEl && Number.isFinite(Number(tabCounts.archived))) {
+        const archivedCount = Number(tabCounts.archived);
+        archivedEl.textContent = String(archivedCount);
+        const archivedTab = archivedEl.closest('.load-tab');
+        if (archivedTab) {
+          if (archivedCount > 0) {
+            archivedTab.classList.remove('disabled');
+            archivedTab.removeAttribute('aria-disabled');
+            archivedTab.removeAttribute('tabindex');
+          } else {
+            archivedTab.classList.add('disabled');
+            archivedTab.setAttribute('aria-disabled', 'true');
+            archivedTab.setAttribute('tabindex', '-1');
           }
         }
       }
@@ -3901,7 +3936,7 @@
         );
         const projectedUsed = hasExactProjectedFit
           ? toFeet(singleFitAssessment.projected_used_ft)
-          : (selectedList.length <= 1 ? (baseUsed + selectedTotal) : null);
+          : null;
         const overByProjected = capacity && projectedUsed != null
           ? Math.max(projectedUsed - capacity, 0)
           : 0;
@@ -3925,13 +3960,15 @@
               utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(remainingProjected)} open`;
             }
           } else if (selectedList.length > 1 && selectedTotal > 0.05) {
-            utilMeta.textContent = `Current ${formatFeet(baseUsed)} of ${formatFeet(capacity)} | +${formatFeet(selectedTotal)} selected (combined preview approximate)`;
+            utilMeta.textContent = `Current ${formatFeet(baseUsed)} of ${formatFeet(capacity)} | +${formatFeet(selectedTotal)} selected | Combined re-stack fit shown after add`;
           } else if (selectedTotal > 0.05 && projectedUsed != null) {
             if (overByProjected > 0.05) {
               utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(overByProjected)} over`;
             } else {
               utilMeta.textContent = `Projected ${formatFeet(projectedUsed)} of ${formatFeet(capacity)} | ${formatFeet(remainingProjected)} open`;
             }
+          } else if (selectedTotal > 0.05) {
+            utilMeta.textContent = `Current ${formatFeet(baseUsed)} of ${formatFeet(capacity)} | Exact fit recomputes after add`;
           } else if (overByCurrent > 0.05) {
             utilMeta.textContent = `Current ${formatFeet(baseUsed)} of ${formatFeet(capacity)} | ${formatFeet(overByCurrent)} over`;
           } else {
@@ -4068,17 +4105,9 @@
         }
 
         const overflowByOrder = {};
-        let remainingWithin = Math.max(capacity - baseWithin, 0);
-        selectedList.forEach((order) => {
-          const orderFt = toFeet(order.stack_added_ft || order.total_length_ft);
-          if (orderFt <= 0.02) return;
-          const withinFt = Math.min(orderFt, remainingWithin);
-          const overflowFt = Math.max(orderFt - withinFt, 0);
-          if (overflowFt > 0.02) {
-            overflowByOrder[order.so_num] = overflowFt;
-          }
-          remainingWithin = Math.max(remainingWithin - withinFt, 0);
-        });
+        if (hasExactProjectedFit && singleSelected && overByProjected > 0.02) {
+          overflowByOrder[singleSelected.so_num] = overByProjected;
+        }
 
         const selectedStrip = document.createElement('div');
         selectedStrip.className = 'manual-add-selected-strip';
@@ -4112,10 +4141,14 @@
             ? `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)}`
             : `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)} | Projected ${formatFeet(projectedUsed)}`;
           if (selectedList.length > 1 && selectedTotal > 0.05) {
-            capacitySummary.textContent = `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)} | Combined fit preview is approximate until added`;
+            capacitySummary.textContent = `Current ${formatFeet(baseUsed)} | Selected +${formatFeet(selectedTotal)} | Combined fit recomputes after add`;
             capacitySummary.classList.remove('is-over');
           } else if (projectedUsed == null) {
-            capacitySummary.textContent = baseText;
+            if (selectedTotal > 0.05) {
+              capacitySummary.textContent = `${baseText} | Fit Unknown until re-stack preview is available`;
+            } else {
+              capacitySummary.textContent = baseText;
+            }
             capacitySummary.classList.remove('is-over');
           } else if (overByProjected > 0.05) {
             capacitySummary.textContent = `${baseText} | Over by ${formatFeet(overByProjected)}`;
@@ -4138,21 +4171,7 @@
             text: `Over Capacity by ${toFeet(fitAssessment.over_capacity_by_ft).toFixed(1)} ft`,
           };
         }
-
-        const capacity = toFeet(cachedSpace.capacity_ft);
-        if (!capacity) {
-          return { className: 'unknown', text: 'Capacity Unknown' };
-        }
-        const baseUsed = toFeet(cachedSpace.used_ft);
-        const orderFt = toFeet(order.stack_added_ft || order.total_length_ft);
-        const currentlySelected = getSelectedTotalFt();
-        const alreadySelected = selectedOrders.has(soNum);
-        const projected = baseUsed + currentlySelected + (alreadySelected ? 0 : orderFt);
-        const overBy = Math.max(projected - capacity, 0);
-        if (overBy > 0.05) {
-          return { className: 'over', text: `Over Capacity by ${overBy.toFixed(1)} ft` };
-        }
-        return { className: 'ok', text: 'Within Capacity' };
+        return { className: 'unknown', text: 'Fit Unknown' };
       };
 
       const closeModal = () => {
@@ -5967,7 +5986,7 @@
         if (releaseCompleted) return;
 
         event.preventDefault();
-        const confirmed = window.confirm('Release all non-finalized draft loads in this session before leaving the Loads page?');
+        const confirmed = window.confirm('Archive this session and release its non-finalized draft loads for future planning before leaving the Loads page?');
         if (!confirmed) return;
 
         try {

@@ -122,6 +122,13 @@ def _coerce_iso_date(raw_value):
         return None
 
 
+def _normalize_optimize_focus_value(value):
+    return load_builder.normalize_optimize_focus(
+        value,
+        default=load_builder.UNIFIED_OPTIMIZER_PROFILE,
+    )
+
+
 def _git_last_updated_date():
     try:
         output = subprocess.check_output(
@@ -988,7 +995,7 @@ def session_reset():
     if active_session_id:
         planning_session = db.get_planning_session(active_session_id)
         if planning_session and _can_access_planning_session(planning_session):
-            _release_draft_loads_for_session(active_session_id)
+            _archive_session_and_release_loads(active_session_id)
     session.clear()
     return redirect(url_for("login"))
 
@@ -2595,11 +2602,8 @@ def _default_optimize_form(plant_code=None):
     )
     form_data["excluded_skus"] = _coerce_excluded_skus(form_data.get("excluded_skus"))
     form_data["ignore_due_date"] = _coerce_bool_value(form_data.get("ignore_due_date"))
-    focus_default = str(optimizer_defaults.get("optimize_focus") or "utilization_first").strip().lower()
-    form_data["optimize_focus"] = (
-        focus_default
-        if focus_default in {"balanced", "utilization_first"}
-        else "utilization_first"
+    form_data["optimize_focus"] = _normalize_optimize_focus_value(
+        optimizer_defaults.get("optimize_focus")
     )
     resolved_plant = _normalize_plant_code(plant_code) or _normalize_plant_code(form_data.get("origin_plant"))
     if not resolved_plant and PLANT_CODES:
@@ -3997,7 +4001,7 @@ def _build_optimizer_workbench_trailer_defaults(plants, optimizer_defaults=None)
 
 
 def _get_optimizer_default_settings():
-    default_focus = "utilization_first"
+    default_focus = load_builder.UNIFIED_OPTIMIZER_PROFILE
     defaults = {
         "trailer_type": stack_calculator.normalize_trailer_type(
             load_builder.DEFAULT_BUILD_PARAMS.get("trailer_type"),
@@ -4094,9 +4098,9 @@ def _get_optimizer_default_settings():
                 if parsed.get("equal_length_deck_length_order_enabled") is not None
                 else bool(defaults["equal_length_deck_length_order_enabled"])
             )
-            parsed_focus = str(parsed.get("optimize_focus") or "").strip().lower()
-            if parsed_focus in {"balanced", "utilization_first"}:
-                defaults["optimize_focus"] = parsed_focus
+            defaults["optimize_focus"] = _normalize_optimize_focus_value(
+                parsed.get("optimize_focus")
+            )
     defaults["max_back_overhang_ft"] = round(defaults["max_back_overhang_ft"], 2)
     defaults["stop_warning_leg_miles"] = round(
         _coerce_non_negative_float(
@@ -4124,11 +4128,8 @@ def _get_optimizer_default_settings():
             DEFAULT_EQUAL_LENGTH_DECK_LENGTH_ORDER_ENABLED,
         )
     )
-    normalized_focus = str(defaults.get("optimize_focus") or "utilization_first").strip().lower()
-    defaults["optimize_focus"] = (
-        normalized_focus
-        if normalized_focus in {"balanced", "utilization_first"}
-        else "utilization_first"
+    defaults["optimize_focus"] = _normalize_optimize_focus_value(
+        defaults.get("optimize_focus")
     )
     defaults["capacity_feet"] = _capacity_for_trailer_setting(
         defaults.get("trailer_type"),
@@ -4521,13 +4522,15 @@ def _compute_load_progress_snapshot(plant_scope=None, all_loads=None, allowed_pl
         else:
             order_status_counts["unassigned"] += 1
 
-    load_status_counts = {"proposed": 0, "draft": 0, "approved": 0}
+    load_status_counts = {"proposed": 0, "draft": 0, "approved": 0, "archived": 0}
     for load in loads_for_progress:
         status = (load.get("status") or STATUS_PROPOSED).upper()
         if status == STATUS_DRAFT:
             load_status_counts["draft"] += 1
         elif status == STATUS_APPROVED:
             load_status_counts["approved"] += 1
+        elif status == STATUS_ARCHIVED:
+            load_status_counts["archived"] += 1
         else:
             load_status_counts["proposed"] += 1
 
@@ -5809,7 +5812,9 @@ def _serialize_session_config(form_data, params):
             "algorithm_version": params.get("algorithm_version") or "v2",
             "compare_algorithms": bool(params.get("compare_algorithms")),
             "optimize_mode": params.get("optimize_mode") or "auto",
-            "optimize_focus": params.get("optimize_focus") or "utilization_first",
+            "optimize_focus": _normalize_optimize_focus_value(
+                params.get("optimize_focus")
+            ),
             "manual_order_input": form_data.get("manual_order_input") or "",
             "selected_so_nums": params.get("selected_so_nums") or [],
             "order_category_scope": order_categories.primary_order_category_scope(
@@ -6995,6 +7000,7 @@ def _calculate_load_schematic(
         for line in (lines or [])
         if _normalize_order_identifier(line.get("so_num"))
     }
+    allow_cross_order_stack_sharing = len(order_numbers) > 1
     assumptions = assumptions or _get_stack_capacity_assumptions()
     line_items = _build_schematic_line_items(
         lines,
@@ -7002,11 +7008,12 @@ def _calculate_load_schematic(
         trailer_type,
         stop_sequence_map=stop_sequence_map,
     )
-    preserve_order_contiguity = len(order_numbers) <= 1
+    preserve_order_contiguity = not allow_cross_order_stack_sharing
     schematic = stack_calculator.calculate_stack_configuration(
         line_items,
         trailer_type=trailer_type,
         preserve_order_contiguity=preserve_order_contiguity,
+        prefer_order_affinity=not allow_cross_order_stack_sharing,
         stack_overflow_max_height=assumptions.get("stack_overflow_max_height"),
         max_back_overhang_ft=assumptions.get("max_back_overhang_ft"),
         upper_two_across_max_length_ft=assumptions.get("upper_two_across_max_length_ft"),
@@ -8754,10 +8761,9 @@ def _reoptimize_form_data(plant_code, session_id=None):
     if optimize_mode not in {"auto", "manual"}:
         optimize_mode = "auto"
     form_data["optimize_mode"] = optimize_mode
-    optimize_focus = (session_config.get("optimize_focus") or "utilization_first").strip().lower()
-    if optimize_focus not in {"balanced", "utilization_first"}:
-        optimize_focus = "utilization_first"
-    form_data["optimize_focus"] = optimize_focus
+    form_data["optimize_focus"] = _normalize_optimize_focus_value(
+        session_config.get("optimize_focus")
+    )
     form_data["order_category_scopes"] = _coerce_selected_order_category_scopes(
         session_config.get("order_category_scopes"),
         fallback=session_config.get("order_category_scope"),
@@ -9116,12 +9122,6 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
         start_date,
         end_date,
         approved_statuses=approved_statuses,
-    )
-    scoped_dashboard_rows = _build_load_report_rows(scoped_dashboard_loads) if scoped_dashboard_loads else []
-    _sync_load_utilization_from_report_rows(
-        scoped_dashboard_loads,
-        scoped_dashboard_rows,
-        persist=True,
     )
 
     with db.get_connection() as connection:
@@ -9615,10 +9615,12 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
                 """,
                 query_params,
             ).fetchall()
+            load_ids = [int(row["id"]) for row in rows if _coerce_int_value(row["id"], 0) > 0]
+            lines_by_load_id = db.list_load_lines_for_load_ids(load_ids)
             formatted = []
             for row in rows:
                 load = dict(row)
-                lines = db.list_load_lines(load["id"])
+                lines = lines_by_load_id.get(int(load["id"]), [])
                 trailer_type = stack_calculator.normalize_trailer_type(
                     load.get("trailer_type"),
                     default="STEP_DECK",
@@ -9696,9 +9698,9 @@ def _build_performance_dashboard_context(allowed_plants_override=None):
                 )
             return formatted
 
-        load_review_rows = _fetch_review_loads(limit=150, sort_mode="recent")
-        highest_loads = _fetch_review_loads(limit=75, sort_mode="high")
-        lowest_loads = _fetch_review_loads(limit=75, sort_mode="low")
+        load_review_rows = _fetch_review_loads(limit=40, sort_mode="recent")
+        highest_loads = _fetch_review_loads(limit=20, sort_mode="high")
+        lowest_loads = _fetch_review_loads(limit=20, sort_mode="low")
 
         latest_row = connection.execute(
             f"""
@@ -10647,9 +10649,9 @@ def orders():
             config_mode = (config.get("optimize_mode") or "").strip().lower()
             if config_mode in {"auto", "manual"}:
                 optimize_defaults["optimize_mode"] = config_mode
-            config_focus = (config.get("optimize_focus") or "").strip().lower()
-            if config_focus in {"balanced", "utilization_first"}:
-                optimize_defaults["optimize_focus"] = config_focus
+            optimize_defaults["optimize_focus"] = _normalize_optimize_focus_value(
+                config.get("optimize_focus")
+            )
 
     optimize_defaults["trailer_type"] = stack_calculator.normalize_trailer_type(
         optimize_defaults.get("trailer_type"),
@@ -10938,9 +10940,9 @@ def orders_optimize():
     active_session_status = _normalize_session_status(active_session.get("status")) if active_session else ""
     optimize_form = request.form.copy()
     optimizer_defaults = _get_optimizer_default_settings()
-    default_focus = str(optimizer_defaults.get("optimize_focus") or "utilization_first").strip().lower()
-    if default_focus not in {"balanced", "utilization_first"}:
-        default_focus = "utilization_first"
+    default_focus = _normalize_optimize_focus_value(
+        optimizer_defaults.get("optimize_focus")
+    )
     if not is_admin:
         optimize_form["optimize_focus"] = default_focus
     origin_plant = _normalize_plant_code(optimize_form.get("origin_plant"))
@@ -11078,9 +11080,8 @@ def orders_optimize():
         form_data["compare_algorithms"] = False
         mode = (optimize_form.get("optimize_mode") or "auto").strip().lower()
         form_data["optimize_mode"] = mode if mode in {"auto", "manual"} else "auto"
-        focus = (optimize_form.get("optimize_focus") or default_focus).strip().lower()
-        form_data["optimize_focus"] = (
-            focus if focus in {"balanced", "utilization_first"} else default_focus
+        form_data["optimize_focus"] = _normalize_optimize_focus_value(
+            optimize_form.get("optimize_focus") or default_focus
         )
         if not is_admin:
             form_data["optimize_focus"] = default_focus
@@ -11135,17 +11136,20 @@ def orders_optimize():
         if replace_session and active_session:
             _archive_session_and_release_loads(active_session_id)
         if is_admin:
-            admin_focus = (optimize_form.get("optimize_focus") or default_focus).strip().lower()
-            if admin_focus in {"balanced", "utilization_first"}:
-                current_defaults = _get_optimizer_default_settings()
-                current_focus = str(current_defaults.get("optimize_focus") or "").strip().lower()
-                if current_focus != admin_focus:
-                    updated_defaults = dict(current_defaults)
-                    updated_defaults["optimize_focus"] = admin_focus
-                    _upsert_scoped_planning_setting(
-                        OPTIMIZER_DEFAULTS_SETTING_KEY,
-                        json.dumps(updated_defaults),
-                    )
+            admin_focus = _normalize_optimize_focus_value(
+                optimize_form.get("optimize_focus") or default_focus
+            )
+            current_defaults = _get_optimizer_default_settings()
+            current_focus = _normalize_optimize_focus_value(
+                current_defaults.get("optimize_focus")
+            )
+            if current_focus != admin_focus:
+                updated_defaults = dict(current_defaults)
+                updated_defaults["optimize_focus"] = admin_focus
+                _upsert_scoped_planning_setting(
+                    OPTIMIZER_DEFAULTS_SETTING_KEY,
+                    json.dumps(updated_defaults),
+                )
         created_by = _get_session_profile_name() or _get_session_role()
 
         def _session_factory(form_data, params):
@@ -11169,8 +11173,10 @@ def orders_optimize():
         session_id = result.get("session_id")
         _set_active_planning_session_id(session_id)
         redirect_args = {"plants": resolved_origin_plant, "session_id": session_id}
-        selected_focus = (result.get("form_data") or {}).get("optimize_focus") or "utilization_first"
-        if is_admin and str(selected_focus).strip().lower() == "utilization_first":
+        selected_focus = _normalize_optimize_focus_value(
+            (result.get("form_data") or {}).get("optimize_focus")
+        )
+        if is_admin and selected_focus == load_builder.UNIFIED_OPTIMIZER_PROFILE:
             redirect_args["sort"] = "util"
         comparison = result.get("algorithm_comparison") or {}
         v1 = comparison.get("v1") or {}
@@ -11741,7 +11747,7 @@ def loads():
                 session_config = json.loads(active_session.get("config_json") or "{}")
             except json.JSONDecodeError:
                 session_config = {}
-            if (session_config.get("optimize_focus") or "").strip().lower() == "utilization_first":
+            if _normalize_optimize_focus_value(session_config.get("optimize_focus")) == load_builder.UNIFIED_OPTIMIZER_PROFILE:
                 default_sort_mode = "util"
         sort_mode = default_sort_mode
     today_override = _resolve_today_override(request.args.get("today"))
@@ -12295,7 +12301,9 @@ def loads():
         load["utilization_pct"] = utilization_pct
         exceeds_capacity = schematic.get("exceeds_capacity", False)
         load["over_capacity"] = exceeds_capacity and len(order_numbers) <= 1
-        load["display_utilization_pct"] = utilization_pct
+        display_utilization_pct = round(float(utilization_pct or 0.0), 1)
+        load["display_utilization_pct"] = display_utilization_pct
+        load["utilization_grade"] = _utilization_grade(display_utilization_pct)
         load["utilization_display_note"] = ""
         load["raw_total_length_ft"] = round(
             sum(
@@ -12464,9 +12472,16 @@ def loads():
     )
 
     all_statuses = sorted({(load.get("status") or STATUS_PROPOSED).upper() for load in loads_data})
-    if tab not in {"draft", "final"}:
+    if tab not in {"draft", "final", "archived"}:
         if status_filter == STATUS_APPROVED:
             tab = "final"
+        elif status_filter == STATUS_ARCHIVED:
+            tab = "archived"
+        elif active_session and _normalize_session_status(active_session.get("status")) == "ARCHIVED":
+            archived_count = sum(
+                1 for load in loads_data if (load.get("status") or STATUS_PROPOSED).upper() == STATUS_ARCHIVED
+            )
+            tab = "archived" if archived_count > 0 else "final"
         elif status_filter in {STATUS_DRAFT, STATUS_PROPOSED}:
             tab = "draft"
         else:
@@ -12483,6 +12498,12 @@ def loads():
             load
             for load in loads_data
             if (load.get("status") or STATUS_PROPOSED).upper() == STATUS_APPROVED
+        ]
+    elif tab == "archived":
+        loads_data = [
+            load
+            for load in loads_data
+            if (load.get("status") or STATUS_PROPOSED).upper() == STATUS_ARCHIVED
         ]
     elif status_filter:
         loads_data = [
@@ -12639,6 +12660,8 @@ def loads():
         load_sections.append(
             {"title": "Remaining Draft Loads", "loads": other_loads, "kind": "draft"}
         )
+    elif tab == "archived":
+        load_sections.append({"title": "Archived Historical Loads", "loads": loads_data, "kind": "archived"})
     else:
         load_sections.append({"title": "Loads", "loads": loads_data, "kind": "all"})
 
@@ -12677,6 +12700,7 @@ def loads():
     progress_pct = progress_snapshot["progress_pct"]
     draft_tab_count = progress_snapshot["draft_tab_count"]
     final_tab_count = progress_snapshot["final_tab_count"]
+    archived_tab_count = int(load_status_counts.get("archived") or 0)
 
     today_override_value = today_override.strftime("%Y-%m-%d") if today_override else ""
     today_override_label = today_override.strftime("%b %d, %Y") if today_override else ""
@@ -12708,6 +12732,7 @@ def loads():
         sort_mode=sort_mode,
         draft_tab_count=draft_tab_count,
         final_tab_count=final_tab_count,
+        archived_tab_count=archived_tab_count,
         reopt_status=reopt_status,
         reopt_job_id=reopt_job_id,
         load_sections=load_sections,
@@ -12764,7 +12789,7 @@ def planning_sessions():
             and _can_access_planning_session(active_session)
             and _normalize_session_status(active_session.get("status")) == "DRAFT"
         ):
-            _release_draft_loads_for_session(active_session_id)
+            _archive_session_and_release_loads(active_session_id)
     _auto_release_stale_unplanned_sessions()
 
     if plant_code and plant_code not in allowed_plants:
@@ -12841,24 +12866,8 @@ def planning_sessions():
 
     sessions = visible_sessions
 
-    # Keep session-history utilization aligned with load-detail schematic math,
-    # including any saved schematic override edits.
     for session in sessions:
-        session_id = _coerce_int_value(session.get("id"), 0)
-        if session_id <= 0:
-            continue
-        session_loads = load_builder.list_loads(
-            None,
-            session_id=session_id,
-            include_stack_metrics=False,
-        )
-        if not session_loads:
-            session["avg_utilization"] = 0.0
-            continue
-        session_rows = _build_load_report_rows(session_loads)
-        _sync_load_utilization_from_report_rows(session_loads, session_rows, persist=True)
-        util_values = [float(load.get("utilization_pct") or 0.0) for load in session_loads]
-        session["avg_utilization"] = round(sum(util_values) / len(util_values), 1) if util_values else 0.0
+        session["avg_utilization"] = round(float(session.get("avg_utilization") or 0.0), 1)
 
     total_sessions = len(sessions)
     avg_efficiency = 0.0
@@ -13266,6 +13275,14 @@ def _archive_session_and_release_loads(session_id):
     planning_session = db.get_planning_session(session_id)
     if not planning_session:
         return False
+    for load in db.list_loads(None, session_id=session_id):
+        load_id = _coerce_int_value(load.get("id"))
+        if not load_id:
+            continue
+        status = (load.get("status") or STATUS_PROPOSED).strip().upper()
+        if status == STATUS_APPROVED or status == STATUS_ARCHIVED:
+            continue
+        db.update_load_status(load_id, STATUS_ARCHIVED, load.get("load_number"))
     if not bool(planning_session.get("is_sandbox")):
         _reintroduce_orders_to_pool(_session_plant_scope(session_id))
     db.archive_planning_session(session_id)
@@ -13285,7 +13302,9 @@ def _release_draft_loads_for_session(session_id):
         status = (load.get("status") or STATUS_PROPOSED).strip().upper()
         if status == STATUS_APPROVED:
             continue
-        db.delete_load(load_id)
+        if status == STATUS_ARCHIVED:
+            continue
+        db.update_load_status(load_id, STATUS_ARCHIVED, load.get("load_number"))
         released_ids.append(load_id)
     _sync_planning_session_status(session_id)
     return released_ids
@@ -13527,10 +13546,8 @@ def _build_load_report_rows(loads):
             _utilization_grade(float(schematic.get("utilization_pct") or 0)),
         )
         schematic_warnings = list(schematic.get("warnings") or [])
-        display_utilization_pct = round(
-            float(schematic.get("utilization_pct") or load.get("utilization_pct") or 0),
-            1,
-        )
+        display_utilization_pct = round(float(load.get("utilization_pct") or schematic.get("utilization_pct") or 0.0), 1)
+        schematic["utilization_grade"] = _utilization_grade(display_utilization_pct)
 
         order_map = {}
         customers = set()
@@ -14890,6 +14907,17 @@ def planning_session_detail(session_id):
     avg_util = round(
         sum((load.get("utilization_pct") or 0) for load in loads) / len(loads), 1
     ) if loads else 0.0
+    approved_load_count = sum(
+        1 for load in loads if (load.get("status") or STATUS_PROPOSED).strip().upper() == STATUS_APPROVED
+    )
+    archived_load_count = sum(
+        1 for load in loads if (load.get("status") or STATUS_PROPOSED).strip().upper() == STATUS_ARCHIVED
+    )
+    active_draft_load_count = sum(
+        1
+        for load in loads
+        if (load.get("status") or STATUS_PROPOSED).strip().upper() in {STATUS_PROPOSED, STATUS_DRAFT}
+    )
 
     return render_template(
         "planning_session_detail.html",
@@ -14898,6 +14926,9 @@ def planning_session_detail(session_id):
         loads=rollup["loads"],
         session_orders=rollup["orders"],
         load_count=len(rollup["loads"]),
+        approved_load_count=approved_load_count,
+        archived_load_count=archived_load_count,
+        active_draft_load_count=active_draft_load_count,
         order_count=len(rollup["orders"]),
         avg_utilization=avg_util,
         can_manage_sessions=_get_session_role() == ROLE_ADMIN,
@@ -14968,8 +14999,12 @@ def planning_session_release_drafts(session_id):
         return redirect(next_url or url_for("planning_sessions"))
 
     released_ids = _release_draft_loads_for_session(session_id)
+    _archive_session_and_release_loads(session_id)
     released_count = len(released_ids)
-    message = f"Released {released_count} draft load{'s' if released_count != 1 else ''} back to the pool."
+    message = (
+        f"Archived session history and released {released_count} draft "
+        f"load{'s' if released_count != 1 else ''} for future planning."
+    )
 
     if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify(
@@ -14978,6 +15013,7 @@ def planning_session_release_drafts(session_id):
                 "session_id": session_id,
                 "released_count": released_count,
                 "released_load_ids": released_ids,
+                "archived_session": True,
                 "message": message,
             }
         )
@@ -15304,6 +15340,25 @@ def _manual_add_fit_assessments(
     base_used = max(_coerce_float_value(base_used_ft, 0.0), 0.0)
     capacity = max(_coerce_float_value(capacity_ft, 0.0), 0.0)
 
+    def _score_projected_schematic(projected_schematic):
+        if not projected_schematic:
+            return (1, float("inf"), float("inf"))
+        fits = not bool(projected_schematic.get("exceeds_capacity"))
+        overflow_ft = max(
+            _coerce_float_value(stack_calculator.capacity_overflow_feet(projected_schematic), 0.0),
+            0.0,
+        )
+        projected_used_ft = _coerce_float_value(
+            projected_schematic.get("lower_deck_used_length_ft"),
+            0.0,
+        ) + _coerce_float_value(
+            projected_schematic.get("upper_deck_effective_length_ft"),
+            0.0,
+        )
+        if projected_used_ft <= 0.0:
+            projected_used_ft = _coerce_float_value(projected_schematic.get("total_linear_feet"), 0.0)
+        return (0 if fits else 1, overflow_ft, projected_used_ft)
+
     for so_num, candidate_lines in (candidate_lines_by_so or {}).items():
         normalized_so = _normalize_order_identifier(so_num)
         if not normalized_so:
@@ -15324,15 +15379,22 @@ def _manual_add_fit_assessments(
             ordered_stops = _ordered_stops_for_lines(trial_lines, plant_code, zip_coords)
             ordered_stops = _apply_route_stop_order(ordered_stops, load=load)
             ordered_stops = _apply_load_route_direction(ordered_stops, load=load)
-            stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
-            projected_schematic, _, _ = _calculate_load_schematic(
-                trial_lines,
-                sku_specs,
-                normalized_trailer,
-                stop_sequence_map=stop_sequence_map,
-                assumptions=assumptions,
-                aggressive_upper_two_across_prepack=normalized_trailer.startswith("STEP_DECK"),
-            )
+            projection_candidates = []
+            routed_stop_sequence_map = _stop_sequence_map_from_ordered_stops(ordered_stops)
+            for scenario_stop_sequence_map in (
+                routed_stop_sequence_map,
+                None,
+            ):
+                projected_schematic, _, _ = _calculate_load_schematic(
+                    trial_lines,
+                    sku_specs,
+                    normalized_trailer,
+                    stop_sequence_map=scenario_stop_sequence_map,
+                    assumptions=assumptions,
+                    aggressive_upper_two_across_prepack=normalized_trailer.startswith("STEP_DECK"),
+                )
+                projection_candidates.append(projected_schematic)
+            projected_schematic = min(projection_candidates, key=_score_projected_schematic)
             overflow_ft = max(
                 _coerce_float_value(stack_calculator.capacity_overflow_feet(projected_schematic), 0.0),
                 0.0,
@@ -16945,6 +17007,7 @@ def _build_load_schematic_payload(load_id):
     load["auto_trailer_reason"] = auto_reason
     previous_utilization_pct = float(load.get("utilization_pct") or 0.0)
     utilization_pct = schematic.get("utilization_pct", load.get("utilization_pct", 0)) or 0
+    display_utilization_pct = round(float(utilization_pct or 0.0), 1)
     exceeds_capacity = schematic.get("exceeds_capacity", False)
     over_capacity = exceeds_capacity and len(order_numbers) <= 1
 
@@ -16953,7 +17016,8 @@ def _build_load_schematic_payload(load_id):
     load["over_capacity"] = over_capacity
     load["utilization_pct"] = utilization_pct
     # Schematic partial expects this key during async refresh/save responses.
-    load["display_utilization_pct"] = utilization_pct
+    load["display_utilization_pct"] = display_utilization_pct
+    load["utilization_grade"] = _utilization_grade(display_utilization_pct)
     load["has_custom_schematic"] = has_custom_schematic
     load["schematic_warnings"] = schematic_warnings
     load["schematic_warning_count"] = len(schematic_warnings)
@@ -17209,6 +17273,7 @@ def update_load_status(load_id):
                     "tab_counts": {
                         "draft": snapshot["draft_tab_count"],
                         "final": snapshot["final_tab_count"],
+                        "archived": snapshot["load_status_counts"].get("archived", 0),
                     },
                 }
             )
@@ -17254,6 +17319,7 @@ def update_load_status(load_id):
                     "tab_counts": {
                         "draft": snapshot["draft_tab_count"],
                         "final": snapshot["final_tab_count"],
+                        "archived": snapshot["load_status_counts"].get("archived", 0),
                     },
                 }
             )
@@ -17305,6 +17371,7 @@ def update_load_status(load_id):
                     "tab_counts": {
                         "draft": snapshot["draft_tab_count"],
                         "final": snapshot["final_tab_count"],
+                        "archived": snapshot["load_status_counts"].get("archived", 0),
                     },
                 }
             )
@@ -17450,6 +17517,7 @@ def update_load_status(load_id):
                     "tab_counts": {
                         "draft": snapshot["draft_tab_count"],
                         "final": snapshot["final_tab_count"],
+                        "archived": snapshot["load_status_counts"].get("archived", 0),
                     },
                     "dedupe": dedupe_result,
                 }
@@ -17697,15 +17765,20 @@ def clear_loads():
             continue
         draft_load_ids.append(int(load_id))
 
-    for load_id in draft_load_ids:
-        db.delete_load(load_id)
-
-    if session_id:
-        _sync_planning_session_status(session_id)
-
     returned_count = len(draft_load_ids)
-    noun = "load" if returned_count == 1 else "loads"
-    manual_success = f"Returned orders from {returned_count} draft {noun} to the pool."
+    if session_id and returned_count > 0:
+        _archive_session_and_release_loads(session_id)
+        noun = "load" if returned_count == 1 else "loads"
+        manual_success = (
+            f"Archived session history and released {returned_count} draft {noun} for future planning."
+        )
+    else:
+        for load_id in draft_load_ids:
+            db.delete_load(load_id)
+        if session_id:
+            _sync_planning_session_status(session_id)
+        noun = "load" if returned_count == 1 else "loads"
+        manual_success = f"Returned orders from {returned_count} draft {noun} to the pool."
 
     return redirect(
         url_for(
@@ -18814,14 +18887,13 @@ def save_optimizer_defaults():
                 )
             )
         ),
-        "optimize_focus": (
-            str(payload.get("optimize_focus") or current.get("optimize_focus") or "utilization_first")
-            .strip()
-            .lower()
+        "optimize_focus": _normalize_optimize_focus_value(
+            payload.get("optimize_focus") or current.get("optimize_focus")
         ),
     }
-    if optimized["optimize_focus"] not in {"balanced", "utilization_first"}:
-        optimized["optimize_focus"] = "utilization_first"
+    optimized["optimize_focus"] = _normalize_optimize_focus_value(
+        optimized.get("optimize_focus")
+    )
 
     _upsert_scoped_planning_setting(OPTIMIZER_DEFAULTS_SETTING_KEY, json.dumps(optimized))
     trailer_rules = _get_trailer_assignment_rules()

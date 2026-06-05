@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>COT Freight Optimization Tool v1</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="no-nav">
+    <div class="app-shell shell-no-nav">
+      
+      <div class="app-main">
+        <main class="page">
+          
+  <section class="login-page">
+    <div class="login-hero">
+      <div class="login-logo">
+        <span class="material-symbols-outlined">hub</span>
+      </div>
+      <div class="login-title">LOGISTICS PORTAL</div>
+      <div class="login-subtitle">Strategic Management Hub</div>
+    </div>
+
+    
+      <div class="login-alert">Continue with Microsoft to unlock account selection.</div>
+    
+
+    
+      <div class="login-sso-panel">
+        
+          <a class="btn-primary login-sso-button" href="/auth/microsoft/start?next=">
+            <span class="material-symbols-outlined">account_circle</span>
+            <span>Continue with Microsoft</span>
+          </a>
+        
+        <div class="login-sso-meta">
+          
+            Sign in with your Microsoft Entra account to unlock account selection.
+          
+        </div>
+        
+      </div>
+    
+
+    <div class="login-card login-card-single">
+      <div class="login-column login-admin">
+        <div class="login-section-label">System Access</div>
+        
+          <div class="empty-state">Complete Microsoft sign-in above to access system accounts.</div>
+        
+      </div>
+    </div>
+
+    <div class="login-footer">
+      <div class="login-status">
+        <span class="status-dot"></span>
+        System Online
+      </div>
+      <div class="login-version">v2026.05.26 | Updated 2026-05-26</div>
+    </div>
+
+    <script>
+      (() => {
+        const profiles = [];
+        const plantNames = {"CL": "Callao", "GA": "Lavonia", "IA": "Missouri Valley", "NV": "Winnemucca", "OR": "Coburg", "TX": "Mexia", "VA": "Montross"};
+        const form = document.getElementById("login-account-form");
+        const select = document.getElementById("profile_id");
+        const title = document.getElementById("login-selected-title");
+        const subtitle = document.getElementById("login-selected-subtitle");
+        const icon = document.getElementById("login-selected-icon");
+        const focus = document.getElementById("login-selected-focus");
+        const passwordInput = document.getElementById("login-password-input");
+        const passwordLabel = document.getElementById("login-password-label");
+        const note = document.getElementById("login-auth-note-text");
+        const submitButton = document.getElementById("login-submit-button");
+
+        if (!form || !select || !profiles.length) {
+          return;
+        }
+
+        const profileById = new Map(profiles.map((profile) => [String(profile.id), profile]));
+
+        function renderFocusChips(codes) {
+          if (!focus) {
+            return;
+          }
+          const values = Array.isArray(codes) ? codes : [];
+          focus.innerHTML = "";
+          values.forEach((code) => {
+            const chip = document.createElement("span");
+            chip.className = "login-focus-chip";
+            chip.textContent = code;
+            chip.title = `${code} - ${plantNames[code] || code}`;
+            focus.appendChild(chip);
+          });
+        }
+
+        function syncSelectedProfile() {
+          const profile = profileById.get(String(select.value));
+          if (!profile) {
+            return;
+          }
+
+          const isAdmin = !!profile.is_admin;
+          const isSandbox = !!profile.is_sandbox && !isAdmin;
+          const name = profile.name || "Unnamed";
+          const roleLabel = isAdmin
+            ? "Administrator Account"
+            : (isSandbox ? "Planner Sandbox Account" : "Planner Account");
+
+          if (title) title.textContent = name;
+          if (subtitle) subtitle.textContent = roleLabel;
+          if (icon) icon.textContent = isAdmin ? "shield" : "person";
+          renderFocusChips(isAdmin ? [] : profile.focus_plants);
+
+          form.classList.toggle("planner-mode", !isAdmin);
+          if (passwordInput) {
+            passwordInput.required = isAdmin;
+            passwordInput.disabled = !isAdmin;
+            if (!isAdmin) {
+              passwordInput.value = "";
+            }
+          }
+          if (passwordLabel) {
+            passwordLabel.textContent = isAdmin ? "Password Required" : "Quick Access";
+          }
+          if (note) {
+            note.textContent = isAdmin
+              ? "Standard security protocols active"
+              : (isSandbox ? "Sandbox planner profile ready for sign in" : "Planner profile ready for sign in");
+          }
+          if (submitButton) {
+            submitButton.setAttribute("aria-label", isAdmin ? "Sign in as admin" : "Sign in as planner");
+          }
+        }
+
+        select.addEventListener("change", syncSelectedProfile);
+        syncSelectedProfile();
+      })();
+    </script>
+  </section>
+
+        </main>
+      </div>
+    </div>
+    
+    <div class="modal-backdrop hidden" id="app-feedback-modal" data-feedback-modal>
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h3>App Feedback</h3>
+            <p>Pick a type and tell us what you need.</p>
+          </div>
+          <button class="btn-icon" type="button" data-feedback-close aria-label="Close app feedback">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form method="post" action="/feedback/app" class="modal-body" data-feedback-form>
+          <input type="hidden" name="category" id="feedback-category" required>
+          <input type="hidden" name="page" value="/login">
+          <input type="hidden" name="next" value="/login?">
+
+          <div class="feedback-type-grid" data-feedback-types>
+            <button class="feedback-type-btn" type="button" data-type="Bug">
+              <span class="material-symbols-outlined">bug_report</span>
+              Bug
+            </button>
+            <button class="feedback-type-btn" type="button" data-type="Feature">
+              <span class="material-symbols-outlined">lightbulb</span>
+              Feature
+            </button>
+            <button class="feedback-type-btn" type="button" data-type="Other">
+              <span class="material-symbols-outlined">forum</span>
+              Other
+            </button>
+          </div>
+
+          <label class="feedback-field">
+            Title
+            <input class="select-field" name="title" type="text" placeholder="Short summary" required>
+          </label>
+          <label class="feedback-field">
+            Details
+            <textarea class="select-field" name="message" rows="4" placeholder="Share details..." required></textarea>
+          </label>
+          <div class="modal-footer feedback-modal-footer">
+            <button class="btn-primary" type="submit" data-feedback-submit disabled>Send Feedback</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+      const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
+      if (sidebarToggle) {
+        const storageKey = 'sidebar-collapsed';
+        const applyCollapsed = (collapsed) => {
+          document.body.classList.toggle('sidebar-collapsed', collapsed);
+        };
+        const saved = localStorage.getItem(storageKey);
+        if (saved === 'true') {
+          applyCollapsed(true);
+        }
+        sidebarToggle.addEventListener('click', () => {
+          const next = !document.body.classList.contains('sidebar-collapsed');
+          applyCollapsed(next);
+          localStorage.setItem(storageKey, next ? 'true' : 'false');
+        });
+      }
+
+      const feedbackModal = document.getElementById('app-feedback-modal');
+      const feedbackOpen = document.querySelector('[data-feedback-open]');
+      const feedbackClose = feedbackModal ? feedbackModal.querySelector('[data-feedback-close]') : null;
+      const feedbackForm = feedbackModal ? feedbackModal.querySelector('[data-feedback-form]') : null;
+      const feedbackCategory = document.getElementById('feedback-category');
+      const feedbackTypes = feedbackModal ? feedbackModal.querySelectorAll('[data-type]') : [];
+      const feedbackSubmit = feedbackModal ? feedbackModal.querySelector('[data-feedback-submit]') : null;
+
+      function openFeedbackModal() {
+        if (!feedbackModal) return;
+        feedbackModal.classList.remove('hidden');
+      }
+
+      function closeFeedbackModal() {
+        if (!feedbackModal) return;
+        feedbackModal.classList.add('hidden');
+        if (feedbackForm) feedbackForm.reset();
+        if (feedbackCategory) feedbackCategory.value = '';
+        feedbackTypes.forEach((btn) => btn.classList.remove('active'));
+        if (feedbackSubmit) feedbackSubmit.disabled = true;
+      }
+
+      if (feedbackOpen) feedbackOpen.addEventListener('click', openFeedbackModal);
+      if (feedbackClose) feedbackClose.addEventListener('click', closeFeedbackModal);
+
+      if (feedbackModal) {
+        feedbackModal.addEventListener('click', (event) => {
+          if (event.target === feedbackModal) closeFeedbackModal();
+        });
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (!feedbackModal || feedbackModal.classList.contains('hidden')) return;
+        closeFeedbackModal();
+      });
+
+      feedbackTypes.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const type = btn.dataset.type || '';
+          feedbackTypes.forEach((item) => item.classList.remove('active'));
+          btn.classList.add('active');
+          if (feedbackCategory) feedbackCategory.value = type;
+          if (feedbackSubmit) feedbackSubmit.disabled = !type;
+        });
+      });
+
+      const sqlRefreshNoticeModal = document.querySelector('[data-sql-refresh-notice-modal]');
+      if (sqlRefreshNoticeModal) {
+        const closeSqlRefreshNotice = () => {
+          sqlRefreshNoticeModal.classList.add('hidden');
+        };
+        sqlRefreshNoticeModal.querySelectorAll('[data-sql-refresh-notice-close]').forEach((button) => {
+          button.addEventListener('click', closeSqlRefreshNotice);
+        });
+        sqlRefreshNoticeModal.addEventListener('click', (event) => {
+          if (event.target === sqlRefreshNoticeModal) closeSqlRefreshNotice();
+        });
+      }
+    </script>
+  </body>
+</html>

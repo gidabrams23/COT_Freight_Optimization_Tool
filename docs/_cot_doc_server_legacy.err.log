@@ -1,0 +1,24 @@
+true=false : The term 'true=false' is not recognized as the name of a cmdlet, function, script file, or operable 
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ true='false'; false='false'; true='true'; Remove-Item Env:ENTRA_TENAN ...
++ ~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (true=false:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+false=false : The term 'false=false' is not recognized as the name of a cmdlet, function, script file, or operable 
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:15
++ true='false'; false='false'; true='true'; Remove-Item Env:ENTRA_TENAN ...
++               ~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (false=false:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+true=true : The term 'true=true' is not recognized as the name of a cmdlet, function, script file, or operable 
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:30
++ true='false'; false='false'; true='true'; Remove-Item Env:ENTRA_TENAN ...
++                              ~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (true=true:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 

@@ -102,28 +102,10 @@
                           </button>
                         </div>
                       </div>
-                      {% if is_admin %}
-                        <label class="checkbox-pill" title="Prioritize high-utilization loads and defer weak tail loads when feasible.">
-                          <input
-                            type="radio"
-                            name="optimize_focus"
-                            value="utilization_first"
-                            {% if (optimize_defaults.optimize_focus or 'utilization_first') == 'utilization_first' %}checked{% endif %}
-                          >
-                          <span>Utilization First</span>
-                        </label>
-                        <label class="checkbox-pill" title="Current optimization behavior.">
-                          <input
-                            type="radio"
-                            name="optimize_focus"
-                            value="balanced"
-                            {% if (optimize_defaults.optimize_focus or 'utilization_first') != 'utilization_first' %}checked{% endif %}
-                          >
-                          <span>Balanced</span>
-                        </label>
-                      {% else %}
-                        <input type="hidden" name="optimize_focus" value="{{ optimize_defaults.optimize_focus or 'utilization_first' }}">
-                      {% endif %}
+                      <input type="hidden" name="optimize_focus" value="{{ optimize_defaults.optimize_focus or 'planner_approval' }}">
+                      <span class="workbench-top-hint">
+                        Unified strategy: high-utilization, geography-clean batching
+                      </span>
                       <span class="workbench-top-hint">
                         {% if active_session and active_session.session_code %}
                           Session {{ active_session.session_code }}

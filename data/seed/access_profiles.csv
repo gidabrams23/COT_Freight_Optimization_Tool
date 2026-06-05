@@ -1,5 +1,6 @@
 name,is_admin,is_sandbox,allowed_plants,default_plants,created_at
 Admin,1,0,ALL,ALL,2026-02-03 14:22:28
+Russell,1,0,ALL,ALL,2026-02-26 22:19:21
 Basil,0,0,ALL,IA,2026-02-03 14:22:28
 Brittany,0,0,ALL,GA,2026-02-26 22:20:47
 Chris,0,0,ALL,OR,2026-02-03 14:22:28
@@ -8,8 +9,7 @@ Faithe,0,0,ALL,GA,2026-02-26 22:20:40
 Garrick,0,1,ALL,VA,2026-03-05 21:16:32
 Judy,0,0,ALL,"GA,VA,NV",2026-02-20 19:50:47
 Kisaryn,0,0,ALL,"GA,VA,NV",2026-02-20 19:50:30
-Kissaryn,0,0,ALL,"GA,VA,NV",2026-03-31 14:34:15
+Kissaryn,0,0,ALL,"GA,VA,NV",2026-06-04 14:38:10
 Lauren,0,0,ALL,"GA,VA,IA,NV",2026-03-25 13:24:01
 Mario,0,0,ALL,TX,2026-02-03 14:22:28
-Russell,0,1,ALL,ALL,2026-02-26 22:19:21
 Travis,0,0,ALL,NV,2026-03-09 13:42:59

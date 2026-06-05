@@ -1,0 +1,24 @@
+2026-06-03 15:15:08,540 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:15:14,037 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:15:14,460 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:15:14,469 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:15:14,472 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:15:14,493 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:15:14,570 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:15:14,589 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:15:14,599 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:15:14,602 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:15:14,685 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:15:14,689 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:15:14,703 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+ * Serving Flask app 'blueprints.cot.routes'
+ * Debug mode: off
+2026-06-03 15:15:15,238 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5061
+2026-06-03 15:15:15,243 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-03 15:15:16,214 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-06-03 15:15:16,221 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-06-03 15:15:16,223 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:15:16] "GET /healthz HTTP/1.1" 200 -
+2026-06-03 15:15:30,943 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-06-03 15:15:30,945 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-06-03 15:15:30,946 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 15:15:30] "GET /healthz HTTP/1.1" 200 -

@@ -1,0 +1,770 @@
+2026-06-02 11:46:56,098 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-02 11:46:58,540 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-02 11:46:58,784 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-02 11:46:58,787 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-02 11:46:58,787 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-02 11:46:58,799 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-02 11:46:58,823 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-02 11:46:58,823 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-02 11:46:58,827 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-02 11:46:58,827 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-02 11:46:58,837 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-02 11:46:58,838 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-02 11:46:58,846 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+ * Serving Flask app 'blueprints.cot.routes'
+ * Debug mode: on
+2026-06-02 11:46:59,110 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-02 11:46:59,111 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-02 11:46:59,114 [INFO] werkzeug:  * Restarting with stat
+2026-06-02 11:46:59,301 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-02 11:47:01,385 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-02 11:47:01,555 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-02 11:47:01,558 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-02 11:47:01,559 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-02 11:47:01,572 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-02 11:47:01,599 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-02 11:47:01,599 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-02 11:47:01,604 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-02 11:47:01,605 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-02 11:47:01,614 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-02 11:47:01,614 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-02 11:47:01,624 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-02 11:47:01,862 [WARNING] werkzeug:  * Debugger is active!
+2026-06-02 11:47:01,871 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:14:05,580 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\docs\\_tmp_run_cot_5060.py', reloading
+2026-06-03 15:14:07,231 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:14:07,866 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:14:12,490 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:14:13,244 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:14:13,248 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:14:13,248 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:14:13,264 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:14:13,313 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:14:13,324 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:14:13,331 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:14:13,331 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:14:13,400 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:14:13,408 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:14:13,422 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:14:14,053 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:14:14,065 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:18:17,230 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\cot\\routes.py', reloading
+2026-06-03 15:18:17,533 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:18:19,310 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:18:23,509 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:18:23,806 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:18:23,809 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:18:23,809 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:18:23,825 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:18:23,867 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:18:23,867 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:18:23,875 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:18:23,875 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:18:23,892 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:18:23,892 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:18:23,906 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:18:24,332 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:18:24,343 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:19:23,773 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_settings_sku_source_led_view.py', reloading
+2026-06-03 15:19:24,031 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:19:25,697 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:19:30,015 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:19:30,601 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:19:30,604 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:19:30,604 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:19:30,629 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:19:30,669 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:19:30,674 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:19:30,681 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:19:30,682 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:19:30,697 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:19:30,698 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:19:30,725 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:19:31,220 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:19:31,232 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:55:05,477 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 15:55:06,669 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:55:07,212 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:55:11,187 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:55:11,512 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:55:11,515 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:55:11,516 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:55:11,536 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:55:11,651 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:55:11,652 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:55:11,658 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:55:11,659 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:55:11,694 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:55:11,702 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:55:11,714 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:55:12,483 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:55:12,498 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:55:27,393 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 15:55:27,679 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:55:28,077 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:55:31,474 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:55:31,707 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:55:31,710 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:55:31,711 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:55:31,727 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:55:31,766 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:55:31,767 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:55:31,772 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:55:31,773 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:55:31,787 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:55:31,788 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:55:31,803 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:55:32,188 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:55:32,200 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:55:37,882 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 15:55:38,293 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:55:38,853 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:55:42,743 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:55:43,101 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:55:43,108 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:55:43,109 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:55:43,146 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:55:43,206 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:55:43,217 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:55:43,222 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:55:43,223 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:55:43,245 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:55:43,246 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:55:43,258 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:55:43,719 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:55:43,731 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:55:52,817 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 15:55:53,134 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:55:53,572 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:56:00,130 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:56:01,184 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:56:01,202 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:56:01,203 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:56:01,360 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:56:01,714 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:56:01,733 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:56:01,739 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:56:01,739 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:56:01,783 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:56:01,862 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:56:01,877 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:56:03,521 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:56:03,532 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:56:19,834 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\cot\\routes.py', reloading
+2026-06-03 15:56:20,121 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:56:20,513 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:56:26,927 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:56:27,300 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:56:27,303 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:56:27,305 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:56:27,333 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:56:27,370 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:56:27,371 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:56:27,378 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:56:27,378 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:56:27,396 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:56:27,397 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:56:27,408 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:56:28,048 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:56:28,060 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:57:01,710 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_optimizer_group_reassign.py', reloading
+2026-06-03 15:57:02,063 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:57:03,618 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:57:06,667 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:57:06,947 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:57:06,951 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:57:06,952 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:57:06,972 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:57:07,006 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:57:07,011 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:57:07,017 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:57:07,018 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:57:07,035 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:57:07,035 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:57:07,047 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:57:07,511 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:57:07,523 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 15:57:13,110 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_manual_load_mutations.py', reloading
+2026-06-03 15:57:13,415 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 15:57:13,725 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 15:57:20,179 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 15:57:22,116 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 15:57:22,119 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 15:57:22,120 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 15:57:22,155 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 15:57:22,211 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 15:57:22,222 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 15:57:22,230 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 15:57:22,231 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 15:57:22,250 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 15:57:22,251 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 15:57:22,326 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 15:57:23,058 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 15:57:23,069 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 16:31:55,880 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\cot\\routes.py', reloading
+2026-06-03 16:31:57,205 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 16:31:58,876 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 16:32:04,391 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 16:32:04,868 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 16:32:04,871 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 16:32:04,872 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 16:32:04,892 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 16:32:04,941 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 16:32:04,942 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 16:32:04,950 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 16:32:04,950 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 16:32:05,014 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 16:32:05,017 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 16:32:05,037 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 16:32:05,601 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 16:32:05,613 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 16:32:15,607 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\cot\\routes.py', reloading
+2026-06-03 16:32:15,890 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 16:32:17,480 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 16:32:21,118 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 16:32:21,585 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 16:32:21,589 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 16:32:21,590 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 16:32:21,672 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 16:32:21,726 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 16:32:21,726 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 16:32:21,732 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 16:32:21,732 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 16:32:21,747 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 16:32:21,748 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 16:32:21,760 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 16:32:22,128 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 16:32:22,140 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 16:32:45,097 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_entra_sso_access_mapping.py', reloading
+2026-06-03 16:32:45,442 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 16:32:48,237 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 16:32:57,898 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 16:32:59,857 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 16:32:59,861 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 16:32:59,863 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 16:32:59,951 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 16:33:00,075 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 16:33:00,078 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 16:33:00,085 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 16:33:00,087 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 16:33:00,229 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 16:33:00,261 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 16:33:00,275 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 16:33:01,635 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 16:33:01,651 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:21:20,389 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_entra_sso_access_mapping.py', reloading
+2026-06-03 17:21:21,642 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:21:22,284 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:21:27,119 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:21:27,506 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:21:27,511 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:21:27,515 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:21:27,540 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:21:27,579 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:21:27,580 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:21:27,586 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:21:27,586 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:21:27,602 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:21:27,602 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:21:27,619 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:21:28,495 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:21:28,506 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:21:53,077 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_entra_sso_access_mapping.py', reloading
+2026-06-03 17:21:53,343 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:21:53,862 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:21:57,650 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:21:57,941 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:21:57,944 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:21:57,944 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:21:57,959 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:21:57,993 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:21:57,999 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:21:58,005 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:21:58,006 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:21:58,032 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:21:58,038 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:21:58,050 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:21:58,622 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:21:58,636 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:25:00,702 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:25:01,011 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:25:01,362 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:25:04,912 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:25:05,176 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:25:05,180 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:25:05,181 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:25:05,203 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:25:05,238 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:25:05,246 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:25:05,252 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:25:05,253 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:25:05,266 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:25:05,268 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:25:05,279 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:25:05,809 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:25:05,820 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:25:25,022 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:25:25,236 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:25:25,538 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:25:28,538 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:25:28,831 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:25:28,835 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:25:28,838 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:25:28,858 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:25:28,893 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:25:28,896 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:25:28,903 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:25:28,903 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:25:28,919 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:25:28,920 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:25:28,932 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:25:29,445 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:25:29,458 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:25:55,023 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:25:55,393 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:25:55,814 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:25:58,945 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:25:59,210 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:25:59,213 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:25:59,213 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:25:59,229 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:25:59,270 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:25:59,274 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:25:59,280 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:25:59,280 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:25:59,294 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:25:59,296 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:25:59,309 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:25:59,802 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:25:59,813 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:26:06,257 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:26:06,506 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:26:06,918 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:26:11,150 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:26:11,435 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:26:11,438 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:26:11,438 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:26:11,456 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:26:11,491 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:26:11,492 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:26:11,497 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:26:11,497 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:26:11,512 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:26:11,512 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:26:11,527 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:26:12,010 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:26:12,019 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:26:42,071 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_optimizer_group_reassign.py', reloading
+2026-06-03 17:26:42,325 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:26:42,703 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:26:45,829 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:26:46,157 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:26:46,160 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:26:46,161 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:26:46,180 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:26:46,217 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:26:46,247 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:26:46,252 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:26:46,253 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:26:46,269 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:26:46,270 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:26:46,282 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:26:46,677 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:26:46,688 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:31:04,563 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:31:04,844 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:31:05,277 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:31:08,844 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:31:09,253 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:31:09,256 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:31:09,256 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:31:09,276 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:31:09,332 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:31:09,338 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:31:09,344 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:31:09,345 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:31:09,361 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:31:09,366 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:31:09,379 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:31:10,027 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:31:10,044 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:31:16,528 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:31:16,809 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:31:17,249 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:31:20,867 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:31:21,164 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:31:21,172 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:31:21,174 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:31:21,196 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:31:21,251 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:31:21,253 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:31:21,258 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:31:21,259 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:31:21,274 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:31:21,275 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:31:21,287 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:31:22,194 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:31:22,206 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:31:33,443 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:31:33,679 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:31:34,068 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:31:37,600 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 17:31:38,347 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:31:38,351 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:31:38,361 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:31:38,404 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:31:38,465 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:31:38,467 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:31:38,474 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:31:38,474 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:31:38,489 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:31:38,509 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:31:38,523 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:31:39,051 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:31:39,076 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:01:53,003 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:01:53,868 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:01:54,352 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:01:59,979 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 22:02:00,438 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:02:00,448 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:02:00,448 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:02:00,477 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:02:00,603 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:02:00,603 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:02:00,609 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:02:00,609 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:02:00,630 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:02:00,630 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:02:00,646 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:02:01,173 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:02:01,195 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:02:09,107 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:02:09,449 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:02:09,885 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:02:14,599 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 22:02:15,106 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:02:15,113 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:02:15,113 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:02:15,133 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:02:15,177 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:02:15,177 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:02:15,184 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:02:15,184 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:02:15,202 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:02:15,203 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:02:15,216 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:02:15,827 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:02:15,841 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:02:32,719 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:02:33,032 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:02:33,478 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:02:38,090 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 22:02:38,457 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:02:38,462 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:02:38,462 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:02:38,483 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:02:38,540 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:02:38,541 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:02:38,548 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:02:38,548 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:02:38,571 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:02:38,571 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:02:38,588 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:02:39,257 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:02:39,271 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:02:53,179 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:02:53,569 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:02:54,574 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:03:00,068 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 22:03:00,432 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:03:00,435 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:03:00,435 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:03:00,466 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:03:00,507 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:03:00,507 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:03:00,514 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:03:00,514 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:03:00,533 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:03:00,534 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:03:00,548 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:03:01,061 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:03:01,074 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:03:19,430 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_optimizer_group_reassign.py', reloading
+2026-06-03 22:03:19,729 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:03:20,211 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:03:24,173 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-03 22:03:24,501 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:03:24,505 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:03:24,505 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:03:24,527 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:03:24,600 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:03:24,601 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:03:24,607 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:03:24,607 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:03:24,624 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:03:24,625 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:03:24,639 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:03:25,172 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:03:25,185 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+l: Starting new HTTPS connection (1): login.microsoftonline.com:443
+2026-06-03 17:20:15,956 [DEBUG] urllib3.connectionpool: https://login.microsoftonline.com:443 "GET /example.onmicrosoft.com/v2.0/.well-known/openid-configuration HTTP/1.1" 200 1964
+2026-06-03 17:20:15,958 [DEBUG] msal.authority: openid_config("https://login.microsoftonline.com/example.onmicrosoft.com/v2.0/.well-known/openid-configuration") = {'token_endpoint': 'https://login.microsoftonline.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/oauth2/v2.0/token', 'token_endpoint_auth_methods_supported': ['client_secret_post', 'private_key_jwt', 'client_secret_basic', 'self_signed_tls_client_auth'], 'jwks_uri': 'https://login.microsoftonline.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/discovery/v2.0/keys', 'response_modes_supported': ['query', 'fragment', 'form_post'], 'subject_types_supported': ['pairwise'], 'id_token_signing_alg_values_supported': ['RS256'], 'response_types_supported': ['code', 'id_token', 'code id_token', 'id_token token'], 'scopes_supported': ['openid', 'profile', 'email', 'offline_access'], 'issuer': 'https://login.microsoftonline.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/v2.0', 'request_uri_parameter_supported': False, 'userinfo_endpoint': 'https://graph.microsoft.com/oidc/userinfo', 'authorization_endpoint': 'https://login.microsoftonline.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/oauth2/v2.0/authorize', 'device_authorization_endpoint': 'https://login.microsoftonline.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/oauth2/v2.0/devicecode', 'http_logout_supported': True, 'frontchannel_logout_supported': True, 'end_session_endpoint': 'https://login.microsoftonline.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/oauth2/v2.0/logout', 'claims_supported': ['sub', 'iss', 'cloud_instance_name', 'cloud_instance_host_name', 'cloud_graph_host_name', 'msgraph_host', 'aud', 'exp', 'iat', 'auth_time', 'acr', 'nonce', 'preferred_username', 'name', 'tid', 'ver', 'at_hash', 'c_hash', 'email'], 'kerberos_endpoint': 'https://login.microsoftonline.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/kerberos', 'mtls_endpoint_aliases': {'token_endpoint': 'https://mtlsauth.microsoft.com/13e3b7eb-ef67-460a-be9a-3f870dc95321/oauth2/v2.0/token'}, 'tls_client_certificate_bound_access_tokens': True, 'tenant_region_scope': 'EU', 'cloud_instance_name': 'microsoftonline.com', 'cloud_graph_host_name': 'graph.windows.net', 'msgraph_host': 'graph.microsoft.com', 'rbac_url': 'https://pas.windows.net'}
+2026-06-03 17:20:15,959 [DEBUG] msal.application: Broker enabled? None
+2026-06-03 17:20:15,961 [INFO] werkzeug: 127.0.0.1 - - [03/Jun/2026 17:20:15] "[32mGET /auth/microsoft/start?next=/upload? HTTP/1.1[0m" 302 -
+2026-06-03 17:21:20,369 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\blueprints\\cot\\routes.py', reloading
+2026-06-03 17:21:21,239 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:21:21,759 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:21:26,598 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:21:26,955 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:21:26,961 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:21:26,962 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:21:26,979 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:21:27,012 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:21:27,030 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:21:27,041 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:21:27,042 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:21:27,059 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:21:27,088 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:21:27,100 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:21:27,657 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:21:27,669 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:21:52,830 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_entra_sso_access_mapping.py', reloading
+2026-06-03 17:21:53,067 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:21:53,512 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:21:57,148 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:21:57,461 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:21:57,465 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:21:57,466 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:21:57,480 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:21:57,511 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:21:57,512 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:21:57,518 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:21:57,519 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:21:57,534 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:21:57,535 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:21:57,546 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:21:57,982 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:21:57,993 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:24:59,925 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:25:00,183 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:25:00,645 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:25:04,124 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:25:04,367 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:25:04,371 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:25:04,371 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:25:04,386 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:25:04,416 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:25:04,417 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:25:04,422 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:25:04,423 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:25:04,442 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:25:04,443 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:25:04,456 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:25:05,035 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:25:05,049 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:25:24,426 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:25:24,672 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:25:24,947 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:25:27,597 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:25:28,045 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:25:28,048 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:25:28,049 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:25:28,064 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:25:28,099 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:25:28,101 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:25:28,107 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:25:28,108 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:25:28,123 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:25:28,124 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:25:28,136 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:25:28,731 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:25:28,756 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:25:54,885 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:25:55,154 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:25:55,706 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:25:58,797 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:25:59,123 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:25:59,126 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:25:59,126 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:25:59,146 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:25:59,177 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:25:59,178 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:25:59,187 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:25:59,188 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:25:59,202 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:25:59,203 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:25:59,214 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:25:59,596 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:25:59,607 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:26:05,722 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:26:05,999 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:26:06,370 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:26:10,492 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:26:10,813 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:26:10,818 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:26:10,820 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:26:10,836 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:26:10,871 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:26:10,872 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:26:10,877 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:26:10,878 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:26:10,893 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:26:10,894 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:26:10,906 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:26:11,349 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:26:11,361 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:26:42,080 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_optimizer_group_reassign.py', reloading
+2026-06-03 17:26:42,340 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:26:42,723 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:26:45,899 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:26:46,186 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:26:46,189 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:26:46,190 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:26:46,207 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:26:46,238 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:26:46,239 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:26:46,245 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:26:46,247 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:26:46,263 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:26:46,264 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:26:46,277 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:26:46,696 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:26:46,708 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:31:02,616 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:31:02,846 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:31:03,198 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:31:06,920 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:31:07,215 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:31:07,220 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:31:07,221 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:31:07,237 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:31:07,269 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:31:07,270 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:31:07,275 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:31:07,276 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:31:07,290 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:31:07,291 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:31:07,302 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:31:07,912 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:31:07,927 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:31:16,861 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:31:17,163 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:31:17,728 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:31:21,025 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:31:21,479 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:31:21,482 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:31:21,508 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:31:21,528 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:31:21,611 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:31:21,622 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:31:21,628 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:31:21,629 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:31:21,644 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:31:21,645 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:31:21,660 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:31:22,315 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:31:22,330 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 17:31:33,663 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 17:31:33,938 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 17:31:34,399 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 17:31:38,086 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 17:31:38,748 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 17:31:38,754 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 17:31:38,758 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 17:31:38,772 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 17:31:38,806 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 17:31:38,809 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 17:31:38,819 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 17:31:38,819 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 17:31:38,833 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 17:31:38,835 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 17:31:38,847 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 17:31:39,481 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 17:31:39,494 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:01:52,722 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:01:53,829 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:01:54,354 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:02:00,142 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 22:02:00,563 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:02:00,566 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:02:00,567 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:02:00,584 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:02:00,679 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:02:00,682 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:02:00,689 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:02:00,689 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:02:00,705 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:02:00,706 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:02:00,720 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:02:01,173 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:02:01,189 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:02:09,275 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:02:09,650 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:02:10,111 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:02:14,755 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 22:02:15,229 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:02:15,233 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:02:15,234 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:02:15,254 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:02:15,305 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:02:15,305 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:02:15,312 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:02:15,313 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:02:15,330 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:02:15,331 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:02:15,347 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:02:16,032 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:02:16,046 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:02:32,520 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:02:32,864 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:02:33,320 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:02:37,698 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 22:02:38,171 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:02:38,175 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:02:38,176 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:02:38,195 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:02:38,235 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:02:38,236 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:02:38,246 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:02:38,247 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:02:38,265 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:02:38,267 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:02:38,282 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:02:38,902 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:02:38,916 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:02:55,219 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\services\\optimizer.py', reloading
+2026-06-03 22:02:55,768 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:02:57,234 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:03:01,525 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 22:03:01,993 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:03:01,996 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:03:01,997 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:03:02,015 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:03:02,052 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:03:02,063 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:03:02,077 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:03:02,078 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:03:02,096 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:03:02,097 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:03:02,111 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:03:02,611 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:03:02,623 [INFO] werkzeug:  * Debugger PIN: 144-967-316
+2026-06-03 22:03:17,690 [INFO] werkzeug:  * Detected change in 'C:\\Users\\gabramowitz\\OneDrive - Council Advisors\\Documents\\2. Firm Involvement\\Second Project\\AppDev-V2\\tests\\test_optimizer_group_reassign.py', reloading
+2026-06-03 22:03:17,991 [INFO] werkzeug:  * Restarting with stat
+2026-06-03 22:03:18,418 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-03 22:03:22,128 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5051 (PORT=5051, WEBSITES_PORT=None)
+2026-06-03 22:03:22,496 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-03 22:03:22,500 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-03 22:03:22,501 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-03 22:03:22,518 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-03 22:03:22,563 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-03 22:03:22,565 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-03 22:03:22,571 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-03 22:03:22,572 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-03 22:03:22,592 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-03 22:03:22,592 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-03 22:03:22,606 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+2026-06-03 22:03:23,178 [WARNING] werkzeug:  * Debugger is active!
+2026-06-03 22:03:23,192 [INFO] werkzeug:  * Debugger PIN: 144-967-316

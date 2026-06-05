@@ -467,3 +467,185 @@ def test_calculate_load_schematic_forwards_optimizer_stack_flags(monkeypatch):
 
     assert captured["kwargs"]["equal_length_deck_length_order_enabled"] is True
     assert captured["kwargs"]["aggressive_upper_two_across_prepack"] is True
+
+
+def test_calculate_load_schematic_allows_cross_order_stack_sharing_for_multi_order_loads(monkeypatch):
+    captured = {}
+
+    def fake_calculate_stack_configuration(line_items, **kwargs):
+        captured["line_items"] = line_items
+        captured["kwargs"] = kwargs
+        return {"positions": [], "exceeds_capacity": False}
+
+    monkeypatch.setattr(
+        app_module.stack_calculator,
+        "calculate_stack_configuration",
+        fake_calculate_stack_configuration,
+    )
+
+    app_module._calculate_load_schematic(
+        [
+            {
+                "so_num": "SO-1",
+                "item": "ITEM-1",
+                "item_desc": "Item 1",
+                "sku": "SKU-1",
+                "qty": 1,
+                "unit_length_ft": 7.0,
+            },
+            {
+                "so_num": "SO-2",
+                "item": "ITEM-2",
+                "item_desc": "Item 2",
+                "sku": "SKU-1",
+                "qty": 1,
+                "unit_length_ft": 7.0,
+            },
+        ],
+        {"SKU-1": {"max_stack_step_deck": 2, "max_stack_flat_bed": 1, "category": "USA"}},
+        "STEP_DECK",
+        assumptions={
+            "stack_overflow_max_height": 5,
+            "max_back_overhang_ft": 4.0,
+            "upper_two_across_max_length_ft": 7.0,
+            "upper_deck_exception_max_length_ft": 16.0,
+            "upper_deck_exception_overhang_allowance_ft": 6.0,
+            "upper_deck_exception_categories": ["USA", "UTA"],
+            "equal_length_deck_length_order_enabled": True,
+        },
+    )
+
+    assert captured["kwargs"]["preserve_order_contiguity"] is False
+    assert captured["kwargs"]["prefer_order_affinity"] is False
+
+
+def test_manual_add_suggestions_uses_best_restack_projection(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    load = {
+        "id": 32,
+        "origin_plant": "ATL",
+        "planning_session_id": 13,
+        "status": "DRAFT",
+        "trailer_type": "STEP_DECK",
+    }
+    base_line = {
+        "so_num": "SO-BASE",
+        "item": "BASE",
+        "item_desc": "Base item",
+        "qty": 1,
+        "sku": "SKU-BASE",
+        "unit_length_ft": 10.0,
+        "total_length_ft": 10.0,
+        "state": "TX",
+        "zip": "75001",
+    }
+    candidate_line = {
+        "so_num": "SO-FIT",
+        "item": "FIT",
+        "item_desc": "Fit item",
+        "qty": 1,
+        "sku": "SKU-FIT",
+        "unit_length_ft": 8.0,
+        "total_length_ft": 8.0,
+        "state": "TX",
+        "zip": "75001",
+    }
+
+    monkeypatch.setattr(app_module.db, "get_load", lambda load_id: load if load_id == 32 else None)
+    monkeypatch.setattr(app_module, "_load_access_failure_reason", lambda _load: None)
+    monkeypatch.setattr(app_module.db, "list_load_lines", lambda _load_id: [base_line])
+    monkeypatch.setattr(
+        app_module.db,
+        "list_orders_by_so_nums",
+        lambda _plant, _so_nums: [{"so_num": "SO-BASE", "due_date": "2026-05-14", "total_length_ft": 32.0}],
+    )
+    monkeypatch.setattr(
+        app_module,
+        "_build_load_schematic_payload",
+        lambda _load_id: {
+            "schematic": {
+                "lower_deck_length": 37.0,
+                "upper_deck_length": 16.0,
+                "lower_deck_used_length_ft": 20.0,
+                "upper_deck_effective_length_ft": 12.0,
+                "positions": [],
+            }
+        },
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "list_eligible_manual_orders",
+        lambda _plant, search=None, limit=None: [
+            {
+                "so_num": "SO-FIT",
+                "cust_name": "Fit Customer",
+                "due_date": "2026-05-15",
+                "city": "Dallas",
+                "state": "TX",
+                "zip": "75001",
+                "total_length_ft": 8.0,
+                "utilization_pct": 15.0,
+            }
+        ],
+    )
+    monkeypatch.setattr(app_module, "_get_effective_planning_setting", lambda _key: {"value_text": ""})
+    monkeypatch.setattr(app_module, "_parse_strategic_customers", lambda _value: [])
+    monkeypatch.setattr(
+        app_module.db,
+        "list_order_lines_for_so_nums",
+        lambda _plant, _so_nums: [base_line, candidate_line],
+    )
+    monkeypatch.setattr(app_module.db, "list_sku_specs", lambda: [])
+    monkeypatch.setattr(app_module.geo_utils, "load_zip_coordinates", lambda: {})
+    monkeypatch.setattr(app_module, "_ordered_stops_for_lines", lambda _lines, _plant, _coords: [])
+    monkeypatch.setattr(app_module, "_apply_route_stop_order", lambda ordered_stops, load=None, stop_order=None: ordered_stops)
+    monkeypatch.setattr(
+        app_module,
+        "_apply_load_route_direction",
+        lambda ordered_stops, load=None, reverse_route=None: ordered_stops,
+    )
+
+    scenario_calls = {"count": 0}
+
+    def fake_calculate_load_schematic(_lines, _sku_specs, _trailer_type, stop_sequence_map=None, **_kwargs):
+        scenario_calls["count"] += 1
+        if stop_sequence_map is not None:
+            return (
+                {
+                    "exceeds_capacity": True,
+                    "lower_deck_used_length_ft": 45.0,
+                    "upper_deck_effective_length_ft": 12.0,
+                    "total_linear_feet": 57.0,
+                },
+                [],
+                {"SO-BASE", "SO-FIT"},
+            )
+        return (
+            {
+                "exceeds_capacity": False,
+                "lower_deck_used_length_ft": 28.0,
+                "upper_deck_effective_length_ft": 12.0,
+                "total_linear_feet": 40.0,
+            },
+            [],
+            {"SO-BASE", "SO-FIT"},
+        )
+
+    monkeypatch.setattr(app_module, "_calculate_load_schematic", fake_calculate_load_schematic)
+    monkeypatch.setattr(
+        app_module.stack_calculator,
+        "capacity_overflow_feet",
+        lambda schematic: 4.0 if schematic.get("exceeds_capacity") else 0.0,
+    )
+
+    response = client.get("/loads/32/manual_add/suggestions")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert scenario_calls["count"] == 2
+    suggestion = payload["suggestions"][0]
+    assert suggestion["fit_assessment"]["available"] is True
+    assert suggestion["fit_assessment"]["fits_in_capacity"] is True
+    assert suggestion["fit_assessment"]["over_capacity_by_ft"] == 0.0

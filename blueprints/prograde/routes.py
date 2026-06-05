@@ -1304,6 +1304,12 @@ def _lower_column_layer_start_offsets(
         unit_is_upside_down = bool(unit.get("gn_upside_down"))
         unit_is_flush_dump_layer = _is_gooseneck_flush_dump_layer(unit)
         unit_is_dump_layer = str(unit.get("deck_profile") or "").strip().lower() == "dump"
+        support_is_dump_layer = str(support.get("deck_profile") or "").strip().lower() == "dump"
+        unit_brand = str(
+            unit.get("brand")
+            or support.get("brand")
+            or ""
+        ).strip().lower()
         raw_stack_alignment = _normalize_stack_alignment(unit.get("stack_alignment"), default=None)
         raw_stack_anchor_mode = _normalize_stack_anchor_mode(unit.get("stack_anchor_mode"), default=None)
         explicit_stack_alignment = raw_stack_alignment
@@ -1410,7 +1416,26 @@ def _lower_column_layer_start_offsets(
                 if uniform_non_gooseneck_lane:
                     # BT visual contract: keep base and stacked utility units
                     # in one aligned deck-start lane.
-                    flush_start_ft = lane_anchor_start_ft
+                    if (
+                        unit_brand == "bwise"
+                        and unit_is_dump_layer
+                        and support_is_dump_layer
+                        and unit_is_rotated
+                    ):
+                        lane_anchor_deck_len_ft = max(
+                            _as_float(
+                                sorted_col[lane_anchor_idx].get("deck_length_ft"),
+                                _as_float(sorted_col[lane_anchor_idx].get("bed_length"), 0.0),
+                            ),
+                            0.0,
+                        )
+                        flush_start_ft = (
+                            lane_anchor_start_ft
+                            + lane_anchor_deck_len_ft
+                            - unit_deck_len_ft
+                        )
+                    else:
+                        flush_start_ft = lane_anchor_start_ft
                 elif anchor_is_gooseneck:
                     # Above gooseneck anchors, keep a stable non-gooseneck lane
                     # without adding per-layer tongue drift.
@@ -5733,8 +5758,8 @@ def api_upload_bt_inventory(session_id):
     if err:
         return err
     brand = (session["brand"] or "").strip().lower()
-    if brand not in {"bigtex", "pj"}:
-        return _json_error("Inventory upload is only supported for Big Tex and PJ sessions.", 400)
+    if brand not in {"bigtex", "pj", "bwise"}:
+        return _json_error("Inventory upload is only supported for Big Tex, PJ, and B-Wise sessions.", 400)
 
     orders_file = request.files.get("orders_file")
     if orders_file is None or not (orders_file.filename or "").strip():
@@ -5742,17 +5767,25 @@ def api_upload_bt_inventory(session_id):
 
     filename = Path(orders_file.filename).name
     ext = Path(filename).suffix.lower()
-    allowed_extensions = {".csv"} if brand == "pj" else set(_ALLOWED_ORDER_UPLOAD_EXTENSIONS)
+    if brand == "pj":
+        allowed_extensions = {".csv"}
+    elif brand == "bwise":
+        allowed_extensions = {".xlsx", ".xlsm"}
+    else:
+        allowed_extensions = set(_ALLOWED_ORDER_UPLOAD_EXTENSIONS)
     if ext not in allowed_extensions:
         allowed = ", ".join(sorted(allowed_extensions))
         return _json_error(f"Unsupported file type. Upload one of: {allowed}")
 
-    sheet_name = (request.form.get("sheet_name") or "All.Orders.Quick").strip() or "All.Orders.Quick"
+    default_sheet_name = "Sheet1" if brand == "bwise" else "All.Orders.Quick"
+    sheet_name = (request.form.get("sheet_name") or default_sheet_name).strip() or default_sheet_name
     temp_path = Path(tempfile.gettempdir()) / f"prograde_bt_orders_{uuid.uuid4().hex}{ext}"
     orders_file.save(temp_path)
     try:
         if brand == "bigtex":
             result = db.import_bigtex_inventory_orders_workbook(workbook_path=temp_path, sheet_name=sheet_name)
+        elif brand == "bwise":
+            result = db.import_bwise_inventory_report(workbook_path=temp_path, sheet_name=sheet_name)
         else:
             result = db.import_pj_inventory_report(workbook_path=temp_path)
         return jsonify(ok=True, import_result=result)

@@ -1,0 +1,635 @@
+2026-06-02 11:48:43,836 [INFO] blueprints.cot.routes: Verbose startup logging enabled.
+2026-06-02 11:48:45,815 [INFO] blueprints.cot.routes: App starting - host: 0.0.0.0, port: 5000 (PORT=None, WEBSITES_PORT=None)
+2026-06-02 11:48:46,040 [INFO] blueprints.cot.routes: Starting app initialization.
+2026-06-02 11:48:46,046 [INFO] blueprints.cot.routes: Flask app initialization complete.
+2026-06-02 11:48:46,049 [INFO] blueprints.cot.routes: Blueprint-aware startup: initializing COT and ProGrade blueprints.
+2026-06-02 11:48:46,065 [INFO] blueprints.cot.routes: Database init starting.
+2026-06-02 11:48:46,091 [INFO] blueprints.cot.routes: Database init complete.
+2026-06-02 11:48:46,091 [INFO] blueprints.cot.routes: Ensuring default access profiles.
+2026-06-02 11:48:46,095 [INFO] blueprints.cot.routes: Default access profiles ensured.
+2026-06-02 11:48:46,096 [INFO] blueprints.cot.routes: Syncing access profile seed snapshot.
+2026-06-02 11:48:46,107 [WARNING] blueprints.cot.routes: Unable to sync access profile seed snapshot at C:\Users\gabramowitz\OneDrive - Council Advisors\Documents\2. Firm Involvement\Second Project\AppDev-V2\data\seed\access_profiles.csv
+2026-06-02 11:48:46,109 [INFO] blueprints.cot.routes: Access profile seed snapshot sync complete.
+2026-06-02 11:48:46,118 [INFO] blueprints.cot.routes: SKU export scheduler skipped: fcntl unavailable on this platform.
+ * Serving Flask app 'blueprints.cot.routes'
+ * Debug mode: off
+2026-06-02 11:48:46,291 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5054
+2026-06-02 11:48:46,292 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-02 11:48:46,482 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/healthz
+2026-06-02 11:48:46,483 [INFO] blueprints.cot.routes: Health check route hit at /healthz - returning 200.
+2026-06-02 11:48:46,484 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:48:46] "GET /healthz HTTP/1.1" 200 -
+2026-06-02 11:49:00,679 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:49:00,780 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:00] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:49:00,803 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:49:00,805 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:00] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:49:15,700 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:49:15,707 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:15] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:49:15,718 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:49:15,720 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:15] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:49:17,011 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:49:17,038 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:17] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:49:17,061 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:49:17,541 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:17] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:49:17,568 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:49:17,568 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:49:17,570 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:49:17,570 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:17] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:49:17,572 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:17] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:49:17,573 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:17] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:49:18,202 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12617865/stack-config
+2026-06-02 11:49:18,395 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:18] "GET /api/orders/12617865/stack-config HTTP/1.1" 200 -
+2026-06-02 11:49:18,416 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:49:18,494 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:18] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:49:40,770 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:49:40,802 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:40] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:49:40,919 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:49:40,929 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:40] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:49:43,487 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:49:43,508 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:43] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:49:43,527 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:49:43,978 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:43] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:49:44,019 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:49:44,021 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:44] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:49:44,033 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:49:44,036 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:44] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:49:44,045 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:49:44,049 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:44] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:49:44,743 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12617865/stack-config
+2026-06-02 11:49:44,754 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:44] "GET /api/orders/12617865/stack-config HTTP/1.1" 200 -
+2026-06-02 11:49:44,971 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:49:45,062 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:49:45] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:15,930 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:15,935 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:15] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:15,944 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:15,945 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:15] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:50:16,816 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:16,825 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:16] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:16,834 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:16,836 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:16] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:17,444 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:50:17,453 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:17] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:50:17,459 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:18,010 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:18] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:50:18,030 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:18,030 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:18,030 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:18,031 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:18] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:18,032 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:18] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:18,033 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:18] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:18,761 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12617465/stack-config
+2026-06-02 11:50:18,782 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:18] "GET /api/orders/12617465/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:18,934 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:19,070 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:19] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:19,650 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:19,660 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:19] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:19,677 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:19,679 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:19] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:20,277 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:50:20,287 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:20] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:50:20,293 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:20,455 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:20] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:50:20,471 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:20,474 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:20,475 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:20] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:20,476 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:20,477 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:20] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:20,478 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:20] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:20,667 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12618143/stack-config
+2026-06-02 11:50:20,676 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:20] "GET /api/orders/12618143/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:20,878 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:20,918 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:20] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:21,454 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:21,466 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:21] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:21,477 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:21,478 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:21] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:22,077 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:50:22,087 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:22] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:50:22,092 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:22,315 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:22] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:50:22,335 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:22,337 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:22,337 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:22,338 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:22] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:22,339 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:22] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:22,342 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:22] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:22,592 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12619109/stack-config
+2026-06-02 11:50:22,602 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:22] "GET /api/orders/12619109/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:22,810 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:22,878 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:22] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:23,455 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:23,473 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:23] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:23,494 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:23,496 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:23] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:24,094 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:50:24,109 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:24] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:50:24,114 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:24,421 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:24] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:50:24,438 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:24,440 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:24,442 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:24] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:24,442 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:24,444 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:24] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:24,445 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:24] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:24,677 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:50:24,688 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:24] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:24,882 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:24,972 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:24] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:38,730 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:38,740 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:38] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:38,754 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:38,757 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:38] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:50:39,847 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:50:39,867 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:39] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:50:39,876 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:40,228 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:40] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:50:40,250 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:40,252 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:40] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:40,259 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:40,261 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:40,262 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:40] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:40,263 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:40] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:40,761 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12619109/stack-config
+2026-06-02 11:50:40,777 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:40] "GET /api/orders/12619109/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:40,977 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:41,024 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:41] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:41,534 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:50:41,539 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:41] "[32mGET /loads HTTP/1.1[0m" 302 -
+2026-06-02 11:50:41,544 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:41,730 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:41] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+2026-06-02 11:50:41,748 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:41,750 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:41,751 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:41] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:41,751 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:41,752 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:41] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:41,754 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:41] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:41,996 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12619109/stack-config
+2026-06-02 11:50:42,005 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:42] "GET /api/orders/12619109/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:42,211 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:42,277 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:42] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:44,070 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:44,077 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:44] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:44,088 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:44,089 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:44] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:50:45,094 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:50:45,111 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:45] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:50:45,118 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:45,408 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:45] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:50:45,424 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:45,425 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:45,426 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:45,428 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:45] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:45,429 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:45] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:45,430 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:45] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:45,740 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:50:45,756 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:45] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:45,957 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:46,030 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:46] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:46,551 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:50:46,555 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:46] "[32mGET /loads HTTP/1.1[0m" 302 -
+2026-06-02 11:50:46,560 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:46,880 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:46] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+2026-06-02 11:50:46,899 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:46,900 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:46,901 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:46,902 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:46] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:46,903 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:46] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:46,904 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:46] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:47,162 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:50:47,174 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:47] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:47,378 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:47,469 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:47] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:49,345 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:50:49,351 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:49] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:50:49,361 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:49,363 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:49] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:50:50,360 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:50:50,371 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:50] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:50:50,377 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:50,753 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:50] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:50:50,763 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:50,763 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:50,764 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:50,765 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:50] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:50,766 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:50] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:50:50,766 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:50] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:51,184 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12617465/stack-config
+2026-06-02 11:50:51,200 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:51] "GET /api/orders/12617465/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:51,381 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:51,484 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:51] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:50:52,000 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:50:52,006 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:52] "[32mGET /loads HTTP/1.1[0m" 302 -
+2026-06-02 11:50:52,010 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:50:52,428 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:52] "GET /orders?needs_session=1 HTTP/1.1" 200 -
+2026-06-02 11:50:52,445 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:50:52,446 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:52] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:50:52,456 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:50:52,456 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:50:52,458 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:52] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:52,459 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:52] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:50:52,850 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12617465/stack-config
+2026-06-02 11:50:52,860 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:52] "GET /api/orders/12617465/stack-config HTTP/1.1" 200 -
+2026-06-02 11:50:53,046 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:50:53,132 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:50:53] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:51:14,392 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:51:14,399 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:14] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:51:14,414 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:14,416 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:14] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:51:15,490 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:51:15,503 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:15] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:51:15,508 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:51:15,679 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:15] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:51:15,701 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:15,702 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:51:15,702 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:51:15,703 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:15] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:51:15,704 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:15] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:51:15,706 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:15] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:51:16,025 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12619109/stack-config
+2026-06-02 11:51:16,034 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:16] "GET /api/orders/12619109/stack-config HTTP/1.1" 200 -
+2026-06-02 11:51:16,242 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:51:16,292 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:16] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:51:16,812 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions
+2026-06-02 11:51:19,040 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:19] "GET /planning-sessions HTTP/1.1" 200 -
+2026-06-02 11:51:19,066 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:19,067 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:51:19,069 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:51:19,069 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:19] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:51:19,070 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:19] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:51:19,072 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:19] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:51:19,253 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/309/summary
+2026-06-02 11:51:19,283 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:19] "GET /planning-sessions/309/summary HTTP/1.1" 200 -
+2026-06-02 11:51:32,384 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:51:32,390 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:32] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:51:32,401 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:32,403 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:32] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:51:33,423 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:51:33,438 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:33] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:51:33,444 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:51:33,635 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:33] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:51:33,654 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:33,655 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:51:33,656 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:51:33,657 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:33] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:51:33,660 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:33] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:51:33,660 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:33] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:51:33,930 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12619109/stack-config
+2026-06-02 11:51:33,950 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:33] "GET /api/orders/12619109/stack-config HTTP/1.1" 200 -
+2026-06-02 11:51:34,144 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:51:34,192 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:34] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:51:34,709 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/309
+2026-06-02 11:51:34,759 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:34] "GET /planning-sessions/309 HTTP/1.1" 200 -
+2026-06-02 11:51:34,770 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:34,771 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:51:34,773 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:51:34,774 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:34] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:51:34,774 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:34] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:51:34,775 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:34] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:51:35,330 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/309/resume
+2026-06-02 11:51:35,337 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:35] "[32mGET /planning-sessions/309/resume HTTP/1.1[0m" 302 -
+2026-06-02 11:51:35,341 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:51:35,565 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:35] "GET /loads?session_id=309 HTTP/1.1" 200 -
+2026-06-02 11:51:35,579 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:35,581 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:51:35,581 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:35] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:51:35,582 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:51:35,583 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:35] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:51:35,585 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:35] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:51:48,374 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:51:48,383 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:48] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:51:48,458 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:48,508 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:48] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:51:50,126 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:51:50,144 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:50] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:51:50,151 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:51:50,716 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:50] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:51:50,735 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:50,735 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:51:50,736 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:51:50,738 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:50] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:51:50,739 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:50] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:51:50,742 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:50] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:51:51,953 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12619109/stack-config
+2026-06-02 11:51:51,981 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:51] "GET /api/orders/12619109/stack-config HTTP/1.1" 200 -
+2026-06-02 11:51:52,143 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:51:52,292 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:52] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:51:52,833 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/309/resume
+2026-06-02 11:51:52,842 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:52] "[32mGET /planning-sessions/309/resume HTTP/1.1[0m" 302 -
+2026-06-02 11:51:52,847 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:51:53,004 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:53] "GET /loads?session_id=309 HTTP/1.1" 200 -
+2026-06-02 11:51:53,021 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:51:53,025 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:51:53,026 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:53] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:51:53,026 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:51:53,028 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:53] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:51:53,029 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:51:53] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:52:46,477 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:52:46,487 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:46] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:52:46,501 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:52:46,503 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:46] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:52:47,797 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:52:47,807 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:47] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:52:47,821 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:52:48,386 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:48] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:52:48,400 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:52:48,402 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:48] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:52:48,411 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:52:48,411 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:52:48,413 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:48] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:52:48,414 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:48] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:52:48,968 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:52:48,988 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:48] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:52:49,319 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:52:49,468 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:49] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:52:49,997 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/306/resume
+2026-06-02 11:52:50,007 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:50] "[32mGET /planning-sessions/306/resume HTTP/1.1[0m" 302 -
+2026-06-02 11:52:50,014 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:52:50,939 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:50] "GET /loads?session_id=306 HTTP/1.1" 200 -
+2026-06-02 11:52:50,960 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:52:50,962 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:52:50,962 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:52:50,963 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:50] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:52:50,964 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:50] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:52:50,965 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:50] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:52:51,259 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/40/route-geometry
+2026-06-02 11:52:52,393 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:52:52] "GET /api/loads/40/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:53:15,081 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:53:15,092 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:15] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:53:15,106 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:15,108 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:15] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:53:16,185 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:53:16,201 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:16] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:53:16,211 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:53:16,521 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:16] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:53:16,539 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:16,540 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:16,540 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:16,542 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:16] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:16,544 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:16] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:53:16,545 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:16] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:53:16,941 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:53:16,973 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:16] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:53:17,141 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:53:17,341 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:17] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:53:17,869 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/45
+2026-06-02 11:53:18,034 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:18] "GET /loads/45 HTTP/1.1" 200 -
+2026-06-02 11:53:18,052 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:18,054 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:18,055 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:18,055 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:18] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:18,058 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:18] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:18,061 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:18] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:18,114 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/45/route-geometry
+2026-06-02 11:53:19,177 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:19] "GET /api/loads/45/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:53:34,978 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:53:34,987 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:34] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:53:35,009 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:35,011 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:35] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:53:36,434 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:53:36,453 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:36] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:53:36,460 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:53:36,978 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:36] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:53:37,003 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:37,005 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:37] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:37,025 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:37,027 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:37] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:53:37,029 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:37,031 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:37] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:53:37,651 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:53:37,677 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:37] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:53:37,832 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:53:37,991 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:37] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:53:38,512 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/45
+2026-06-02 11:53:38,613 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:38] "GET /loads/45 HTTP/1.1" 200 -
+2026-06-02 11:53:38,626 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:38,628 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:38,629 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:38] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:38,630 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:38,631 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:38] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:38,632 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:38] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:38,677 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/45/route-geometry
+2026-06-02 11:53:38,878 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:38] "GET /api/loads/45/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:53:39,438 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/44
+2026-06-02 11:53:39,523 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:39] "GET /loads/44 HTTP/1.1" 200 -
+2026-06-02 11:53:39,532 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:39,534 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:39] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:39,536 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:39,539 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:39,539 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:39] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:39,542 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:39] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:39,574 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/44/route-geometry
+2026-06-02 11:53:40,421 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:40] "GET /api/loads/44/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:53:40,976 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/43
+2026-06-02 11:53:41,077 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:41] "GET /loads/43 HTTP/1.1" 200 -
+2026-06-02 11:53:41,088 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:41,090 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:41,091 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:41] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:41,092 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:41,093 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:41] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:41,094 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:41] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:41,127 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/43/route-geometry
+2026-06-02 11:53:42,102 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:42] "GET /api/loads/43/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:53:42,648 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/42
+2026-06-02 11:53:42,745 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:42] "GET /loads/42 HTTP/1.1" 200 -
+2026-06-02 11:53:42,756 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:42,758 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:42] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:42,759 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:42,761 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:42,761 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:42] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:42,763 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:42] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:42,793 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/42/route-geometry
+2026-06-02 11:53:43,885 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:43] "GET /api/loads/42/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:53:44,440 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/41
+2026-06-02 11:53:44,564 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:44] "GET /loads/41 HTTP/1.1" 200 -
+2026-06-02 11:53:44,576 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:53:44,578 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:53:44,579 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:44] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:53:44,581 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:53:44,582 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:44] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:44,583 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:44] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:53:44,622 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/41/route-geometry
+2026-06-02 11:53:45,607 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:53:45] "GET /api/loads/41/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:54:00,888 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:54:00,899 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:00] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:54:00,916 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:54:00,919 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:00] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:54:02,035 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:54:02,052 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:02] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:54:02,060 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:54:02,582 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:02] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:54:02,603 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:54:02,605 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:54:02,605 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:54:02,606 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:02] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:54:02,608 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:02] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:54:02,609 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:02] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:54:03,156 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:54:03,172 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:03] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:54:03,371 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:54:03,555 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:03] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:54:04,075 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/45
+2026-06-02 11:54:04,207 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:04] "GET /loads/45 HTTP/1.1" 200 -
+2026-06-02 11:54:04,229 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:54:04,230 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:54:04,232 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:04] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:54:04,232 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:54:04,233 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:04] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:54:04,235 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:04] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:54:04,294 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/45/route-geometry
+2026-06-02 11:54:04,544 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:04] "GET /api/loads/45/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:54:25,366 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:54:25,375 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:25] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:54:25,390 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:54:25,392 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:25] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:54:26,430 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:54:26,443 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:26] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:54:26,448 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:54:26,716 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:26] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:54:26,729 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:54:26,729 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:54:26,730 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:54:26,731 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:26] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:54:26,732 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:26] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:54:26,733 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:26] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:54:27,204 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:54:27,234 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:27] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:54:27,406 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:54:27,547 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:27] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:54:28,064 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/306/resume
+2026-06-02 11:54:28,071 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:28] "[32mGET /planning-sessions/306/resume HTTP/1.1[0m" 302 -
+2026-06-02 11:54:28,076 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:54:28,630 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:28] "GET /loads?session_id=306 HTTP/1.1" 200 -
+2026-06-02 11:54:28,649 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:54:28,651 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:54:28,651 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:28] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:54:28,653 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:28] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:54:28,654 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:54:28,656 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:28] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:54:28,910 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/40/route-geometry
+2026-06-02 11:54:29,043 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:54:29] "GET /api/loads/40/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:55:15,813 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:55:15,823 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:15] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:55:15,835 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:55:15,838 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:15] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:55:16,896 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:55:16,906 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:16] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:55:16,912 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:55:17,218 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:17] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:55:17,228 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:55:17,228 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:55:17,228 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:55:17,229 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:17] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:55:17,230 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:17] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:55:17,231 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:17] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:55:17,586 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:55:17,608 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:17] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:55:17,796 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:55:17,900 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:17] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:55:18,423 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/306/resume
+2026-06-02 11:55:18,433 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:18] "[32mGET /planning-sessions/306/resume HTTP/1.1[0m" 302 -
+2026-06-02 11:55:18,444 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:55:19,438 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:19] "GET /loads?session_id=306 HTTP/1.1" 200 -
+2026-06-02 11:55:19,480 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:55:19,482 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:19] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:55:19,488 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:55:19,489 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:55:19,491 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:19] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:55:19,492 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:19] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:55:19,890 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/40/route-geometry
+2026-06-02 11:55:20,065 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:20] "GET /api/loads/40/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:55:35,275 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:55:35,279 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:35] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:55:35,289 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:55:35,291 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:35] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:55:36,311 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:55:36,324 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:36] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:55:36,330 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:55:36,626 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:36] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:55:36,646 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:55:36,647 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:55:36,648 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:55:36,649 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:36] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:55:36,650 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:36] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:55:36,651 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:36] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:55:37,053 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:55:37,065 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:37] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:55:37,263 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:55:37,331 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:37] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:55:37,844 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/306/resume
+2026-06-02 11:55:37,850 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:37] "[32mGET /planning-sessions/306/resume HTTP/1.1[0m" 302 -
+2026-06-02 11:55:37,853 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:55:38,397 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:38] "GET /loads?session_id=306 HTTP/1.1" 200 -
+2026-06-02 11:55:38,415 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:55:38,416 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:38] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:55:38,418 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:55:38,421 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:38] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:55:38,423 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:55:38,425 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:38] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:55:38,680 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/40/route-geometry
+2026-06-02 11:55:38,795 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:38] "GET /api/loads/40/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:55:39,399 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/40/schematic/edit
+2026-06-02 11:55:39,498 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:39] "GET /loads/40/schematic/edit HTTP/1.1" 200 -
+2026-06-02 11:55:41,533 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/40/manual_add/suggestions
+2026-06-02 11:55:41,698 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:55:41] "GET /loads/40/manual_add/suggestions HTTP/1.1" 200 -
+2026-06-02 11:56:55,838 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:56:55,846 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:55] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:56:55,857 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:56:55,859 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:55] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:56:57,160 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:56:57,181 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:57] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:56:57,206 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:56:57,759 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:57] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:56:57,801 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:56:57,803 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:57] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:56:57,805 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:56:57,807 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:56:57,809 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:57] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:56:57,812 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:57] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:56:58,614 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:56:58,643 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:58] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:56:58,823 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:56:58,993 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:56:58] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:58:20,707 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/login
+2026-06-02 11:58:20,720 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:20] "GET /login HTTP/1.1" 200 -
+2026-06-02 11:58:20,739 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:58:20,749 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:20] "GET /static/styles.css HTTP/1.1" 200 -
+2026-06-02 11:58:22,106 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/login
+2026-06-02 11:58:22,128 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:22] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-06-02 11:58:22,141 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/orders
+2026-06-02 11:58:22,841 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:22] "GET /orders HTTP/1.1" 200 -
+2026-06-02 11:58:22,864 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:58:22,866 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:22] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:58:22,904 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:58:22,921 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:22] "GET /static/images/cot-logo.png HTTP/1.1" 200 -
+2026-06-02 11:58:22,954 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:58:22,962 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:22] "GET /static/images/ssa-logo.png HTTP/1.1" 200 -
+2026-06-02 11:58:23,689 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/orders/12621078/stack-config
+2026-06-02 11:58:23,715 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:23] "GET /api/orders/12621078/stack-config HTTP/1.1" 200 -
+2026-06-02 11:58:23,875 [DEBUG] blueprints.cot.routes: before_request fired: method=POST path=/api/orders/scope-count
+2026-06-02 11:58:24,049 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:24] "POST /api/orders/scope-count HTTP/1.1" 200 -
+2026-06-02 11:58:26,017 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/45
+2026-06-02 11:58:26,140 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:26] "GET /loads/45 HTTP/1.1" 200 -
+2026-06-02 11:58:26,155 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:58:26,157 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:58:26,159 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:58:26,160 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:26] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:58:26,161 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:26] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:58:26,162 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:26] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:58:26,218 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/45/route-geometry
+2026-06-02 11:58:26,417 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:26] "GET /api/loads/45/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:58:27,210 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/planning-sessions/306/resume
+2026-06-02 11:58:27,224 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:27] "[32mGET /planning-sessions/306/resume HTTP/1.1[0m" 302 -
+2026-06-02 11:58:27,252 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads
+2026-06-02 11:58:28,485 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:28] "GET /loads?session_id=306 HTTP/1.1" 200 -
+2026-06-02 11:58:28,546 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/styles.css
+2026-06-02 11:58:28,553 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/cot-logo.png
+2026-06-02 11:58:28,558 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:28] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 11:58:28,559 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:28] "[36mGET /static/images/cot-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:58:28,576 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/static/images/ssa-logo.png
+2026-06-02 11:58:28,578 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:28] "[36mGET /static/images/ssa-logo.png HTTP/1.1[0m" 304 -
+2026-06-02 11:58:29,074 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/api/loads/40/route-geometry
+2026-06-02 11:58:29,388 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:29] "GET /api/loads/40/route-geometry HTTP/1.1" 200 -
+2026-06-02 11:58:30,656 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/40/schematic/edit
+2026-06-02 11:58:30,991 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:30] "GET /loads/40/schematic/edit HTTP/1.1" 200 -
+2026-06-02 11:58:32,570 [DEBUG] blueprints.cot.routes: before_request fired: method=GET path=/loads/40/manual_add/suggestions
+2026-06-02 11:58:32,928 [INFO] werkzeug: 127.0.0.1 - - [02/Jun/2026 11:58:32] "GET /loads/40/manual_add/suggestions HTTP/1.1" 200 -

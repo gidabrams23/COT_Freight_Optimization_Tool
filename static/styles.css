@@ -17429,6 +17429,12 @@ button.plant-card {
   background: rgba(12, 74, 110, 0.46);
 }
 
+.session-load-status.status-archived {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #fde68a;
+  background: rgba(146, 64, 14, 0.4);
+}
+
 .session-util-cell {
   display: inline-flex;
   align-items: center;

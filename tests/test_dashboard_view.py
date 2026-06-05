@@ -95,3 +95,18 @@ def test_dashboard_render_removes_py_copy_and_keeps_granularity_state():
     assert "Year over Year Impact" not in html
     assert "name=\"granularity\"" in html
     assert "value=\"month\"" in html
+
+
+def test_dashboard_render_does_not_persist_utilization_on_get(monkeypatch):
+    client = app_module.app.test_client()
+    _set_authenticated_session(client)
+
+    monkeypatch.setattr(
+        app_module,
+        "_sync_load_utilization_from_report_rows",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected utilization sync")),
+    )
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200

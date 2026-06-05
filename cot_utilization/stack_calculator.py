@@ -1328,6 +1328,7 @@ def calculate_stack_configuration(
     trailer_type="STEP_DECK",
     capacity_feet=None,
     preserve_order_contiguity=True,
+    prefer_order_affinity=True,
     stack_overflow_max_height=None,
     max_back_overhang_ft=None,
     upper_two_across_max_length_ft=None,
@@ -1497,7 +1498,7 @@ def calculate_stack_configuration(
                     # Soft grouping rule: when this unit has an order id and only
                     # cross-order mixing options are available, start a fresh
                     # stack instead of blending colors/orders.
-                    if incoming_order_id and order_affinity_rank >= 3:
+                    if prefer_order_affinity and incoming_order_id and order_affinity_rank >= 3:
                         target = {
                             "length_ft": length_ft,
                             "items": [],
@@ -1683,7 +1684,7 @@ def calculate_stack_configuration(
                         incoming_order_id,
                         item_stop_sequence,
                     )
-                    if incoming_order_id and current_order_rank >= 3:
+                    if prefer_order_affinity and incoming_order_id and current_order_rank >= 3:
                         cursor = len(positions)
                         continue
 

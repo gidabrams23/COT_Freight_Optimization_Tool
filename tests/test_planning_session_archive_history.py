@@ -102,6 +102,7 @@ def _build_assignment_fixture_db():
 def test_archive_session_releases_orders_and_preserves_history(monkeypatch):
     calls = []
     active_session_updates = []
+    status_updates = []
 
     monkeypatch.setattr(
         app_module.db,
@@ -121,6 +122,21 @@ def test_archive_session_releases_orders_and_preserves_history(monkeypatch):
     )
     monkeypatch.setattr(
         app_module.db,
+        "list_loads",
+        lambda _origin_plant=None, session_id=None: [
+            {"id": 11, "status": "PROPOSED", "load_number": None},
+            {"id": 12, "status": "DRAFT", "load_number": "ATL26-0012"},
+            {"id": 13, "status": "APPROVED", "load_number": "ATL26-0013"},
+            {"id": 14, "status": "ARCHIVED", "load_number": "ATL26-0014"},
+        ] if session_id == 42 else [],
+    )
+    monkeypatch.setattr(
+        app_module.db,
+        "update_load_status",
+        lambda load_id, status, load_number=None: status_updates.append((load_id, status, load_number)),
+    )
+    monkeypatch.setattr(
+        app_module.db,
         "clear_loads_for_session",
         lambda session_id: calls.append(("clear", session_id)),
     )
@@ -137,6 +153,10 @@ def test_archive_session_releases_orders_and_preserves_history(monkeypatch):
     assert ("reintroduce", ("ATL",)) in calls
     assert ("archive", 42) in calls
     assert ("clear", 42) not in calls
+    assert status_updates == [
+        (11, app_module.STATUS_ARCHIVED, None),
+        (12, app_module.STATUS_ARCHIVED, "ATL26-0012"),
+    ]
     assert active_session_updates == [None]
 
 

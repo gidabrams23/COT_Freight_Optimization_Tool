@@ -24,6 +24,14 @@
         <div class="value">{{ load_count }}</div>
       </div>
       <div class="session-kpi-card">
+        <div class="label">Approved Loads</div>
+        <div class="value">{{ approved_load_count }}</div>
+      </div>
+      <div class="session-kpi-card">
+        <div class="label">Archived Loads</div>
+        <div class="value">{{ archived_load_count }}</div>
+      </div>
+      <div class="session-kpi-card">
         <div class="label">Orders Covered</div>
         <div class="value">{{ order_count }}</div>
       </div>
@@ -36,6 +44,12 @@
         <div class="value">{{ (planning_session.status or 'DRAFT') | upper }}</div>
       </div>
     </div>
+
+    {% if (planning_session.status or '') | upper == 'ARCHIVED' and archived_load_count > 0 %}
+      <div class="session-alert">
+        This session is archived. Non-finalized proposed loads were preserved as archived history for later analysis and released for future planning.
+      </div>
+    {% endif %}
 
     <div class="card-widget">
       <div class="panel-header">
@@ -61,6 +75,9 @@
       <div class="panel-header">
         <div class="panel-title">
           <h3>Session Loads</h3>
+          {% if (planning_session.status or '') | upper == 'ARCHIVED' %}
+            <div class="muted">Archived session view showing approved and historical archived loads.</div>
+          {% endif %}
         </div>
       </div>
       <div class="panel-body">

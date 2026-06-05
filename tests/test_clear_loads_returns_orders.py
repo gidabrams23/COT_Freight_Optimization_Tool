@@ -95,9 +95,11 @@ def test_clear_loads_with_session_id_keeps_finalized_loads_and_syncs_status(monk
 
     assert response.status_code == 302
     assert listed_session_ids == [22]
-    assert deleted_ids == [10]
-    assert synced_session_ids == [22]
-    assert archived_session_ids == []
+    assert deleted_ids == []
+    assert synced_session_ids == []
+    assert archived_session_ids == [22]
     parsed = urlparse(response.location)
     query = parse_qs(parsed.query)
-    assert query.get("manual_success") == ["Returned orders from 1 draft load to the pool."]
+    assert query.get("manual_success") == [
+        "Archived session history and released 1 draft load for future planning."
+    ]
