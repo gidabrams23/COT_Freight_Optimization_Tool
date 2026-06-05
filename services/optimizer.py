@@ -369,12 +369,18 @@ class Optimizer:
             runtime_params,
             time_window_days,
         )
+        active = self._targeted_group_extraction(
+            active,
+            runtime_params,
+            time_window_days,
+        )
         active = self._cannibalize_weak_loads(
             active,
             runtime_params,
             objective_weights,
             time_window_days,
         )
+        active = self._enforce_same_store_colocality(active, runtime_params, time_window_days)
         active = self._apply_auto_hotshot_tail_assignments(active, runtime_params)
         return list(active.values())
 
@@ -440,6 +446,9 @@ class Optimizer:
             current_load = singleton_by_key.get(current_key) or self._build_load([seed_group], params)
             if current_key in remaining:
                 del remaining[current_key]
+            current_load = self._force_add_store_partners(
+                current_groups, seed_group, remaining, singleton_by_key, current_load, params
+            )
 
             while remaining and self._prebatch_should_keep_filling(current_load, params):
                 candidate_groups = self._prebatch_candidate_groups(
@@ -482,6 +491,9 @@ class Optimizer:
                 selected_key = str(selected_group.get("key") or "").strip()
                 if selected_key in remaining:
                     del remaining[selected_key]
+                current_load = self._force_add_store_partners(
+                    current_groups, selected_group, remaining, singleton_by_key, current_load, params
+                )
 
             built_loads.append(current_load)
 
@@ -514,14 +526,31 @@ class Optimizer:
                 ),
                 reverse=True,
             )
-            while remaining:
-                seed_group = remaining.pop(0)
-                seed_key = str((seed_group or {}).get("key") or "").strip()
+            cohort_pool = {
+                str((g or {}).get("key") or "").strip(): g
+                for g in remaining
+                if str((g or {}).get("key") or "").strip()
+            }
+            priority_order = [
+                str((g or {}).get("key") or "").strip()
+                for g in remaining
+                if str((g or {}).get("key") or "").strip()
+            ]
+            while cohort_pool:
+                seed_key = next(
+                    (k for k in priority_order if k in cohort_pool), None
+                )
+                if not seed_key:
+                    break
+                seed_group = cohort_pool.pop(seed_key)
                 current_groups = [seed_group]
                 current_load = singleton_by_key.get(seed_key) or self._build_load([seed_group], params)
-                while remaining and self._prebatch_should_keep_filling(current_load, params):
+                current_load = self._force_add_store_partners(
+                    current_groups, seed_group, cohort_pool, singleton_by_key, current_load, params
+                )
+                while cohort_pool and self._prebatch_should_keep_filling(current_load, params):
                     best_choice = None
-                    for idx, candidate_group in enumerate(remaining):
+                    for candidate_group in list(cohort_pool.values()):
                         if not self._can_add_group(current_groups, candidate_group, params):
                             continue
                         candidate_key = str((candidate_group or {}).get("key") or "").strip()
@@ -544,13 +573,16 @@ class Optimizer:
                             params,
                         )
                         if best_choice is None or score > best_choice[0]:
-                            best_choice = (score, idx, candidate_group, merged_load)
+                            best_choice = (score, candidate_key, candidate_group, merged_load)
                     if not best_choice:
                         break
-                    _, idx, selected_group, selected_load = best_choice
+                    _, sel_key, selected_group, selected_load = best_choice
                     current_groups.append(selected_group)
                     current_load = selected_load
-                    remaining.pop(idx)
+                    cohort_pool.pop(sel_key, None)
+                    current_load = self._force_add_store_partners(
+                        current_groups, selected_group, cohort_pool, singleton_by_key, current_load, params
+                    )
                 built_loads.append(current_load)
 
         if not built_loads:
@@ -686,6 +718,7 @@ class Optimizer:
             high_90,
             high_95,
             high_85,
+            -same_store_split_count,
             -low_85,
             -low_70,
             -int(round(stop_penalty * 100.0)),
@@ -696,7 +729,6 @@ class Optimizer:
             int(round(avg_util * 10.0)),
             total_two_across,
             two_across_loads,
-            -same_store_split_count,
             -len(solution),
             -int(round(total_cost)),
         )
@@ -766,12 +798,13 @@ class Optimizer:
 
         order_summary_map = self._build_order_summary_map(params["origin_plant"])
         grouped = self._group_by_so_num(orders, order_summary_map)
-        return self._apply_order_group_filters(
+        filtered = self._apply_order_group_filters(
             grouped,
             params,
             min_due_date=min_due_date,
             include_batch=True,
         )
+        return self._merge_same_store_groups(filtered)
 
     def describe_order_group_eligibility(self, params):
         origin_plant = params.get("origin_plant")
@@ -1659,10 +1692,13 @@ class Optimizer:
                     group_key = str(group.get("key") or "").strip()
                     if not group_key:
                         continue
+                    # Collect same-store co-groups that must move atomically with this group
+                    co_groups = self._same_store_co_groups(group, source)
+                    move_keys = {group_key} | {str(g.get("key") or "").strip() for g in co_groups}
                     remaining_groups = [
                         existing
                         for existing in source_groups
-                        if str(existing.get("key") or "").strip() != group_key
+                        if str(existing.get("key") or "").strip() not in move_keys
                     ]
                     if len(remaining_groups) == len(source_groups) or not remaining_groups:
                         continue
@@ -1670,7 +1706,8 @@ class Optimizer:
                     if self._load_is_multi_order_capacity_violation(source_remainder):
                         continue
 
-                    group_load = self._build_load([group], params)
+                    move_group_list = [group] + co_groups
+                    group_load = self._build_load(move_group_list, params)
                     ranked_recipients = self._recipient_candidates_for_target(
                         source,
                         group_load,
@@ -1686,7 +1723,7 @@ class Optimizer:
                         if not self._loads_date_compatible(recipient, group_load, time_window_days):
                             continue
                         recipient_groups = list(recipient.get("groups") or [])
-                        merged_groups = recipient_groups + [group]
+                        merged_groups = recipient_groups + move_group_list
                         standalone_cost = (
                             (recipient.get("standalone_cost") or recipient.get("estimated_cost") or 0)
                             + (group_load.get("standalone_cost") or group_load.get("estimated_cost") or 0)
@@ -1857,6 +1894,249 @@ class Optimizer:
                 changed = True
 
             if not changed:
+                break
+
+        return active_loads
+
+    def _enforce_same_store_colocality(self, active_loads, params, time_window_days):
+        """Hard-constraint repair: move groups so that every store code is served
+        by exactly one load.
+
+        For each store that appears on more than one load, pick the load with the
+        most groups going to that store as the 'home' load and move the outlier
+        groups there.  If capacity prevents a direct move, try other loads rather
+        than leaving the split in place.
+        """
+        for _pass in range(8):
+            store_to_entries = {}
+            for load_id, load in list(active_loads.items()):
+                for group in (load.get("groups") or []):
+                    for code in (group.get("store_codes") or []):
+                        code = str(code or "").strip().upper()
+                        if code:
+                            store_to_entries.setdefault(code, []).append((load_id, group))
+
+            split_stores = {
+                code: entries
+                for code, entries in store_to_entries.items()
+                if len({eid for eid, _ in entries}) > 1
+            }
+            if not split_stores:
+                break
+
+            made_move = False
+            for code, entries in split_stores.items():
+                load_ids = [eid for eid, _ in entries]
+                home_id = max(set(load_ids), key=load_ids.count)
+                if home_id not in active_loads:
+                    continue
+
+                for orphan_load_id, orphan_group in entries:
+                    if orphan_load_id == home_id:
+                        continue
+                    if orphan_load_id not in active_loads:
+                        continue
+
+                    home_load = active_loads[home_id]
+                    orphan_load = active_loads[orphan_load_id]
+
+                    home_groups = list(home_load.get("groups") or [])
+                    if any(str(g.get("key") or "") == str(orphan_group.get("key") or "") for g in home_groups):
+                        continue
+
+                    merged_groups = home_groups + [orphan_group]
+                    orphan_group_load = self._build_load([orphan_group], params)
+                    if not self._loads_date_compatible(home_load, orphan_group_load, time_window_days):
+                        continue
+                    orphan_state = str(orphan_group.get("state") or "").strip().upper()
+                    home_states = self._load_state_codes(home_load)
+                    if orphan_state and home_states and orphan_state not in home_states:
+                        continue
+                    stack_config = self._stack_config_for_groups(merged_groups, params)
+                    if self._is_multi_order_capacity_violation(merged_groups, stack_config):
+                        continue
+
+                    standalone = float(home_load.get("standalone_cost") or home_load.get("estimated_cost") or 0)
+                    new_home = self._build_load(merged_groups, params, standalone_cost=standalone)
+                    if self._load_is_multi_order_capacity_violation(new_home):
+                        continue
+
+                    donor_remaining = [
+                        g for g in (orphan_load.get("groups") or [])
+                        if str(g.get("key") or "") != str(orphan_group.get("key") or "")
+                    ]
+                    if donor_remaining:
+                        new_donor = self._build_load(donor_remaining, params)
+                        del active_loads[orphan_load_id]
+                        active_loads[new_donor["_merge_id"]] = new_donor
+                    else:
+                        del active_loads[orphan_load_id]
+
+                    del active_loads[home_id]
+                    active_loads[new_home["_merge_id"]] = new_home
+                    made_move = True
+                    break
+
+                if made_move:
+                    break
+
+            if not made_move:
+                break
+
+        return active_loads
+
+    def _targeted_group_extraction(self, active_loads, params, time_window_days):
+        """Move individual groups from donor loads to better-fitting recipients.
+
+        Targets underutilized loads as recipients and prefers to extract groups
+        that are geographic outliers on their current donor (measured by how much
+        the donor's route cost drops when the group is removed). This is more
+        permissive than the whole-load merge loop: cross-state and geo-radius
+        restrictions are skipped; only capacity, date, and mix rules are enforced.
+        The cost delta serves as a natural filter against bad geographic moves.
+        """
+        passes = int(
+            params.get("v2_targeted_extraction_passes", 3)
+            or 3
+        )
+        target_util = float(
+            params.get("v2_targeted_extraction_target_util", 85.0)
+            or 85.0
+        )
+        min_util_gain = float(
+            params.get("v2_targeted_extraction_min_util_gain", 3.0)
+            or 3.0
+        )
+        max_cost_increase = float(
+            params.get("v2_targeted_extraction_max_cost_increase", 3500.0)
+            or 3500.0
+        )
+
+        for _ in range(max(passes, 0)):
+            loads = list(active_loads.values())
+            recipients = sorted(
+                [
+                    load for load in loads
+                    if (load.get("utilization_pct") or 0) < target_util
+                ],
+                key=lambda load: -(load.get("utilization_pct") or 0),
+            )
+            if not recipients:
+                break
+
+            made_move = False
+            for recipient in recipients:
+                recipient_id = recipient.get("_merge_id")
+                if recipient_id not in active_loads:
+                    continue
+
+                best = None
+                donors = [
+                    load for load in loads
+                    if load.get("_merge_id") != recipient_id
+                    and load.get("_merge_id") in active_loads
+                    and load.get("origin_plant") == recipient.get("origin_plant")
+                ]
+
+                for donor in donors:
+                    donor_id = donor.get("_merge_id")
+                    donor_groups = list(donor.get("groups") or [])
+                    if len(donor_groups) <= 1:
+                        continue
+
+                    for group in donor_groups:
+                        group_key = str(group.get("key") or "").strip()
+                        if not group_key:
+                            continue
+                        co_groups = self._same_store_co_groups(group, donor)
+                        move_keys = {group_key} | {str(g.get("key") or "").strip() for g in co_groups}
+                        remaining_groups = [
+                            g for g in donor_groups
+                            if str(g.get("key") or "").strip() not in move_keys
+                        ]
+                        if not remaining_groups:
+                            continue
+
+                        move_group_list = [group] + co_groups
+                        group_load = self._build_load(move_group_list, params)
+
+                        if not self._loads_date_compatible(recipient, group_load, time_window_days):
+                            continue
+                        if not self._loads_mix_compatible(recipient, group_load):
+                            continue
+                        group_state = str(group.get("state") or "").strip().upper()
+                        recipient_states = self._load_state_codes(recipient)
+                        if group_state and recipient_states and group_state not in recipient_states:
+                            if not self._cross_state_pair_allowed(recipient, group_load, params):
+                                continue
+
+                        recipient_groups = list(recipient.get("groups") or [])
+                        merged_groups = recipient_groups + move_group_list
+                        if not self._check_stacking_compatible(merged_groups):
+                            continue
+
+                        stack_config = self._stack_config_for_groups(merged_groups, params)
+                        if self._is_multi_order_capacity_violation(merged_groups, stack_config):
+                            continue
+
+                        standalone_cost = (
+                            float(recipient.get("standalone_cost") or recipient.get("estimated_cost") or 0)
+                            + float(group_load.get("estimated_cost") or 0)
+                        )
+                        merged_recipient = self._build_load(merged_groups, params, standalone_cost=standalone_cost)
+                        if self._load_is_multi_order_capacity_violation(merged_recipient):
+                            continue
+
+                        util_gain = (
+                            float(merged_recipient.get("utilization_pct") or 0)
+                            - float(recipient.get("utilization_pct") or 0)
+                        )
+                        if util_gain < min_util_gain:
+                            continue
+
+                        donor_remainder = self._build_load(remaining_groups, params)
+                        removal_savings = (
+                            float(donor.get("estimated_cost") or 0)
+                            - float(donor_remainder.get("estimated_cost") or 0)
+                        )
+                        cost_delta = (
+                            float(merged_recipient.get("estimated_cost") or 0)
+                            - float(recipient.get("estimated_cost") or 0)
+                            - removal_savings
+                        )
+                        if cost_delta > max_cost_increase:
+                            continue
+
+                        outlier_bonus = max(removal_savings, 0.0)
+                        score = (
+                            util_gain * 15.0
+                            + outlier_bonus * 0.5
+                            - max(cost_delta, 0.0) * 0.3
+                        )
+
+                        if best is None or score > best[0]:
+                            best = (
+                                score,
+                                recipient_id,
+                                donor_id,
+                                merged_recipient,
+                                donor_remainder,
+                            )
+
+                if not best:
+                    continue
+
+                _, rid, did, merged_recipient, donor_remainder = best
+                if rid not in active_loads or did not in active_loads:
+                    continue
+                del active_loads[rid]
+                del active_loads[did]
+                active_loads[merged_recipient["_merge_id"]] = merged_recipient
+                active_loads[donor_remainder["_merge_id"]] = donor_remainder
+                made_move = True
+                break
+
+            if not made_move:
                 break
 
         return active_loads
@@ -3886,6 +4166,67 @@ class Optimizer:
             summary = order_summary_map.get(key)
             groups.append(self._build_group(key, lines, summary))
         return groups
+
+    def _same_store_co_groups(self, group, load):
+        """Return all groups in load that share a same-store partner key with group.
+
+        Used to enforce atomic same-store moves: if we're moving group, we must
+        also move these co-groups (or abort the move).
+        """
+        partner_keys = set(group.get("_same_store_partner_keys") or [])
+        if not partner_keys:
+            return []
+        return [
+            g for g in (load.get("groups") or [])
+            if str(g.get("key") or "").strip() in partner_keys
+        ]
+
+    def _force_add_store_partners(self, current_groups, just_added_group, remaining, singleton_by_key, current_load, params):
+        """Immediately pull same-store partners of just_added_group into the current seed.
+
+        Modifies current_groups and remaining in place; returns the updated current_load.
+        Skips partners that fail capacity or compatibility checks so a full load is
+        never forced over capacity.
+        """
+        for partner_key in (just_added_group.get("_same_store_partner_keys") or []):
+            if partner_key not in remaining:
+                continue
+            partner = remaining[partner_key]
+            if not self._can_add_group(current_groups, partner, params):
+                continue
+            partner_load = singleton_by_key.get(partner_key) or self._build_load([partner], params)
+            sa = (
+                float(current_load.get("standalone_cost") or current_load.get("estimated_cost") or 0)
+                + float(partner_load.get("estimated_cost") or 0)
+            )
+            forced = self._build_load(current_groups + [partner], params, standalone_cost=sa)
+            if self._load_is_multi_order_capacity_violation(forced):
+                continue
+            current_groups.append(partner)
+            current_load = forced
+            del remaining[partner_key]
+        return current_load
+
+    def _merge_same_store_groups(self, groups):
+        """Annotate each group with the keys of any other groups sharing its store code.
+
+        Groups are NOT combined — lines remain separate so stacking physics are
+        preserved.  The annotations are used by _enforce_same_store_colocality
+        to repair splits after the main optimization.
+        """
+        by_store = {}
+        for group in (groups or []):
+            codes = [c for c in (group.get("store_codes") or []) if c]
+            if len(codes) == 1:
+                by_store.setdefault(codes[0], []).append(group)
+        for store_groups in by_store.values():
+            if len(store_groups) <= 1:
+                continue
+            all_keys = [str(g.get("key") or "") for g in store_groups if g.get("key")]
+            for group in store_groups:
+                own_key = str(group.get("key") or "")
+                group["_same_store_partner_keys"] = [k for k in all_keys if k != own_key]
+        return list(groups or [])
 
     def _build_group(self, key, lines, order_summary=None):
         total_length = sum(line.get("total_length_ft") or 0 for line in lines)
