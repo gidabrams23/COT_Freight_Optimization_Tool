@@ -2285,12 +2285,22 @@ class Optimizer:
         )
 
         total_delta = 0.0
+        already_absorbed = set()
         for group in sorted(
             target.get("groups") or [],
             key=lambda g: g.get("total_length_ft") or 0,
             reverse=True,
         ):
-            group_load = self._build_load([group], params)
+            group_key = str(group.get("key") or "").strip()
+            if group_key in already_absorbed:
+                continue
+            co_groups = self._same_store_co_groups(group, target)
+            move_group_list = [group] + [
+                g for g in co_groups
+                if str(g.get("key") or "").strip() not in already_absorbed
+            ]
+            move_keys = {str(g.get("key") or "").strip() for g in move_group_list}
+            group_load = self._build_load(move_group_list, params)
             recipients = [
                 load
                 for load in working.values()
@@ -2314,7 +2324,7 @@ class Optimizer:
                 if not self._loads_date_compatible(recipient, group_load, time_window_days):
                     continue
 
-                combined_groups = list(recipient.get("groups") or []) + [group]
+                combined_groups = list(recipient.get("groups") or []) + move_group_list
                 candidate_stack_options = []
                 default_stack_config = self._stack_config_for_groups(combined_groups, params)
                 if not self._is_multi_order_capacity_violation(combined_groups, default_stack_config):
@@ -2414,6 +2424,7 @@ class Optimizer:
             del working[recipient_id]
             working[merged_load["_merge_id"]] = merged_load
             total_delta += delta
+            already_absorbed.update(move_keys)
 
         if target_id not in working:
             return None
