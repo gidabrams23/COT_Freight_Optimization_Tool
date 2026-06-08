@@ -287,7 +287,7 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
         self.assertEqual(upload_meta["matched_items"], 2)
         self.assertEqual(upload_meta["unmatched_items"], 1)
 
-    def test_import_bwise_inventory_workbook_filters_stock_and_blank_assembled(self):
+    def test_import_bwise_inventory_workbook_filters_stock_and_populated_assembled(self):
         workbook_path = self._build_bwise_inventory_workbook()
 
         result = self.db.import_bwise_inventory_report(workbook_path=workbook_path)
@@ -295,31 +295,28 @@ class ProgradeInventoryUploadTests(unittest.TestCase):
         self.assertEqual(result["source_format"], "bwise_workbook")
         self.assertEqual(result["sheet_name"], "Sheet1")
         self.assertEqual(result["processed_rows"], 6)
-        self.assertEqual(result["valid_rows"], 4)
-        self.assertEqual(result["distinct_items"], 3)
-        self.assertEqual(result["available_total"], 4)
-        self.assertEqual(result["matched_rows"], 3)
-        self.assertEqual(result["matched_item_count"], 2)
-        self.assertEqual(result["unmatched_item_count"], 1)
-        self.assertIn("TH822DIBNPJ", result["unmatched_items"])
+        self.assertEqual(result["valid_rows"], 1)
+        self.assertEqual(result["distinct_items"], 1)
+        self.assertEqual(result["available_total"], 1)
+        self.assertEqual(result["matched_rows"], 1)
+        self.assertEqual(result["matched_item_count"], 1)
+        self.assertEqual(result["unmatched_item_count"], 0)
+        self.assertEqual(result["unmatched_items"], [])
 
         snapshot_rows = [dict(r) for r in self.db.get_bwise_inventory_snapshot_rows(limit=20)]
         by_item = {row["item_number"]: row for row in snapshot_rows}
-        self.assertEqual(by_item["GH824DIBNW"]["available_count"], 2)
-        self.assertEqual(by_item["GH824DIBNW"]["match_method"], "exact")
         self.assertEqual(by_item["GDF712DGAAW"]["available_count"], 1)
         self.assertEqual(by_item["GDF712DGAAW"]["match_method"], "trimmed_suffix")
-        self.assertEqual(by_item["TH822DIBNPJ"]["available_count"], 1)
-        self.assertEqual(by_item["TH822DIBNPJ"]["match_method"], "unmapped")
+        self.assertEqual(len(snapshot_rows), 1)
 
         upload_meta = dict(self.db.get_bwise_inventory_upload_meta())
         self.assertEqual(upload_meta["source_format"], "bwise_workbook")
         self.assertEqual(upload_meta["processed_rows"], 6)
-        self.assertEqual(upload_meta["valid_rows"], 4)
-        self.assertEqual(upload_meta["distinct_items"], 3)
-        self.assertEqual(upload_meta["matched_rows"], 3)
-        self.assertEqual(upload_meta["matched_items"], 2)
-        self.assertEqual(upload_meta["unmatched_items"], 1)
+        self.assertEqual(upload_meta["valid_rows"], 1)
+        self.assertEqual(upload_meta["distinct_items"], 1)
+        self.assertEqual(upload_meta["matched_rows"], 1)
+        self.assertEqual(upload_meta["matched_items"], 1)
+        self.assertEqual(upload_meta["unmatched_items"], 0)
 
 
 if __name__ == "__main__":

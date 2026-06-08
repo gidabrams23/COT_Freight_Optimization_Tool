@@ -57,7 +57,7 @@ Defines the current inventory-gap panel behavior on the ProGrade load page for b
   - Header row is row `3`.
   - `D` (`PART`): SKU key matched to `bwise_skus.item_number`.
   - `B` (`Customer (Ship To)`): only `STOCK` rows are included.
-  - `K` (`Assembled`): only blank values are included.
+  - `K` (`Assembled`): only populated values are included.
   - Current matcher supports exact part-number match and trimmed trailing `%` / `#` suffix match.
 - Snapshot aggregates persisted per item:
   - `total_count`

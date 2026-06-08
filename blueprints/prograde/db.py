@@ -3687,7 +3687,7 @@ def _import_bwise_inventory_workbook(source_path, sheet_name="Sheet1"):
             customer = str(row[field_map["customershipto"]] or "").strip().upper()
             if customer != "STOCK":
                 continue
-            if not _is_blank_cell(row[field_map["assembled"]]):
+            if _is_blank_cell(row[field_map["assembled"]]):
                 continue
 
             raw_part = str(row[field_map["part"]] or "").strip().upper()
@@ -3728,7 +3728,7 @@ def _import_bwise_inventory_workbook(source_path, sheet_name="Sheet1"):
 
         if not metrics_by_item:
             raise ValueError(
-                "No B-Wise inventory rows matched the expected filter: Customer (Ship To)=STOCK and blank Assembled."
+                "No B-Wise inventory rows matched the expected filter: Customer (Ship To)=STOCK and populated Assembled."
             )
 
         now = datetime.utcnow().isoformat()
