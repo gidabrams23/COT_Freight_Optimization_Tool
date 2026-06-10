@@ -818,12 +818,21 @@
           </div>
           <div class="upload-discrepancies hidden" data-upload-discrepancies-panel>
             <div class="upload-summary-title">Load Assignment Discrepancies</div>
-            <div class="upload-discrepancy-header upload-discrepancy-header-wrap">
-              <span class="upload-discrepancy-pill" data-source-removed-pill>0 total orders taken off loads in source</span>
-              <span class="upload-discrepancy-pill" data-source-unassigned-tool-pill>0 orders on approved loads in tool</span>
-              <button class="btn-secondary btn-xs" type="button" data-discrepancy-remove-all hidden>Release all</button>
+            <div class="upload-discrepancy-section" data-discrepancy-action-section>
+              <div class="upload-discrepancy-header upload-discrepancy-header-wrap">
+                <span class="upload-discrepancy-pill" data-source-unassigned-tool-pill>0 orders still on approved tool loads</span>
+                <button class="btn-secondary btn-xs" type="button" data-discrepancy-remove-all hidden>Release all</button>
+              </div>
+              <p class="upload-unmapped-note">These orders are not on a source load in the latest upload, but they are still reserved on approved loads in the tool.</p>
+              <div class="upload-discrepancy-list" data-discrepancy-action-list></div>
             </div>
-            <div class="upload-discrepancy-list" data-discrepancy-combined-list></div>
+            <div class="upload-discrepancy-section" data-discrepancy-info-section>
+              <div class="upload-discrepancy-header upload-discrepancy-header-wrap">
+                <span class="upload-discrepancy-pill" data-source-removed-pill>0 total orders taken off loads in source</span>
+              </div>
+              <p class="upload-unmapped-note">These orders changed source-load status since the last upload, but they are not currently on approved tool loads.</p>
+              <div class="upload-discrepancy-list" data-discrepancy-info-list></div>
+            </div>
             <div class="upload-discrepancy-status" data-upload-discrepancy-status></div>
           </div>
           <div class="upload-unmapped hidden" data-unmapped-panel>
@@ -3356,7 +3365,10 @@
       const sourceRemovedPill = modal.querySelector('[data-source-removed-pill]');
       const sourceUnassignedToolPill = modal.querySelector('[data-source-unassigned-tool-pill]');
       const discrepancyRemoveAllButton = modal.querySelector('[data-discrepancy-remove-all]');
-      const discrepancyCombinedList = modal.querySelector('[data-discrepancy-combined-list]');
+      const discrepancyActionSection = modal.querySelector('[data-discrepancy-action-section]');
+      const discrepancyInfoSection = modal.querySelector('[data-discrepancy-info-section]');
+      const discrepancyActionList = modal.querySelector('[data-discrepancy-action-list]');
+      const discrepancyInfoList = modal.querySelector('[data-discrepancy-info-list]');
       const discrepancyStatus = modal.querySelector('[data-upload-discrepancy-status]');
       const summaryFields = {
         totalRows: modal.querySelector('[data-summary-total-rows]'),
@@ -3458,9 +3470,12 @@
       const hideDiscrepancies = () => {
         currentUploadId = null;
         if (discrepancyPanel) discrepancyPanel.classList.add('hidden');
-        if (discrepancyCombinedList) discrepancyCombinedList.innerHTML = '';
+        if (discrepancyActionList) discrepancyActionList.innerHTML = '';
+        if (discrepancyInfoList) discrepancyInfoList.innerHTML = '';
+        if (discrepancyActionSection) discrepancyActionSection.classList.add('hidden');
+        if (discrepancyInfoSection) discrepancyInfoSection.classList.add('hidden');
         if (sourceRemovedPill) sourceRemovedPill.textContent = '0 total orders taken off loads in source';
-        if (sourceUnassignedToolPill) sourceUnassignedToolPill.textContent = '0 orders on approved loads in tool';
+        if (sourceUnassignedToolPill) sourceUnassignedToolPill.textContent = '0 orders still on approved tool loads';
         if (discrepancyRemoveAllButton) {
           discrepancyRemoveAllButton.classList.add('hidden');
           discrepancyRemoveAllButton.disabled = false;
@@ -3469,8 +3484,8 @@
       };
 
       const getPendingDiscrepancyButtons = () => {
-        if (!discrepancyCombinedList) return [];
-        return Array.from(discrepancyCombinedList.querySelectorAll('[data-discrepancy-resolve]'))
+        if (!discrepancyActionList) return [];
+        return Array.from(discrepancyActionList.querySelectorAll('[data-discrepancy-resolve]'))
           .filter((button) => !button.disabled && typeof button._resolveDiscrepancy === 'function');
       };
 
@@ -3511,44 +3526,56 @@
           sourceRemovedPill.textContent = `${sourceRemovedTotal} total orders taken off loads in source`;
         }
         if (sourceUnassignedToolPill) {
-          sourceUnassignedToolPill.textContent = `${sourceUnassignedTotal} orders on approved loads in tool`;
+          sourceUnassignedToolPill.textContent = `${sourceUnassignedTotal} orders still on approved tool loads`;
         }
-        if (discrepancyCombinedList) discrepancyCombinedList.innerHTML = '';
+        if (discrepancyActionList) discrepancyActionList.innerHTML = '';
+        if (discrepancyInfoList) discrepancyInfoList.innerHTML = '';
         if (discrepancyStatus) discrepancyStatus.textContent = '';
 
         combinedRows.forEach((entry) => {
-          if (!discrepancyCombinedList) return;
-          const row = document.createElement('div');
           const requiresRemoval = Boolean(entry && entry.requires_tool_removal && entry.tool_load_id);
+          const targetList = requiresRemoval ? discrepancyActionList : discrepancyInfoList;
+          if (!targetList) return;
+          const row = document.createElement('div');
           row.className = `upload-discrepancy-row ${requiresRemoval ? 'upload-discrepancy-row-action' : 'upload-discrepancy-row-info'}`;
           const sourceLoadLabel = entry.source_prev_load_number || 'Not on source load';
           const toolLoadLabel = entry.tool_assigned
             ? `Approved load #${escapeHtml(entry.tool_load_number || '--')}`
             : 'Not on approved tool load';
-          const buttonDisabled = !requiresRemoval;
-          row.innerHTML = `
-            <div class="upload-discrepancy-main">
-              <strong>SO #${escapeHtml(entry.so_num || '--')}</strong>
-              <span class="upload-discrepancy-meta">Source: ${escapeHtml(sourceLoadLabel)} | ${toolLoadLabel}</span>
-            </div>
-            <div class="upload-discrepancy-actions">
-              <span class="upload-discrepancy-row-status" data-discrepancy-row-status></span>
-              <button
-                class="btn-secondary btn-xs"
-                type="button"
-                data-discrepancy-resolve
-                ${buttonDisabled ? 'disabled' : ''}
-              >
-                Release SO #${escapeHtml(entry.so_num || '--')} for future planning
-              </button>
-            </div>
-          `;
+          if (requiresRemoval) {
+            row.innerHTML = `
+              <div class="upload-discrepancy-main">
+                <strong>SO #${escapeHtml(entry.so_num || '--')}</strong>
+                <span class="upload-discrepancy-meta">Source: ${escapeHtml(sourceLoadLabel)} | ${toolLoadLabel}</span>
+              </div>
+              <div class="upload-discrepancy-actions">
+                <span class="upload-discrepancy-row-status" data-discrepancy-row-status></span>
+                <button
+                  class="btn-secondary btn-xs"
+                  type="button"
+                  data-discrepancy-resolve
+                >
+                  Release SO #${escapeHtml(entry.so_num || '--')} for future planning
+                </button>
+              </div>
+            `;
+          } else {
+            row.innerHTML = `
+              <div class="upload-discrepancy-main">
+                <strong>SO #${escapeHtml(entry.so_num || '--')}</strong>
+                <span class="upload-discrepancy-meta">Source: ${escapeHtml(sourceLoadLabel)} | ${toolLoadLabel}</span>
+              </div>
+              <div class="upload-discrepancy-actions">
+                <span class="upload-discrepancy-row-status" data-discrepancy-row-status>No action needed.</span>
+              </div>
+            `;
+          }
           const actionButton = row.querySelector('[data-discrepancy-resolve]');
           const rowStatus = row.querySelector('[data-discrepancy-row-status]');
-          if (buttonDisabled && rowStatus && entry.tool_assigned && !entry.requires_tool_removal) {
-            rowStatus.textContent = 'Already resolved.';
+          if (!requiresRemoval && rowStatus && entry.tool_assigned && !entry.requires_tool_removal) {
+            rowStatus.textContent = 'Already released.';
           }
-          if (actionButton && !buttonDisabled) {
+          if (actionButton && requiresRemoval) {
             actionButton._resolveDiscrepancy = async () => {
               actionButton.disabled = true;
               if (rowStatus) rowStatus.textContent = 'Releasing...';
@@ -3595,9 +3622,11 @@
               }
             });
           }
-          discrepancyCombinedList.appendChild(row);
+          targetList.appendChild(row);
         });
 
+        if (discrepancyActionSection) discrepancyActionSection.classList.toggle('hidden', sourceUnassignedTotal === 0);
+        if (discrepancyInfoSection) discrepancyInfoSection.classList.toggle('hidden', sourceRemovedTotal === 0);
         updateRemoveAllVisibility();
         discrepancyPanel.classList.remove('hidden');
       };
