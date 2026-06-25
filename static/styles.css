@@ -7406,13 +7406,22 @@ button.plant-card {
 .badge.badge-compact {
   font-size: 8px;
   padding: 2px 6px;
+  white-space: nowrap;
+  width: max-content;
 }
 
 .load-summary-details .load-detail-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: 72px minmax(0, auto) minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.load-summary-details .load-detail-line .badge {
+  justify-self: start;
+  width: max-content;
+  white-space: nowrap;
 }
 
 .load-summary-details .detail-label {
@@ -7421,6 +7430,7 @@ button.plant-card {
   letter-spacing: 0.04em;
   color: var(--text-secondary);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .load-summary-details .detail-value {
@@ -7428,6 +7438,7 @@ button.plant-card {
   font-weight: 800;
   color: var(--text-primary);
   font-family: var(--font-family);
+  white-space: nowrap;
 }
 
 .load-summary-details .detail-chip {
@@ -7447,6 +7458,7 @@ button.plant-card {
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-family);
+  white-space: nowrap;
 }
 
 .loads-review-layout .load-summary-metric.util .util-pct {
@@ -7462,10 +7474,18 @@ button.plant-card {
 .load-summary-metric.util .util-pct.util-f { color: #ef4444; }
 
 .load-summary-metric.cost .fin-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: baseline;
-  justify-content: flex-end;
-  gap: 6px;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.load-summary-metric.cost .fin-label {
+  min-width: 0;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -7484,6 +7504,9 @@ button.plant-card {
   font-family: var(--font-family);
   letter-spacing: 0.01em;
   text-transform: none;
+  white-space: nowrap;
+  margin-left: 0;
+  justify-self: start;
 }
 
 .load-summary-metric.cost .fin-freight-value[data-freight-estimate] {
@@ -7510,6 +7533,9 @@ button.plant-card {
   font-family: var(--font-family);
   letter-spacing: 0.01em;
   text-transform: none;
+  white-space: nowrap;
+  margin-left: 0;
+  justify-self: start;
 }
 
 .load-summary-id .badge {
@@ -7558,21 +7584,29 @@ button.plant-card {
 }
 
 .loads-review-layout .load-summary-metric.util.summary-cell {
-  width: max-content;
+  width: 100%;
   align-content: center;
+  min-width: 0;
 }
 
 .loads-review-layout .load-summary-metric.util .util-meta {
   flex-wrap: nowrap;
-  width: max-content;
+  width: 100%;
   align-items: center;
   gap: 8px;
+  justify-content: flex-start;
+  min-width: 0;
 }
 
 .loads-review-layout .load-summary-metric.util .util-progress {
-  width: 100%;
+  width: min(100%, 126px);
   height: 6px;
   border-radius: 999px;
+}
+
+.loads-review-layout .load-summary-metric.cost.summary-cell {
+  align-items: start;
+  padding-left: 8px;
 }
 
 .loads-review-layout .load-summary-metric.util .util-progress .util-fill {
@@ -12824,12 +12858,12 @@ button.plant-card {
 
 .loads-review-layout {
   display: grid;
-  grid-template-columns: minmax(360px, 0.92fr) minmax(420px, 1.08fr);
+  grid-template-columns: minmax(390px, 0.98fr) minmax(420px, 1.02fr);
   gap: var(--spacing-md);
   align-items: stretch;
   height: var(--loads-review-height, auto);
   min-height: 0;
-  --loads-grid-columns: minmax(150px, 0.92fr) minmax(124px, 0.82fr) minmax(116px, 0.62fr) minmax(146px, 0.7fr);
+  --loads-grid-columns: minmax(166px, 0.98fr) minmax(144px, 0.84fr) minmax(150px, 0.92fr) minmax(214px, 1.18fr);
 }
 
 .page.page-loads-index {
@@ -13209,6 +13243,28 @@ button.plant-card {
   padding: 10px 10px;
   min-height: 64px;
   gap: 8px;
+}
+
+.loads-grid-head-cell:nth-child(1),
+.loads-review-layout .loads-master .load-summary-grid .summary-cell:nth-child(1) {
+  padding-right: 4px;
+}
+
+.loads-grid-head-cell:nth-child(2),
+.loads-review-layout .loads-master .load-summary-grid .summary-cell:nth-child(2) {
+  padding-left: 4px;
+  padding-right: 18px;
+}
+
+.loads-grid-head-cell:nth-child(3),
+.loads-review-layout .loads-master .load-summary-grid .summary-cell:nth-child(3) {
+  padding-left: 18px;
+  padding-right: 12px;
+}
+
+.loads-grid-head-cell:nth-child(4),
+.loads-review-layout .loads-master .load-summary-grid .summary-cell:nth-child(4) {
+  padding-left: 14px;
 }
 
 .loads-review-layout .load-summary-grid {
@@ -14082,7 +14138,7 @@ button.plant-card {
 @media (max-width: 1100px) {
   .loads-review-layout {
     grid-template-columns: minmax(280px, 0.94fr) minmax(340px, 1.06fr);
-    --loads-grid-columns: minmax(0, 0.92fr) minmax(0, 0.82fr) minmax(108px, 0.58fr) minmax(0, 0.72fr);
+    --loads-grid-columns: minmax(0, 1.04fr) minmax(120px, 0.7fr) minmax(132px, 0.74fr) minmax(196px, 1.04fr);
   }
 
   .loads-review-layout .load-row {
@@ -14098,7 +14154,7 @@ button.plant-card {
 @media (max-width: 768px) {
   .loads-review-layout {
     grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
-    --loads-grid-columns: minmax(0, 0.98fr) minmax(0, 0.84fr) minmax(102px, 0.6fr) minmax(0, 0.75fr);
+    --loads-grid-columns: minmax(0, 1.02fr) minmax(114px, 0.66fr) minmax(128px, 0.72fr) minmax(182px, 1fr);
   }
 
   .loads-review-layout .load-row {
@@ -18593,9 +18649,9 @@ body.loads-auto-compact .approval-tracker-pct {
 }
 
 body.loads-auto-compact .loads-review-layout {
-  grid-template-columns: minmax(340px, 0.94fr) minmax(360px, 1.06fr);
+  grid-template-columns: minmax(370px, 0.98fr) minmax(360px, 1.02fr);
   gap: 8px;
-  --loads-grid-columns: minmax(0, 0.95fr) minmax(0, 0.84fr) minmax(94px, 0.58fr) minmax(0, 0.66fr);
+  --loads-grid-columns: minmax(160px, 0.98fr) minmax(136px, 0.82fr) minmax(140px, 0.84fr) minmax(206px, 1.18fr);
 }
 
 body.loads-auto-compact .loads-tabs-shell {
@@ -18673,8 +18729,73 @@ body.loads-auto-sidebar .page.page-loads-index {
 
 @media (max-width: 1450px) and (min-width: 1101px) {
   body.loads-auto-compact .loads-review-layout {
-    grid-template-columns: minmax(340px, 0.95fr) minmax(360px, 1.05fr);
-    --loads-grid-columns: minmax(0, 0.95fr) minmax(0, 0.84fr) minmax(94px, 0.58fr) minmax(0, 0.66fr);
+    grid-template-columns: minmax(360px, 0.98fr) minmax(360px, 1.02fr);
+    --loads-grid-columns: minmax(0, 0.96fr) minmax(124px, 0.76fr) minmax(130px, 0.8fr) minmax(198px, 1.18fr);
+  }
+}
+
+@media (max-width: 1600px) and (min-width: 1101px) {
+  body.loads-auto-compact .loads-grid-head-cell {
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  body.loads-auto-compact .loads-review-layout .loads-master .load-summary-grid .summary-cell {
+    min-height: 50px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    gap: 4px;
+  }
+
+  body.loads-auto-compact .load-title-label {
+    font-size: 12px;
+  }
+
+  body.loads-auto-compact .load-summary-id .route-meta {
+    font-size: 9px;
+  }
+
+  body.loads-auto-compact .load-summary-details .detail-label {
+    font-size: 9px;
+  }
+
+  body.loads-auto-compact .load-summary-details .detail-value,
+  body.loads-auto-compact .load-summary-details .detail-date {
+    font-size: 11px;
+  }
+
+  body.loads-auto-compact .badge.badge-compact,
+  body.loads-auto-compact .load-summary-details .load-detail-line .badge {
+    font-size: 7px;
+    padding: 2px 5px;
+  }
+
+  body.loads-auto-compact .loads-review-layout .load-summary-metric.util .util-pct {
+    font-size: 13px;
+  }
+
+  body.loads-auto-compact .load-summary-metric .util-grade {
+    font-size: 9px;
+    padding: 2px 7px;
+  }
+
+  body.loads-auto-compact .loads-review-layout .load-summary-metric.util .util-progress {
+    width: min(100%, 116px);
+  }
+
+  body.loads-auto-compact .load-summary-metric.cost .fin-line {
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  body.loads-auto-compact .load-summary-metric.cost .fin-sales-value {
+    font-size: 11px;
+  }
+
+  body.loads-auto-compact .load-summary-metric.cost .fin-freight-value {
+    font-size: 13px;
   }
 }
 

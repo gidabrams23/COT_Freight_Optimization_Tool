@@ -415,7 +415,7 @@
                     <div class="loads-grid-head-cell">Load / Route</div>
                     <div class="loads-grid-head-cell">Details</div>
                     <div class="loads-grid-head-cell">Utilization</div>
-                    <div class="loads-grid-head-cell loads-grid-head-cell-right">Financials</div>
+                    <div class="loads-grid-head-cell">Financials</div>
                   </div>
                   {% if has_loads %}
                     {% for section in load_sections %}
@@ -542,10 +542,11 @@
                           {% set freight = load.freight_breakdown or {} %}
                           <div class="load-summary-metric cost summary-cell">
                             <div class="fin-line fin-sales">
-                              Sales Value: <span class="fin-sales-value">${{ "{:,.0f}".format((load.total_sales or 0) | float) }}</span>
+                              <span class="fin-label">Sales Value:</span>
+                              <span class="fin-sales-value">${{ "{:,.0f}".format((load.total_sales or 0) | float) }}</span>
                             </div>
                             <div class="fin-line fin-freight">
-                              Freight:
+                              <span class="fin-label">Freight:</span>
                               <span
                                 class="fin-freight-value"
                                 data-freight-estimate
